@@ -69,13 +69,14 @@ static class Program
             FriendlyMotionRegressions();
             MotionChecks.Run(Check);
             BattleBalanceChecks.Run(Check);
+            EnemyAttackChecks.Run(Check);
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");
             b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});Check(b.Action==HeroAction.None,"beam requires energy");
             Punch(b);Check(b.EnemyHealth==b.MaxHealth-1 && b.Punches==1,"one punch applies one hit");
             Advance(b,.8f);Check(b.EnemyHealth==b.MaxHealth-1,"idle frames cannot repeat a hit");
             b=Started();Advance(b,4.1f);Check(b.Enemy==EnemyPhase.Windup && b.HitsTaken==0,"enemy warns before hit");
-            Advance(b,2.5f,true);Check(b.Blocks==1 && b.HitsTaken==0,"held shield blocks telegraphed attack");
-            b=Started();Advance(b,6.6f);Check(b.HitsTaken==1 && b.Phase==GamePhase.Battle,"unblocked hit recovers without failure");
+            Advance(b,2.9f,true);Check(b.Blocks==1 && b.HitsTaken==0,"held shield blocks telegraphed attack");
+            b=Started();Advance(b,7f);Check(b.HitsTaken==1 && b.Phase==GamePhase.Battle,"unblocked hit recovers without failure");
             Advance(b,120);Check(b.Phase==GamePhase.Battle,"repeated enemy hits never cause failure");
             b=Started();b.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});b.Tick(.02f,default);
             Check(b.Phase==GamePhase.Paused,"lost tracking pauses battle");

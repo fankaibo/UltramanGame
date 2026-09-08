@@ -59,6 +59,17 @@ namespace UltramanGame.Runtime
             if(age<Battle.PunchHitSeconds)return Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds);
             return 1-Mathf.SmoothStep(0,1,(age-Battle.PunchHitSeconds)/(Battle.PunchSeconds-Battle.PunchHitSeconds));
         }
+        public static float MonsterAdvance(Battle state)
+        {
+            if(state.Phase!=GamePhase.Battle)return 0;
+            if(state.Enemy==EnemyPhase.Windup)
+                return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/Battle.WindupSeconds);
+            if(state.Enemy!=EnemyPhase.Attack)return 0;
+            float age=state.EnemyAge;
+            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,2.25f,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
+            if(age<Battle.EnemyHitSeconds+.12f)return 2.25f;
+            return 2.25f*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
+        }
         void SetFrame(int frame)
         {
             if(frame==displayed)return;
@@ -78,12 +89,19 @@ namespace UltramanGame.Runtime
             {
                 if(state.Phase==GamePhase.Victory)
                 {frame=7;forward=-Mathf.SmoothStep(0,1,phaseAge/2)*1.8f;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1)/2);}
+                else if(fighting&&state.Enemy==EnemyPhase.Attack)
+                {
+                    float age=state.EnemyAge;forward=MonsterAdvance(state);
+                    frame=age<.13f?1:age<Battle.EnemyHitSeconds+.15f?2:4;
+                    tilt=forward*2;breath=0;
+                    jump=age<Battle.EnemyHitSeconds?Mathf.Sin(age/Battle.EnemyHitSeconds*Mathf.PI)*.08f:0;
+                }
                 else if(fighting&&hitAge<.35f)
                 {frame=heavyHit?6:5;forward=-Mathf.Sin(hitAge/.35f*Mathf.PI)*.22f;tilt=-Mathf.Sin(hitAge/.35f*Mathf.PI)*5;}
                 else if(fighting&&state.Enemy==EnemyPhase.Windup)
-                {frame=state.EnemyAge<.3f?1:3;breath=Mathf.Sin(time*8)*.012f;}
+                {frame=state.EnemyAge<.3f?1:3;forward=MonsterAdvance(state);tilt=-3*Mathf.Clamp01(state.EnemyAge/Battle.WindupSeconds);breath=Mathf.Sin(time*8)*.012f;}
                 else if(fighting&&state.Enemy==EnemyPhase.Recover)
-                {frame=state.EnemyAge<.24f?2:4;forward=state.EnemyAge<.3f?Mathf.Sin(state.EnemyAge/.3f*Mathf.PI)*.4f:0;}
+                {frame=state.EnemyAge<.55f?4:0;}
             }
             else
             {

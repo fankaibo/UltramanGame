@@ -81,6 +81,8 @@ def effect(name, seconds, style):
     noise = RNG.normal(0, 1, len(t))
     if style == 'whoosh':
         data = (noise*.11+np.sin(2*np.pi*(190*t-65*t*t))*.15)*np.sin(np.pi*x)**2
+    elif style == 'rush':
+        data = (np.sin(2*np.pi*(95*t-35*t*t))*.28+noise*.20)*np.sin(np.pi*x)**1.3
     elif style == 'hit':
         data = (np.sin(2*np.pi*(62*t+2*(1-np.exp(-t*35))))*.55+noise*.12)*np.exp(-t*18)*(1-np.exp(-t*1700))
     elif style == 'beam':
@@ -102,11 +104,11 @@ if __name__ == '__main__':
     score('music_ready', 90, 8, False)
     score('music_battle', 108, 16, True)
     for args in [('swing',.24,'whoosh'),('impact',.32,'hit'),('beam',1.5,'beam'),
-                 ('shield',.75,'shield'),('transform',1.65,'rise'),('recover',.45,'soft')]:
+                 ('shield',.75,'shield'),('transform',1.65,'rise'),('recover',.45,'soft'),('enemy_rush',.45,'rush')]:
         effect(*args)
     win=np.zeros((RATE*4,2))
     for i,n in enumerate((62,66,69,74,78,81,86)):
         part=tone(n,1.6)*.25;start=int(i*.27*RATE)
         win[start:start+len(part),:] += part[:,None]
     save('victory',win)
-    print('Generated 2 original music loops and 7 effects in '+str(ROOT))
+    print('Generated 2 original music loops and 8 effects in '+str(ROOT))

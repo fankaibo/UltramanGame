@@ -14,7 +14,9 @@ namespace UltramanGame.Runtime
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop,beam,beamCore,shield,transformLight;
         readonly LineRenderer chargeRing,shieldRing;
-        readonly Material cyan,gold;
+        readonly Material cyan,gold,enemyGlow;
+        readonly MonsterAttackEffects monsterEffects;
+        public bool EnemySlashVisible => monsterEffects.SlashVisible;
         readonly Vector3 cameraHome=new Vector3(0,4.2f,-12),lookAt=new Vector3(0,1.22f,.4f);
         struct Spark { public Transform Object;public Vector3 Velocity;public float Life,Total,Size; }
         readonly Spark[] sparks=new Spark[48];
@@ -36,6 +38,8 @@ namespace UltramanGame.Runtime
             var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=.75f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;RenderSettings.ambientLight=new Color(.24f,.28f,.36f);RenderSettings.fog=false;
             cyan=Glow(new Color(.14f,.77f,1,.55f));gold=Glow(new Color(1,.72f,.27f,.65f));
+            enemyGlow=Glow(new Color(1,.43f,.13f,.6f));
+            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);
             shield=Primitive(root,PrimitiveType.Sphere,ShieldCenter,new Vector3(1.75f,2.0f,.2f),Glow(new Color(.13f,.64f,1,.11f)));
             shield.rotation=Quaternion.LookRotation(BattleAxis,Vector3.up);
             shieldRing=Ring(root,shield.position,.86f,.03f,cyan);shieldRing.transform.rotation=Quaternion.FromToRotation(Vector3.up,BattleAxis);
@@ -62,20 +66,23 @@ namespace UltramanGame.Runtime
             for(int i=0;i<96;i++) { float a=i*2*Mathf.PI/96;line.SetPosition(i,new Vector3(Mathf.Cos(a)*radius,0,Mathf.Sin(a)*radius)); }
             return line;
         }
-        public void Burst(Vector3 position,int count,float force=1)
+        public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false)
         {
             for(int i=0;i<count;i++)
             {
                 int index=sparkIndex++%sparks.Length;var s=sparks[index];
                 s.Object.position=position;s.Object.gameObject.SetActive(true);s.Total=s.Life=Random.Range(.3f,.75f);
+                s.Object.GetComponent<Renderer>().sharedMaterial=enemyEffect?enemyGlow:index%3==0?gold:cyan;
                 s.Velocity=Random.onUnitSphere*Random.Range(.6f,2.2f)*force+Vector3.up*.4f;s.Size=Random.Range(.035f,.10f);sparks[index]=s;
             }
         }
-        public void Hit(bool special)
-        { impact=special?.32f:.17f;Burst(EnemyHome+Vector3.up*1.8f,special?24:10,special?1.8f:1); }
+        public void Hit(bool special,Battle state)
+        { impact=special?.32f:.17f;Burst(EnemyHome-BattleAxis*AnimatedActor.MonsterAdvance(state)+Vector3.up*1.8f,special?24:10,special?1.8f:1); }
         public void Cue(GameCue cue)
         {
-            if(cue==GameCue.Block) Burst(ShieldCenter,16,1.2f);
+            if(cue==GameCue.EnemyAttack)Burst(EnemyHome+Vector3.up*.2f,12,.8f,true);
+            if(cue==GameCue.Block) {Burst(ShieldCenter,16,1.2f);monsterEffects.Impact(true);impact=.12f;}
+            if(cue==GameCue.Hurt) {Burst(HeroHome+Vector3.up*2,18,1,true);monsterEffects.Impact(false);impact=.22f;}
             if(cue==GameCue.Transform) Burst(HeroHome+Vector3.up*1.4f,20,.6f);
             if(cue==GameCue.Beam) Burst(BeamOrigin,14,.6f);
         }
@@ -95,6 +102,7 @@ namespace UltramanGame.Runtime
             impact=Mathf.Max(0,impact-dt);
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(time*65)*impact*.035f,0,0);Camera.transform.LookAt(lookAt);
             bool active=state.Phase==GamePhase.Battle;
+            monsterEffects.Tick(state,Camera,dt);
             shield.gameObject.SetActive(active&&state.Shield);shieldRing.gameObject.SetActive(active&&state.Shield);
             shieldRing.transform.Rotate(0,dt*30,0,Space.Self);
             bool firing=active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;

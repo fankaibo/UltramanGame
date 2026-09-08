@@ -55,7 +55,7 @@ namespace UltramanGame.Editor
             }
             if(!System.IO.File.Exists("Assets/Plugins/macOS/libUltramanMusicPicker.dylib"))
                 throw new System.Exception("Build the music picker first: bash scripts/build_native.sh");
-            foreach(var name in new[] { "music_ready","music_battle","swing","impact","beam","shield","transform","recover","victory" })
+            foreach(var name in new[] { "music_ready","music_battle","swing","impact","beam","shield","transform","recover","victory","enemy_rush" })
                 RequireAudio("Assets/Resources/Audio/"+name+".wav");
             foreach(var name in new[] { "welcome","transform","battle","warning","block","recover","energy","beam","victory","resume","tutorial","beam_help" })
                 RequireAudio("Assets/Resources/Voice/"+name+".aiff");

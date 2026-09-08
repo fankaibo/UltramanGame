@@ -4,9 +4,9 @@ using System.Collections.Generic;
 namespace UltramanGame.Core
 {
     public enum GamePhase { Waiting, Transforming, Battle, Paused, Victory }
-    public enum EnemyPhase { Rest, Windup, Recover }
+    public enum EnemyPhase { Rest, Windup, Attack, Recover }
     public enum HeroAction { None, LeftPunch, RightPunch, Beam, Hurt }
-    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume }
+    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack }
 
     // Unity-free deterministic rules. The renderer observes state; it never awards damage.
     public sealed class Battle
@@ -26,11 +26,13 @@ namespace UltramanGame.Core
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
         public const float WindupSeconds=2.4f;
+        public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
         GamePhase resumePhase;
         float phaseAge, immunity;
         bool hitApplied;
+        bool enemyHitApplied;
         HeroAction queuedPunch;
         float queuedAge;
 
@@ -48,6 +50,7 @@ namespace UltramanGame.Core
             resumePhase=Phase; Phase=GamePhase.Paused; ResumeProgress=0;
             Action=HeroAction.None; Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
             queuedPunch=HeroAction.None;queuedAge=0;
+            enemyHitApplied=false;
             cues.Clear();
         }
         public void Tick(float dt,PlayerInput input)
@@ -82,7 +85,11 @@ namespace UltramanGame.Core
             Shield=input.Shield && (Action==HeroAction.None);
             if(Action==HeroAction.None)
             {
-                if(input.Beam && Energy>=MaxEnergy) { Energy=0; Begin(HeroAction.Beam); Shield=false; Cue(GameCue.Beam); }
+                if(input.Beam && Energy>=MaxEnergy)
+                {
+                    Energy=0;Begin(HeroAction.Beam);Shield=false;
+                    Enemy=EnemyPhase.Rest;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.Beam);
+                }
                 else if(!Shield && (input.LeftPunch || input.RightPunch || queuedPunch!=HeroAction.None))
                 {
                     var next=input.LeftPunch?HeroAction.LeftPunch:input.RightPunch?HeroAction.RightPunch:queuedPunch;
@@ -110,9 +117,17 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Windup; EnemyAge=0; Cue(GameCue.Warning); }
             else if(Enemy==EnemyPhase.Windup && EnemyAge>=WindupSeconds)
             {
-                Enemy=EnemyPhase.Recover; EnemyAge=0;
-                if(Shield) { Blocks++; Cue(GameCue.Block); }
-                else if(immunity<=0) { HitsTaken++; immunity=2; queuedPunch=HeroAction.None;Begin(HeroAction.Hurt); Cue(GameCue.Hurt); }
+                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.EnemyAttack);
+            }
+            else if(Enemy==EnemyPhase.Attack)
+            {
+                if(!enemyHitApplied&&EnemyAge>=EnemyHitSeconds)
+                {
+                    enemyHitApplied=true;
+                    if(Shield) {Blocks++;Cue(GameCue.Block);}
+                    else if(immunity<=0) {HitsTaken++;immunity=2;queuedPunch=HeroAction.None;Begin(HeroAction.Hurt);Cue(GameCue.Hurt);}
+                }
+                if(EnemyAge>=EnemyAttackSeconds) {Enemy=EnemyPhase.Recover;EnemyAge=0;}
             }
             else if(Enemy==EnemyPhase.Recover && EnemyAge>=2)
             { Enemy=EnemyPhase.Rest; EnemyAge=0; }

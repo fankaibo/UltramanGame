@@ -123,7 +123,7 @@ namespace UltramanGame.Runtime
             if(battle.EnemyHealth<lastHealth)
             {
                 bool special=lastHealth-battle.EnemyHealth>1;impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
-                world.Hit(special);sound.Effect("impact",special?1:.8f);
+                world.Hit(special,battle);sound.Effect("impact",special?1:.8f);
             }
             lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
@@ -317,12 +317,13 @@ namespace UltramanGame.Runtime
             hud.Panel(new Rect(20,78,204,49),HudPainter.Gold,ready);
             hud.Text(new Rect(32,83,181,19),ready?"光线就绪":$"光线能量  {battle.Energy:0} / {Battle.MaxEnergy}",12,ready?HudPainter.Gold:HudPainter.Muted);
             for(int i=0;i<Battle.MaxEnergy;i++)hud.Rounded(new Rect(32+i*12,109,9,5),i<battle.Energy?HudPainter.Gold:new Color(.14f,.22f,.32f),2);
-            if(battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Windup)
+            bool rushing=battle.Enemy==EnemyPhase.Attack&&battle.EnemyAge<Battle.EnemyHitSeconds;
+            if(battle.Phase==GamePhase.Battle&&(battle.Enemy==EnemyPhase.Windup||rushing))
             {
                 hud.Panel(new Rect(20,143,230,66),HudPainter.Gold,true);
                 hud.Figure(new Rect(28,150,34,45),"shield",time,HudPainter.Gold);
-                hud.Text(new Rect(73,149,166,42),"怪兽蓄力\n双手护住胸前",16,HudPainter.Gold);
-                hud.Bar(new Rect(32,200,206,3),1-battle.EnemyAge/Battle.WindupSeconds,HudPainter.Gold);
+                hud.Text(new Rect(73,149,166,42),rushing?"怪兽冲过来了\n双手护住胸前":"怪兽蓄力\n双手护住胸前",16,HudPainter.Gold);
+                hud.Bar(new Rect(32,200,206,3),1-battle.EnemyAge/(rushing?Battle.EnemyHitSeconds:Battle.WindupSeconds),HudPainter.Gold);
             }
             else if(time<hitUntil&&battle.Phase==GamePhase.Battle)
                 hud.Text(new Rect(20,143,230,34),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",20,HudPainter.Gold,TextAnchor.MiddleCenter,true);
