@@ -13,8 +13,8 @@ namespace UltramanGame.Runtime
         public Vector3 BeamOrigin => HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop,beam,beamCore,shield,transformLight;
-        readonly LineRenderer platformRing,chargeRing,shieldRing;
-        readonly Material cyan,gold,violet;
+        readonly LineRenderer chargeRing,shieldRing;
+        readonly Material cyan,gold;
         readonly Vector3 cameraHome=new Vector3(0,4.2f,-12),lookAt=new Vector3(0,1.22f,.4f);
         struct Spark { public Transform Object;public Vector3 Velocity;public float Life,Total,Size; }
         readonly Spark[] sparks=new Spark[48];
@@ -35,18 +35,7 @@ namespace UltramanGame.Runtime
             var sun=new GameObject("Warm key light").AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=1.15f;sun.color=new Color(1,.85f,.68f);sun.transform.rotation=Quaternion.Euler(35,-35,0);sun.shadows=LightShadows.Soft;sun.shadowStrength=.7f;sun.shadowBias=.04f;sun.shadowNormalBias=.12f;QualitySettings.shadowDistance=25;QualitySettings.antiAliasing=4;
             var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=.75f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;RenderSettings.ambientLight=new Color(.24f,.28f,.36f);RenderSettings.fog=false;
-            cyan=Glow(new Color(.14f,.77f,1,.55f));gold=Glow(new Color(1,.72f,.27f,.65f));violet=Glow(new Color(.55f,.26f,1,.24f));
-            var floor=new Material(Resources.Load<Material>("PrototypeSurface"));floor.color=new Color(.07f,.115f,.18f);floor.SetFloat("_Metallic",.65f);
-            Primitive(root,PrimitiveType.Cylinder,new Vector3(0,-.15f,1.3f),new Vector3(9.0f,.13f,9.0f),floor);
-            platformRing=Ring(root,new Vector3(0,.005f,1.3f),4.30f,.032f,cyan);
-            Ring(root,new Vector3(0,.009f,1.3f),3.96f,.015f,violet);
-            for(int i=0;i<12;i++)
-            {
-                float a=i*Mathf.PI/6;var tile=Primitive(root,PrimitiveType.Cube,new Vector3(Mathf.Cos(a)*4.08f,.013f,1.3f+Mathf.Sin(a)*4.08f),new Vector3(.06f,.012f,.23f),cyan);
-                tile.localRotation=Quaternion.Euler(0,-a*Mathf.Rad2Deg,0);
-            }
-            Ring(root,HeroHome+Vector3.up*.015f,.83f,.024f,gold);
-            Ring(root,EnemyHome+Vector3.up*.015f,.95f,.022f,violet);
+            cyan=Glow(new Color(.14f,.77f,1,.55f));gold=Glow(new Color(1,.72f,.27f,.65f));
             shield=Primitive(root,PrimitiveType.Sphere,ShieldCenter,new Vector3(1.75f,2.0f,.2f),Glow(new Color(.13f,.64f,1,.11f)));
             shield.rotation=Quaternion.LookRotation(BattleAxis,Vector3.up);
             shieldRing=Ring(root,shield.position,.86f,.03f,cyan);shieldRing.transform.rotation=Quaternion.FromToRotation(Vector3.up,BattleAxis);
@@ -94,14 +83,15 @@ namespace UltramanGame.Runtime
         { obj.position=(start+end)/2;obj.rotation=Quaternion.FromToRotation(Vector3.up,end-start);obj.localScale=new Vector3(radius,Vector3.Distance(start,end)/2,radius); }
         public void Tick(Battle state,float dt,float time)
         {
+            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,Showcase?29:state.Action==HeroAction.Beam?33.5f:35,dt*4);
             float h=160*Mathf.Tan(Camera.fieldOfView*Mathf.Deg2Rad*.5f);
-            // Cover any viewport while preserving the artwork's proportions.
+            // Frame the existing plaza beneath both actors; preserve aspect and anchor its bottom edge.
             float aspect=backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.width/(float)backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.height;
-            float scale=Mathf.Max(1,Camera.aspect/aspect);backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*1.5f;
+            backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
+            backdrop.localPosition=new Vector3(0,h*(scale-1)*.5f,80);
             impact=Mathf.Max(0,impact-dt);
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(time*65)*impact*.035f,0,0);Camera.transform.LookAt(lookAt);
-            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,Showcase?29:state.Action==HeroAction.Beam?33.5f:35,dt*4);
-            platformRing.transform.Rotate(0,dt*2,0);
             bool active=state.Phase==GamePhase.Battle;
             shield.gameObject.SetActive(active&&state.Shield);shieldRing.gameObject.SetActive(active&&state.Shield);
             shieldRing.transform.Rotate(0,dt*30,0,Space.Self);
