@@ -83,13 +83,13 @@ macOS 首次使用时需要为实际启动 Python 的应用允许相机访问。
 | F6 | 选择本机背景音乐；取消选择不会更换当前音乐 |
 | F11 | 全屏 / 窗口 |
 
-### 4. 生成固定中文引导语音（macOS）
+### 4. 安装固定中文英雄配音（macOS）
 
 ```bash
 .venv/bin/python scripts/generate_voice.py
 ```
 
-使用本机安装的 `Tingting` 系统声音生成 12 条固定台词，没有模仿角色演员的声音。构建脚本会自动生成并校验非空音频。生成音频保存在 `unity/Assets/Resources/Voice`，不纳入 Git；重新克隆后运行脚本即可生成。常规构建会拒绝缺失或为空的必需音频，避免游戏缺少引导。2 首循环音乐与 8 种音效已随源码保存，可用 `.venv/bin/python scripts/generate_audio.py` 重建。
+默认安装用户试听选择的「热血青年英雄」中文配音，共 12 条固定台词。它是新设计的合成角色声音，并非某位角色演员的影视原声。WAV 语音包及台词清单随源码保存在 `voice-packs/anime-hero`；构建脚本离线校验台词、文件哈希和音频内容，再转换到 `unity/Assets/Resources/Voice`。转换产物不纳入 Git，重新克隆后也无需下载语音模型。需要系统声音时可显式运行 `.venv/bin/python scripts/generate_voice.py --voice Tingting`；下次常规构建会恢复英雄配音。2 首循环音乐与 8 种音效已随源码保存，可用 `.venv/bin/python scripts/generate_audio.py` 重建。
 
 本机大招另使用用户试听确认的迪迦战吼，释放时显示“哉佩利敖光线”。战吼优先播完，随后才播胜利语音和庆祝音效。录音单独放在 `Resources/Voice/beam_original.aiff`，不被语音生成脚本覆盖，也不提交 Git；没有该本机素材时使用原有引导语音。来源与重建方法见 [美术与音频说明](docs/美术与音频说明.md)。
 
@@ -132,6 +132,7 @@ unity/Assets/Scripts/Runtime 场景、角色、画面、声音与输入适配
 unity/Assets/Editor/      工程配置与 macOS 构建入口
 tests/                   协议、规则和通信验证
 scripts/                 环境准备、启动、语音生成与检查
+voice-packs/             已生成的英雄中文配音、台词与来源清单
 models/manifest.json     官方模型来源与固定校验值
 docs/                    需求、实现和验证记录
 ```

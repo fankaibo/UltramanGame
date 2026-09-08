@@ -1,0 +1,143 @@
+{
+  "schema": 1,
+  "name": "热血青年英雄",
+  "kind": "synthetic-character-voice",
+  "language": "zh-CN",
+  "reference": {
+    "file": "reference.wav",
+    "text": "小英雄，准备战斗！把双手举高，和我一起守护城市！",
+    "description": "标准普通话，年轻成年男性，热血动画英雄的表演风格，明亮有磁性的中低音，英气十足。语气自信、充满正义感，对小朋友友好。起伏鲜明，吐字清楚，用充满力量的胸腔共鸣说出准备战斗，后半句热情鼓励，句间自然停顿。",
+    "model": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+    "source": "https://huggingface.co/spaces/Qwen/Qwen3-TTS",
+    "sha256": "e3e7307b91a46d12308ba887258beda726a3044f8d2a902157ab852524b0172e"
+  },
+  "generation": {
+    "model": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit",
+    "model_sha256": "ac973aa38ec79d4b4b52bf858948f0d47dd909aa4bcd383f5b900e277410fdb5",
+    "runtime": "mlx-audio 0.5.3, local Apple Silicon",
+    "reference_kind": "newly generated synthetic voice, selected by user",
+    "date": "2026-09-08",
+    "temperature": 0.75,
+    "seed": "42 + line index"
+  },
+  "processing": {
+    "trim": "10 ms RMS windows; retain 40 ms lead and 100 ms tail",
+    "rms_target_db": -19,
+    "peak_ceiling": 0.82,
+    "fade_in_ms": 5,
+    "fade_out_ms": 15,
+    "warning_max_seconds": 2.25
+  },
+  "lines": {
+    "welcome": "小英雄，准备出发！把双手举高。",
+    "transform": "光的力量，准备变身！",
+    "battle": "挥动拳头，保护城市！",
+    "warning": "小心！双手护住胸前！",
+    "block": "挡住了，做得好！",
+    "recover": "没关系，再来一次！",
+    "energy": "能量满了！摆光线姿势，或者双手向前推！",
+    "beam": "发射光线！",
+    "victory": "城市安全了！谢谢你，光之英雄！",
+    "resume": "准备好了，继续战斗！",
+    "tutorial": "先收手，再向前挥拳。",
+    "beam_help": "一只手抬高，另一只横在胸前。也可以双手向前推，停一下。"
+  },
+  "audio": {
+    "welcome": {
+      "file": "welcome.wav",
+      "seconds": 3.07,
+      "sample_rate": 24000,
+      "peak": 0.69305,
+      "sha256": "15d85566c7382b8aa88adc6c3cea552caf27550a99f735d570823cce614f3eb4",
+      "tempo": 1.0
+    },
+    "transform": {
+      "file": "transform.wav",
+      "seconds": 1.61,
+      "sample_rate": 24000,
+      "peak": 0.63364,
+      "sha256": "9e3ab3f9cc5c5509fa8a7b9f8adabb5dc6db4ae0670dc85a5c927ee4703c18f8",
+      "tempo": 1.0
+    },
+    "battle": {
+      "file": "battle.wav",
+      "seconds": 2.25,
+      "sample_rate": 24000,
+      "peak": 0.77069,
+      "sha256": "218f93f37d85246634254b4dce163e2fce8902d3d4bb483b1ad0eed2cff95b0d",
+      "tempo": 1.0
+    },
+    "warning": {
+      "file": "warning.wav",
+      "seconds": 2.24,
+      "sample_rate": 24000,
+      "peak": 0.72705,
+      "sha256": "585770b5f1ea79a087fa8344e454d02732fee93abaa494b0fea89082ecdb8202",
+      "tempo": 1.0
+    },
+    "block": {
+      "file": "block.wav",
+      "seconds": 1.53,
+      "sample_rate": 24000,
+      "peak": 0.62943,
+      "sha256": "5d1d10cfc525ff21c9dd83d5381a8277c4b572e91716a2fb8067926cb70008de",
+      "tempo": 1.0
+    },
+    "recover": {
+      "file": "recover.wav",
+      "seconds": 1.37,
+      "sample_rate": 24000,
+      "peak": 0.73911,
+      "sha256": "99642541a016a503a618768fd9476a04e8b738df241a05b7cef2a20b0964ce4d",
+      "tempo": 1.0
+    },
+    "energy": {
+      "file": "energy.wav",
+      "seconds": 3.98,
+      "sample_rate": 24000,
+      "peak": 0.78036,
+      "sha256": "18bcd19100f1bf408b088e0286cafb15a5f3b94edcba037502e435fc017bd041",
+      "tempo": 1.0
+    },
+    "beam": {
+      "file": "beam.wav",
+      "seconds": 0.89,
+      "sample_rate": 24000,
+      "peak": 0.56558,
+      "sha256": "a66399cea5f5a55be93b9a9661239d74fe2a4527bcdb7ce5b85608a12e66d27a",
+      "tempo": 1.0
+    },
+    "victory": {
+      "file": "victory.wav",
+      "seconds": 2.86021,
+      "sample_rate": 24000,
+      "peak": 0.69089,
+      "sha256": "a0aaf46cb74aaafad8a05935d784be3667be24082daffa743eb48d0fad6daed1",
+      "tempo": 1.0
+    },
+    "resume": {
+      "file": "resume.wav",
+      "seconds": 1.6,
+      "sample_rate": 24000,
+      "peak": 0.63348,
+      "sha256": "50755fae3ef0db8f855e422cf424a7f4f66ef418e0d6ab8cb6b3361e43120a2f",
+      "tempo": 1.0
+    },
+    "tutorial": {
+      "file": "tutorial.wav",
+      "seconds": 2.23,
+      "sample_rate": 24000,
+      "peak": 0.76941,
+      "sha256": "cdc438daecbb9879c149ec3eee744bc40bcf89d390920d75845a60fe942b1083",
+      "tempo": 1.0
+    },
+    "beam_help": {
+      "file": "beam_help.wav",
+      "seconds": 5.3,
+      "sample_rate": 24000,
+      "peak": 0.72241,
+      "sha256": "123b2c6e469317a5506bed908ab76a46610c23ba15421a903f6f269558ceaf16",
+      "tempo": 1.0
+    }
+  }
+}
