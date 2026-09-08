@@ -100,6 +100,8 @@ static class Program
         Check(!presence.Update(p,stamp+650),"old frames cannot prolong presence after timeout");
         p=Pose();p.points[11].visibility=p.points[12].visibility=.1f;
         Check(!PoseQuality.Present(p,stamp),"missing torso does not count as player presence");
+        p=Pose();p.points[11]=new PosePoint(.52f,.3f);p.points[12]=new PosePoint(.48f,.3f);
+        Check(PoseQuality.Present(p,stamp),"narrow shoulder projection does not mean player left");
 
         var r=new GestureRecognizer();int transforms=0;
         for(int i=0;i<60;i++)

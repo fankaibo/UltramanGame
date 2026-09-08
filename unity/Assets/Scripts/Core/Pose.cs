@@ -36,8 +36,7 @@ namespace UltramanGame.Core
             => p.visibility>=confidence && p.x>=0 && p.x<=1 && p.y>=0 && p.y<=1;
         // Presence depends on the torso. An obscured elbow is not a missing player.
         public static bool Present(PoseFrame frame,long nowMs)
-            => FrameValid(frame,nowMs) && Reliable(frame.points[11],.45f) && Reliable(frame.points[12],.45f) &&
-               Distance(frame.points[11],frame.points[12])>.08f;
+            => FrameValid(frame,nowMs) && Reliable(frame.points[11],.45f) && Reliable(frame.points[12],.45f);
         public static bool Valid(PoseFrame frame,long nowMs)
         {
             if(!Present(frame,nowMs)) return false;
