@@ -59,6 +59,13 @@ namespace UltramanGame.Editor
                 RequireAudio("Assets/Resources/Audio/"+name+".wav");
             foreach(var name in new[] { "welcome","transform","battle","warning","block","recover","energy","beam","victory","resume","tutorial","beam_help" })
                 RequireAudio("Assets/Resources/Voice/"+name+".aiff");
+            // Optional local original recording is separate from generated guide lines.
+            if(System.IO.File.Exists("Assets/Resources/Voice/beam_original.aiff"))
+            {
+                RequireAudio("Assets/Resources/Voice/beam_original.aiff");
+                if(AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Resources/Voice/beam_original.aiff").length>3)
+                    throw new System.Exception("Beam battle cry must be a short recording of at most 3 seconds.");
+            }
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
                 locationPathName="Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,

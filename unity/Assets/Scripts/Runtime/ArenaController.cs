@@ -28,7 +28,7 @@ namespace UltramanGame.Runtime
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
         long sequence;
-        float captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt;
+        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt;
         GamePhase lastPhase;
         float sampleAge,sampleSeconds,sampleWorst;
         int sampleFrames;
@@ -117,6 +117,7 @@ namespace UltramanGame.Runtime
             if(input.Tracking!=lastTracking)
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")}"); }
             battle.Tick(dt,input);
+            if(battle.Phase==GamePhase.Paused)beamTitleUntil=0;
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
             while(battle.TryCue(out var cue))PlayCue(cue);
@@ -149,7 +150,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了！摆出光线姿势";break;
-                case GameCue.Beam:caption="哉佩利敖光线！";break;
+                case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+2;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
@@ -158,7 +159,7 @@ namespace UltramanGame.Runtime
         void Restart()
         {
             battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
-            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();
+            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();
         }
         void OpenSettings(bool audio=false)
         {draftMonsterHits=monsterHits;audioSettings=audio;settings=true;}
@@ -327,7 +328,9 @@ namespace UltramanGame.Runtime
             }
             else if(time<hitUntil&&battle.Phase==GamePhase.Battle)
                 hud.Text(new Rect(20,143,230,34),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",20,HudPainter.Gold,TextAnchor.MiddleCenter,true);
-            if(time<captionUntil&&battle.Phase==GamePhase.Battle)
+            if(time<beamTitleUntil&&(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Victory))
+            {hud.Panel(new Rect(455,78,370,46),HudPainter.Gold,true);hud.Text(new Rect(465,84,350,34),"哉佩利敖光线！",23,HudPainter.Gold,TextAnchor.MiddleCenter,true);}
+            else if(time<captionUntil&&battle.Phase==GamePhase.Battle)
             {hud.Panel(new Rect(465,78,350,29),HudPainter.Cyan);hud.Text(new Rect(475,81,330,23),caption,13,HudPainter.Ink,TextAnchor.MiddleCenter);}
             BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
             BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
