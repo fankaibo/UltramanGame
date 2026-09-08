@@ -45,6 +45,7 @@ static class Program
     {
         try
         {
+            PreviewChecks.Run(Check);
             var pose=Pose();Check(PoseQuality.Valid(pose,stamp),"complete fresh pose accepted");
             Check(!PoseQuality.Valid(pose,stamp+351),"stale capture rejected");
             Check(!PoseQuality.Valid(pose,stamp-51),"future capture rejected");
@@ -85,6 +86,7 @@ static class Program
             Check(b.Phase==GamePhase.Victory,"ordinary attacks can finish battle");
             int hits=b.HitsTaken;Advance(b,30);Check(b.HitsTaken==hits,"victory stops enemy attacks");
             if(args.Length>0 && args[0]=="--bridge") BridgeCheck(args.Length>1?int.Parse(args[1]):8765);
+            if(args.Length>2 && args[0]=="--bridge") PreviewChecks.Bridge(int.Parse(args[2]),Check);
             Console.WriteLine($"{count} checks passed");return 0;
         }
         catch(Exception e) { Console.Error.WriteLine("FAIL "+e);return 1; }

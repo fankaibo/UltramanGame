@@ -31,7 +31,7 @@ class _Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-class PoseBridge:
+class LatestBridge:
     def __init__(self, port=8765):
         self.changed = threading.Condition()
         self.stopping = threading.Event()
@@ -45,8 +45,7 @@ class PoseBridge:
     def address(self):
         return self.server.server_address
 
-    def publish(self, frame):
-        line = encode(frame)
+    def publish(self, line):
         with self.changed:
             self.latest = line
             self.revision += 1
@@ -63,3 +62,8 @@ class PoseBridge:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=2)
+
+
+class PoseBridge(LatestBridge):
+    def publish(self, frame):
+        super().publish(encode(frame))

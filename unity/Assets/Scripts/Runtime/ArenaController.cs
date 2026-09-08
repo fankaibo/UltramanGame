@@ -11,6 +11,10 @@ namespace UltramanGame.Runtime
         GestureRecognizer recognizer=new GestureRecognizer();
         PlayerPresence presence=new PlayerPresence();
         PoseClient client;
+        PreviewClient previewClient;
+        PreviewFrame previewFrame;
+        Texture2D previewTexture;
+        bool showPreview=true,previewReported;
         PoseFrame pose;
         PlayerInput held;
         PrototypeActor hero,enemy;
@@ -39,12 +43,18 @@ namespace UltramanGame.Runtime
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             Application.runInBackground=true;
             Screen.sleepTimeout=SleepTimeout.NeverSleep;
-            client=new PoseClient();
+            client=new PoseClient(LocalPort("--pose-port",8765));
+            previewClient=new PreviewClient(LocalPort("--preview-port",8766));
             font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
             if(font==null) { Debug.LogError("Bundled Chinese font is missing.");font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); }
             voice=gameObject.AddComponent<AudioSource>(); effects=gameObject.AddComponent<AudioSource>();
             voice.volume=.7f;effects.volume=.2f;
             CreateScene();
+        }
+        static int LocalPort(string option,int fallback)
+        {
+            var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,option);
+            return i>=0 && i+1<args.Length && int.TryParse(args[i+1],out int port) && port>0 && port<=65535?port:fallback;
         }
         void CreateScene()
         {
@@ -87,9 +97,11 @@ namespace UltramanGame.Runtime
         {
             if(Input.GetKeyDown(KeyCode.F2)) SetMode(!keyboard);
             if(Input.GetKeyDown(KeyCode.F11)) Screen.fullScreen=!Screen.fullScreen;
+            if(Input.GetKeyDown(KeyCode.F3)) showPreview=!showPreview;
             if(Input.GetKeyDown(KeyCode.Escape)) { paused=!paused;if(paused) battle.Pause(); }
             if(Input.GetKeyDown(KeyCode.R)) Restart();
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            UpdatePreview(now);
             PlayerInput input=default;
             if(keyboard)
             {
@@ -175,6 +187,60 @@ namespace UltramanGame.Runtime
         { battle=new Battle();recognizer.Reset();presence.Reset();pose=null;held=default;paused=false;enemy.Root.localScale=Vector3.one;lastHealth=Battle.MaxHealth;caption="双手举高，准备变身";voice.Stop(); }
         void SetMode(bool value)
         { keyboard=value;Restart(); }
+        void UpdatePreview(long now)
+        {
+            var incoming=previewClient.TakeLatest();
+            if(keyboard || !showPreview)
+            {
+                previewFrame=null;
+                if(previewTexture) { Destroy(previewTexture);previewTexture=null; }
+                return;
+            }
+            if(incoming!=null && incoming.Fresh(now))
+            {
+                if(!previewTexture) previewTexture=new Texture2D(2,2,TextureFormat.RGB24,false);
+                if(previewTexture.LoadImage(incoming.Jpeg))
+                {
+                    previewFrame=incoming;
+                    if(!previewReported && Debug.isDebugBuild)
+                    {
+                        Debug.Log($"[Preview] displayed source={(incoming.Synthetic?"synthetic":"camera")} size={previewTexture.width}x{previewTexture.height}");
+                        previewReported=true;
+                    }
+                }
+                else previewFrame=null;
+            }
+            if(previewFrame==null || !previewFrame.Fresh(now))
+            {
+                previewFrame=null;
+                if(previewTexture) { Destroy(previewTexture);previewTexture=null; }
+            }
+        }
+        void DrawPreview()
+        {
+            if(keyboard) return;
+            if(!showPreview)
+            {
+                if(GUI.Button(new Rect(1100,607,160,36),"显示取景 · F3",button)) showPreview=true;
+                return;
+            }
+            Rect(1000,391,260,252,new Color(.03f,.06f,.11f,.95f));
+            GUI.Label(new Rect(1010,399,180,24),previewFrame?.Synthetic==true || pose?.source=="synthetic"?"测试画面 · 非摄像头":"摄像头 · 镜像取景",small);
+            if(GUI.Button(new Rect(1211,398,42,24),"收起",small)) showPreview=false;
+            Rect(1008,430,244,183,Color.black);
+            if(previewFrame!=null && previewFrame.Fresh(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) && previewTexture)
+            {
+                GUI.DrawTexture(new Rect(1008,430,244,183),previewTexture,ScaleMode.ScaleToFit);
+                var quality=previewFrame.Quality;
+                Rect(1011,622,8,8,quality==2?new Color(.4f,.94f,.35f):new Color(1,.69f,.16f));
+                GUI.Label(new Rect(1025,617,225,23),quality==2?"肩膀和双手可见":quality==1?"手臂没看清 · 绿清晰 / 橙模糊":"让双肩进入画面",small);
+            }
+            else
+            {
+                GUI.Label(new Rect(1020,494,220,60),"画面暂未更新\n"+previewClient.Status,small);
+                GUI.Label(new Rect(1010,617,245,23),"实时取景 · 仅本机 · 不录制",small);
+            }
+        }
         void Styles()
         {
             title=new GUIStyle(GUI.skin.label) { font=font,fontSize=30,fontStyle=FontStyle.Bold };
@@ -219,6 +285,7 @@ namespace UltramanGame.Runtime
                 GUI.Label(new Rect(390,130,510,60),"怪兽正在蓄力！双手护住胸前",body);
             }
             if(Time.unscaledTime<captionUntil) { Rect(290,555,700,65,new Color(.02f,.05f,.1f,.86f));GUI.Label(new Rect(310,560,660,55),caption,body); }
+            DrawPreview();
             Rect(0,655,1280,65,new Color(.03f,.06f,.11f,.95f));
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string cameraStatus=PoseQuality.Present(pose,now)?
@@ -231,6 +298,6 @@ namespace UltramanGame.Runtime
             { paused=!paused;if(paused) { battle.Pause();voice.Stop(); } }
             if(GUI.Button(new Rect(1155,669,95,32),"重来",button)) Restart();
         }
-        void OnDestroy() { client?.Dispose();foreach(var clip in tones.Values) Destroy(clip); }
+        void OnDestroy() { client?.Dispose();previewClient?.Dispose();if(previewTexture) Destroy(previewTexture);foreach(var clip in tones.Values) Destroy(clip); }
     }
 }

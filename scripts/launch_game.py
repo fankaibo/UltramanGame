@@ -1,11 +1,13 @@
 """Launch the local game and its camera owner together; release camera on exit."""
 import argparse
+import json
 import os
 import plistlib
+import queue
 import signal
-import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -42,23 +44,41 @@ def main():
     logs = ROOT / "logs"
     logs.mkdir(exist_ok=True)
     camera = game = None
+    reader = None
     environment = dict(os.environ, MPLCONFIGDIR=str(ROOT / ".cache/matplotlib"))
     with (logs / "camera-last.log").open("w") as camera_log:
         try:
             if not args.keyboard:
-                # Do not take over another camera server or terminate somebody else's process.
-                with socket.socket() as probe:
-                    probe.settimeout(.3)
-                    if probe.connect_ex(("127.0.0.1", 8765)) == 0:
-                        print("动作服务已经在运行。请先关闭之前的游戏或相机服务，再双击启动。", file=sys.stderr)
-                        return 1
-                camera = subprocess.Popen([sys.executable, "-m", "vision", "--no-preview"] + (["--demo"] if args.demo else []),
-                    cwd=ROOT, env=environment, stdout=camera_log, stderr=subprocess.STDOUT)
+                # The servers bind port 0 themselves; no probe/release race or takeover of other apps.
+                ready = queue.Queue(maxsize=1)
+                camera = subprocess.Popen([sys.executable, "-m", "vision", "--no-preview", "--game-preview",
+                    "--port", "0", "--preview-port", "0", "--ready-json"] + (["--demo"] if args.demo else []),
+                    cwd=ROOT, env=environment, stdout=subprocess.PIPE, stderr=camera_log, text=True, bufsize=1)
+                output = camera.stdout
+                def read_camera_output():
+                    for line in output:
+                        camera_log.write(line);camera_log.flush()
+                        try:
+                            message = json.loads(line)
+                            if all(isinstance(message.get(key), int) and 0 < message[key] <= 65535
+                                   for key in ("pose_port", "preview_port")):
+                                ready.put_nowait(message)
+                        except (ValueError, AttributeError, queue.Full):
+                            pass
+                reader = threading.Thread(target=read_camera_output, daemon=True)
+                reader.start()
+                try:
+                    ports = ready.get(timeout=10)
+                except queue.Empty:
+                    print("相机服务未能启动，详情：" + str(logs / "camera-last.log"), file=sys.stderr)
+                    return 1
             print("游戏正在启动。关闭游戏窗口会同时关闭本次相机服务。", flush=True)
             command = [str(executable), "-screen-fullscreen", "0", "-screen-width", "1280",
                        "-screen-height", "720", "-logFile", str(logs / "game-last.log")]
             if args.keyboard:
                 command.append("--keyboard")
+            else:
+                command += ["--pose-port",str(ports["pose_port"]),"--preview-port",str(ports["preview_port"])]
             game = subprocess.Popen(command, cwd=ROOT, env=environment,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             while game.poll() is None:
@@ -76,6 +96,8 @@ def main():
         finally:
             stop(game)
             stop(camera)
+            if reader:
+                reader.join(timeout=2)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import argparse
 import json
 import sys
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 from .bridge import PoseBridge
@@ -10,16 +11,20 @@ from .protocol import FrameFactory
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_demo(args, bridge):
+def run_demo(args, bridge, preview=None):
     from .demo import landmarks_at
     factory = FrameFactory(source="synthetic")
     start = time.monotonic()
     while not args.seconds or time.monotonic()-start < args.seconds:
-        bridge.publish(factory.make(landmarks_at(time.monotonic()-start)))
+        points = landmarks_at(time.monotonic()-start)
+        frame = factory.make(points)
+        bridge.publish(frame)
+        if preview:
+            preview.publish(None, points, frame['capturedMs'], "synthetic")
         time.sleep(1/30)
 
 
-def run_camera(args, bridge):
+def run_camera(args, bridge, preview=None):
     import cv2
     from .model import create_landmarker, model_image
     if not args.model.is_file():
@@ -59,6 +64,8 @@ def run_camera(args, bridge):
                 landmarks = result.pose_landmarks[0] if result.pose_landmarks else None
                 poses += bool(landmarks)
                 bridge.publish(factory.make(landmarks, captured_ms))
+                if preview:
+                    preview.publish(image, landmarks, captured_ms)
                 if not args.no_preview:
                     h,w = image.shape[:2]
                     if landmarks:
@@ -76,7 +83,8 @@ def run_camera(args, bridge):
                 raise RuntimeError("测试期间没有取得相机画面，请稍后重试。")
             print(json.dumps({"frames":frames,"pose_frames":poses,
                 "elapsed_seconds":round(elapsed,2),"processed_fps":round(frames/max(elapsed,.001),1),
-                "mean_inference_ms":round(inference_seconds*1000/max(frames,1),1)}),flush=True)
+                "mean_inference_ms":round(inference_seconds*1000/max(frames,1),1),
+                "preview_frames":preview.frames if preview else 0}),flush=True)
     finally:
         bridge.publish(factory.make())
         camera.release()
@@ -85,20 +93,30 @@ def run_camera(args, bridge):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="本地摄像头姿态服务；仅通过回环地址发送关键点，不录制视频。")
+    parser = argparse.ArgumentParser(description="本地摄像头姿态与可选游戏预览服务；仅通过回环地址通信，不录制视频。")
     parser.add_argument("--demo",action="store_true",help="合成姿态测试，不打开摄像头")
     parser.add_argument("--camera",type=int,default=0)
     parser.add_argument("--port",type=int,default=8765,help="本机端口；0 由系统分配，供独立测试使用")
     parser.add_argument("--seconds",type=float,default=0,help="测试运行秒数，0 表示持续运行")
-    parser.add_argument("--no-preview",action="store_true")
+    parser.add_argument("--no-preview",action="store_true",help="关闭独立调试窗口，不影响游戏内预览")
+    parser.add_argument("--game-preview",action="store_true",help="向游戏提供镜像画面及关节点（最多 320×240、10 FPS）")
+    parser.add_argument("--preview-port",type=int,default=8766,help="游戏内预览的本机端口；0 由系统分配")
+    parser.add_argument("--ready-json",action="store_true",help=argparse.SUPPRESS)
     parser.add_argument("--model",type=Path,default=ROOT/"models/pose_landmarker_lite.task")
     args = parser.parse_args()
-    if not 0 <= args.port <= 65535 or args.seconds < 0:
-        parser.error("port 必须在 0–65535；seconds 不能为负数")
+    if not 0 <= args.port <= 65535 or not 0 <= args.preview_port <= 65535 or args.seconds < 0:
+        parser.error("port 和 preview-port 必须在 0–65535；seconds 不能为负数")
     try:
         with PoseBridge(args.port) as bridge:
-            print(f"{'合成姿态' if args.demo else '本地摄像头'}服务：127.0.0.1:{bridge.address[1]}",flush=True)
-            (run_demo if args.demo else run_camera)(args,bridge)
+            log_stream = sys.stderr if args.ready_json else sys.stdout
+            print(f"{'合成姿态' if args.demo else '本地摄像头'}服务：127.0.0.1:{bridge.address[1]}",file=log_stream,flush=True)
+            from .preview import GamePreview
+            with GamePreview(args.preview_port) if args.game_preview else nullcontext() as preview:
+                if preview:
+                    print(f"游戏预览：127.0.0.1:{preview.bridge.address[1]}（不录制）",file=log_stream,flush=True)
+                if args.ready_json:
+                    print(json.dumps({"pose_port":bridge.address[1],"preview_port":preview.bridge.address[1] if preview else None}),flush=True)
+                (run_demo if args.demo else run_camera)(args,bridge,preview)
     except KeyboardInterrupt:
         return 0
     except (RuntimeError,OSError) as exc:
