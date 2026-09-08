@@ -80,7 +80,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Hurt:Effect("impact",.7f);Effect("recover");Speak("recover",2,state);break;
                 case GameCue.EnergyReady:Effect("shield",.45f);Speak("energy",4,state);break;
                 case GameCue.Beam:
-                    pending.Clear();Effect("beam",HasOriginalBeamVoice?.4f:.7f);
+                    pending.Clear();
                     Speak(HasOriginalBeamVoice?"beam_original":"beam",5,state);break;
                 case GameCue.Victory:effects.Stop();pending.Clear();Speak("victory",6,state);break;
                 case GameCue.Resume:Speak("resume",3,state);break;

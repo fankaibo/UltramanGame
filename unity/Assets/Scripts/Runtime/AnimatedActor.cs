@@ -18,6 +18,8 @@ namespace UltramanGame.Runtime
         GamePhase previous;
         int displayed=-1;
         public int Frame => displayed;
+        public void SetPresentationOpacity(float opacity)
+        { var tint=material.GetColor("_Tint");tint.a*=Mathf.Clamp01(opacity);material.SetColor("_Tint",tint); }
         public static readonly string[] HeroPoses={"战斗准备","收拳蓄力","挥拳出击","光之护盾","哉佩利敖光线","受击恢复","举手变身","胜利欢呼"};
         public static readonly string[] MonsterPoses={"准备","蓄力","反击","预警","恢复","受击","光线命中","挥手退场"};
         public AnimatedActor(string name,Vector3 position,Vector3 opponentPosition,bool isMonster=false)
