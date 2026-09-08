@@ -23,7 +23,8 @@ namespace UltramanGame.Runtime
         LocalMusic music;
         HudPainter hud;
         bool keyboard,paused,muted,settings,showPreview=true,previewReported,lastTracking;
-        string caption="",stream;
+        string caption="",stream,gestureFeedback="";
+        float gestureFeedbackUntil;
         long sequence;
         float captionUntil,lastHealth=Battle.MaxHealth,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt;
         GamePhase lastPhase;
@@ -85,7 +86,17 @@ namespace UltramanGame.Runtime
                     {
                         var incoming=JsonUtility.FromJson<PoseFrame>(line);
                         if(incoming!=null&&(incoming.streamId!=stream||incoming.sequence>sequence))
-                        { pose=incoming;stream=pose.streamId;sequence=pose.sequence;input=recognizer.Update(pose,now); }
+                        {
+                            pose=incoming;stream=pose.streamId;sequence=pose.sequence;
+                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,battle.Phase==GamePhase.Waiting);
+                            string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?
+                                (recognizer.ForwardPunch?"向前挥拳":"侧前挥拳"):"";
+                            if(detected.Length>0)
+                            {
+                                gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
+                                if(Debug.isDebugBuild)Debug.Log("[Gesture] "+detected);
+                            }
+                        }
                     }
                     catch(ArgumentException) {pose=null;recognizer.Reset();input=default;}
                 }
@@ -137,7 +148,7 @@ namespace UltramanGame.Runtime
         void Restart()
         {
             battle=new Battle();recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=false;
-            lastHealth=Battle.MaxHealth;impact=0;captionUntil=0;hitUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();
+            lastHealth=Battle.MaxHealth;impact=0;captionUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();
         }
         void SetMode(bool value) {keyboard=value;Restart();}
         void UpdatePreview(long now)
@@ -173,7 +184,8 @@ namespace UltramanGame.Runtime
             {
                 GUI.DrawTexture(new Rect(1000,430,244,183),previewTexture,ScaleMode.ScaleToFit);
                 int quality=previewFrame.Quality;
-                hud.Text(new Rect(1005,615,240,22),quality==2?"双臂已看清 · 动作准备就绪":quality==1?"手臂没看清 · 看橙色关节点":"请让双肩进入画面",13,quality==2?HudPainter.Cyan:HudPainter.Gold);
+                bool feedback=Time.unscaledTime<gestureFeedbackUntil;
+                hud.Text(new Rect(1005,615,240,22),feedback?gestureFeedback:quality==2?"双臂已看清 · 动作准备就绪":quality==1?"看清手腕可前推 · 肘部可遮挡":"请让双肩进入画面",13,feedback||quality==2?HudPainter.Cyan:HudPainter.Gold);
             }
             else
             {
@@ -242,7 +254,7 @@ namespace UltramanGame.Runtime
             {hud.Panel(new Rect(654,469,323,43),HudPainter.Cyan);hud.Text(new Rect(665,472,301,37),caption,18,HudPainter.Ink,TextAnchor.MiddleCenter);}
             ActionCard(28,"挥拳出击",keyboard?"A / D · 左右交替":$"收手，再挥出去  ·  命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Phase==GamePhase.Battle&&(battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch));
             ActionCard(348,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
-            ActionCard(668,"必杀光线",keyboard?"能量满后按 J":battle.Energy>=6?"摆 L 形，保持片刻":"挥拳和防御可以蓄能","beam",HudPainter.Gold,battle.Phase==GamePhase.Battle&&(battle.Energy>=6||battle.Action==HeroAction.Beam));
+            ActionCard(668,"必杀光线",keyboard?"能量满后按 J":battle.Energy>=6?"摆 L 形 / 双手前推":"挥拳和防御可以蓄能","beam",HudPainter.Gold,battle.Phase==GamePhase.Battle&&(battle.Energy>=6||battle.Action==HeroAction.Beam));
             if(!keyboard&&battle.Energy>=6)hud.Bar(new Rect(764,623,180,4),recognizer.BeamProgress,HudPainter.Gold);
             DrawPreview();
             if(battle.Phase==GamePhase.Victory)

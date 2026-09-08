@@ -67,6 +67,7 @@ static class Program
             r.Update(null,stamp);Check(!Feed(r,"beam").Beam,"tracking loss clears held gesture");
             TrackingRegressions();
             FriendlyMotionRegressions();
+            MotionChecks.Run(Check);
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");
             b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});Check(b.Action==HeroAction.None,"beam requires energy");
             Punch(b);Check(b.EnemyHealth==23 && b.Punches==1,"one punch applies one hit");

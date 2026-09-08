@@ -74,10 +74,12 @@ namespace UltramanGame.Core
         long lastSequence, lastStamp;
         readonly PosePoint[] smoothed = new PosePoint[33];
         readonly bool[] wasReliable = new bool[33];
-        bool leftArmed, rightArmed, beamFired, transformFired;
-        float beamHold, transformHold, shieldHold, steady;
+        readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
+        bool beamFired, transformFired;
+        float beamHold,beamGap,beamRelease,transformHold,shieldHold,steady;
+        public bool ForwardPunch { get; private set; }
         public float TransformProgress => Math.Min(1,transformHold/.45f);
-        public float BeamProgress => Math.Min(1,beamHold/.30f);
+        public float BeamProgress => Math.Min(1,beamHold/.35f);
 
         public void Reset()
         {
@@ -86,11 +88,12 @@ namespace UltramanGame.Core
         }
         void ClearGestures()
         {
-            leftArmed=rightArmed=beamFired=transformFired=false;
-            beamHold=transformHold=shieldHold=steady=0;
+            leftMotion.Reset();rightMotion.Reset();beamFired=transformFired=ForwardPunch=false;
+            beamHold=beamGap=beamRelease=transformHold=shieldHold=steady=0;
         }
-        public PlayerInput Update(PoseFrame frame, long nowMs)
+        public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true)
         {
+            ForwardPunch=false;
             if (!PoseQuality.Present(frame,nowMs)) { Reset(); return default; }
             if (stream==frame.streamId && frame.sequence<=lastSequence) return default;
             bool fresh=stream!=frame.streamId || lastStamp==0 || frame.capturedMs-lastStamp>250 || frame.capturedMs<=lastStamp;
@@ -106,62 +109,71 @@ namespace UltramanGame.Core
                     float blend=fresh||!wasReliable[i]?1:alpha;
                     smoothed[i].x += (frame.points[i].x-smoothed[i].x)*blend;
                     smoothed[i].y += (frame.points[i].y-smoothed[i].y)*blend;
+                    smoothed[i].z += (frame.points[i].z-smoothed[i].z)*blend;
                 }
                 wasReliable[i]=reliable;
             }
             var l=smoothed[11]; var r=smoothed[12];
-            var le=smoothed[13]; var re=smoothed[14];
             var lw=smoothed[15]; var rw=smoothed[16];
-            float scale=Math.Max(.08f,PoseQuality.Distance(l,r)), cx=(l.x+r.x)/2, sy=(l.y+r.y)/2;
+            float dx=l.x-r.x,dy=l.y-r.y,dz=l.z-r.z;
+            float scale=Math.Max(.08f,(float)Math.Sqrt(dx*dx+dy*dy+dz*dz)),cx=(l.x+r.x)/2,sy=(l.y+r.y)/2;
             steady+=dt;
             var input=new PlayerInput { Tracking=true };
             bool shouldersReady=wasReliable[11]&&wasReliable[12];
-            bool leftReady=shouldersReady&&wasReliable[13]&&wasReliable[15];
-            bool rightReady=shouldersReady&&wasReliable[14]&&wasReliable[16];
+            bool leftReady=shouldersReady&&wasReliable[15];
+            bool rightReady=shouldersReady&&wasReliable[16];
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
-            bool bothArms=leftReady&&rightReady;
             bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
-            bool beam=bothArms && (BeamArm(le,lw,re,rw,scale) || BeamArm(re,rw,le,lw,scale));
-            bool shield=bothArms && !beam && !raised && Math.Abs(lw.x-cx)<.65f*scale && Math.Abs(rw.x-cx)<.65f*scale &&
-                lw.y>sy-.25f*scale && rw.y>sy-.25f*scale && lw.y<sy+.85f*scale && rw.y<sy+.85f*scale &&
-                le.y>lw.y-.03f*scale && re.y>rw.y-.03f*scale;
+            bool beamShape=wristsReady && (BeamArms(l,lw,rw,cx,sy,scale) || BeamArms(r,rw,lw,cx,sy,scale) ||
+                ForwardPalms(l,r,lw,rw,sy,scale));
+            bool beam=beamAvailable&&beamShape;
+            bool shield=wristsReady && !beam && !raised && Math.Abs((l.z-lw.z)-(r.z-rw.z))<.75f*scale &&
+                Math.Abs(lw.x-cx)<.65f*scale && Math.Abs(rw.x-cx)<.65f*scale &&
+                Math.Abs(lw.x-rw.x)<.65f*scale && lw.y>sy-.25f*scale && rw.y>sy-.25f*scale &&
+                lw.y<sy+.85f*scale && rw.y<sy+.85f*scale;
             if (steady<.25f) return input;
-            transformHold=raised?transformHold+dt:0;
+            transformHold=transformAvailable&&raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
             if (transformHold>=.45f && !transformFired) { input.Transform=true; transformFired=true; }
-            beamHold=beam?beamHold+dt:0;
-            if (bothArms && !beam) beamFired=false;
-            if (beamHold>=.30f && !beamFired) { input.Beam=true; beamFired=true; }
+            if(beam) {beamHold+=dt;beamGap=0;} else
+            {beamGap+=dt;if(beamGap>.12f || !beamAvailable)beamHold=0;}
+            // A brief imperfect pose pauses progress; it neither adds charge nor rearms a held beam.
+            if(wristsReady&&!beamShape)beamRelease+=dt;else beamRelease=0;
+            if(beamRelease>=.18f)beamFired=false;
+            if (beam && beamHold>=.35f && !beamFired) { input.Beam=true; beamFired=true; }
             shieldHold=shield?shieldHold+dt:0;
             input.Shield=shieldHold>=.08f;
-            if (beam || shield || raised)
+            if (beam || raised)
             {
-                leftArmed=rightArmed=false;
+                leftMotion.Reset();rightMotion.Reset();
                 return input;
             }
-            if(leftReady) input.LeftPunch=Punch(l,le,lw,scale,ref leftArmed);else leftArmed=false;
-            if(rightReady) input.RightPunch=Punch(r,re,rw,scale,ref rightArmed);else rightArmed=false;
+            float side=l.x>=r.x?1:-1;
+            bool left=leftReady&&leftMotion.Update(l,lw,wasReliable[13],scale,side,frame.capturedMs,dt);
+            bool right=rightReady&&rightMotion.Update(r,rw,wasReliable[14],scale,-side,frame.capturedMs,dt);
+            if(!leftReady)leftMotion.Reset();if(!rightReady)rightMotion.Reset();
+            // A forward punch can begin in a guard. Do not confuse its foreshortened arm with a held shield.
+            float depthDifference=((l.z-lw.z)-(r.z-rw.z))/scale;
+            input.LeftPunch=left&&(!shield || leftMotion.ForwardStrike&&depthDifference>.25f);
+            input.RightPunch=right&&(!shield || rightMotion.ForwardStrike&&depthDifference<-.25f);
+            ForwardPunch=input.LeftPunch&&leftMotion.ForwardStrike || input.RightPunch&&rightMotion.ForwardStrike;
+            if(input.LeftPunch||input.RightPunch) {input.Shield=false;shieldHold=0;}
             return input;
         }
-        static bool BeamArm(PosePoint ve,PosePoint vw,PosePoint he,PosePoint hw,float scale)
+        static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale)
         {
-            float vx=Math.Abs(vw.x-ve.x),vy=ve.y-vw.y;
-            float hx=Math.Abs(hw.x-he.x),hy=Math.Abs(hw.y-he.y);
-            return vy>.30f*scale && vy>vx*1.25f && hx>.35f*scale && hx>hy*1.25f &&
-                Math.Abs(vw.x-hw.x)<.60f*scale && hw.y>=vw.y-.1f*scale && hw.y<=ve.y+.3f*scale;
+            // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
+            // A deeply extended single fist is a punch, even when the other wrist is lower like an L.
+            return shoulder.z-high.z<.9f*scale && low.y-high.y>.28f*scale && high.y<sy+.30f*scale && high.y>sy-1.1f*scale &&
+                low.y>sy-.15f*scale && low.y<sy+.88f*scale && Math.Abs(high.x-cx)<1.05f*scale &&
+                Math.Abs(low.x-cx)<.65f*scale && Math.Abs(high.x-low.x)<1.15f*scale;
         }
-        static bool Punch(PosePoint shoulder,PosePoint elbow,PosePoint wrist,float scale,ref bool armed)
+        static bool ForwardPalms(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale)
         {
-            float distance=PoseQuality.Distance(shoulder,wrist)/scale;
-            float ax=shoulder.x-elbow.x,ay=shoulder.y-elbow.y,bx=wrist.x-elbow.x,by=wrist.y-elbow.y;
-            float denominator=(float)Math.Sqrt((ax*ax+ay*ay)*(bx*bx+by*by));
-            float cosine=denominator>1e-6f?(ax*bx+ay*by)/denominator:1;
-            // Separate retraction/extension thresholds: a relaxed bent punch must not auto-repeat.
-            if (distance<.65f || wrist.y>shoulder.y+.82f*scale || cosine>.1f) armed=true;
-            bool extended=distance>.78f && cosine<-.35f && wrist.y<shoulder.y+.8f*scale;
-            if (!armed || !extended) return false;
-            armed=false;
-            return true;
+            float separation=Math.Abs(lw.x-rw.x)/scale;
+            return (l.z-lw.z)>.85f*scale && (r.z-rw.z)>.85f*scale && separation>.60f && separation<1.8f &&
+                Math.Abs(lw.y-rw.y)<.5f*scale && lw.y>sy-.3f*scale && rw.y>sy-.3f*scale &&
+                lw.y<sy+.75f*scale && rw.y<sy+.75f*scale;
         }
     }
 }

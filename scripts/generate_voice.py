@@ -13,12 +13,12 @@ LINES={
     'warning':'小心！双手护住胸前！',
     'block':'挡住了，做得好！',
     'recover':'没关系，再来一次！',
-    'energy':'能量满了，摆出光线姿势！',
+    'energy':'能量满了！摆光线姿势，或者双手向前推！',
     'beam':'发射光线！',
     'victory':'城市安全了！谢谢你，光之英雄！',
     'resume':'准备好了，继续战斗！',
     'tutorial':'先收手，再向前挥拳。',
-    'beam_help':'一只手竖起来，另一只横在胸前。',
+    'beam_help':'一只手抬高，另一只横在胸前。也可以双手向前推，停一下。',
 }
 parser=argparse.ArgumentParser(description='使用已安装的 macOS 系统声音生成本地引导台词')
 parser.add_argument('--voice',default='Tingting')
