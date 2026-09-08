@@ -9,3 +9,5 @@
 *.mat text eol=lf whitespace=-blank-at-eol
 *.unity text eol=lf whitespace=-blank-at-eol
 *.otf binary
+*.wav binary
+*.png binary

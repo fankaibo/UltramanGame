@@ -66,6 +66,7 @@ static class Program
             Check(Holds(r,"raised",50,x=>x.Transform)==1,"transform pose triggers once");
             r.Update(null,stamp);Check(!Feed(r,"beam").Beam,"tracking loss clears held gesture");
             TrackingRegressions();
+            FriendlyMotionRegressions();
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");
             b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});Check(b.Action==HeroAction.None,"beam requires energy");
             Punch(b);Check(b.EnemyHealth==23 && b.Punches==1,"one punch applies one hit");
@@ -90,6 +91,41 @@ static class Program
             Console.WriteLine($"{count} checks passed");return 0;
         }
         catch(Exception e) { Console.Error.WriteLine("FAIL "+e);return 1; }
+    }
+    static void FriendlyMotionRegressions()
+    {
+        var r=new GestureRecognizer();Holds(r,"neutral",25,x=>false);
+        int punches=0;
+        for(int i=0;i<40;i++)
+        {
+            var p=Pose();p.points[13]=new PosePoint(.77f,.40f);p.points[15]=new PosePoint(.93f,.35f);
+            if(r.Update(p,p.capturedMs).LeftPunch)punches++;
+        }
+        Check(punches==1,"relaxed bent-arm punch triggers once without requiring full extension");
+        Holds(r,"neutral",15,x=>false);
+        int beams=0;
+        for(int i=0;i<30;i++)
+        {
+            var p=Pose();p.points[13]=new PosePoint(.57f,.49f);p.points[15]=new PosePoint(.51f,.36f);
+            p.points[14]=new PosePoint(.28f,.43f);p.points[16]=new PosePoint(.45f,.46f);
+            if(r.Update(p,p.capturedMs).Beam)beams++;
+        }
+        Check(beams==1,"shorter relaxed L pose can fire a single beam");
+        r.Reset();Holds(r,"neutral",20,x=>false);bool guarded=false;
+        for(int i=0;i<20;i++)
+        {
+            var p=Pose();p.points[13]=new PosePoint(.7f,.43f);p.points[15]=new PosePoint(.56f,.435f);
+            p.points[14]=new PosePoint(.30f,.43f);p.points[16]=new PosePoint(.44f,.435f);
+            guarded|=r.Update(p,p.capturedMs).Shield;
+        }
+        Check(guarded,"relaxed crossed hands can hold a shield");
+        var b=Started();b.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Advance(b,.22f);
+        b.Tick(.02f,new PlayerInput{Tracking=true,RightPunch=true});Advance(b,.65f);
+        Check(b.Punches==2,"second punch near recovery is buffered and lands once");
+        Advance(b,1);Check(b.Punches==2,"buffered punch does not repeat without new input");
+        b=Started();b.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Advance(b,.22f);
+        b.Tick(.02f,new PlayerInput{Tracking=true,RightPunch=true});b.Tick(.02f,default);Advance(b,2.2f);
+        Check(b.Punches==1,"tracking loss clears buffered attacks before resume");
     }
     static void TrackingRegressions()
     {

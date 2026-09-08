@@ -39,7 +39,7 @@ class GamePreview:
         now = time.monotonic()
         if now < self.next_at:
             return
-        self.next_at = now + .1  # At most 10 FPS; full-rate poses use a separate connection.
+        self.next_at = max(self.next_at + 1/15, now + .001)  # 15 FPS target, no catch-up burst.
         import cv2
         if image is None:
             # Explicit synthetic test image. No camera is opened in demo mode.

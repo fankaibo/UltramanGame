@@ -76,6 +76,8 @@ namespace UltramanGame.Core
         readonly bool[] wasReliable = new bool[33];
         bool leftArmed, rightArmed, beamFired, transformFired;
         float beamHold, transformHold, shieldHold, steady;
+        public float TransformProgress => Math.Min(1,transformHold/.45f);
+        public float BeamProgress => Math.Min(1,beamHold/.30f);
 
         public void Reset()
         {
@@ -95,7 +97,7 @@ namespace UltramanGame.Core
             float dt=fresh ? 0 : Math.Min(.1f,(frame.capturedMs-lastStamp)/1000f);
             if (fresh) ClearGestures();
             stream=frame.streamId; lastSequence=frame.sequence; lastStamp=frame.capturedMs;
-            float alpha=fresh?1:(float)(1-Math.Exp(-dt/.055));
+            float alpha=fresh?1:(float)(1-Math.Exp(-dt/.035));
             for (int i=0;i<33;i++)
             {
                 bool reliable=PoseQuality.Reliable(frame.points[i]);
@@ -118,20 +120,20 @@ namespace UltramanGame.Core
             bool rightReady=shouldersReady&&wasReliable[14]&&wasReliable[16];
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
             bool bothArms=leftReady&&rightReady;
-            bool raised=wristsReady && lw.y<sy-.45f*scale && rw.y<sy-.45f*scale;
+            bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
             bool beam=bothArms && (BeamArm(le,lw,re,rw,scale) || BeamArm(re,rw,le,lw,scale));
-            bool shield=bothArms && !beam && !raised && Math.Abs(lw.x-cx)<.55f*scale && Math.Abs(rw.x-cx)<.55f*scale &&
-                lw.y>sy-.25f*scale && rw.y>sy-.25f*scale && lw.y<sy+.7f*scale && rw.y<sy+.7f*scale &&
-                le.y>lw.y+.1f*scale && re.y>rw.y+.1f*scale;
-            if (steady<.5f) return input;
+            bool shield=bothArms && !beam && !raised && Math.Abs(lw.x-cx)<.65f*scale && Math.Abs(rw.x-cx)<.65f*scale &&
+                lw.y>sy-.25f*scale && rw.y>sy-.25f*scale && lw.y<sy+.85f*scale && rw.y<sy+.85f*scale &&
+                le.y>lw.y-.03f*scale && re.y>rw.y-.03f*scale;
+            if (steady<.25f) return input;
             transformHold=raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
-            if (transformHold>=.6f && !transformFired) { input.Transform=true; transformFired=true; }
+            if (transformHold>=.45f && !transformFired) { input.Transform=true; transformFired=true; }
             beamHold=beam?beamHold+dt:0;
             if (bothArms && !beam) beamFired=false;
-            if (beamHold>=.45f && !beamFired) { input.Beam=true; beamFired=true; }
+            if (beamHold>=.30f && !beamFired) { input.Beam=true; beamFired=true; }
             shieldHold=shield?shieldHold+dt:0;
-            input.Shield=shieldHold>=.15f;
+            input.Shield=shieldHold>=.08f;
             if (beam || shield || raised)
             {
                 leftArmed=rightArmed=false;
@@ -145,17 +147,18 @@ namespace UltramanGame.Core
         {
             float vx=Math.Abs(vw.x-ve.x),vy=ve.y-vw.y;
             float hx=Math.Abs(hw.x-he.x),hy=Math.Abs(hw.y-he.y);
-            return vy>.45f*scale && vy>vx*1.7f && hx>.5f*scale && hx>hy*1.7f &&
-                Math.Abs(vw.x-hw.x)<.45f*scale && hw.y>=vw.y && hw.y<=ve.y+.2f*scale;
+            return vy>.30f*scale && vy>vx*1.25f && hx>.35f*scale && hx>hy*1.25f &&
+                Math.Abs(vw.x-hw.x)<.60f*scale && hw.y>=vw.y-.1f*scale && hw.y<=ve.y+.3f*scale;
         }
         static bool Punch(PosePoint shoulder,PosePoint elbow,PosePoint wrist,float scale,ref bool armed)
         {
             float distance=PoseQuality.Distance(shoulder,wrist)/scale;
-            if (distance<.86f || wrist.y>shoulder.y+.8f*scale) armed=true;
             float ax=shoulder.x-elbow.x,ay=shoulder.y-elbow.y,bx=wrist.x-elbow.x,by=wrist.y-elbow.y;
             float denominator=(float)Math.Sqrt((ax*ax+ay*ay)*(bx*bx+by*by));
             float cosine=denominator>1e-6f?(ax*bx+ay*by)/denominator:1;
-            bool extended=distance>1.0f && cosine<-.65f && wrist.y<shoulder.y+.6f*scale;
+            // Separate retraction/extension thresholds: a relaxed bent punch must not auto-repeat.
+            if (distance<.65f || wrist.y>shoulder.y+.82f*scale || cosine>.1f) armed=true;
+            bool extended=distance>.78f && cosine<-.35f && wrist.y<shoulder.y+.8f*scale;
             if (!armed || !extended) return false;
             armed=false;
             return true;

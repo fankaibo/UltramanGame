@@ -37,11 +37,21 @@ namespace UltramanGame.Editor
         public static void BuildMac()
         {
             Configure();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            foreach(var name in new[] { "music_ready","music_battle","swing","impact","beam","shield","transform","recover","victory" })
+                RequireAudio("Assets/Resources/Audio/"+name+".wav");
+            foreach(var name in new[] { "welcome","transform","battle","warning","block","recover","energy","beam","victory","resume","tutorial","beam_help" })
+                RequireAudio("Assets/Resources/Voice/"+name+".aiff");
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
                 locationPathName="Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,
                 options=BuildOptions.Development });
             if(report.summary.result!=BuildResult.Succeeded) throw new System.Exception("macOS build failed");
+        }
+        static void RequireAudio(string path)
+        {
+            var clip=AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            if(!clip || clip.length<.05f)throw new System.Exception("Missing or empty audio: "+path+". Run scripts/generate_audio.py and scripts/generate_voice.py before building.");
         }
         // Batch smoke: scene construction runs when entering Play mode. Editor compilation is the first gate.
         public static void ValidateProject() { Configure(); Debug.Log("UltramanGame scripts compiled and project configured."); }

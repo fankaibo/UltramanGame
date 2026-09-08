@@ -26,36 +26,38 @@ def run_demo(args, bridge, preview=None):
 
 def run_camera(args, bridge, preview=None):
     import cv2
+    from .capture import LatestCapture
     from .model import create_landmarker, model_image
     if not args.model.is_file():
         raise RuntimeError("模型未准备好，请先运行 scripts/setup.sh。")
     factory = FrameFactory()
-    camera = cv2.VideoCapture(args.camera, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY)
-    try:
-        if not camera.isOpened():
-            raise RuntimeError("无法打开摄像头。请检查 macOS 相机权限，以及其他程序是否占用相机。")
+    def open_camera():
+        camera = cv2.VideoCapture(args.camera, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY)
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         camera.set(cv2.CAP_PROP_FPS, 30)
-        previous_stamp = -1
-        last_image_at = None
-        frames = poses = 0
-        inference_seconds = 0
-        with create_landmarker(args.model) as model:
+        camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        return camera
+    previous_stamp = -1
+    last_image_at = None
+    frames = poses = revision = skipped = 0
+    inference_seconds = 0
+    try:
+        with create_landmarker(args.model) as model, LatestCapture(open_camera) as capture:
             start = time.monotonic()
             while not args.seconds or time.monotonic()-start < args.seconds:
-                ok, image = camera.read()
-                captured_ms = int(time.time()*1000)
-                if not ok:
-                    bridge.publish(factory.make(captured_ms=captured_ms))
-                    # AVFoundation can open before its first image is ready, especially after restart.
+                sample = capture.take(after=revision)
+                if sample is None:
+                    bridge.publish(factory.make())
                     waiting = time.monotonic()-(start if last_image_at is None else last_image_at)
                     if waiting >= (5 if last_image_at is None else 2):
                         raise RuntimeError("摄像头未返回画面，请检查相机连接、权限及其他程序占用。")
-                    time.sleep(.05)
                     continue
+                new_revision, image, captured_ms, captured_at = sample
+                skipped += max(0, new_revision-revision-1)
+                revision = new_revision
                 last_image_at = time.monotonic()
-                stamp = max(previous_stamp+1, int((time.monotonic()-start)*1000))
+                stamp = max(previous_stamp+1, int((captured_at-start)*1000))
                 previous_stamp = stamp
                 inference_start = time.monotonic()
                 result = model.detect_for_video(model_image(image), stamp)
@@ -67,15 +69,16 @@ def run_camera(args, bridge, preview=None):
                 if preview:
                     preview.publish(image, landmarks, captured_ms)
                 if not args.no_preview:
-                    h,w = image.shape[:2]
+                    debug_image = image.copy()
                     if landmarks:
-                        for a,b in [(11,12),(11,13),(13,15),(12,14),(14,16),(11,23),(12,24),(23,24)]:
-                            if min(landmarks[a].visibility,landmarks[b].visibility) >= .5:
-                                pa,pb = landmarks[a],landmarks[b]
-                                cv2.line(image,(int(pa.x*w),int(pa.y*h)),(int(pb.x*w),int(pb.y*h)),(220,220,20),3)
-                    image = cv2.flip(image,1)
-                    cv2.putText(image,"LOCAL CAMERA | Q: quit | no recording",(15,28),cv2.FONT_HERSHEY_SIMPLEX,.6,(255,255,255),2)
-                    cv2.imshow("UltramanGame - Camera",image)
+                        h,w = debug_image.shape[:2]
+                        for a,b in ((11,12),(11,13),(13,15),(12,14),(14,16)):
+                            if min(landmarks[a].visibility,landmarks[b].visibility)>=.55:
+                                pa,pb=landmarks[a],landmarks[b]
+                                cv2.line(debug_image,(int(pa.x*w),int(pa.y*h)),(int(pb.x*w),int(pb.y*h)),(220,220,20),3)
+                    debug_image = cv2.flip(debug_image, 1)
+                    cv2.putText(debug_image, "LOCAL CAMERA | Q: quit | no recording", (15,28), cv2.FONT_HERSHEY_SIMPLEX,.6,(255,255,255),2)
+                    cv2.imshow("UltramanGame - Camera", debug_image)
                     if cv2.waitKey(1)&255 in (ord('q'),27):
                         break
             elapsed = time.monotonic()-start
@@ -84,10 +87,9 @@ def run_camera(args, bridge, preview=None):
             print(json.dumps({"frames":frames,"pose_frames":poses,
                 "elapsed_seconds":round(elapsed,2),"processed_fps":round(frames/max(elapsed,.001),1),
                 "mean_inference_ms":round(inference_seconds*1000/max(frames,1),1),
-                "preview_frames":preview.frames if preview else 0}),flush=True)
+                "skipped_capture_frames":skipped,"preview_frames":preview.frames if preview else 0}),flush=True)
     finally:
         bridge.publish(factory.make())
-        camera.release()
         if not args.no_preview:
             cv2.destroyAllWindows()
 
@@ -99,7 +101,7 @@ def main():
     parser.add_argument("--port",type=int,default=8765,help="本机端口；0 由系统分配，供独立测试使用")
     parser.add_argument("--seconds",type=float,default=0,help="测试运行秒数，0 表示持续运行")
     parser.add_argument("--no-preview",action="store_true",help="关闭独立调试窗口，不影响游戏内预览")
-    parser.add_argument("--game-preview",action="store_true",help="向游戏提供镜像画面及关节点（最多 320×240、10 FPS）")
+    parser.add_argument("--game-preview",action="store_true",help="向游戏提供镜像画面及关节点（最多 320×240、约 15 FPS）")
     parser.add_argument("--preview-port",type=int,default=8766,help="游戏内预览的本机端口；0 由系统分配")
     parser.add_argument("--ready-json",action="store_true",help=argparse.SUPPRESS)
     parser.add_argument("--model",type=Path,default=ROOT/"models/pose_landmarker_lite.task")
