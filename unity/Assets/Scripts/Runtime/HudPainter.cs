@@ -53,14 +53,20 @@ namespace UltramanGame.Runtime
             var c=accent??Cyan;bool hover=r.Contains(Event.current.mousePosition);
             Rounded(r,new Color(c.r,c.g,c.b,hover?.26f:.12f),8);
             Text(r,text,16,Ink,TextAnchor.MiddleCenter);
-            return GUI.Button(r,GUIContent.none,GUIStyle.none);
+            var eventType=Event.current.type;
+            bool clicked=GUI.Button(r,GUIContent.none,GUIStyle.none);
+            if(Debug.isDebugBuild&&hover&&(eventType==EventType.MouseDown||eventType==EventType.MouseUp))
+                Debug.Log($"[UI] button={text} event={eventType} clicked={clicked} enabled={GUI.enabled}");
+            return clicked;
         }
         public void Bar(Rect r,float amount,Color color)
         { Rounded(r,new Color(.13f,.21f,.31f),r.height/2);if(amount>0)Rounded(new Rect(r.x,r.y,r.width*Mathf.Clamp01(amount),r.height),color,r.height/2); }
         public void Line(Vector2 a,Vector2 b,Color color,float width=3)
         {
             var matrix=GUI.matrix;float angle=Mathf.Atan2(b.y-a.y,b.x-a.x)*Mathf.Rad2Deg;
-            GUIUtility.RotateAroundPivot(angle,a);Box(new Rect(a.x,a.y-width/2,Vector2.Distance(a,b),width),color);GUI.matrix=matrix;
+            // Compose in HUD coordinates before the outer screen scale (including Retina/non-uniform scale).
+            GUI.matrix=matrix*Matrix4x4.TRS(new Vector3(a.x,a.y,0),Quaternion.Euler(0,0,angle),Vector3.one);
+            Box(new Rect(0,-width/2,Vector2.Distance(a,b),width),color);GUI.matrix=matrix;
             Dot(a,width,color);Dot(b,width,color);
         }
         public void Figure(Rect r,string pose,float time,Color color)

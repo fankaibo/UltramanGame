@@ -13,7 +13,7 @@ namespace UltramanGame.Runtime
         readonly float cellHeight;
         readonly float[] baseline=new float[8];
         readonly Vector3 home,forwardAxis;
-        float lastHealth=Battle.MaxHealth,hitAge=10,phaseAge;
+        float lastHealth,hitAge=10,phaseAge;
         bool heavyHit;
         GamePhase previous;
         int displayed=-1;

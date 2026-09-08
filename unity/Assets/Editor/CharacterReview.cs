@@ -37,7 +37,7 @@ namespace UltramanGame.Editor
                 throw new Exception("Punch must travel toward Golza in both X and Z");
             Step(state,.4f);state.Tick(.01f,new PlayerInput {Tracking=true,Shield=true});
             RenderBattle(world,state,hero,enemy,target,folder,"battle-shield");
-            for(int i=0;i<5;i++)
+            for(int i=0;i<60&&state.Energy<Battle.MaxEnergy;i++)
             {state.Tick(.01f,new PlayerInput {Tracking=true,LeftPunch=true});Step(state,.4f);}
             state.Tick(.01f,new PlayerInput {Tracking=true,Beam=true});Step(state,.35f);
             if(state.Action!=HeroAction.Beam)throw new Exception("Review did not reach beam action");

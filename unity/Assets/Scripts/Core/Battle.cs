@@ -14,7 +14,8 @@ namespace UltramanGame.Core
         public GamePhase Phase { get; private set; } = GamePhase.Waiting;
         public EnemyPhase Enemy { get; private set; }
         public HeroAction Action { get; private set; }
-        public float EnemyHealth { get; private set; } = 24;
+        public int MaxHealth { get; }
+        public float EnemyHealth { get; private set; }
         public float Energy { get; private set; }
         public float ActionAge { get; private set; }
         public float EnemyAge { get; private set; }
@@ -23,7 +24,8 @@ namespace UltramanGame.Core
         public int Punches { get; private set; }
         public int Blocks { get; private set; }
         public int HitsTaken { get; private set; }
-        public const float MaxHealth=24, MaxEnergy=6, WindupSeconds=2.4f;
+        public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
+        public const float WindupSeconds=2.4f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
         GamePhase resumePhase;
@@ -31,6 +33,11 @@ namespace UltramanGame.Core
         bool hitApplied;
         HeroAction queuedPunch;
         float queuedAge;
+
+        public Battle(int monsterHits=DefaultMonsterHits)
+        { MaxHealth=ClampMonsterHits(monsterHits);EnemyHealth=MaxHealth; }
+        public static int ClampMonsterHits(int value)
+        { return Math.Max(MinMonsterHits,Math.Min(MaxMonsterHits,value)); }
 
         public bool TryCue(out GameCue cue)
         { if(cues.Count==0) { cue=default; return false; } cue=cues.Dequeue(); return true; }
@@ -104,7 +111,7 @@ namespace UltramanGame.Core
             else if(Enemy==EnemyPhase.Windup && EnemyAge>=WindupSeconds)
             {
                 Enemy=EnemyPhase.Recover; EnemyAge=0;
-                if(Shield) { Blocks++; AddEnergy(1); Cue(GameCue.Block); }
+                if(Shield) { Blocks++; Cue(GameCue.Block); }
                 else if(immunity<=0) { HitsTaken++; immunity=2; queuedPunch=HeroAction.None;Begin(HeroAction.Hurt); Cue(GameCue.Hurt); }
             }
             else if(Enemy==EnemyPhase.Recover && EnemyAge>=2)
