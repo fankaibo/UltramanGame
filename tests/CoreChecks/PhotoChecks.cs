@@ -12,6 +12,17 @@ static class PhotoChecks
         check(!c.TakeShot(106)&&!c.Running,"photo deadline yields exactly one capture");
         c.Begin(200);c.Cancel();check(!c.TakeShot(206),"cancelled countdown never captures");
         c.Begin(300);check(c.Remaining(304)==1&&c.TakeShot(305),"retake gets a new full five seconds");
+        var session=new PhotoSession();session.Open();
+        check(session.Stage==PhotoStage.Framing&&!session.Tick(100,true),"photo opens a live viewfinder without taking a picture");
+        check(!session.Begin(100,false)&&session.Stage==PhotoStage.Framing,"photo waits for a fresh person before countdown");
+        check(session.Begin(100,true)&&!session.Begin(102,true)&&!session.Tick(104.99,true),"explicit photo click starts one full countdown");
+        session.Back();check(session.Stage==PhotoStage.Framing&&!session.Tick(106,true),"cancel returns to live posing without saving");
+        session.Begin(200,true);check(!session.Tick(205,false)&&session.Missed&&session.Stage==PhotoStage.Framing,"camera loss at shutter returns to live viewfinder");
+        check(!session.Tick(206,true),"camera recovery cannot silently take a missed photo");
+        session.Begin(300,true);check(session.Tick(305,true)&&session.Stage==PhotoStage.Review,"finished shot enters a distinct photo review");
+        check(!session.Tick(1000,true)&&!session.Begin(1000,true)&&session.Stage==PhotoStage.Review,"photo review stays frozen until explicit user action");
+        session.Open();check(session.Stage==PhotoStage.Framing&&!session.Tick(1100,true),"retake lets the player pose again before starting a countdown");
+        session.Begin(1200,true);session.Close();check(!session.Tick(1205,true)&&session.Stage==PhotoStage.Closed,"closing the viewfinder cancels pending capture");
         var data=Packet();var frame=PhotoFrame.Read(new MemoryStream(data));
         check(frame.Present&&frame.Synthetic&&frame.Fresh(10000),"photo packet carries a fresh synthetic cutout");
         check(!frame.Fresh(10751)&&!frame.Fresh(9949),"photo rejects stale and future capture times");

@@ -18,6 +18,34 @@ namespace UltramanGame.Core
         public void Cancel() {Running=false;}
     }
 
+    public enum PhotoStage {Closed,Framing,Countdown,Review}
+
+    public sealed class PhotoSession
+    {
+        readonly PhotoCountdown countdown=new PhotoCountdown();
+        public PhotoStage Stage {get;private set;}
+        public bool Missed {get;private set;}
+        public void Open() {countdown.Cancel();Missed=false;Stage=PhotoStage.Framing;}
+        public bool Begin(double now,bool freshPerson)
+        {
+            if(Stage!=PhotoStage.Framing||!freshPerson)return false;
+            Missed=false;countdown.Begin(now);Stage=PhotoStage.Countdown;return true;
+        }
+        public int Remaining(double now)=>countdown.Remaining(now);
+        public bool Tick(double now,bool freshPerson)
+        {
+            if(Stage!=PhotoStage.Countdown||!countdown.TakeShot(now))return false;
+            Missed=!freshPerson;Stage=freshPerson?PhotoStage.Review:PhotoStage.Framing;
+            return freshPerson;
+        }
+        public void Back()
+        {
+            countdown.Cancel();Missed=false;
+            Stage=Stage==PhotoStage.Countdown?PhotoStage.Framing:PhotoStage.Closed;
+        }
+        public void Close() {countdown.Cancel();Missed=false;Stage=PhotoStage.Closed;}
+    }
+
     public sealed class PhotoFrame
     {
         public const int MaxBytes=2*1024*1024;

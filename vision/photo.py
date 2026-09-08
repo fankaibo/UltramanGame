@@ -1,6 +1,7 @@
 """On-demand clean person cutouts. No files, annotations, second camera or uploads."""
 import struct
 import time
+import math
 
 from .bridge import LatestBridge, _Handler
 
@@ -53,7 +54,8 @@ class GamePhoto:
             image = np.zeros((480, 640, 3), np.uint8)
             cv2.circle(image, (320, 116), 58, (145, 195, 240), -1)
             cv2.rectangle(image, (245, 176), (395, 345), (220, 145, 40), -1)
-            for a, b in (((255, 192), (180, 95)), ((385, 192), (450, 95)), ((280, 325), (260, 465)), ((360, 325), (380, 465))):
+            wave = math.sin(captured_ms / 600) * 60
+            for a, b in (((255, 192), (180, round(130+wave))), ((385, 192), (450, round(130-wave))), ((280, 325), (260, 465)), ((360, 325), (380, 465))):
                 cv2.line(image, a, b, (220, 145, 40), 40)
             cv2.circle(image, (299, 108), 7, (30, 40, 45), -1)
             cv2.circle(image, (341, 108), 7, (30, 40, 45), -1)
