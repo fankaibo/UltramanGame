@@ -64,6 +64,7 @@ static class Program
             Holds(r,"neutral",20,x=>false);
             Check(Holds(r,"raised",50,x=>x.Transform)==1,"transform pose triggers once");
             r.Update(null,stamp);Check(!Feed(r,"beam").Beam,"tracking loss clears held gesture");
+            TrackingRegressions();
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");
             b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});Check(b.Action==HeroAction.None,"beam requires energy");
             Punch(b);Check(b.EnemyHealth==23 && b.Punches==1,"one punch applies one hit");
@@ -83,14 +84,61 @@ static class Program
             b=Started();for(int i=0;i<30 && b.Phase!=GamePhase.Victory;i++)Punch(b);
             Check(b.Phase==GamePhase.Victory,"ordinary attacks can finish battle");
             int hits=b.HitsTaken;Advance(b,30);Check(b.HitsTaken==hits,"victory stops enemy attacks");
-            if(args.Length>0 && args[0]=="--bridge") BridgeCheck();
+            if(args.Length>0 && args[0]=="--bridge") BridgeCheck(args.Length>1?int.Parse(args[1]):8765);
             Console.WriteLine($"{count} checks passed");return 0;
         }
         catch(Exception e) { Console.Error.WriteLine("FAIL "+e);return 1; }
     }
-    static void BridgeCheck()
+    static void TrackingRegressions()
     {
-        using(var client=new PoseClient())
+        var p=Pose();p.points[13].visibility=.1f;
+        Check(PoseQuality.Present(p,stamp) && !PoseQuality.Valid(p,stamp),"obscured elbow is not a missing player");
+        var presence=new PlayerPresence();
+        Check(!presence.Update(null,stamp),"no grace before a player is seen");
+        Check(presence.Update(p,stamp),"torso acquires presence with obscured arm");
+        Check(presence.Update(null,stamp+450),"brief missing frames preserve presence");
+        Check(!presence.Update(p,stamp+650),"old frames cannot prolong presence after timeout");
+        p=Pose();p.points[11].visibility=p.points[12].visibility=.1f;
+        Check(!PoseQuality.Present(p,stamp),"missing torso does not count as player presence");
+
+        var r=new GestureRecognizer();int transforms=0;
+        for(int i=0;i<60;i++)
+        {
+            p=Pose("raised");p.points[13].visibility=.1f;
+            if(r.Update(p,stamp).Transform) transforms++;
+        }
+        Check(transforms==1,"raised visible wrists transform despite an obscured elbow");
+
+        r=new GestureRecognizer();Holds(r,"neutral",25,x=>false);int right=0,left=0;
+        for(int i=0;i<40;i++)
+        {
+            p=Pose("right");p.points[13].visibility=.1f;var input=r.Update(p,stamp);
+            if(input.RightPunch) right++;if(input.LeftPunch) left++;
+        }
+        Check(right==1 && left==0,"visible arm can punch while other arm is obscured");
+
+        r=new GestureRecognizer();Holds(r,"neutral",25,x=>false);Holds(r,"beam",55,x=>false);
+        p=Pose("beam");p.points[15].visibility=.1f;var blocked=r.Update(p,stamp);
+        Check(blocked.Tracking && !blocked.Beam && !blocked.Shield,"missing wrist disables move without losing player");
+        Check(Holds(r,"beam",55,x=>x.Beam)==0,"held beam cannot refire across arm occlusion");
+
+        r=new GestureRecognizer();Holds(r,"neutral",25,x=>false);Holds(r,"punch",30,x=>false);
+        p=Pose("punch");p.points[13].visibility=.1f;r.Update(p,stamp);
+        Check(Holds(r,"punch",30,x=>x.LeftPunch)==0,"occluded punching arm must retract before another hit");
+
+        var battle=Started();r=new GestureRecognizer();presence=new PlayerPresence();
+        for(int i=0;i<120;i++)
+        {
+            p=Pose();p.points[13].visibility=.1f;
+            var input=r.Update(p,stamp);input.Tracking=presence.Update(p,stamp);battle.Tick(.02f,input);
+        }
+        Check(battle.Phase==GamePhase.Battle,"persistent arm occlusion does not interrupt battle");
+        battle.Tick(.02f,new PlayerInput{Tracking=presence.Update(null,stamp+650)});
+        Check(battle.Phase==GamePhase.Paused,"actual stream loss still pauses battle after grace");
+    }
+    static void BridgeCheck(int port)
+    {
+        using(var client=new PoseClient(port))
         {
             string line=null;var deadline=DateTime.UtcNow.AddSeconds(5);
             while(line==null && DateTime.UtcNow<deadline) {line=client.TakeLatest();Thread.Sleep(30);}

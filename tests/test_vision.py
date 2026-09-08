@@ -15,7 +15,9 @@ class ProtocolTests(unittest.TestCase):
         frame=json.loads(line)
         self.assertTrue(frame['tracked'])
         self.assertEqual(33,len(frame['points']))
-        self.assertEqual({'schema','streamId','sequence','capturedMs','tracked','points'},set(frame))
+        self.assertEqual({'schema','source','streamId','sequence','capturedMs','tracked','points'},set(frame))
+        self.assertEqual('camera', frame['source'])
+        self.assertEqual('synthetic', FrameFactory(source='synthetic').make()['source'])
 
     def test_no_person_and_incomplete_pose_are_explicit(self):
         f=FrameFactory()

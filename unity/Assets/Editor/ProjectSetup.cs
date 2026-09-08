@@ -15,13 +15,20 @@ namespace UltramanGame.Editor
             PlayerSettings.productName="迪迦体感训练场";
             PlayerSettings.defaultScreenWidth=1280;
             PlayerSettings.defaultScreenHeight=720;
+            PlayerSettings.defaultIsNativeResolution=false;
+            PlayerSettings.fullScreenMode=FullScreenMode.Windowed;
+            PlayerSettings.resizableWindow=true;
             PlayerSettings.runInBackground=true;
+            PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Standalone,"com.ultramangame.training");
             // A Resources material retains Standard in player builds despite procedural actors.
             if(!AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/PrototypeSurface.mat"))
             {
                 System.IO.Directory.CreateDirectory("Assets/Resources");
                 AssetDatabase.CreateAsset(new Material(Shader.Find("Standard")),"Assets/Resources/PrototypeSurface.mat");
             }
+            var fontImporter=AssetImporter.GetAtPath("Assets/Resources/Fonts/NotoSansSC-Regular.otf") as TrueTypeFontImporter;
+            if(fontImporter!=null && !fontImporter.includeFontData)
+            { fontImporter.includeFontData=true; fontImporter.SaveAndReimport(); }
             EditorBuildSettings.scenes=new[] { new EditorBuildSettingsScene("Assets/Scenes/Arena.unity",true) };
         }
         [MenuItem("UltramanGame/Open Arena")]
@@ -32,7 +39,7 @@ namespace UltramanGame.Editor
             Configure();
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
-                locationPathName="Builds/UltramanGame.app",target=BuildTarget.StandaloneOSX,
+                locationPathName="Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,
                 options=BuildOptions.Development });
             if(report.summary.result!=BuildResult.Succeeded) throw new System.Exception("macOS build failed");
         }

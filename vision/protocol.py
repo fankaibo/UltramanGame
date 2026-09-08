@@ -10,7 +10,10 @@ MAX_LINE_BYTES = 32768
 
 
 class FrameFactory:
-    def __init__(self):
+    def __init__(self, source="camera"):
+        if source not in ("camera", "synthetic"):
+            raise ValueError("Unknown pose source")
+        self.source = source
         self.stream_id = uuid.uuid4().hex
         self.sequence = 0
 
@@ -26,6 +29,7 @@ class FrameFactory:
                 points.append(dict(zip(("x", "y", "z", "visibility"), values)))
         return {
             "schema": SCHEMA,
+            "source": self.source,
             "streamId": self.stream_id,
             "sequence": self.sequence,
             "capturedMs": int(time.time() * 1000) if captured_ms is None else int(captured_ms),

@@ -83,7 +83,12 @@ namespace UltramanGame.Runtime
         {
             Vector3 tle=new Vector3(-.70f,1.75f,0),tre=new Vector3(.70f,1.75f,0),tlw=new Vector3(-.55f,1.55f,.4f),trw=new Vector3(.55f,1.55f,.4f);
             if(!monster && pose!=null)
-            { tle=Map(pose.points[13],pose);tre=Map(pose.points[14],pose);tlw=Map(pose.points[15],pose);trw=Map(pose.points[16],pose); }
+            {
+                if(PoseQuality.Reliable(pose.points[13])) tle=Map(pose.points[13],pose);
+                if(PoseQuality.Reliable(pose.points[14])) tre=Map(pose.points[14],pose);
+                if(PoseQuality.Reliable(pose.points[15])) tlw=Map(pose.points[15],pose);
+                if(PoseQuality.Reliable(pose.points[16])) trw=Map(pose.points[16],pose);
+            }
             if(game.Phase==GamePhase.Transforming || game.Phase==GamePhase.Victory)
             { tlw=new Vector3(-.7f,3.25f,0);trw=new Vector3(.7f,3.25f,0);tle=new Vector3(-.8f,2.7f,0);tre=new Vector3(.8f,2.7f,0); }
             if(!monster && game.Shield)

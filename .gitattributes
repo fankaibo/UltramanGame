@@ -1,0 +1,11 @@
+* text=auto
+*.cs text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.command text eol=lf
+# Unity serializes empty YAML values with a trailing space.
+*.meta text eol=lf whitespace=-blank-at-eol
+*.asset text eol=lf whitespace=-blank-at-eol
+*.mat text eol=lf whitespace=-blank-at-eol
+*.unity text eol=lf whitespace=-blank-at-eol
+*.otf binary

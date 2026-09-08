@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run_demo(args, bridge):
     from .demo import landmarks_at
-    factory = FrameFactory()
+    factory = FrameFactory(source="synthetic")
     start = time.monotonic()
     while not args.seconds or time.monotonic()-start < args.seconds:
         bridge.publish(factory.make(landmarks_at(time.monotonic()-start)))
@@ -33,7 +33,7 @@ def run_camera(args, bridge):
         camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         camera.set(cv2.CAP_PROP_FPS, 30)
         previous_stamp = -1
-        failures = 0
+        last_image_at = None
         frames = poses = 0
         inference_seconds = 0
         with create_landmarker(args.model) as model:
@@ -43,12 +43,13 @@ def run_camera(args, bridge):
                 captured_ms = int(time.time()*1000)
                 if not ok:
                     bridge.publish(factory.make(captured_ms=captured_ms))
-                    failures += 1
-                    if failures >= 10:
-                        raise RuntimeError("摄像头连续没有返回画面，请检查相机连接和权限。")
+                    # AVFoundation can open before its first image is ready, especially after restart.
+                    waiting = time.monotonic()-(start if last_image_at is None else last_image_at)
+                    if waiting >= (5 if last_image_at is None else 2):
+                        raise RuntimeError("摄像头未返回画面，请检查相机连接、权限及其他程序占用。")
                     time.sleep(.05)
                     continue
-                failures = 0
+                last_image_at = time.monotonic()
                 stamp = max(previous_stamp+1, int((time.monotonic()-start)*1000))
                 previous_stamp = stamp
                 inference_start = time.monotonic()
@@ -71,6 +72,8 @@ def run_camera(args, bridge):
                     if cv2.waitKey(1)&255 in (ord('q'),27):
                         break
             elapsed = time.monotonic()-start
+            if frames == 0:
+                raise RuntimeError("测试期间没有取得相机画面，请稍后重试。")
             print(json.dumps({"frames":frames,"pose_frames":poses,
                 "elapsed_seconds":round(elapsed,2),"processed_fps":round(frames/max(elapsed,.001),1),
                 "mean_inference_ms":round(inference_seconds*1000/max(frames,1),1)}),flush=True)
@@ -85,16 +88,16 @@ def main():
     parser = argparse.ArgumentParser(description="本地摄像头姿态服务；仅通过回环地址发送关键点，不录制视频。")
     parser.add_argument("--demo",action="store_true",help="合成姿态测试，不打开摄像头")
     parser.add_argument("--camera",type=int,default=0)
-    parser.add_argument("--port",type=int,default=8765)
+    parser.add_argument("--port",type=int,default=8765,help="本机端口；0 由系统分配，供独立测试使用")
     parser.add_argument("--seconds",type=float,default=0,help="测试运行秒数，0 表示持续运行")
     parser.add_argument("--no-preview",action="store_true")
     parser.add_argument("--model",type=Path,default=ROOT/"models/pose_landmarker_lite.task")
     args = parser.parse_args()
-    if not 1 <= args.port <= 65535 or args.seconds < 0:
-        parser.error("port 必须在 1–65535；seconds 不能为负数")
+    if not 0 <= args.port <= 65535 or args.seconds < 0:
+        parser.error("port 必须在 0–65535；seconds 不能为负数")
     try:
         with PoseBridge(args.port) as bridge:
-            print(f"{'合成姿态' if args.demo else '本地摄像头'}服务：127.0.0.1:{args.port}",flush=True)
+            print(f"{'合成姿态' if args.demo else '本地摄像头'}服务：127.0.0.1:{bridge.address[1]}",flush=True)
             (run_demo if args.demo else run_camera)(args,bridge)
     except KeyboardInterrupt:
         return 0
