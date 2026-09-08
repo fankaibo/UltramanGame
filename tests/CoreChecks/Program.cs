@@ -46,6 +46,7 @@ static class Program
         try
         {
             PreviewChecks.Run(Check);
+            PhotoChecks.Run(Check);
             BeamCloseupChecks.Run(Check);
             var pose=Pose();Check(PoseQuality.Valid(pose,stamp),"complete fresh pose accepted");
             Check(!PoseQuality.Valid(pose,stamp+351),"stale capture rejected");

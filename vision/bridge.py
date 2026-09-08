@@ -32,12 +32,12 @@ class _Server(socketserver.ThreadingTCPServer):
 
 
 class LatestBridge:
-    def __init__(self, port=8765):
+    def __init__(self, port=8765, handler=_Handler):
         self.changed = threading.Condition()
         self.stopping = threading.Event()
         self.revision = 0
         self.latest = b""
-        self.server = _Server(("127.0.0.1", port), _Handler)
+        self.server = _Server(("127.0.0.1", port), handler)
         self.server.bridge = self
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 

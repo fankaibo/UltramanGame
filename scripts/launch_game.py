@@ -53,7 +53,7 @@ def main():
                 # The servers bind port 0 themselves; no probe/release race or takeover of other apps.
                 ready = queue.Queue(maxsize=1)
                 camera = subprocess.Popen([sys.executable, "-m", "vision", "--no-preview", "--game-preview",
-                    "--port", "0", "--preview-port", "0", "--ready-json"] + (["--demo"] if args.demo else []),
+                    "--port", "0", "--preview-port", "0", "--photo-port", "0", "--ready-json"] + (["--demo"] if args.demo else []),
                     cwd=ROOT, env=environment, stdout=subprocess.PIPE, stderr=camera_log, text=True, bufsize=1)
                 output = camera.stdout
                 def read_camera_output():
@@ -62,7 +62,7 @@ def main():
                         try:
                             message = json.loads(line)
                             if all(isinstance(message.get(key), int) and 0 < message[key] <= 65535
-                                   for key in ("pose_port", "preview_port")):
+                                   for key in ("pose_port", "preview_port", "photo_port")):
                                 ready.put_nowait(message)
                         except (ValueError, AttributeError, queue.Full):
                             pass
@@ -81,7 +81,7 @@ def main():
             if args.keyboard:
                 command.append("--keyboard")
             else:
-                command += ["--pose-port",str(ports["pose_port"]),"--preview-port",str(ports["preview_port"])]
+                command += ["--pose-port",str(ports["pose_port"]),"--preview-port",str(ports["preview_port"]),"--photo-port",str(ports["photo_port"])]
             game = subprocess.Popen(command, cwd=ROOT, env=environment,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             while game.poll() is None:
