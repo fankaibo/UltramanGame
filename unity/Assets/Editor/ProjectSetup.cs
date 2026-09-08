@@ -29,6 +29,16 @@ namespace UltramanGame.Editor
             var fontImporter=AssetImporter.GetAtPath("Assets/Resources/Fonts/NotoSansSC-Regular.otf") as TrueTypeFontImporter;
             if(fontImporter!=null && !fontImporter.includeFontData)
             { fontImporter.includeFontData=true; fontImporter.SaveAndReimport(); }
+            foreach(var name in new[]{"TigaActions","GolzaActions"})
+            {
+                var importer=AssetImporter.GetAtPath("Assets/Resources/Art/"+name+".png") as TextureImporter;
+                if(importer!=null && (importer.mipmapEnabled || importer.textureCompression!=TextureImporterCompression.Uncompressed || importer.npotScale!=TextureImporterNPOTScale.None || !importer.isReadable))
+                {
+                    importer.mipmapEnabled=false;importer.textureCompression=TextureImporterCompression.Uncompressed;
+                    importer.npotScale=TextureImporterNPOTScale.None;importer.isReadable=true;importer.maxTextureSize=2048;
+                    importer.wrapMode=TextureWrapMode.Clamp;importer.filterMode=FilterMode.Bilinear;importer.SaveAndReimport();
+                }
+            }
             EditorBuildSettings.scenes=new[] { new EditorBuildSettingsScene("Assets/Scenes/Arena.unity",true) };
         }
         [MenuItem("UltramanGame/Open Arena")]
@@ -38,6 +48,13 @@ namespace UltramanGame.Editor
         {
             Configure();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            foreach(var name in new[]{"TigaActions","GolzaActions"})
+            {
+                var atlas=Resources.Load<Texture2D>("Art/"+name);
+                if(!atlas||atlas.width%4!=0||atlas.height%2!=0)throw new System.Exception("Missing or invalid 4 x 2 action atlas: "+name);
+            }
+            if(!System.IO.File.Exists("Assets/Plugins/macOS/libUltramanMusicPicker.dylib"))
+                throw new System.Exception("Build the music picker first: bash scripts/build_native.sh");
             foreach(var name in new[] { "music_ready","music_battle","swing","impact","beam","shield","transform","recover","victory" })
                 RequireAudio("Assets/Resources/Audio/"+name+".wav");
             foreach(var name in new[] { "welcome","transform","battle","warning","block","recover","energy","beam","victory","resume","tutorial","beam_help" })

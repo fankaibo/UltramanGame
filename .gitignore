@@ -26,5 +26,7 @@ unity/MemoryCaptures/
 unity/.vs/
 unity/*.csproj
 unity/*.sln*
+unity/Assets/Plugins/macOS/*.dylib
+music/
 unity/Assets/Resources/Voice/*.aiff
 unity/Assets/Resources/Voice/*.aiff.meta

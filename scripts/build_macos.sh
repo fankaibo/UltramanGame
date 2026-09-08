@@ -8,6 +8,7 @@ if [ ! -x "$game_editor" ]; then
   exit 1
 fi
 mkdir -p logs
+bash scripts/build_native.sh
 game_python=python3
 if [ -x .venv/bin/python ]; then game_python=.venv/bin/python; fi
 "$game_python" scripts/generate_voice.py

@@ -35,6 +35,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--keyboard", action="store_true", help="仅启动键盘练习，不打开相机")
     mode.add_argument("--demo", action="store_true", help="合成动作测试，游戏明确显示测试标记，不打开相机")
+    parser.add_argument("--music", type=Path, help="指定本机 MP3/WAV/OGG/AIFF 背景音乐")
     args = parser.parse_args()
     if not APP.is_dir():
         print("尚未构建游戏。请先在 Unity 选择 UltramanGame → Build macOS Prototype。", file=sys.stderr)
@@ -75,6 +76,8 @@ def main():
             print("游戏正在启动。关闭游戏窗口会同时关闭本次相机服务。", flush=True)
             command = [str(executable), "-screen-fullscreen", "0", "-screen-width", "1280",
                        "-screen-height", "720", "-logFile", str(logs / "game-last.log")]
+            if args.music:
+                command += ["--music", str(args.music.expanduser().resolve())]
             if args.keyboard:
                 command.append("--keyboard")
             else:

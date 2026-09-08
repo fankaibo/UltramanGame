@@ -8,7 +8,7 @@ namespace UltramanGame.Runtime
     {
         Battle battle=new Battle();
         readonly Battle showcaseBattle=new Battle();
-        bool showcase;float showcaseYaw=140;
+        bool showcase;int showcaseFrame;
         readonly GestureRecognizer recognizer=new GestureRecognizer();
         readonly PlayerPresence presence=new PlayerPresence();
         PoseClient client;
@@ -17,9 +17,10 @@ namespace UltramanGame.Runtime
         Texture2D previewTexture;
         PoseFrame pose;
         PlayerInput held;
-        PrototypeActor hero,enemy;
+        AnimatedActor hero,enemy;
         GameWorld world;
         GameAudio sound;
+        LocalMusic music;
         HudPainter hud;
         bool keyboard,paused,muted,settings,showPreview=true,previewReported,lastTracking;
         string caption="",stream;
@@ -46,8 +47,8 @@ namespace UltramanGame.Runtime
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
             if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
-            hero=new PrototypeActor("Tiga training hero",world.HeroHome);enemy=new PrototypeActor("Training monster",world.EnemyHome,true);
-            hero.Root.rotation=Quaternion.Euler(0,140,0);enemy.Root.rotation=Quaternion.Euler(0,235,0);
+            hero=new AnimatedActor("Tiga",world.HeroHome);enemy=new AnimatedActor("Golza",world.EnemyHome,true);
+            music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
             if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
         }
         void Update()
@@ -56,7 +57,8 @@ namespace UltramanGame.Runtime
             if(Input.GetKeyDown(KeyCode.F3))showPreview=!showPreview;
             if(Input.GetKeyDown(KeyCode.F4))settings=!settings;
             if(Input.GetKeyDown(KeyCode.F5))showcase=!showcase;
-            if(showcase)showcaseYaw+=((Input.GetKeyDown(KeyCode.RightArrow)?1:0)-(Input.GetKeyDown(KeyCode.LeftArrow)?1:0))*30;
+            if(showcase)showcaseFrame=(showcaseFrame+8+(Input.GetKeyDown(KeyCode.RightArrow)?1:0)-(Input.GetKeyDown(KeyCode.LeftArrow)?1:0))%8;
+            if(Input.GetKeyDown(KeyCode.F6)) {showcase=false;settings=true;music.Choose();}
             if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
             if(Input.GetKeyDown(KeyCode.Escape)) { if(showcase)showcase=false;else if(settings)settings=false;else paused=!paused; }
             if(Input.GetKeyDown(KeyCode.R))Restart();
@@ -90,34 +92,23 @@ namespace UltramanGame.Runtime
                 if(!PoseQuality.Present(pose,now)) {input=default;recognizer.Reset();}
                 input.Tracking=presence.Update(pose,now);held=input;
             }
-            if(paused||settings||showcase)input.Tracking=false;
+            if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")}"); }
             battle.Tick(dt,input);
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
             while(battle.TryCue(out var cue))PlayCue(cue);
-            hero.Update(!showcase&&!keyboard&&PoseQuality.Present(pose,now)?pose:null,showcase?showcaseBattle:battle,dt,Time.unscaledTime);
-            enemy.Update(null,showcase?showcaseBattle:battle,dt,Time.unscaledTime);
-            bool greeting=battle.Phase==GamePhase.Waiting||battle.Phase==GamePhase.Transforming||battle.Phase==GamePhase.Victory;
-            hero.Root.rotation=Quaternion.Slerp(hero.Root.rotation,Quaternion.Euler(0,greeting?140:65,0),1-Mathf.Exp(-dt*5));
-            bool punching=battle.Phase==GamePhase.Battle&&(battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
-            hero.Root.position=world.HeroHome+(world.EnemyHome-world.HeroHome).normalized*(punching?PrototypeActor.Strike(battle.ActionAge)*.65f:0);
             if(battle.EnemyHealth<lastHealth)
             {
                 bool special=lastHealth-battle.EnemyHealth>1;impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 world.Hit(special);sound.Effect("impact",special?1:.8f);
             }
             lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
-            enemy.Root.position=world.EnemyHome+(world.EnemyHome-world.HeroHome).normalized*Mathf.Sin(impact*9)*.3f;
-            enemy.Root.rotation=Quaternion.Euler(-impact*25,235,Mathf.Sin(impact*15)*impact*8);
             world.Showcase=showcase;
-            if(showcase)
-            {
-                hero.Root.position=world.HeroHome;enemy.Root.position=world.EnemyHome;
-                hero.Root.rotation=enemy.Root.rotation=Quaternion.Euler(0,showcaseYaw,0);
-            }
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
+            enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             if(!keyboard&&!paused&&!settings&&!showcase&&battle.Phase==GamePhase.Battle)
             {
                 if(battle.Punches==0&&Time.unscaledTime>hintAt)
@@ -205,11 +196,11 @@ namespace UltramanGame.Runtime
             {
                 hud.Box(new Rect(0,0,1280,94),new Color(.012f,.025f,.06f,.92f));
                 hud.Text(new Rect(34,18,800,43),"角色展示 · 迪迦与哥尔赞",28,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(36,63,900,24),"转一转，看看英雄的胸甲和怪兽的长尾巴",15,HudPainter.Muted);
+                hud.Text(new Rect(36,63,900,24),"迪迦 · "+AnimatedActor.HeroPoses[showcaseFrame]+"    /    哥尔赞 · "+AnimatedActor.MonsterPoses[showcaseFrame],17,HudPainter.Cyan);
                 hud.Box(new Rect(0,648,1280,72),new Color(.012f,.025f,.06f,.95f));
-                if(hud.Button(new Rect(36,665,144,37),"向左转"))showcaseYaw-=30;
-                if(hud.Button(new Rect(192,665,144,37),"向右转"))showcaseYaw+=30;
-                hud.Text(new Rect(364,665,580,37),"也可以用 ← / → 旋转 · F5 返回游戏",17,HudPainter.Muted);
+                if(hud.Button(new Rect(36,665,144,37),"上个动作"))showcaseFrame=(showcaseFrame+7)%8;
+                if(hud.Button(new Rect(192,665,144,37),"下个动作"))showcaseFrame=(showcaseFrame+1)%8;
+                hud.Text(new Rect(364,665,580,37),$"{showcaseFrame+1} / 8    ← / → 切换动作 · F5 返回游戏",17,HudPainter.Muted);
                 if(hud.Button(new Rect(1050,665,192,37),"返回游戏 · F5"))showcase=false;
                 return;
             }
@@ -285,17 +276,24 @@ namespace UltramanGame.Runtime
         }
         void DrawSettings()
         {
-            hud.Box(new Rect(0,0,1280,661),new Color(.005f,.01f,.03f,.62f));hud.Panel(new Rect(410,160,460,407),HudPainter.Cyan);
-            hud.Text(new Rect(440,181,395,46),"声音与显示",27,HudPainter.Ink,bold:true);
-            hud.Text(new Rect(440,246,180,27),"总音量",18);hud.Text(new Rect(718,246,115,27),Mathf.RoundToInt(sound.Volume*100)+"%",16,HudPainter.Muted,TextAnchor.MiddleRight);
-            sound.Volume=GUI.HorizontalSlider(new Rect(442,283,390,24),sound.Volume,0,1);
-            hud.Text(new Rect(440,318,220,27),"背景音乐",18);
-            if(hud.Button(new Rect(730,316,103,31),sound.MusicEnabled?"已开启":"已关闭"))sound.MusicEnabled=!sound.MusicEnabled;
-            sound.MusicVolume=GUI.HorizontalSlider(new Rect(442,359,390,24),sound.MusicVolume,0,1);
-            if(hud.Button(new Rect(440,402,186,35),muted?"恢复声音":"全部静音"))muted=!muted;
-            if(hud.Button(new Rect(644,402,188,35),"切换全屏 · F11"))Screen.fullScreen=!Screen.fullScreen;
-            hud.Text(new Rect(440,452,391,38),"F3 取景 · F4 设置 · Esc 暂停\nF5 可旋转查看角色",12,HudPainter.Muted);
-            if(hud.Button(new Rect(440,510,392,37),"保存并返回")) {settings=false;sound.Save();}
+            hud.Box(new Rect(0,0,1280,661),new Color(.005f,.01f,.03f,.72f));hud.Panel(new Rect(355,115,570,521),HudPainter.Cyan);
+            hud.Text(new Rect(385,134,500,40),"声音与音乐",27,HudPainter.Ink,bold:true);
+            hud.Text(new Rect(386,187,470,24),"正在使用",13,HudPainter.Muted);
+            hud.Text(new Rect(386,214,508,36),music.SelectedName,23,HudPainter.Gold,bold:true);
+            hud.Text(new Rect(386,255,508,36),music.Status,14,HudPainter.Muted);
+            GUI.enabled=!music.Loading&&!music.Choosing;
+            if(hud.Button(new Rect(386,300,276,38),"导入音乐 · F6",HudPainter.Cyan))music.Choose();
+            if(hud.Button(new Rect(677,300,216,38),"恢复内置配乐"))music.BuiltIn();
+            GUI.enabled=true;
+            hud.Text(new Rect(386,360,225,25),"总音量  "+Mathf.RoundToInt(sound.Volume*100)+"%",17);
+            sound.Volume=GUI.HorizontalSlider(new Rect(633,368,256,20),sound.Volume,0,1);
+            hud.Text(new Rect(386,405,225,25),"音乐音量  "+Mathf.RoundToInt(sound.MusicVolume*100)+"%",17);
+            sound.MusicVolume=GUI.HorizontalSlider(new Rect(633,413,256,20),sound.MusicVolume,0,1);
+            if(hud.Button(new Rect(386,454,156,34),sound.MusicEnabled?"音乐：开":"音乐：关"))sound.MusicEnabled=!sound.MusicEnabled;
+            if(hud.Button(new Rect(560,454,157,34),muted?"恢复声音":"全部静音"))muted=!muted;
+            if(hud.Button(new Rect(735,454,158,34),"全屏 · F11"))Screen.fullScreen=!Screen.fullScreen;
+            hud.Text(new Rect(386,510,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
+            if(hud.Button(new Rect(386,567,508,40),"保存并返回")) {settings=false;sound.Save();}
         }
         void OnDestroy()
         {client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}

@@ -7,6 +7,7 @@ namespace UltramanGame.Runtime
     public sealed class GameAudio
     {
         readonly AudioSource calm,battle,voice,effects;
+        AudioClip localMusic;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -17,7 +18,7 @@ namespace UltramanGame.Runtime
         bool phaseReported;
         public bool MusicEnabled=true;
         public float Volume=.75f,MusicVolume=.45f;
-        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} muted={muted}";
+        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
         public GameAudio(GameObject owner)
@@ -37,6 +38,13 @@ namespace UltramanGame.Runtime
             if(!clips.TryGetValue(key,out var clip))
             { clip=Resources.Load<AudioClip>(key);clips[key]=clip;if(!clip)Debug.LogWarning("Missing audio: "+key); }
             return clip;
+        }
+        public void UseLocalMusic(AudioClip clip)
+        {
+            battle.Stop();var previous=localMusic;localMusic=clip;
+            battle.clip=clip?clip:Clip("Audio/music_battle");battle.loop=true;battle.Play();
+            if(previous)Object.Destroy(previous);
+            MusicEnabled=true;
         }
         public void Effect(string key,float gain=1)
         { if(!muted) { var clip=Clip("Audio/"+key);if(clip)effects.PlayOneShot(clip,gain); } }
@@ -83,7 +91,7 @@ namespace UltramanGame.Runtime
             { var line=pending[0];pending.RemoveAt(0);Speak(line.Key,line.Priority,state); }
             float master=muted?0:Mathf.Clamp01(Volume);
             voice.volume=master;effects.volume=master*.75f;
-            bool active=state==GamePhase.Battle || state==GamePhase.Transforming;
+            bool active=localMusic || state==GamePhase.Battle || state==GamePhase.Transforming;
             float music=MusicEnabled?master*Mathf.Clamp01(MusicVolume)*(voice.isPlaying?.23f:.65f):0;
             if(state==GamePhase.Paused)music*=.35f;
             if(state==GamePhase.Victory)music*=.5f;

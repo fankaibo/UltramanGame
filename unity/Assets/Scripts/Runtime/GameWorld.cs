@@ -7,11 +7,11 @@ namespace UltramanGame.Runtime
     {
         public readonly Camera Camera;
         public bool Showcase;
-        public readonly Vector3 HeroHome=new Vector3(-1,0,0),EnemyHome=new Vector3(1.4f,0,2.6f);
+        public readonly Vector3 HeroHome=new Vector3(-1.85f,0,0),EnemyHome=new Vector3(1.65f,0,.35f);
         readonly Transform backdrop,beam,beamCore,shield,transformLight;
         readonly LineRenderer platformRing,chargeRing,shieldRing;
         readonly Material cyan,gold,violet;
-        readonly Vector3 cameraHome=new Vector3(6.8f,4.0f,-8.2f),lookAt=new Vector3(0,1.45f,1.1f);
+        readonly Vector3 cameraHome=new Vector3(0,3.1f,-12),lookAt=new Vector3(0,1.4f,.4f);
         struct Spark { public Transform Object;public Vector3 Velocity;public float Life,Total,Size; }
         readonly Spark[] sparks=new Spark[48];
         int sparkIndex;
@@ -32,7 +32,7 @@ namespace UltramanGame.Runtime
             var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=.75f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;RenderSettings.ambientLight=new Color(.24f,.28f,.36f);RenderSettings.fog=false;
             cyan=Glow(new Color(.14f,.77f,1,.55f));gold=Glow(new Color(1,.72f,.27f,.65f));violet=Glow(new Color(.55f,.26f,1,.24f));
-            var floor=PrototypeActor.Material(new Color(.07f,.115f,.18f),.65f);
+            var floor=new Material(Resources.Load<Material>("PrototypeSurface"));floor.color=new Color(.07f,.115f,.18f);floor.SetFloat("_Metallic",.65f);
             Primitive(root,PrimitiveType.Cylinder,new Vector3(0,-.15f,1.3f),new Vector3(9.0f,.13f,9.0f),floor);
             platformRing=Ring(root,new Vector3(0,.005f,1.3f),4.30f,.032f,cyan);
             Ring(root,new Vector3(0,.009f,1.3f),3.96f,.015f,violet);
@@ -94,8 +94,8 @@ namespace UltramanGame.Runtime
             float aspect=backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.width/(float)backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.height;
             float scale=Mathf.Max(1,Camera.aspect/aspect);backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             impact=Mathf.Max(0,impact-dt);
-            Camera.transform.position=(Showcase?new Vector3(5.6f,2.8f,-9.4f):cameraHome)+new Vector3(Mathf.Sin(time*65)*impact*.035f,0,0);Camera.transform.LookAt(lookAt);
-            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,Showcase?28:state.Action==HeroAction.Beam?37.5f:39,dt*4);
+            Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(time*65)*impact*.035f,0,0);Camera.transform.LookAt(lookAt);
+            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,Showcase?29:state.Action==HeroAction.Beam?33.5f:35,dt*4);
             platformRing.transform.Rotate(0,dt*2,0);
             bool active=state.Phase==GamePhase.Battle;
             shield.gameObject.SetActive(active&&state.Shield);shieldRing.gameObject.SetActive(active&&state.Shield);
