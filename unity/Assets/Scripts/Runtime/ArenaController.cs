@@ -22,6 +22,8 @@ namespace UltramanGame.Runtime
         GameAudio sound;
         LocalMusic music;
         HudPainter hud;
+        VictoryPhoto photo;
+        bool photoAvailable;
         bool keyboard,paused,muted,settings,audioSettings,showPreview=true,previewReported,lastTracking;
         const string MonsterHitsKey="battle.monsterHits";
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
@@ -52,12 +54,21 @@ namespace UltramanGame.Runtime
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
             if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
+            photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
+            photo=new VictoryPhoto(LocalPort("--photo-port",8767));
             hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
             if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
         }
         void Update()
         {
+            if(photo.Active)
+            {
+                if(Input.GetKeyDown(KeyCode.Escape))photo.Close();
+                if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
+                photo.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);return;
+            }
+            if(Input.GetKeyDown(KeyCode.F7)&&battle.Phase==GamePhase.Victory&&photoAvailable) {photo.Open();return;}
             if(Input.GetKeyDown(KeyCode.F2))SetMode(!keyboard);
             if(Input.GetKeyDown(KeyCode.F3))showPreview=!showPreview;
             if(Input.GetKeyDown(KeyCode.F4)) {if(settings)settings=false;else OpenSettings();}
@@ -160,6 +171,7 @@ namespace UltramanGame.Runtime
         }
         void Restart()
         {
+            photo?.Close();
             battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
             lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.Closeup.Cancel();
         }
@@ -230,6 +242,13 @@ namespace UltramanGame.Runtime
         {
             if(hud==null)return;
             GUI.matrix=Matrix4x4.TRS(Vector3.zero,Quaternion.identity,new Vector3(Screen.width/1280f,Screen.height/720f,1));
+            if(photo.Active)
+            {
+                GUI.matrix=Matrix4x4.identity;hud.Box(new Rect(0,0,Screen.width,Screen.height),new Color(.012f,.025f,.05f));
+                float scale=Mathf.Min(Screen.width/1280f,Screen.height/720f);
+                GUI.matrix=Matrix4x4.TRS(new Vector3((Screen.width-1280*scale)/2,(Screen.height-720*scale)/2,0),Quaternion.identity,new Vector3(scale,scale,1));
+                photo.Draw(hud);return;
+            }
             // Give modal controls a stable event path; do not submit background buttons while it is open.
             if(settings) {DrawSettings();return;}
             if(showcase)
@@ -360,10 +379,16 @@ namespace UltramanGame.Runtime
             DrawPreview(true);
             if(battle.Phase==GamePhase.Victory)
             {
-                hud.Panel(new Rect(20,145,252,190),HudPainter.Gold,true);
+                hud.Panel(new Rect(20,145,252,252),HudPainter.Gold,true);
                 hud.Text(new Rect(38,160,218,36),"城市守护成功！",21,HudPainter.Ink,bold:true);
                 hud.Text(new Rect(38,209,218,42),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次",14,HudPainter.Muted);
-                if(hud.Button(new Rect(38,278,216,34),"再守护一次",HudPainter.Gold,13))Restart();
+                GUI.enabled=photoAvailable;
+                if(hud.Button(new Rect(38,267,216,42),"      合照 · F7",HudPainter.Cyan,16))photo.Open();
+                hud.Rounded(new Rect(79,283,21,14),photoAvailable?HudPainter.Cyan:HudPainter.Muted,3);
+                hud.Box(new Rect(84,279,10,4),HudPainter.Cyan);hud.Dot(new Vector2(89.5f,290),8,new Color(.03f,.07f,.12f));
+                GUI.enabled=true;
+                hud.Text(new Rect(38,311,216,23),photoAvailable?"5 秒倒计时 · 保存至 Downloads":"体感模式启动游戏后可合照",11,HudPainter.Muted,TextAnchor.MiddleCenter);
+                if(hud.Button(new Rect(38,347,216,32),"再守护一次",HudPainter.Gold,13))Restart();
             }
             if(battle.Phase==GamePhase.Paused)
             {
@@ -415,6 +440,6 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(386,510,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
         }
         void OnDestroy()
-        {client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
+        {photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
     }
 }

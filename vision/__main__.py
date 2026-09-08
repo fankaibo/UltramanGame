@@ -11,7 +11,7 @@ from .protocol import FrameFactory
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_demo(args, bridge, preview=None):
+def run_demo(args, bridge, preview=None, photo=None):
     from .demo import landmarks_at
     factory = FrameFactory(source="synthetic")
     start = time.monotonic()
@@ -21,13 +21,16 @@ def run_demo(args, bridge, preview=None):
         bridge.publish(frame)
         if preview:
             preview.publish(None, points, frame['capturedMs'], "synthetic")
+        if photo:
+            photo.publish(None, None, frame['capturedMs'], synthetic=True)
         time.sleep(1/30)
 
 
-def run_camera(args, bridge, preview=None):
+def run_camera(args, bridge, preview=None, photo=None):
     import cv2
     from .capture import LatestCapture
     from .model import create_landmarker, model_image
+    from .segmentation import PersonSegmenter
     if not args.model.is_file():
         raise RuntimeError("模型未准备好，请先运行 scripts/setup.sh。")
     factory = FrameFactory()
@@ -42,6 +45,8 @@ def run_camera(args, bridge, preview=None):
     last_image_at = None
     frames = poses = revision = skipped = 0
     inference_seconds = 0
+    photo_model = None
+    photo_retry_at = 0
     try:
         with create_landmarker(args.model) as model, LatestCapture(open_camera) as capture:
             start = time.monotonic()
@@ -68,6 +73,24 @@ def run_camera(args, bridge, preview=None):
                 bridge.publish(factory.make(landmarks, captured_ms))
                 if preview:
                     preview.publish(image, landmarks, captured_ms)
+                if photo and photo.due():
+                    mask = None
+                    try:
+                        if time.monotonic() >= photo_retry_at:
+                            if photo_model is None:
+                                photo_model = PersonSegmenter()
+                            mask = photo_model.mask(image)
+                    except (RuntimeError, ValueError, OSError) as exc:
+                        # A photo-only failure must not stop ordinary pose tracking.
+                        print("合照人像暂不可用：" + type(exc).__name__, file=sys.stderr, flush=True)
+                        photo_retry_at = time.monotonic() + 3
+                        if photo_model is not None:
+                            photo_model.close()
+                            photo_model = None
+                    photo.publish(image, mask, captured_ms)
+                elif photo_model is not None and not photo.bridge.subscribers:
+                    photo_model.close()
+                    photo_model = None
                 if not args.no_preview:
                     debug_image = image.copy()
                     if landmarks:
@@ -89,6 +112,8 @@ def run_camera(args, bridge, preview=None):
                 "mean_inference_ms":round(inference_seconds*1000/max(frames,1),1),
                 "skipped_capture_frames":skipped,"preview_frames":preview.frames if preview else 0}),flush=True)
     finally:
+        if photo_model is not None:
+            photo_model.close()
         bridge.publish(factory.make())
         if not args.no_preview:
             cv2.destroyAllWindows()
@@ -103,22 +128,24 @@ def main():
     parser.add_argument("--no-preview",action="store_true",help="关闭独立调试窗口，不影响游戏内预览")
     parser.add_argument("--game-preview",action="store_true",help="向游戏提供镜像画面及关节点（最多 320×240、约 15 FPS）")
     parser.add_argument("--preview-port",type=int,default=8766,help="游戏内预览的本机端口；0 由系统分配")
+    parser.add_argument("--photo-port",type=int,default=8767,help="主动合照的本机端口；随 --game-preview 启用，0 由系统分配")
     parser.add_argument("--ready-json",action="store_true",help=argparse.SUPPRESS)
     parser.add_argument("--model",type=Path,default=ROOT/"models/pose_landmarker_lite.task")
     args = parser.parse_args()
-    if not 0 <= args.port <= 65535 or not 0 <= args.preview_port <= 65535 or args.seconds < 0:
+    if not all(0 <= p <= 65535 for p in (args.port, args.preview_port, args.photo_port)) or args.seconds < 0:
         parser.error("port 和 preview-port 必须在 0–65535；seconds 不能为负数")
     try:
         with PoseBridge(args.port) as bridge:
             log_stream = sys.stderr if args.ready_json else sys.stdout
             print(f"{'合成姿态' if args.demo else '本地摄像头'}服务：127.0.0.1:{bridge.address[1]}",file=log_stream,flush=True)
             from .preview import GamePreview
-            with GamePreview(args.preview_port) if args.game_preview else nullcontext() as preview:
+            from .photo import GamePhoto
+            with (GamePreview(args.preview_port) if args.game_preview else nullcontext()) as preview, (GamePhoto(args.photo_port) if args.game_preview else nullcontext()) as photo:
                 if preview:
                     print(f"游戏预览：127.0.0.1:{preview.bridge.address[1]}（不录制）",file=log_stream,flush=True)
                 if args.ready_json:
-                    print(json.dumps({"pose_port":bridge.address[1],"preview_port":preview.bridge.address[1] if preview else None}),flush=True)
-                (run_demo if args.demo else run_camera)(args,bridge,preview)
+                    print(json.dumps({"pose_port":bridge.address[1],"preview_port":preview.bridge.address[1] if preview else None,"photo_port":photo.bridge.address[1] if photo else None}),flush=True)
+                (run_demo if args.demo else run_camera)(args,bridge,preview,photo)
     except KeyboardInterrupt:
         return 0
     except (RuntimeError,OSError) as exc:
