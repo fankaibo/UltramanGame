@@ -64,7 +64,7 @@ namespace UltramanGame.Runtime
         {
             if(photo.Active)
             {
-                if(Input.GetKeyDown(KeyCode.Escape))photo.Close();
+                if(Input.GetKeyDown(KeyCode.Escape))photo.Back();
                 if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
                 photo.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);return;
             }
@@ -387,7 +387,7 @@ namespace UltramanGame.Runtime
                 hud.Rounded(new Rect(79,283,21,14),photoAvailable?HudPainter.Cyan:HudPainter.Muted,3);
                 hud.Box(new Rect(84,279,10,4),HudPainter.Cyan);hud.Dot(new Vector2(89.5f,290),8,new Color(.03f,.07f,.12f));
                 GUI.enabled=true;
-                hud.Text(new Rect(38,311,216,23),photoAvailable?"5 秒倒计时 · 保存至 Downloads":"体感模式启动游戏后可合照",11,HudPainter.Muted,TextAnchor.MiddleCenter);
+                hud.Text(new Rect(38,311,216,23),photoAvailable?"先摆姿势 · 拍完看预览":"体感模式启动游戏后可合照",11,HudPainter.Muted,TextAnchor.MiddleCenter);
                 if(hud.Button(new Rect(38,347,216,32),"再守护一次",HudPainter.Gold,13))Restart();
             }
             if(battle.Phase==GamePhase.Paused)
