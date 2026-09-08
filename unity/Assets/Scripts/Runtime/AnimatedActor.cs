@@ -12,7 +12,7 @@ namespace UltramanGame.Runtime
         readonly bool monster;
         readonly float cellHeight;
         readonly float[] baseline=new float[8];
-        readonly Vector3 home;
+        readonly Vector3 home,forwardAxis;
         float lastHealth=Battle.MaxHealth,hitAge=10,phaseAge;
         bool heavyHit;
         GamePhase previous;
@@ -20,11 +20,12 @@ namespace UltramanGame.Runtime
         public int Frame => displayed;
         public static readonly string[] HeroPoses={"战斗准备","收拳蓄力","挥拳出击","光之护盾","哉佩利敖光线","受击恢复","举手变身","胜利欢呼"};
         public static readonly string[] MonsterPoses={"准备","蓄力","反击","预警","恢复","受击","光线命中","挥手退场"};
-        public AnimatedActor(string name,Vector3 position,bool isMonster=false)
+        public AnimatedActor(string name,Vector3 position,Vector3 opponentPosition,bool isMonster=false)
         {
             monster=isMonster;home=position;
+            forwardAxis=Vector3.ProjectOnPlane(opponentPosition-position,Vector3.up).normalized;
             Root=new GameObject(name).transform;Root.position=home;
-            var texture=Resources.Load<Texture2D>(monster?"Art/GolzaActions":"Art/TigaActions");
+            var texture=Resources.Load<Texture2D>(monster?"Art/GolzaActions":"Art/TigaRear45Actions");
             if(!texture)throw new System.InvalidOperationException("Missing character action atlas: "+name);
             material=new Material(Resources.Load<Shader>("CharacterSprite"));material.mainTexture=texture;
             var obj=GameObject.CreatePrimitive(PrimitiveType.Quad);obj.name="Animated illustration";
@@ -103,8 +104,8 @@ namespace UltramanGame.Runtime
             }
             if(preview>=0) {frame=preview%8;forward=tilt=jump=0;opacity=scale=1;breath=0;}
             SetFrame(frame);
-            Root.position=home+Vector3.right*(monster?-forward:forward)+Vector3.up*jump;
-            // A camera-facing illustration stays readable while the arena and effects retain depth.
+            Root.position=home+forwardAxis*forward+Vector3.up*jump;
+            // The rear/front angle is authored into the atlas; the quad faces the camera for readability.
             Root.rotation=camera.transform.rotation*Quaternion.Euler(0,0,tilt);
             Root.localScale=new Vector3(scale,scale*(1+breath),1);
             picture.localPosition=new Vector3(0,cellHeight*(.5f-baseline[frame]),0);

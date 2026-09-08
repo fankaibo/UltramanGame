@@ -7,7 +7,8 @@ Shader "Training/CharacterSprite" {
     SubShader {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" }
         Blend SrcAlpha OneMinusSrcAlpha
-        ZWrite Off Cull Off
+        // Keyed character pixels occlude arena rings behind their bodies in the diagonal view.
+        ZWrite On Cull Off
         Pass {
             CGPROGRAM
             #pragma vertex vert

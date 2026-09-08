@@ -7,11 +7,15 @@ namespace UltramanGame.Runtime
     {
         public readonly Camera Camera;
         public bool Showcase;
-        public readonly Vector3 HeroHome=new Vector3(-1.85f,0,0),EnemyHome=new Vector3(1.65f,0,.35f);
+        // Equal X/Z separation stages the duel at 45 degrees: Tiga near-left, Golza far-right.
+        public readonly Vector3 HeroHome=new Vector3(-1.65f,0,-1.35f),EnemyHome=new Vector3(1.65f,0,1.95f);
+        public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
+        public Vector3 BeamOrigin => HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
+        Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop,beam,beamCore,shield,transformLight;
         readonly LineRenderer platformRing,chargeRing,shieldRing;
         readonly Material cyan,gold,violet;
-        readonly Vector3 cameraHome=new Vector3(0,3.1f,-12),lookAt=new Vector3(0,1.4f,.4f);
+        readonly Vector3 cameraHome=new Vector3(0,4.2f,-12),lookAt=new Vector3(0,1.22f,.4f);
         struct Spark { public Transform Object;public Vector3 Velocity;public float Life,Total,Size; }
         readonly Spark[] sparks=new Spark[48];
         int sparkIndex;
@@ -43,8 +47,9 @@ namespace UltramanGame.Runtime
             }
             Ring(root,HeroHome+Vector3.up*.015f,.83f,.024f,gold);
             Ring(root,EnemyHome+Vector3.up*.015f,.95f,.022f,violet);
-            shield=Primitive(root,PrimitiveType.Sphere,HeroHome+new Vector3(.35f,1.85f,.5f),new Vector3(1.75f,2.0f,.2f),Glow(new Color(.13f,.64f,1,.11f)));
-            shieldRing=Ring(root,shield.position,.86f,.03f,cyan);shieldRing.transform.rotation=Quaternion.Euler(78,0,0);
+            shield=Primitive(root,PrimitiveType.Sphere,ShieldCenter,new Vector3(1.75f,2.0f,.2f),Glow(new Color(.13f,.64f,1,.11f)));
+            shield.rotation=Quaternion.LookRotation(BattleAxis,Vector3.up);
+            shieldRing=Ring(root,shield.position,.86f,.03f,cyan);shieldRing.transform.rotation=Quaternion.FromToRotation(Vector3.up,BattleAxis);
             beam=Primitive(root,PrimitiveType.Cylinder,Vector3.zero,Vector3.one,cyan);
             beamCore=Primitive(root,PrimitiveType.Cylinder,Vector3.zero,Vector3.one,Glow(new Color(.8f,.94f,1,.8f)));
             chargeRing=Ring(root,HeroHome+Vector3.up*.025f,1,.04f,gold);
@@ -81,9 +86,9 @@ namespace UltramanGame.Runtime
         { impact=special?.32f:.17f;Burst(EnemyHome+Vector3.up*1.8f,special?24:10,special?1.8f:1); }
         public void Cue(GameCue cue)
         {
-            if(cue==GameCue.Block) Burst(HeroHome+new Vector3(.4f,2,.55f),16,1.2f);
+            if(cue==GameCue.Block) Burst(ShieldCenter,16,1.2f);
             if(cue==GameCue.Transform) Burst(HeroHome+Vector3.up*1.4f,20,.6f);
-            if(cue==GameCue.Beam) Burst(HeroHome+new Vector3(.3f,2,.4f),14,.6f);
+            if(cue==GameCue.Beam) Burst(BeamOrigin,14,.6f);
         }
         static void Ray(Transform obj,Vector3 start,Vector3 end,float radius)
         { obj.position=(start+end)/2;obj.rotation=Quaternion.FromToRotation(Vector3.up,end-start);obj.localScale=new Vector3(radius,Vector3.Distance(start,end)/2,radius); }
@@ -104,7 +109,7 @@ namespace UltramanGame.Runtime
             beam.gameObject.SetActive(firing);beamCore.gameObject.SetActive(firing);
             if(firing)
             {
-                Vector3 start=HeroHome+new Vector3(.4f,2.02f,.45f),end=EnemyHome+Vector3.up*1.85f;
+                Vector3 start=BeamOrigin,end=EnemyHome+Vector3.up*2.15f;
                 Ray(beam,start,end,.27f+Mathf.Sin(time*25)*.025f);Ray(beamCore,start,end,.09f);
             }
             bool transforming=state.Phase==GamePhase.Transforming;

@@ -47,7 +47,7 @@ namespace UltramanGame.Runtime
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
             if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
-            hero=new AnimatedActor("Tiga",world.HeroHome);enemy=new AnimatedActor("Golza",world.EnemyHome,true);
+            hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
             if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
         }
@@ -232,14 +232,14 @@ namespace UltramanGame.Runtime
             }
             if(battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Windup)
             {
-                hud.Panel(new Rect(395,121,527,80),HudPainter.Gold,true);
-                hud.Text(new Rect(414,130,490,37),"怪兽蓄力中 · 双手护住胸前",23,HudPainter.Gold,TextAnchor.MiddleCenter,true);
-                hud.Bar(new Rect(418,180,480,5),1-battle.EnemyAge/Battle.WindupSeconds,HudPainter.Gold);
+                hud.Panel(new Rect(28,209,330,110),HudPainter.Gold,true);
+                hud.Text(new Rect(48,220,290,69),"怪兽蓄力中\n双手护住胸前",23,HudPainter.Gold,TextAnchor.MiddleCenter,true);
+                hud.Bar(new Rect(49,302,288,5),1-battle.EnemyAge/Battle.WindupSeconds,HudPainter.Gold);
             }
             else if(time<hitUntil)
-                hud.Text(new Rect(510,153,325,62),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",30,HudPainter.Gold,TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(28,216,330,62),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",30,HudPainter.Gold,TextAnchor.MiddleCenter,true);
             if(time<captionUntil&&battle.Phase==GamePhase.Battle)
-            {hud.Panel(new Rect(383,447,546,53),HudPainter.Cyan);hud.Text(new Rect(397,451,518,44),caption,20,HudPainter.Ink,TextAnchor.MiddleCenter);}
+            {hud.Panel(new Rect(654,469,323,43),HudPainter.Cyan);hud.Text(new Rect(665,472,301,37),caption,18,HudPainter.Ink,TextAnchor.MiddleCenter);}
             ActionCard(28,"挥拳出击",keyboard?"A / D · 左右交替":$"收手，再挥出去  ·  命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Phase==GamePhase.Battle&&(battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch));
             ActionCard(348,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
             ActionCard(668,"必杀光线",keyboard?"能量满后按 J":battle.Energy>=6?"摆 L 形，保持片刻":"挥拳和防御可以蓄能","beam",HudPainter.Gold,battle.Phase==GamePhase.Battle&&(battle.Energy>=6||battle.Action==HeroAction.Beam));
@@ -247,11 +247,11 @@ namespace UltramanGame.Runtime
             DrawPreview();
             if(battle.Phase==GamePhase.Victory)
             {
-                hud.Panel(new Rect(28,211,363,289),HudPainter.Gold,true);
-                hud.Text(new Rect(51,227,317,28),"MISSION COMPLETE",13,HudPainter.Gold);
-                hud.Text(new Rect(50,268,319,55),"城市守护成功！",29,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(51,336,307,48),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次",18,HudPainter.Muted);
-                if(hud.Button(new Rect(51,416,317,52),"再守护一次",HudPainter.Gold))Restart();
+                hud.Panel(new Rect(28,211,330,289),HudPainter.Gold,true);
+                hud.Text(new Rect(51,227,284,28),"MISSION COMPLETE",13,HudPainter.Gold);
+                hud.Text(new Rect(50,268,286,55),"城市守护成功！",29,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(51,336,280,48),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次",18,HudPainter.Muted);
+                if(hud.Button(new Rect(51,416,284,52),"再守护一次",HudPainter.Gold))Restart();
             }
             if(battle.Phase==GamePhase.Paused&&!settings)
             {

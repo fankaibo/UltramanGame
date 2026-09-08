@@ -29,7 +29,7 @@ namespace UltramanGame.Editor
             var fontImporter=AssetImporter.GetAtPath("Assets/Resources/Fonts/NotoSansSC-Regular.otf") as TrueTypeFontImporter;
             if(fontImporter!=null && !fontImporter.includeFontData)
             { fontImporter.includeFontData=true; fontImporter.SaveAndReimport(); }
-            foreach(var name in new[]{"TigaActions","GolzaActions"})
+            foreach(var name in new[]{"TigaRear45Actions","GolzaActions"})
             {
                 var importer=AssetImporter.GetAtPath("Assets/Resources/Art/"+name+".png") as TextureImporter;
                 if(importer!=null && (importer.mipmapEnabled || importer.textureCompression!=TextureImporterCompression.Uncompressed || importer.npotScale!=TextureImporterNPOTScale.None || !importer.isReadable))
@@ -48,7 +48,7 @@ namespace UltramanGame.Editor
         {
             Configure();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            foreach(var name in new[]{"TigaActions","GolzaActions"})
+            foreach(var name in new[]{"TigaRear45Actions","GolzaActions"})
             {
                 var atlas=Resources.Load<Texture2D>("Art/"+name);
                 if(!atlas||atlas.width%4!=0||atlas.height%2!=0)throw new System.Exception("Missing or invalid 4 x 2 action atlas: "+name);
