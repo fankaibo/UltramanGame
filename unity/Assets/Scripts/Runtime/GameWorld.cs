@@ -6,6 +6,7 @@ namespace UltramanGame.Runtime
     public sealed class GameWorld
     {
         public readonly Camera Camera;
+        public bool Showcase;
         public readonly Vector3 HeroHome=new Vector3(-1,0,0),EnemyHome=new Vector3(1.4f,0,2.6f);
         readonly Transform backdrop,beam,beamCore,shield,transformLight;
         readonly LineRenderer platformRing,chargeRing,shieldRing;
@@ -27,9 +28,9 @@ namespace UltramanGame.Runtime
             var backMat=new Material(Resources.Load<Shader>("Backdrop"));backMat.mainTexture=Resources.Load<Texture2D>("Art/CityDusk");
             backdrop=Primitive(root,PrimitiveType.Quad,Vector3.zero,Vector3.one,backMat);
             backdrop.SetParent(Camera.transform,false);backdrop.localPosition=new Vector3(0,0,80);
-            var sun=new GameObject("Warm key light").AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=1.45f;sun.color=new Color(1,.85f,.68f);sun.transform.rotation=Quaternion.Euler(35,-35,0);
-            var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=1.2f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
-            RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;RenderSettings.ambientLight=new Color(.40f,.48f,.64f);RenderSettings.fog=false;
+            var sun=new GameObject("Warm key light").AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=1.15f;sun.color=new Color(1,.85f,.68f);sun.transform.rotation=Quaternion.Euler(35,-35,0);sun.shadows=LightShadows.Soft;sun.shadowStrength=.7f;sun.shadowBias=.04f;sun.shadowNormalBias=.12f;QualitySettings.shadowDistance=25;QualitySettings.antiAliasing=4;
+            var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=.75f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
+            RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;RenderSettings.ambientLight=new Color(.24f,.28f,.36f);RenderSettings.fog=false;
             cyan=Glow(new Color(.14f,.77f,1,.55f));gold=Glow(new Color(1,.72f,.27f,.65f));violet=Glow(new Color(.55f,.26f,1,.24f));
             var floor=PrototypeActor.Material(new Color(.07f,.115f,.18f),.65f);
             Primitive(root,PrimitiveType.Cylinder,new Vector3(0,-.15f,1.3f),new Vector3(9.0f,.13f,9.0f),floor);
@@ -58,7 +59,7 @@ namespace UltramanGame.Runtime
         static Transform Primitive(Transform parent,PrimitiveType type,Vector3 position,Vector3 scale,Material material)
         {
             var obj=GameObject.CreatePrimitive(type);obj.transform.SetParent(parent,false);obj.transform.position=position;obj.transform.localScale=scale;
-            obj.GetComponent<Renderer>().sharedMaterial=material;Object.Destroy(obj.GetComponent<Collider>());return obj.transform;
+            obj.GetComponent<Renderer>().sharedMaterial=material;if(Application.isPlaying)Object.Destroy(obj.GetComponent<Collider>());else Object.DestroyImmediate(obj.GetComponent<Collider>());return obj.transform;
         }
         static LineRenderer Ring(Transform parent,Vector3 position,float radius,float width,Material material)
         {
@@ -93,8 +94,8 @@ namespace UltramanGame.Runtime
             float aspect=backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.width/(float)backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.height;
             float scale=Mathf.Max(1,Camera.aspect/aspect);backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             impact=Mathf.Max(0,impact-dt);
-            Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(time*65)*impact*.035f,0,0);Camera.transform.LookAt(lookAt);
-            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,state.Action==HeroAction.Beam?37.5f:39,dt*4);
+            Camera.transform.position=(Showcase?new Vector3(5.6f,2.8f,-9.4f):cameraHome)+new Vector3(Mathf.Sin(time*65)*impact*.035f,0,0);Camera.transform.LookAt(lookAt);
+            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,Showcase?28:state.Action==HeroAction.Beam?37.5f:39,dt*4);
             platformRing.transform.Rotate(0,dt*2,0);
             bool active=state.Phase==GamePhase.Battle;
             shield.gameObject.SetActive(active&&state.Shield);shieldRing.gameObject.SetActive(active&&state.Shield);
