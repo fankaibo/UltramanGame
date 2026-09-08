@@ -48,11 +48,11 @@ namespace UltramanGame.Runtime
         }
         public void Text(Rect rect,string text,int size=18,Color? color=null,TextAnchor align=TextAnchor.MiddleLeft,bool bold=false)
         { var style=Style(size,align,bold);style.normal.textColor=color??Ink;GUI.Label(rect,text,style); }
-        public bool Button(Rect r,string text,Color? accent=null)
+        public bool Button(Rect r,string text,Color? accent=null,int size=16)
         {
             var c=accent??Cyan;bool hover=r.Contains(Event.current.mousePosition);
             Rounded(r,new Color(c.r,c.g,c.b,hover?.26f:.12f),8);
-            Text(r,text,16,Ink,TextAnchor.MiddleCenter);
+            Text(r,text,size,Ink,TextAnchor.MiddleCenter);
             var eventType=Event.current.type;
             bool clicked=GUI.Button(r,GUIContent.none,GUIStyle.none);
             if(Debug.isDebugBuild&&hover&&(eventType==EventType.MouseDown||eventType==EventType.MouseUp))

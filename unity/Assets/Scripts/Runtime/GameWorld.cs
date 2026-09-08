@@ -83,7 +83,9 @@ namespace UltramanGame.Runtime
         { obj.position=(start+end)/2;obj.rotation=Quaternion.FromToRotation(Vector3.up,end-start);obj.localScale=new Vector3(radius,Vector3.Distance(start,end)/2,radius); }
         public void Tick(Battle state,float dt,float time)
         {
-            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,Showcase?29:state.Action==HeroAction.Beam?33.5f:35,dt*4);
+            bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
+            float fieldOfView=Showcase?29:battleView?(state.Action==HeroAction.Beam?26:27):35;
+            Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,fieldOfView,dt*4);
             float h=160*Mathf.Tan(Camera.fieldOfView*Mathf.Deg2Rad*.5f);
             // Frame the existing plaza beneath both actors; preserve aspect and anchor its bottom edge.
             float aspect=backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.width/(float)backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.height;

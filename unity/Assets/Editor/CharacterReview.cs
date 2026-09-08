@@ -49,7 +49,8 @@ namespace UltramanGame.Editor
         {while(duration>.0001f) {float dt=Mathf.Min(duration,.02f);state.Tick(dt,new PlayerInput {Tracking=true});duration-=dt;}}
         static void RenderBattle(GameWorld world,Battle state,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder,string name)
         {
-            world.Tick(state,.1f,1);hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
+            // Review the final framing, rather than a single frame partway through the camera transition.
+            world.Tick(state,1,1);hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
             Save(world.Camera,target,Path.Combine(folder,name+".png"));
         }
         static void Save(Camera camera,RenderTexture target,string path)
