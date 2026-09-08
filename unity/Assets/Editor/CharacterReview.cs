@@ -56,8 +56,58 @@ namespace UltramanGame.Editor
             var interrupted=RenderEnemy(world,hero,enemy,target,folder,"enemy-before-pause",EnemyPhase.Attack,.3f);
             interrupted.Pause();RenderBattle(world,interrupted,hero,enemy,target,folder,"enemy-paused");
             if(world.EnemySlashVisible)throw new Exception("Pause must clear enemy attack effects");
+            RenderCloseup(world,hero,enemy,target,folder);
             RenderTexture.active=null;camera.targetTexture=null;target.Release();UnityEngine.Object.DestroyImmediate(target);
-            Debug.Log($"[CharacterReview] frames=16 battleViews=3 enemyViews=8 diagonalPunch=passed enemyContact=passed renderers=2 output={folder}");
+            Debug.Log($"[CharacterReview] frames=16 battleViews=3 enemyViews=8 closeupViews=8 diagonalPunch=passed enemyContact=passed beamCloseup=passed renderers=2 output={folder}");
+        }
+        static Battle BeamReady()
+        {
+            var state=new Battle(20);state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,2.3f);
+            for(int attempt=0;attempt<80&&state.Energy<Battle.MaxEnergy;attempt++)
+            {
+                state.Tick(.02f,new PlayerInput {Tracking=true,LeftPunch=true});
+                for(int i=0;i<25;i++)state.Tick(.02f,new PlayerInput {Tracking=true,Shield=true});
+            }
+            if(state.Energy<Battle.MaxEnergy)throw new Exception("Closeup review did not fill energy");
+            while(state.TryCue(out _)){}return state;
+        }
+        static void RenderCloseup(GameWorld world,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder)
+        {
+            var state=BeamReady();float health=state.EnemyHealth;
+            world.Tick(state,1,0);float wideFov=world.Camera.fieldOfView;
+            state.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});
+            while(state.TryCue(out var cue))world.Cue(cue);
+            int[] captures={5,18,42,54,62,76,90};int capture=0,beamStarts=0;
+            for(int frame=0;frame<=100;frame++)
+            {
+                state.Tick(world.Closeup.Active?0:1/60f,new PlayerInput {Tracking=true});
+                world.Tick(state,1/60f,frame/60f);
+                hero.Update(state,world.Camera,1/60f,frame/60f);enemy.Update(state,world.Camera,1/60f,frame/60f);
+                enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                if(world.BeamStarted)beamStarts++;
+                if(world.Closeup.Active&&state.EnemyHealth!=health)throw new Exception("Damage occurred during closeup");
+                if(frame==18)
+                {
+                    float zoom=Mathf.Tan(wideFov*Mathf.Deg2Rad/2)/Mathf.Tan(world.Camera.fieldOfView*Mathf.Deg2Rad/2);
+                    if(zoom<1.8f||hero.Frame!=4)throw new Exception("Closeup must enlarge the beam illustration");
+                    foreach(float height in new[]{2.6f,3.3f})
+                    {
+                        var p=world.Camera.WorldToViewportPoint(world.HeroHome+Vector3.up*height);
+                        if(p.x<.15f||p.x>.85f||p.y<.15f||p.y>.85f)throw new Exception("Beam head/hands leave the closeup frame");
+                    }
+                }
+                if(capture<captures.Length&&frame==captures[capture])
+                {Save(world.Camera,target,Path.Combine(folder,"beam-closeup-"+capture+".png"));capture++;}
+            }
+            if(beamStarts!=1||state.Phase!=GamePhase.Victory||world.Closeup.Active||world.Camera.fieldOfView<25)
+                throw new Exception("Closeup must return to the arena, emit once and allow victory");
+            state=BeamReady();state.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});
+            while(state.TryCue(out var cue))world.Cue(cue);
+            world.Tick(state,.1f,1);state.Pause();world.Tick(state,.02f,1.02f);
+            hero.Update(state,world.Camera,0,1);enemy.Update(state,world.Camera,0,1);
+            Save(world.Camera,target,Path.Combine(folder,"beam-closeup-paused.png"));
+            if(world.Closeup.Active||world.Closeup.Focus!=0||world.Camera.fieldOfView<25||world.BeamStarted)
+                throw new Exception("Pause must immediately restore the normal camera without releasing a beam");
         }
         static Battle RenderEnemy(GameWorld world,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder,string name,EnemyPhase phase,float age,bool shield=false)
         {

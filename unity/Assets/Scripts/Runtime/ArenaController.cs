@@ -116,7 +116,7 @@ namespace UltramanGame.Runtime
             if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")}"); }
-            battle.Tick(dt,input);
+            battle.Tick(world.Closeup.Active?0:dt,input);
             if(battle.Phase==GamePhase.Paused)beamTitleUntil=0;
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
@@ -129,9 +129,11 @@ namespace UltramanGame.Runtime
             lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
             hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
-            if(!keyboard&&!paused&&!settings&&!showcase&&battle.Phase==GamePhase.Battle)
+            enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+            if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
             {
                 if(battle.Punches==0&&Time.unscaledTime>hintAt)
                 {sound.Speak("tutorial",1,battle.Phase);caption="先把手收回来，再挥出去";captionUntil=Time.unscaledTime+3;hintAt=Time.unscaledTime+20;}
@@ -150,7 +152,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了！摆出光线姿势";break;
-                case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+2;break;
+                case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+BeamCloseup.Duration+2;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
@@ -159,7 +161,7 @@ namespace UltramanGame.Runtime
         void Restart()
         {
             battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
-            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();
+            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.Closeup.Cancel();
         }
         void OpenSettings(bool audio=false)
         {draftMonsterHits=monsterHits;audioSettings=audio;settings=true;}
@@ -242,6 +244,7 @@ namespace UltramanGame.Runtime
                 if(hud.Button(new Rect(1050,665,192,37),"返回游戏 · F5"))showcase=false;
                 return;
             }
+            if(world.Closeup.Active) {DrawBeamCloseup();return;}
             if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
             {DrawBattleHud();return;}
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float time=Time.unscaledTime;
@@ -300,6 +303,24 @@ namespace UltramanGame.Runtime
             hud.Figure(new Rect(x+10,627,36,44),gesture,Time.unscaledTime,accent);
             hud.Text(new Rect(x+55,625,150,21),title,15,active?accent:HudPainter.Ink,bold:true);
             hud.Text(new Rect(x+55,648,150,23),hint,11,HudPainter.Muted);
+        }
+        void DrawBeamCloseup()
+        {
+            float focus=world.Closeup.Focus;
+            float band=Mathf.Lerp(18,66,focus);
+            hud.Box(new Rect(0,0,1280,band),new Color(.006f,.016f,.04f,.96f));
+            hud.Box(new Rect(0,720-band,1280,band),new Color(.006f,.016f,.04f,.96f));
+            hud.Box(new Rect(0,band,1280,2),new Color(.25f,.78f,1,.65f*focus));
+            hud.Box(new Rect(0,718-band,1280,2),new Color(.25f,.78f,1,.65f*focus));
+            // Peripheral speed lines leave the enlarged head and L-shaped hands unobstructed.
+            for(int i=0;i<6;i++)
+            {
+                float y=145+i*72,offset=Mathf.Repeat(world.Closeup.Age*210+i*31,95);
+                var color=new Color(.48f,.83f,1,focus*(.08f+(i%3)*.025f));
+                hud.Line(new Vector2(-offset,y),new Vector2(115+i*17-offset,y-12),color,2);
+                hud.Line(new Vector2(1165+offset,y-12),new Vector2(1320+offset,y),color,2);
+            }
+            hud.Text(new Rect(140,720-band,1000,band),"哉佩利敖光线！",32,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
         }
         void DrawBattleHud()
         {
