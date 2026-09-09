@@ -63,7 +63,7 @@ def prepare(source, output):
     return bpy.data.objects['Armature.001']
 
 
-def animate(rig):
+def animate(rig, combat_sample=False):
     """Author combat keys on the supplied IK rig; FBX export bakes the deforming bones."""
     scene = bpy.context.scene
     scene.frame_set(1)
@@ -115,6 +115,12 @@ def animate(rig):
             matrix = p.matrix.copy()
             matrix.translation = target
             p.matrix = matrix
+        if combat_sample:
+            for side in ('L', 'R'):
+                bone = rig.pose.bones['HeelIKC_' + side]
+                matrix = rest_matrices[bone.name].copy()
+                matrix.translation += Vector(pose.get('foot_' + side.lower(), (0, 0, 0)))
+                bone.matrix = matrix
         bpy.context.view_layer.update()
         rig.animation_data.action = action
         frame = 1 + t * 60
@@ -147,6 +153,24 @@ def animate(rig):
                     (1.1, dict(right=(-.23, -.08, 1.75), left=(.3, -.08, 1.13), sink=.008)),
                     (2.0, dict(right=(-.2, -.08, 1.77), left=(.3, -.08, 1.13)))],
     }
+    if combat_sample:
+        # Separate review clips: weight transfer and a slower recovery are tested
+        # before changing the timing of the camera-controlled game.
+        for side, sign in [('Left', 1), ('Right', -1)]:
+            hand = side.lower()
+            foot = 'foot_l' if side == 'Left' else 'foot_r'
+            clips[side+'Punch'] = [
+                (0, {}), (.14, {hand:(sign*.28,-.18,1.24), 'yaw':-sign*.20, 'sink':-.04, foot:(0,.025,.025)}),
+                (.28, {hand:(sign*.10,-.55,1.34), 'yaw':sign*.25, 'sink':-.055, foot:(0,-.09,0)}),
+                (.36, {hand:(sign*.11,-.54,1.33), 'yaw':sign*.23, 'sink':-.05, foot:(0,-.09,0)}),
+                (.50, {hand:(sign*.22,-.35,1.29), 'yaw':sign*.10, 'sink':-.025, foot:(0,-.04,.035)}), (.68,{})]
+        walk=[]
+        for i in range(33):
+            t=i/16;phase=t*math.tau
+            walk.append((t, dict(sink=-.018+.008*math.cos(phase*2), yaw=.045*math.sin(phase),
+                foot_l=(0,.10*math.sin(phase),.055*max(0,math.cos(phase))),
+                foot_r=(0,-.10*math.sin(phase),.055*max(0,-math.cos(phase))))))
+        clips['Walk']=walk
     actions = {}
     for name, keys in clips.items():
         action = bpy.data.actions.new(name)
@@ -226,9 +250,10 @@ def main():
     parser.add_argument('output', type=Path)
     parser.add_argument('--review', action='store_true')
     parser.add_argument('--export', action='store_true')
+    parser.add_argument('--combat-sample', action='store_true')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     rig = prepare(args.source, args.output)
-    actions = animate(rig)
+    actions = animate(rig, args.combat_sample)
     if args.export:
         export(rig, args.output, actions)
     if args.review:

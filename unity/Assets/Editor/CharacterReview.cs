@@ -129,7 +129,7 @@ namespace UltramanGame.Editor
             world.Tick(state,1,1);hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
             Save(world.Camera,target,Path.Combine(folder,name+".png"));
         }
-        internal static void Save(Camera camera,RenderTexture target,string path)
+        internal static void Save(Camera camera,RenderTexture target,string path,System.Action beforeRender=null)
         {
             // Batch rendering runs without the player loop that refreshes GPU skinning.
             // Snapshot the current deformed meshes so review frames match sampled bones.
@@ -140,12 +140,13 @@ namespace UltramanGame.Editor
                 if(!skin.enabled)continue;
                 var mesh=new Mesh();skin.BakeMesh(mesh,true);
                 var snapshot=new GameObject("Skin review snapshot");snapshot.transform.SetParent(skin.transform,false);
+                snapshot.layer=skin.gameObject.layer;
                 snapshot.AddComponent<MeshFilter>().sharedMesh=mesh;
                 var renderer=snapshot.AddComponent<MeshRenderer>();renderer.sharedMaterials=skin.sharedMaterials;
                 renderer.shadowCastingMode=skin.shadowCastingMode;renderer.receiveShadows=skin.receiveShadows;
                 snapshots.Add(snapshot);skin.enabled=false;
             }
-            try {camera.Render();}
+            try {beforeRender?.Invoke();camera.Render();}
             finally
             {
                 foreach(var snapshot in snapshots)

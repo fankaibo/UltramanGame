@@ -7,7 +7,7 @@ namespace UltramanGame.Editor
     {
         void OnPreprocessModel()
         {
-            if(!assetPath.StartsWith("Assets/Resources/Characters/"))return;
+            if(!CharacterPath())return;
             var importer=(ModelImporter)assetImporter;
             importer.animationType=ModelImporterAnimationType.Legacy;
             importer.importAnimation=true;importer.importCameras=false;importer.importLights=false;
@@ -17,11 +17,13 @@ namespace UltramanGame.Editor
         }
         void OnPreprocessTexture()
         {
-            if(!assetPath.StartsWith("Assets/Resources/Characters/"))return;
+            if(!CharacterPath())return;
             var importer=(TextureImporter)assetImporter;
             importer.maxTextureSize=4096;importer.mipmapEnabled=true;
             importer.filterMode=FilterMode.Trilinear;importer.anisoLevel=4;
             importer.textureCompression=TextureImporterCompression.CompressedHQ;
         }
+        bool CharacterPath() => assetPath.StartsWith("Assets/Resources/Characters/") ||
+            assetPath.StartsWith("Assets/Editor/CombatSample/Characters/");
     }
 }
