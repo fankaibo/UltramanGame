@@ -32,12 +32,26 @@ class _Server(socketserver.ThreadingTCPServer):
 
 
 class LatestBridge:
-    def __init__(self, port=8765, handler=_Handler):
+    def __init__(self, port=8765, handler=_Handler, *, listener=None):
         self.changed = threading.Condition()
         self.stopping = threading.Event()
         self.revision = 0
         self.latest = b""
-        self.server = _Server(("127.0.0.1", port), handler)
+        if listener is None:
+            self.server = _Server(("127.0.0.1", port), handler)
+        else:
+            # The launcher retains its copy across worker crashes. Closing this
+            # child copy must never shut down or rebind the shared listening socket.
+            if (listener.family != socket.AF_INET or listener.type != socket.SOCK_STREAM
+                    or listener.getsockname()[0] != "127.0.0.1"):
+                raise ValueError("Expected a listening IPv4 loopback socket")
+            # SO_ACCEPTCONN is not queryable on the target macOS (ENOPROTOOPT).
+            # listen is idempotent on our already-bound listener, with no rebind.
+            listener.listen(16)
+            self.server = _Server(listener.getsockname(), handler, bind_and_activate=False)
+            self.server.socket.close()
+            self.server.socket = listener
+            self.server.server_address = listener.getsockname()
         self.server.bridge = self
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 

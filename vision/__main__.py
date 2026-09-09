@@ -1,8 +1,9 @@
 import argparse
 import json
+import socket
 import sys
 import time
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from pathlib import Path
 
 from .bridge import PoseBridge
@@ -11,10 +12,24 @@ from .protocol import FrameFactory
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class FrameHeartbeat:
+    """Advance only after frame processing, so a blocked native call is detectable."""
+    def __init__(self, enabled):
+        self.enabled = enabled
+        self.next_at = 0
+
+    def processed(self, sequence):
+        now = time.monotonic()
+        if self.enabled and now >= self.next_at:
+            print(json.dumps({"event": "frame", "sequence": sequence}), flush=True)
+            self.next_at = now + 1
+
+
 def run_demo(args, bridge, preview=None, photo=None):
     from .demo import landmarks_at
     factory = FrameFactory(source="synthetic")
     start = time.monotonic()
+    heartbeat = FrameHeartbeat(args.ready_json)
     while not args.seconds or time.monotonic()-start < args.seconds:
         points = landmarks_at(time.monotonic()-start)
         frame = factory.make(points)
@@ -23,6 +38,7 @@ def run_demo(args, bridge, preview=None, photo=None):
             preview.publish(None, points, frame['capturedMs'], "synthetic")
         if photo:
             photo.publish(None, None, frame['capturedMs'], synthetic=True)
+        heartbeat.processed(frame['sequence'])
         time.sleep(1/30)
 
 
@@ -47,6 +63,7 @@ def run_camera(args, bridge, preview=None, photo=None):
     inference_seconds = 0
     photo_model = None
     photo_retry_at = 0
+    heartbeat = FrameHeartbeat(args.ready_json)
     try:
         with create_landmarker(args.model) as model, LatestCapture(open_camera) as capture:
             start = time.monotonic()
@@ -91,6 +108,7 @@ def run_camera(args, bridge, preview=None, photo=None):
                 elif photo_model is not None and not photo.bridge.subscribers:
                     photo_model.close()
                     photo_model = None
+                heartbeat.processed(frames)
                 if not args.no_preview:
                     debug_image = image.copy()
                     if landmarks:
@@ -130,17 +148,26 @@ def main():
     parser.add_argument("--preview-port",type=int,default=8766,help="游戏内预览的本机端口；0 由系统分配")
     parser.add_argument("--photo-port",type=int,default=8767,help="主动合照的本机端口；随 --game-preview 启用，0 由系统分配")
     parser.add_argument("--ready-json",action="store_true",help=argparse.SUPPRESS)
+    for name in ("pose", "preview", "photo"):
+        parser.add_argument("--" + name + "-fd", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--model",type=Path,default=ROOT/"models/pose_landmarker_lite.task")
     args = parser.parse_args()
     if not all(0 <= p <= 65535 for p in (args.port, args.preview_port, args.photo_port)) or args.seconds < 0:
         parser.error("port 和 preview-port 必须在 0–65535；seconds 不能为负数")
+    descriptors = (args.pose_fd, args.preview_fd, args.photo_fd)
+    if any(fd is not None for fd in descriptors) and (not args.game_preview or
+            any(fd is None or fd < 3 for fd in descriptors) or len(set(descriptors)) != 3):
+        parser.error("继承的三个本机监听 socket 必须完整、独立，并启用 game-preview")
     try:
-        with PoseBridge(args.port) as bridge:
+        with ExitStack() as sockets:
+            listeners = [sockets.enter_context(socket.socket(fileno=fd)) if fd is not None else None
+                         for fd in descriptors]
+            bridge = sockets.enter_context(PoseBridge(args.port, listener=listeners[0]))
             log_stream = sys.stderr if args.ready_json else sys.stdout
             print(f"{'合成姿态' if args.demo else '本地摄像头'}服务：127.0.0.1:{bridge.address[1]}",file=log_stream,flush=True)
             from .preview import GamePreview
             from .photo import GamePhoto
-            with (GamePreview(args.preview_port) if args.game_preview else nullcontext()) as preview, (GamePhoto(args.photo_port) if args.game_preview else nullcontext()) as photo:
+            with (GamePreview(args.preview_port, listener=listeners[1]) if args.game_preview else nullcontext()) as preview, (GamePhoto(args.photo_port, listener=listeners[2]) if args.game_preview else nullcontext()) as photo:
                 if preview:
                     print(f"游戏预览：127.0.0.1:{preview.bridge.address[1]}（不录制）",file=log_stream,flush=True)
                 if args.ready_json:

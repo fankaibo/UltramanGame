@@ -22,12 +22,14 @@ namespace UltramanGame.Core
     {
         public const int FreshnessMs = 350;
         static bool Finite(float x) => !float.IsNaN(x) && !float.IsInfinity(x);
+        // A fresh 'no person' frame still proves the service is working.
+        public static bool Fresh(PoseFrame frame,long nowMs)
+            => frame!=null && frame.schema==1 && !string.IsNullOrEmpty(frame.streamId) &&
+                frame.streamId.Length<=64 && frame.sequence>=1 && frame.capturedMs>0 &&
+                nowMs-frame.capturedMs<=FreshnessMs && frame.capturedMs-nowMs<=50;
         static bool FrameValid(PoseFrame frame, long nowMs)
         {
-            if (frame == null || frame.schema != 1 || string.IsNullOrEmpty(frame.streamId) ||
-                frame.streamId.Length > 64 || frame.sequence < 1 || !frame.tracked ||
-                frame.points == null || frame.points.Length != 33 || frame.capturedMs <= 0 ||
-                nowMs-frame.capturedMs > FreshnessMs || frame.capturedMs-nowMs > 50) return false;
+            if (!Fresh(frame,nowMs) || !frame.tracked || frame.points == null || frame.points.Length != 33) return false;
             foreach (var p in frame.points)
                 if (!Finite(p.x) || !Finite(p.y) || !Finite(p.z) || !Finite(p.visibility) || p.visibility<0 || p.visibility>1) return false;
             return true;

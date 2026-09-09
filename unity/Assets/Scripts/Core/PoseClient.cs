@@ -33,7 +33,7 @@ namespace UltramanGame.Core
                         connection.ReceiveTimeout=1500;
                         connection.Connect("127.0.0.1",port);
                         if(stopping) break;
-                        status="动作服务已连接";
+                        status="等待摄像头画面";
                         using(var stream=connection.GetStream())
                         using(var line=new MemoryStream())
                         {
@@ -45,7 +45,8 @@ namespace UltramanGame.Core
                                 {
                                     if(buffer[i]==10)
                                     {
-                                        if(line.Length>0) Interlocked.Exchange(ref latest,Encoding.UTF8.GetString(line.ToArray()));
+                                        if(line.Length>0)
+                                        {Interlocked.Exchange(ref latest,Encoding.UTF8.GetString(line.ToArray()));status="动作服务已连接";}
                                         line.SetLength(0);
                                     }
                                     else
@@ -60,7 +61,7 @@ namespace UltramanGame.Core
                 }
                 catch(Exception e) when(e is IOException || e is SocketException || e is ObjectDisposedException)
                 { status="等待动作识别服务（127.0.0.1）"; }
-                finally { client=null; Interlocked.Exchange(ref latest,null); }
+                finally { status="等待动作识别服务重新连接";client=null; Interlocked.Exchange(ref latest,null); }
                 for(int i=0;i<10 && !stopping;i++) Thread.Sleep(100);
             }
         }

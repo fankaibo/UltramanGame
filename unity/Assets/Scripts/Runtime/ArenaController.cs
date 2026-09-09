@@ -128,7 +128,7 @@ namespace UltramanGame.Runtime
             }
             if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
-            { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")}"); }
+            { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
             battle.Tick(world.Closeup.Active?0:dt,input);
             if(battle.Phase==GamePhase.Paused)beamTitleUntil=0;
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
@@ -327,7 +327,8 @@ namespace UltramanGame.Runtime
             hud.Box(new Rect(0,compact?683:661,1280,compact?37:59),new Color(.014f,.027f,.055f,.92f));
             string status=keyboard?"空格变身 · A/D挥拳 · S防御 · J光线":PoseQuality.Present(pose,now)?
                 (PoseQuality.Valid(pose,now)?"已经看见你 · 尽情挥动双手":"你还在画面中 · 可把手臂移进镜头"):
-                "让肩膀进入画面 · "+client.Status;
+                PoseQuality.Fresh(pose,now)?"让肩膀进入画面 · "+client.Status:
+                "暂未收到摄像头画面 · 可稍等或切换键盘练习";
             hud.Dot(new Vector2(28,y+height/2),compact?5:7,keyboard||PoseQuality.Present(pose,now)?HudPainter.Cyan:HudPainter.Gold);
             hud.Text(new Rect(40,y,570,height),status,compact?11:14,HudPainter.Muted);
             if(hud.Button(new Rect(640,y,116,height),"角色 · F5",size:fontSize))showcase=true;
@@ -412,9 +413,10 @@ namespace UltramanGame.Runtime
             }
             if(battle.Phase==GamePhase.Paused)
             {
+                bool interrupted=!keyboard&&!PoseQuality.Fresh(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 hud.Panel(new Rect(462,244,356,142),HudPainter.Cyan);
-                hud.Text(new Rect(478,254,324,32),paused?"休息一下吧":"等你回来，一起继续",20,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护城市":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
+                hud.Text(new Rect(478,254,324,32),paused?"休息一下吧":interrupted?"相机连接中断，进度已保留":"等你回来，一起继续",20,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护城市":interrupted?"请稍等，也可以切换到键盘练习":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
                 if(paused&&hud.Button(new Rect(552,339,176,31),"继续战斗",size:13))paused=false;
                 if(!paused)hud.Bar(new Rect(500,351,280,5),battle.ResumeProgress/1.2f,HudPainter.Cyan);
             }

@@ -35,8 +35,8 @@ class _PhotoHandler(_Handler):
 
 
 class GamePhoto:
-    def __init__(self, port=8767):
-        self.bridge = LatestBridge(port, _PhotoHandler)
+    def __init__(self, port=8767, *, listener=None):
+        self.bridge = LatestBridge(port, _PhotoHandler, listener=listener)
         self.bridge.subscribers = 0
         self.next_at = 0
 
