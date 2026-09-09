@@ -1,0 +1,25 @@
+Golza — user-downloaded Source model, uploaded by TengenGenesic.
+The model/material paths credit ultimo.
+Source: https://sfmlab.com/project/5e6c0302-9b99-4e34-819f-cd0c5fbcc041/
+The page lists CC0 1.0, selected by the uploader. SFMLab states that this
+designation is not verified and fan art may be subject to other terms.
+This is not represented as an official Ultraman commercial license or endorsement.
+This third-party model/texture is not covered by the repository's Apache-2.0 code license.
+
+Adaptation on 2026-09-09, first auditioned in the editor and then connected to live combat:
+- Converted the human-size Source MDL/VVD/VTX and VTF files with SourceIO 5.5.5.
+- Welded duplicated seam vertices and applied one subdivision level.
+- Added arm/leg IK controls and planted foot rotation constraints.
+- Authored Idle, Walk, Windup, Attack, Hurt and Defeat clips in Blender 4.5.13 LTS.
+- Baked the 49 source bones plus 8 controls to FBX; decoded body and eye textures.
+- Matched feet to the game's 0.75-unit rush and lifted the tail during crouching.
+Source archive remains unchanged in the local ignored artifacts directory.
+Rebuild script: scripts/prepare_golza.py --live-combat.
+SourceIO: https://github.com/REDxEYE/SourceIO
+
+SHA-256
+Golza.zip: 5ac1708f61e0272c99817f9bdbfaa50499b12982b1d7d7f3435a10289247fb64
+Golza.fbx: f7d0019b03de828ed095f12ffa3b63a4e7c9946c329c268b40b44f831bc00c33
+GolzaBody.png: 822c69cf4046404fc2b4cbd5b1d0c22b7b3a2f2d51aa73ebcab5b61f4c6408e6
+GolzaEyes.png: 8daa255a739fe91dd072b60dbc2cef67214c29cd5a54919779dedd0d89026853
+Downloaded official SourceIO master ZIP: c141463035c8fc5766ce4b06ac9d58d9fde99c27ad88b5484bdd2ee0ad035cd9

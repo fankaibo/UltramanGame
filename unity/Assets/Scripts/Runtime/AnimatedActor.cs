@@ -9,6 +9,9 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
+        public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
+        public Vector3 BeamOrigin => rigged!=null?rigged.BeamOrigin:Root.position+Vector3.up*2.7f;
+        public const float PunchAdvance=.75f, EnemyAdvance=.75f;
         readonly Transform picture;
         readonly Material material;
         readonly bool monster;
@@ -72,9 +75,9 @@ namespace UltramanGame.Runtime
                 return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/state.WarningDuration);
             if(state.Enemy!=EnemyPhase.Attack)return 0;
             float age=state.EnemyAge;
-            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,2.25f,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
-            if(age<Battle.EnemyHitSeconds+.12f)return 2.25f;
-            return 2.25f*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
+            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
+            if(age<Battle.EnemyHitSeconds+.12f)return EnemyAdvance;
+            return EnemyAdvance*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
         }
         void SetFrame(int frame)
         {
@@ -124,7 +127,7 @@ namespace UltramanGame.Runtime
                 else if(punch)
                 {
                     frame=state.ActionAge<.065f?1:state.ActionAge<.25f?2:1;
-                    forward=Strike(state.ActionAge)*1.45f;tilt=-Strike(state.ActionAge)*2;
+                    forward=Strike(state.ActionAge)*PunchAdvance;tilt=-Strike(state.ActionAge)*2;
                 }
             }
             if(preview>=0) {frame=preview%8;forward=tilt=jump=0;opacity=scale=1;breath=0;}

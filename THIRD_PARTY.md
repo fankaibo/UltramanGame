@@ -14,11 +14,11 @@
 
 ## 本机生成语音
 
-固定台词由 `scripts/generate_voice.py` 调用用户本机的 macOS Tingting 声音生成。生成的音频不纳入 Git，不包含商业角色配音录音。
+固定台词默认安装用户选定的热血青年英雄语音包，也可选择 macOS Tingting。用户确认的短迪迦战吼作为本机可选音频独立安装，不纳入 Git。详见 [美术与音频说明](docs/美术与音频说明.md)。
 
 ## 项目生成的美术与配乐
 
-城市背景通过内置 imagegen 生成；2 首循环音乐与 7 种音效由本项目脚本编排合成。文件位置、完整生成提示词、音频重建方式及造型边界见 [美术与音频说明](docs/美术与音频说明.md)。未使用商业角色模型或影视原声。
+城市背景通过内置 imagegen 生成；循环音乐和战斗音效由本项目脚本编排合成。文件位置、生成提示词、音频重建方式及造型边界见 [美术与音频说明](docs/美术与音频说明.md)。这些生成文件与下述第三方模型、本机可选原声音频分别记录。
 
 ## 角色动作插画（2026-09-08）
 
@@ -27,3 +27,9 @@
 ## 自选音乐
 
 《奇迹再现》未随本仓库提供。游戏支持用户选择本机普通音频，只在本地播放、保存路径，不上传或纳入版本控制；音乐本身的权利不因导入而改变。
+
+## 骨骼角色模型
+
+- 迪迦由 Extrazhang 发布于 [BlendSwap](https://blendswap.com/blend/26877)，作者标注 CC-BY-NC。原作纹理、转换和改编动画的记录见 `unity/Assets/Resources/Characters/Tiga/ATTRIBUTION.txt`。
+- 哥尔赞由 TengenGenesic 上传至 [SFMLab](https://sfmlab.com/project/5e6c0302-9b99-4e34-819f-cd0c5fbcc041/)，源文件路径另署名 ultimo。页面 CC0 标记由上传者选择，网站明确表示未核实；不代表官方商业授权。来源、改编与哈希见 `unity/Assets/Resources/Characters/Golza/ATTRIBUTION.txt`。
+- 两项第三方模型均不适用本仓库的 Apache-2.0 代码许可证；角色权利仍属于原权利人。SourceIO/Blender 仅为本机转换工具，未打包进玩家应用。游戏 F5 页面及构建包保留模型署名。

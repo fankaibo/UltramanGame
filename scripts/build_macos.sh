@@ -14,4 +14,5 @@ if [ -x .venv/bin/python ]; then game_python=.venv/bin/python; fi
 "$game_python" scripts/generate_voice.py
 "$game_editor" -batchmode -projectPath "$PWD/unity" \
   -executeMethod UltramanGame.Editor.ProjectSetup.BuildMac -quit -logFile "$PWD/logs/unity-build.log"
+"$game_python" scripts/sign_macos.py
 echo "构建完成：unity/Builds/TigaTraining.app"

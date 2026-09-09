@@ -10,10 +10,12 @@ Adapted for UltramanGame on 2026-09-09:
 - Converted the supplied Blender mesh/rig to FBX with baked skeletal animation.
 - Authored eight combat clips and portable materials; extracted the packed body texture to PNG.
 - Normalized scale and placed the character in the game's diagonal battle view.
+- Added a planted rear foot and a lifting/landing lead foot to the live punch clips.
+- Preserved the game's 0.12-second contact and 0.38-second punch duration.
 - Original downloaded .blend remains unchanged; embedded scripts were never enabled.
 Conversion: scripts/prepare_tiga.py; Blender 4.5.13 LTS; Unity 6000.6.0f1.
 
 SHA-256
 Original .blend: 71d40ef6620787a120d46e0bda6377f31ccdab79473bb3474ee430305d7e5246
-Tiga.fbx: 32bbc77ed0f1a56d3a1cc547e1ea8bae15e4fd1289580d7a69b47adf8d80c571
+Tiga.fbx: 8791b07ee07ee8a3be8ce02c84f6cf719dbd6dd137f796e7df801e55d5cb552f
 TigaBody.png: 6deef4a382e41b15d7fd5a7036ee30f2e7d8eb2f8e3e8bf9958ca28f30b5bf9c

@@ -1,0 +1,16 @@
+Ultraman Tiga — model and original texture by Extrazhang.
+Source: https://blendswap.com/blend/26877
+License listed by the author: Creative Commons Attribution-NonCommercial (CC-BY-NC).
+The third-party model/texture is not covered by the repository's Apache-2.0 code license.
+This fan-made asset is not an official Ultraman commercial license or endorsement.
+
+Editor audition variant, 2026-09-09:
+Nine baked clips, including a new Walk clip and revised punch weight transfer/recovery.
+Generated with scripts/prepare_tiga.py --combat-sample; Blender 4.5.13 LTS.
+Shares the original body texture in Assets/Resources/Characters/Tiga/TigaBody.png.
+The existing playable game's FBX and animation timing remain unchanged.
+Original source and texture attribution: Assets/Resources/Characters/Tiga/ATTRIBUTION.txt.
+
+SHA-256
+Original .blend: 71d40ef6620787a120d46e0bda6377f31ccdab79473bb3474ee430305d7e5246
+Sample Tiga.fbx: ff9901afa9fc81b52278d8e7be2893c77597563411e64927764afeabf34c7e2a

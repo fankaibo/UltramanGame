@@ -58,6 +58,7 @@ namespace UltramanGame.Runtime
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
             photo=new VictoryPhoto(LocalPort("--photo-port",8767));
             hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
+            world.BindActors(hero,enemy);
             music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
             if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
         }
@@ -140,10 +141,10 @@ namespace UltramanGame.Runtime
             }
             lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
-            world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
-            if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
             hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
+            world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
             enemy.SetPresentationOpacity(1-world.Closeup.Focus);
             if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
             {
@@ -273,7 +274,8 @@ namespace UltramanGame.Runtime
                 hud.Box(new Rect(0,0,1280,94),new Color(.012f,.025f,.06f,.92f));
                 hud.Text(new Rect(34,18,800,43),"角色展示 · 迪迦与哥尔赞",28,HudPainter.Ink,bold:true);
                 hud.Text(new Rect(36,63,900,24),"迪迦 · "+AnimatedActor.HeroPoses[showcaseFrame]+"    /    哥尔赞 · "+AnimatedActor.MonsterPoses[showcaseFrame],17,HudPainter.Cyan);
-                if(hero.IsRigged)hud.Text(new Rect(844,23,400,34),"迪迦模型：Extrazhang · BlendSwap · CC-BY-NC",13,HudPainter.Muted);
+                if(hero.IsRigged)hud.Text(new Rect(844,23,400,34),"迪迦：Extrazhang · BlendSwap · CC-BY-NC",13,HudPainter.Muted);
+                if(enemy.IsRigged)hud.Text(new Rect(844,48,400,28),"哥尔赞：TengenGenesic / ultimo · SFMLab",12,HudPainter.Muted);
                 hud.Box(new Rect(0,648,1280,72),new Color(.012f,.025f,.06f,.95f));
                 if(hud.Button(new Rect(36,665,144,37),"上个动作"))showcaseFrame=(showcaseFrame+7)%8;
                 if(hud.Button(new Rect(192,665,144,37),"下个动作"))showcaseFrame=(showcaseFrame+1)%8;
