@@ -273,6 +273,7 @@ namespace UltramanGame.Runtime
                 hud.Box(new Rect(0,0,1280,94),new Color(.012f,.025f,.06f,.92f));
                 hud.Text(new Rect(34,18,800,43),"角色展示 · 迪迦与哥尔赞",28,HudPainter.Ink,bold:true);
                 hud.Text(new Rect(36,63,900,24),"迪迦 · "+AnimatedActor.HeroPoses[showcaseFrame]+"    /    哥尔赞 · "+AnimatedActor.MonsterPoses[showcaseFrame],17,HudPainter.Cyan);
+                if(hero.IsRigged)hud.Text(new Rect(844,23,400,34),"迪迦模型：Extrazhang · BlendSwap · CC-BY-NC",13,HudPainter.Muted);
                 hud.Box(new Rect(0,648,1280,72),new Color(.012f,.025f,.06f,.95f));
                 if(hud.Button(new Rect(36,665,144,37),"上个动作"))showcaseFrame=(showcaseFrame+7)%8;
                 if(hud.Button(new Rect(192,665,144,37),"下个动作"))showcaseFrame=(showcaseFrame+1)%8;
