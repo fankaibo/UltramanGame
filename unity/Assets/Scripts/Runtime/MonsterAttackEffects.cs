@@ -17,7 +17,7 @@ namespace UltramanGame.Runtime
         public MonsterAttackEffects(Transform parent,Vector3 monsterHome,Vector3 heroHome)
         {
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
-            glow=new Material(Resources.Load<Shader>("SoftGlow")) {color=Color.white};
+            glow=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")) {color=Color.white});
             charge=Line(parent,"Monster charge",48,.035f,true);
             shock=Line(parent,"Monster contact",48,.07f,true);
             for(int i=0;i<3;i++)
@@ -39,6 +39,8 @@ namespace UltramanGame.Runtime
                 line.SetPosition(i,center+camera.transform.right*Mathf.Cos(angle)*radius+camera.transform.up*Mathf.Sin(angle)*radius);
             }
         }
+        public void Clear()
+        {hitAge=10;charge.enabled=shock.enabled=false;foreach(var line in trails)line.enabled=false;foreach(var line in claws)line.enabled=false;}
         public void Impact(bool blocked) {hitAge=0;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
         {

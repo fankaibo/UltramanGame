@@ -33,7 +33,7 @@ namespace UltramanGame.Runtime
             shadowCamera.cullingMask=1<<ActorLayer;shadowCamera.targetTexture=mask;
             receiver=new Material(shader){name="City contact shadow",mainTexture=mask};
             ground=GameObject.CreatePrimitive(PrimitiveType.Plane);ground.name="Transparent actor shadows";
-            ground.transform.position=Vector3.down*.012f;ground.transform.localScale=Vector3.one;
+            ground.transform.position=Vector3.up*.006f;ground.transform.localScale=Vector3.one;
             Release(ground.GetComponent<Collider>());
             var surface=ground.GetComponent<Renderer>();surface.sharedMaterial=receiver;surface.shadowCastingMode=ShadowCastingMode.Off;
         }

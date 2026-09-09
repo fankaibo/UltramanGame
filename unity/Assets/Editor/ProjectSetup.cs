@@ -71,7 +71,7 @@ namespace UltramanGame.Editor
             foreach(var actor in new[]{"Tiga","Golza"})
                 if(!Resources.Load<GameObject>("Characters/"+actor+"/"+actor)||!Resources.Load<TextAsset>("Characters/"+actor+"/ATTRIBUTION"))
                     throw new System.Exception(actor+" model and author attribution are required for this build.");
-            foreach(var shader in new[]{"ContactShadow","ShadowSilhouette"})
+            foreach(var shader in new[]{"ContactShadow","ShadowSilhouette","CityGround","CitySky","KaijuSurface","EnergyShield","EnergyFlare","CinematicComposite","SoftGlow"})
                 if(!Resources.Load<Shader>(shader))throw new System.Exception("Missing actor shadow shader: "+shader);
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },

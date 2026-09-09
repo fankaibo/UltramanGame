@@ -106,7 +106,7 @@ def animate(rig, combat_sample=False, live_combat=False):
         main.matrix = main_matrix
         hip = rig.pose.bones['hip']
         hip.rotation_mode = 'QUATERNION'
-        hip.rotation_quaternion = baseline['hip'].to_quaternion() @ Quaternion((0, 0, 1), pose['yaw'])
+        hip.rotation_quaternion = baseline['hip'].to_quaternion() @ Quaternion((0, 0, 1), pose['yaw']) @ Quaternion((1, 0, 0), pose.get('lean', 0))
         bpy.context.view_layer.update()
         for name, target in (('armIK_R', pose['right']), ('armIK_L', pose['left']),
                              ('armIK_T_R', pose.get('right_pole', (-.6, .15, 1.05))),
@@ -178,11 +178,13 @@ def animate(rig, combat_sample=False, live_combat=False):
             lead='foot_l' if side=='Left' else 'foot_r'
             rear='foot_r' if side=='Left' else 'foot_l'
             existing=clips[side+'Punch']
-            existing[1][1].update({lead:(0,.025,.065),rear:(0,.11,.01)})
-            existing[2][1].update({lead:(0,0,0),rear:(0,.35,.04)})
-            existing[3][1].update({lead:(0,-.055,0),rear:(0,.30,.025)})
+            existing[1][1].update({lead:(0,.025,.065),rear:(0,.11,.01),'lean':-.045})
+            existing[2][1].update({lead:(0,0,0),rear:(0,.35,.04),'lean':.10})
+            existing[3][1].update({lead:(0,-.055,0),rear:(0,.30,.025),'lean':.075})
+            for _, pose in existing:
+                if 'yaw' in pose:pose['yaw']*=1.6
             hand=side.lower();sign=1 if side=='Left' else -1
-            existing.insert(-1,(.27,{hand:(sign*.21,-.34,1.29),'yaw':sign*.05,'sink':-.025,
+            existing.insert(-1,(.27,{hand:(sign*.21,-.34,1.29),'yaw':sign*.08,'sink':-.025,'lean':.025,
                                     lead:(0,-.10,.065),rear:(0,.11,0)}))
     actions = {}
     for name, keys in clips.items():
