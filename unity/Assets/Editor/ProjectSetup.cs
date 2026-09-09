@@ -68,6 +68,8 @@ namespace UltramanGame.Editor
                 if(AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Resources/Voice/beam_original.aiff").length>3)
                     throw new System.Exception("Beam battle cry must be a short recording of at most 3 seconds.");
             }
+            if(!Resources.Load<GameObject>("Characters/Tiga/Tiga")||!Resources.Load<TextAsset>("Characters/Tiga/ATTRIBUTION"))
+                throw new System.Exception("Tiga model and author attribution are required for this build.");
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
                 locationPathName="Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,

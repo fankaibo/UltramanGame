@@ -3,10 +3,12 @@ using UltramanGame.Core;
 
 namespace UltramanGame.Runtime
 {
-    // Authored action illustrations plus timing, recoil and follow-through; camera gestures drive Battle.
+    // Loads a skeletal actor when available, otherwise uses the authored action atlas.
     public sealed class AnimatedActor
     {
         public readonly Transform Root;
+        readonly RiggedActor rigged;
+        public bool IsRigged => rigged!=null;
         readonly Transform picture;
         readonly Material material;
         readonly bool monster;
@@ -17,13 +19,15 @@ namespace UltramanGame.Runtime
         bool heavyHit;
         GamePhase previous;
         int displayed=-1;
-        public int Frame => displayed;
+        public int Frame => rigged!=null?rigged.Frame:displayed;
         public void SetPresentationOpacity(float opacity)
-        { var tint=material.GetColor("_Tint");tint.a*=Mathf.Clamp01(opacity);material.SetColor("_Tint",tint); }
+        { if(rigged!=null){rigged.SetPresentationOpacity(opacity);return;}var tint=material.GetColor("_Tint");tint.a*=Mathf.Clamp01(opacity);material.SetColor("_Tint",tint); }
         public static readonly string[] HeroPoses={"战斗准备","收拳蓄力","挥拳出击","光之护盾","哉佩利敖光线","受击恢复","举手变身","胜利欢呼"};
         public static readonly string[] MonsterPoses={"准备","蓄力","反击","预警","恢复","受击","光线命中","挥手退场"};
         public AnimatedActor(string name,Vector3 position,Vector3 opponentPosition,bool isMonster=false)
         {
+            rigged=RiggedActor.CreateIfAvailable(name,position,opponentPosition,isMonster);
+            if(rigged!=null){Root=rigged.Root;return;}
             monster=isMonster;home=position;
             forwardAxis=Vector3.ProjectOnPlane(opponentPosition-position,Vector3.up).normalized;
             Root=new GameObject(name).transform;Root.position=home;
@@ -79,6 +83,7 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,Camera camera,float dt,float time,int preview=-1)
         {
+            if(rigged!=null){rigged.Update(state,dt,time,preview);return;}
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
             phaseAge+=dt;hitAge+=dt;
             if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;}

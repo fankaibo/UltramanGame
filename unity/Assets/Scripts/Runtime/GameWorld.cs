@@ -107,7 +107,7 @@ namespace UltramanGame.Runtime
                 Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
-            float fieldOfView=Showcase?29:battleView?(state.Action==HeroAction.Beam?26:27):35;
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?29:battleView?(state.Action==HeroAction.Beam?26:27):35;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
             float h=160*Mathf.Tan(Camera.fieldOfView*Mathf.Deg2Rad*.5f);
