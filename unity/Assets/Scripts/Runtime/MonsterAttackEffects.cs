@@ -40,7 +40,7 @@ namespace UltramanGame.Runtime
             }
         }
         public void Impact(bool blocked) {hitAge=0;hitColor=blocked?Ice:Amber;}
-        public void Tick(Battle state,Camera camera,float dt)
+        public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
         {
             bool active=state.Phase==GamePhase.Battle;
             if(!active)hitAge=10;else hitAge+=dt;
@@ -52,7 +52,7 @@ namespace UltramanGame.Runtime
             if(warning)
             {
                 float p=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
-                Circle(charge,monster+Vector3.up*2.75f-camera.transform.forward*.2f,camera,.35f+p*.24f);
+                Circle(charge,monster+Vector3.up*3.1f-camera.transform.forward*.2f,camera,.35f+p*.24f);
                 ColorLine(charge,Amber,.20f+p*.45f);
             }
             for(int i=0;i<3;i++)
@@ -61,7 +61,7 @@ namespace UltramanGame.Runtime
                 if(trail.enabled)
                 {
                     Vector3 p=monster+Vector3.up*(.5f+i*.48f)+camera.transform.right*(i-1)*.16f;
-                    trail.SetPosition(0,p-forward*(1.6f+i*.18f));trail.SetPosition(1,p);
+                    trail.SetPosition(0,p-forward*(.7f+i*.12f));trail.SetPosition(1,p);
                     trail.startColor=new Color(1,.4f,.1f,0);trail.endColor=new Color(1,.65f,.22f,.48f);
                 }
                 var claw=claws[i];float age=state.EnemyAge;
@@ -70,7 +70,7 @@ namespace UltramanGame.Runtime
                 {
                     float sweep=Mathf.Clamp01((age-.23f)/.17f);
                     // Follow the approaching claw; it reaches the hero only at the contact keyframe.
-                    Vector3 swipeCenter=contact-forward*Mathf.Max(0,2.25f-AnimatedActor.MonsterAdvance(state));
+                    Vector3 swipeCenter=hand.HasValue?hand.Value:contact-forward*Mathf.Max(0,AnimatedActor.EnemyAdvance-AnimatedActor.MonsterAdvance(state));
                     for(int j=0;j<claw.positionCount;j++)
                     {
                         float t=j/(float)(claw.positionCount-1)*sweep;

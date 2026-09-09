@@ -21,7 +21,7 @@ namespace UltramanGame.Editor
         readonly List<Material> materials=new List<Material>();
         internal SampleActor(string name)
         {
-            string folder="Assets/Editor/CombatSample/Characters/"+name+"/";
+            string folder=(name=="Golza"?"Assets/Resources/Characters/":"Assets/Editor/CombatSample/Characters/")+name+"/";
             string path=folder+name+".fbx";
             var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if(!prefab)throw new Exception("Sample model missing: "+path);

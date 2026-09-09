@@ -63,7 +63,7 @@ def prepare(source, output):
     return bpy.data.objects['Armature.001']
 
 
-def animate(rig, combat_sample=False):
+def animate(rig, combat_sample=False, live_combat=False):
     """Author combat keys on the supplied IK rig; FBX export bakes the deforming bones."""
     scene = bpy.context.scene
     scene.frame_set(1)
@@ -115,7 +115,7 @@ def animate(rig, combat_sample=False):
             matrix = p.matrix.copy()
             matrix.translation = target
             p.matrix = matrix
-        if combat_sample:
+        if combat_sample or live_combat:
             for side in ('L', 'R'):
                 bone = rig.pose.bones['HeelIKC_' + side]
                 matrix = rest_matrices[bone.name].copy()
@@ -171,6 +171,19 @@ def animate(rig, combat_sample=False):
                 foot_l=(0,.10*math.sin(phase),.055*max(0,math.cos(phase))),
                 foot_r=(0,-.10*math.sin(phase),.055*max(0,-math.cos(phase))))))
         clips['Walk']=walk
+    if live_combat:
+        # Preserve Battle's .12 s contact and .38 s recovery. The rear foot
+        # offsets the .75-unit root advance; the lead foot lifts and plants.
+        for side in ('Left', 'Right'):
+            lead='foot_l' if side=='Left' else 'foot_r'
+            rear='foot_r' if side=='Left' else 'foot_l'
+            existing=clips[side+'Punch']
+            existing[1][1].update({lead:(0,.025,.065),rear:(0,.11,.01)})
+            existing[2][1].update({lead:(0,0,0),rear:(0,.35,.04)})
+            existing[3][1].update({lead:(0,-.055,0),rear:(0,.30,.025)})
+            hand=side.lower();sign=1 if side=='Left' else -1
+            existing.insert(-1,(.27,{hand:(sign*.21,-.34,1.29),'yaw':sign*.05,'sink':-.025,
+                                    lead:(0,-.10,.065),rear:(0,.11,0)}))
     actions = {}
     for name, keys in clips.items():
         action = bpy.data.actions.new(name)
@@ -251,9 +264,11 @@ def main():
     parser.add_argument('--review', action='store_true')
     parser.add_argument('--export', action='store_true')
     parser.add_argument('--combat-sample', action='store_true')
+    parser.add_argument('--live-combat', action='store_true')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     rig = prepare(args.source, args.output)
-    actions = animate(rig, args.combat_sample)
+    if args.live_combat and args.combat_sample:parser.error('choose sample or live combat, not both')
+    actions = animate(rig, args.combat_sample, args.live_combat)
     if args.export:
         export(rig, args.output, actions)
     if args.review:

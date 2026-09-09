@@ -18,6 +18,7 @@ namespace UltramanGame.Editor
             var world=new GameWorld();var state=new Battle();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
+            world.BindActors(hero,enemy);
             world.Tick(state,1,1);
             var camera=world.Camera;
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/animation-review"));Directory.CreateDirectory(folder);
@@ -33,7 +34,7 @@ namespace UltramanGame.Editor
             state.Tick(.06f,new PlayerInput {Tracking=true,LeftPunch=true});Step(state,.06f);
             RenderBattle(world,state,hero,enemy,target,folder,"battle-punch");
             var travel=hero.Root.position-world.HeroHome;
-            if(travel.magnitude<1 || Vector3.Angle(travel,world.EnemyHome-world.HeroHome)>.1f)
+            if(Mathf.Abs(travel.magnitude-AnimatedActor.PunchAdvance)>.02f || Vector3.Angle(travel,world.EnemyHome-world.HeroHome)>.1f)
                 throw new Exception("Punch must travel toward Golza in both X and Z");
             Step(state,.4f);state.Tick(.01f,new PlayerInput {Tracking=true,Shield=true});
             RenderBattle(world,state,hero,enemy,target,folder,"battle-shield");
@@ -45,7 +46,7 @@ namespace UltramanGame.Editor
             RenderEnemy(world,hero,enemy,target,folder,"enemy-windup",EnemyPhase.Windup,1.8f);
             RenderEnemy(world,hero,enemy,target,folder,"enemy-approach",EnemyPhase.Attack,.25f);
             var contact=RenderEnemy(world,hero,enemy,target,folder,"enemy-contact",EnemyPhase.Attack,.42f);
-            if(Vector3.Dot(enemy.Root.position-world.EnemyHome,-world.BattleAxis)<2.2f||contact.HitsTaken!=1||!world.EnemySlashVisible)
+            if(Mathf.Abs(Vector3.Dot(enemy.Root.position-world.EnemyHome,-world.BattleAxis)-AnimatedActor.EnemyAdvance)>.02f||contact.HitsTaken!=1||!world.EnemySlashVisible)
                 throw new Exception("Enemy contact must combine forward movement, claw effect and one hit");
             var blocked=RenderEnemy(world,hero,enemy,target,folder,"enemy-blocked",EnemyPhase.Attack,.42f,true);
             if(blocked.Blocks!=1||blocked.HitsTaken!=0)throw new Exception("Enemy shield contact did not block");
@@ -81,8 +82,8 @@ namespace UltramanGame.Editor
             for(int frame=0;frame<=100;frame++)
             {
                 state.Tick(world.Closeup.Active?0:1/60f,new PlayerInput {Tracking=true});
-                world.Tick(state,1/60f,frame/60f);
                 hero.Update(state,world.Camera,1/60f,frame/60f);enemy.Update(state,world.Camera,1/60f,frame/60f);
+                world.Tick(state,1/60f,frame/60f);
                 enemy.SetPresentationOpacity(1-world.Closeup.Focus);
                 if(world.BeamStarted)beamStarts++;
                 if(world.Closeup.Active&&state.EnemyHealth!=health)throw new Exception("Damage occurred during closeup");
@@ -118,7 +119,7 @@ namespace UltramanGame.Editor
             world.Tick(state,1,1);
             while(state.TryCue(out var cue))
                 if(cue==GameCue.EnemyAttack||cue==GameCue.Hurt||cue==GameCue.Block)world.Cue(cue);
-            world.Tick(state,0,1);hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
+            hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,0,1);
             Save(world.Camera,target,Path.Combine(folder,name+".png"));return state;
         }
         static void Step(Battle state,float duration)
@@ -126,7 +127,7 @@ namespace UltramanGame.Editor
         static void RenderBattle(GameWorld world,Battle state,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder,string name)
         {
             // Review the final framing, rather than a single frame partway through the camera transition.
-            world.Tick(state,1,1);hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
+            hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,1);
             Save(world.Camera,target,Path.Combine(folder,name+".png"));
         }
         internal static void Save(Camera camera,RenderTexture target,string path,System.Action beforeRender=null)

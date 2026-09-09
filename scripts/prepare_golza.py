@@ -128,7 +128,7 @@ def rig_controls(rig):
     return targets
 
 
-def author(rig, targets):
+def author(rig, targets, live_combat=False):
     scene = bpy.context.scene
     scene.render.fps = 60
     rest = {b.name: b.matrix_basis.copy() for b in rig.pose.bones}
@@ -157,6 +157,12 @@ def author(rig, targets):
         rotate('jaw', (1, 0, 0), p['jaw'])
         for i in range(1, 7):
             rotate(f'tail_{i}', (0, 0, 1), p['sway']*math.sin(i*.65+t*2))
+        # The tail begins close to the floor. Lift its base as the pelvis sinks,
+        # so crouching does not drag the distal skin through the plaza.
+        tail=rig.pose.bones['tail_1']
+        lift=math.atan2(p['sink'],.75)
+        axis=tail.bone.matrix_local.to_3x3().inverted() @ Vector((1,0,0))
+        tail.rotation_quaternion=Quaternion(axis,lift) @ tail.rotation_quaternion
         bpy.context.view_layer.update()
         for name in targets:
             bone = rig.pose.bones[name]
@@ -198,6 +204,14 @@ def author(rig, targets):
         walk.append((t,dict(sink=.028+.009*math.cos(phase*2),lean=7,sway=5,
             foot_l=(0,stride,.055*max(0,math.cos(phase))),foot_r=(0,-stride,.055*max(0,-math.cos(phase))))))
     motions['Walk']=walk
+    if live_combat:
+        # Match the shorter live-game rush. Right foot counters root travel;
+        # left foot takes the step, then lifts during recovery.
+        offsets=[((0,0,0),(0,0,0)),((0,.04,.06),(0,.03,0)),
+                 ((0,0,.025),(0,.24,.02)),((0,0,0),(0,.30,.02)),
+                 ((0,0,0),(0,.30,.02)),((0,-.10,.04),(0,.12,0)),((0,0,0),(0,0,0))]
+        for (_,pose),(left,right) in zip(motions['Attack'],offsets):
+            pose.update(foot_l=left,foot_r=right)
     actions={}
     for name, poses in motions.items():
         action=bpy.data.actions.new(name);action.use_fake_user=True
@@ -233,9 +247,10 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('source',type=Path);parser.add_argument('output',type=Path)
     parser.add_argument('--sourceio',type=Path,default=Path('.cache/character-tools/SourceIO'))
     parser.add_argument('--review',action='store_true');parser.add_argument('--export',action='store_true')
+    parser.add_argument('--live-combat',action='store_true')
     args=parser.parse_args(sys.argv[sys.argv.index('--')+1:]);output=args.output.resolve();output.mkdir(parents=True,exist_ok=True)
     rig,meshes,source_counts=import_source(args.source,output,args.sourceio)
-    targets=rig_controls(rig);actions=author(rig,targets)
+    targets=rig_controls(rig);actions=author(rig,targets,args.live_combat)
     report=dict(source_counts,bones=len(rig.data.bones),welded_vertices=sum(len(o.data.vertices) for o in meshes),
                 clips={n:(a.frame_range[1]-a.frame_range[0])/60 for n,a in actions.items()})
     (output/'conversion.json').write_text(json.dumps(report,indent=2))

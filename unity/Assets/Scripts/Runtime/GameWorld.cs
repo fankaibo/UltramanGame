@@ -10,9 +10,11 @@ namespace UltramanGame.Runtime
         public readonly BeamCloseup Closeup=new BeamCloseup();
         public bool BeamStarted { get; private set; }
         // Equal X/Z separation stages the duel at 45 degrees: Tiga near-left, Golza far-right.
-        public readonly Vector3 HeroHome=new Vector3(-1.65f,0,-1.35f),EnemyHome=new Vector3(1.65f,0,1.95f);
+        public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
-        public Vector3 BeamOrigin => HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
+        AnimatedActor hero,enemy;
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;}
+        public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop,beam,beamCore,shield,transformLight;
         readonly LineRenderer chargeRing,shieldRing,beamChargeRing;
@@ -35,12 +37,13 @@ namespace UltramanGame.Runtime
             if(!Camera) Camera=new GameObject("Main Camera").AddComponent<Camera>();
             Camera.tag="MainCamera";Camera.transform.position=cameraHome;Camera.transform.LookAt(lookAt);Camera.fieldOfView=39;
             Camera.clearFlags=CameraClearFlags.SolidColor;Camera.backgroundColor=new Color(.015f,.03f,.08f);Camera.farClipPlane=150;
+            if(!Camera.GetComponent<ContactShadows>())Camera.gameObject.AddComponent<ContactShadows>();
             if(!Object.FindFirstObjectByType<AudioListener>()) Camera.gameObject.AddComponent<AudioListener>();
             var backMat=new Material(Resources.Load<Shader>("Backdrop"));backMat.mainTexture=Resources.Load<Texture2D>("Art/CityDusk");
             backdrop=Primitive(root,PrimitiveType.Quad,Vector3.zero,Vector3.one,backMat);
             backdrop.SetParent(Camera.transform,false);backdrop.localPosition=new Vector3(0,0,80);
-            var sun=new GameObject("Warm key light").AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=1.15f;sun.color=new Color(1,.85f,.68f);sun.transform.rotation=Quaternion.Euler(35,-35,0);sun.shadows=LightShadows.Soft;sun.shadowStrength=.7f;sun.shadowBias=.04f;sun.shadowNormalBias=.12f;QualitySettings.shadowDistance=25;QualitySettings.antiAliasing=4;
-            var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=.75f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
+            var sun=new GameObject("Warm key light").AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=.85f;sun.color=new Color(1,.85f,.68f);sun.transform.rotation=Quaternion.Euler(35,-35,0);sun.shadows=LightShadows.Soft;sun.shadowStrength=.7f;sun.shadowBias=.04f;sun.shadowNormalBias=.12f;QualitySettings.shadowDistance=25;QualitySettings.antiAliasing=4;
+            var fill=new GameObject("Cool rim light").AddComponent<Light>();fill.type=LightType.Directional;fill.intensity=.65f;fill.color=new Color(.44f,.68f,1);fill.transform.rotation=Quaternion.Euler(25,135,0);
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;RenderSettings.ambientLight=new Color(.24f,.28f,.36f);RenderSettings.fog=false;
             cyan=Glow(new Color(.14f,.77f,1,.55f));gold=Glow(new Color(1,.72f,.27f,.65f));
             enemyGlow=Glow(new Color(1,.43f,.13f,.6f));
@@ -118,9 +121,9 @@ namespace UltramanGame.Runtime
             backdrop.localPosition=new Vector3(0,h*(scale-1)*.5f,80);
             impact=Mathf.Max(0,impact-dt);
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(time*65)*impact*.035f*(1-focus),0,0);
-            Camera.transform.LookAt(Vector3.Lerp(lookAt,HeroHome+BattleAxis*.2f+Vector3.up*2.48f,focus));
+            Camera.transform.LookAt(Vector3.Lerp(lookAt,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             bool active=state.Phase==GamePhase.Battle;
-            monsterEffects.Tick(state,Camera,dt);
+            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.HandPosition:null);
             shield.gameObject.SetActive(active&&state.Shield);shieldRing.gameObject.SetActive(active&&state.Shield);
             shieldRing.transform.Rotate(0,dt*30,0,Space.Self);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;
@@ -130,6 +133,7 @@ namespace UltramanGame.Runtime
             beamCharge.gameObject.SetActive(Closeup.Active);beamChargeRing.gameObject.SetActive(Closeup.Active);
             if(Closeup.Active)
             {
+                beamCharge.position=BeamOrigin;beamChargeRing.transform.position=BeamOrigin;
                 beamCharge.localScale=Vector3.one*(.15f+focus*.12f);
                 beamChargeRing.transform.rotation=Quaternion.FromToRotation(Vector3.up,Camera.transform.forward);
                 beamChargeRing.transform.localScale=Vector3.one*(.65f+focus*.45f+Mathf.Sin(time*5)*.06f);
