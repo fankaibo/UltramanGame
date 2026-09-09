@@ -8,5 +8,7 @@ if ! command -v uv >/dev/null; then
 fi
 uv venv --python 3.12 --allow-existing .venv
 uv pip sync --python .venv/bin/python requirements.lock.txt
+.venv/bin/python scripts/repair_mediapipe_metadata.py
+uv pip check --python .venv/bin/python
 .venv/bin/python scripts/download_model.py
 echo '环境就绪。运行 ./scripts/camera.sh 启动前置摄像头。'

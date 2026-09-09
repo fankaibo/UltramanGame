@@ -1,17 +1,16 @@
 """Shared native inference setup, also exercised by the camera-free smoke check."""
-import sys
-
 import cv2
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions, RunningMode
 
-USE_METAL = sys.platform == "darwin"
+# 0.10.21 + XNNPACK CPU passed the fresh-frame endurance check on Apple M3.
+# The former 1.0.1 Metal path exhausted pixel buffers after about 16k frames.
+# Kept as a diagnostic override for scripts/soak_model.py, not a game setting.
+USE_METAL = False
 
 
 def create_landmarker(path):
-    # MediaPipe 1.0.1's macOS CPU graph aborts while opening a Metal service.
-    # Explicit GPU + SRGBA was verified on the target Apple M3.
     delegate = BaseOptions.Delegate.GPU if USE_METAL else BaseOptions.Delegate.CPU
     return PoseLandmarker.create_from_options(PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(path), delegate=delegate),

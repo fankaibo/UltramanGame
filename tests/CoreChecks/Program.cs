@@ -73,6 +73,7 @@ static class Program
             BattleBalanceChecks.Run(Check);
             EnemyAttackChecks.Run(Check);
             InstructionChecks.Run(Check);
+            RecoveryChecks.Run(Check);
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");
             b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});Check(b.Action==HeroAction.None,"beam requires energy");
             Punch(b);Check(b.EnemyHealth==b.MaxHealth-1 && b.Punches==1,"one punch applies one hit");

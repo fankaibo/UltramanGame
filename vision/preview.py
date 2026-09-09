@@ -30,8 +30,8 @@ def quality_of(points):
 
 
 class GamePreview:
-    def __init__(self, port=8766):
-        self.bridge = LatestBridge(port)
+    def __init__(self, port=8766, *, listener=None):
+        self.bridge = LatestBridge(port, listener=listener)
         self.next_at = 0
         self.frames = 0
 
