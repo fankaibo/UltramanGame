@@ -65,7 +65,7 @@ namespace UltramanGame.Runtime
         {
             if(state.Phase!=GamePhase.Battle)return 0;
             if(state.Enemy==EnemyPhase.Windup)
-                return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/Battle.WindupSeconds);
+                return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/state.WarningDuration);
             if(state.Enemy!=EnemyPhase.Attack)return 0;
             float age=state.EnemyAge;
             if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,2.25f,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
@@ -101,7 +101,7 @@ namespace UltramanGame.Runtime
                 else if(fighting&&hitAge<.35f)
                 {frame=heavyHit?6:5;forward=-Mathf.Sin(hitAge/.35f*Mathf.PI)*.22f;tilt=-Mathf.Sin(hitAge/.35f*Mathf.PI)*5;}
                 else if(fighting&&state.Enemy==EnemyPhase.Windup)
-                {frame=state.EnemyAge<.3f?1:3;forward=MonsterAdvance(state);tilt=-3*Mathf.Clamp01(state.EnemyAge/Battle.WindupSeconds);breath=Mathf.Sin(time*8)*.012f;}
+                {frame=state.EnemyAge<.3f?1:3;forward=MonsterAdvance(state);tilt=-3*Mathf.Clamp01(state.EnemyAge/state.WarningDuration);breath=Mathf.Sin(time*8)*.012f;}
                 else if(fighting&&state.Enemy==EnemyPhase.Recover)
                 {frame=state.EnemyAge<.55f?4:0;}
             }

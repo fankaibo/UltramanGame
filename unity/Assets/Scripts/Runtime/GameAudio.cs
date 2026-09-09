@@ -18,6 +18,7 @@ namespace UltramanGame.Runtime
         bool phaseReported;
         public bool MusicEnabled=true;
         public float Volume=.75f,MusicVolume=.45f;
+        public event System.Action<string,float> InstructionStarted;
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
         public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} muted={muted}";
         AudioSource Source(GameObject owner)
@@ -51,12 +52,13 @@ namespace UltramanGame.Runtime
         { if(!muted) { var clip=Clip("Audio/"+key);if(clip)effects.PlayOneShot(clip,gain); } }
         public void Speak(string key,int importance,GamePhase expected)
         {
-            if(muted) return;
-            var clip=Clip("Voice/"+key);if(!clip)return;
+            if(muted) {NotifyInstruction(key,0);return;}
+            var clip=Clip("Voice/"+key);if(!clip) {NotifyInstruction(key,0);return;}
             // Let the finisher cry complete even when its hit immediately wins the round.
             if(!voice.isPlaying || (!beamVoice && (importance>priority || importance>=5)))
             {
                 voice.Stop();voice.clip=clip;priority=importance;beamVoice=key=="beam"||key=="beam_original";voice.Play();
+                NotifyInstruction(key,clip.length);
                 if(key=="victory")Effect("victory");
                 if(Debug.isDebugBuild)Debug.Log($"[Voice] key={key} playing={voice.isPlaying} length={clip.length:F2}");
             }
@@ -66,6 +68,11 @@ namespace UltramanGame.Runtime
                 if(pending.Count<4) pending.Add(new Line { Key=key,Priority=importance,Expires=Time.unscaledTime+4,Phase=expected });
                 if(Debug.isDebugBuild&&beamVoice)Debug.Log($"[Voice] deferred={key} until=beam-finished");
             }
+        }
+        void NotifyInstruction(string key,float seconds)
+        {
+            if(key=="warning"||key=="battle"||key=="energy"||key=="resume"||key=="tutorial"||key=="beam_help")
+                InstructionStarted?.Invoke(key,seconds);
         }
         public void Cue(GameCue cue,GamePhase state)
         {
@@ -78,7 +85,8 @@ namespace UltramanGame.Runtime
                 case GameCue.EnemyAttack:Effect("enemy_rush",.85f);break;
                 case GameCue.Block:Effect("shield");Speak("block",2,state);break;
                 case GameCue.Hurt:Effect("impact",.7f);Effect("recover");Speak("recover",2,state);break;
-                case GameCue.EnergyReady:Effect("shield",.45f);Speak("energy",4,state);break;
+                case GameCue.EnergyReady:
+                    pending.Clear();Effect("shield",.45f);Speak("energy",5,state);break;
                 case GameCue.Beam:
                     pending.Clear();
                     Speak(HasOriginalBeamVoice?"beam_original":"beam",5,state);break;

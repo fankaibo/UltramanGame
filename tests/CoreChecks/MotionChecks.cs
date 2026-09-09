@@ -109,5 +109,24 @@ static class MotionChecks
         check(trial.Beams==0,"close crossed hands do not become the two-hand beam");
         trial=new Trial();var raised=Guard();raised[15].y=raised[16].y=.05f;
         trial.Hold(raised,1,transform:false);check(trial.Transforms==0,"battle phase does not generate transform gestures");
+        foreach(int fps in new[]{15,30,60})
+        {
+            trial=new Trial(fps);var childL=Beam();childL[15].y=.41f;childL[16].y=.49f;
+            trial.Hold(Guard());trial.Hold(childL,1,true);
+            check(trial.Beams==1,$"lower, short-arm L pose fires once at {fps} fps");
+            trial=new Trial(fps);var shallowPush=Push();shallowPush[15].z=shallowPush[16].z=-.29f;
+            trial.Hold(Guard());trial.Move(Guard(),shallowPush,beam:true);trial.Hold(shallowPush,1,true);
+            check(trial.Beams==1&&trial.Left==0&&trial.Right==0,$"modest two-hand reach fires without full extension at {fps} fps");
+        }
+        trial=new Trial();var soft=Beam();soft[15].visibility=soft[16].visibility=.48f;
+        trial.Hold(Guard());trial.Hold(soft,1,true);
+        check(trial.Beams==1&&trial.Left==0,"partly obscured but observable wrists can finish a held beam");
+        trial=new Trial();trial.Hold(Guard());trial.Hold(Beam(),.20f,true);
+        gap=Beam();gap[15].visibility=.1f;trial.Hold(gap,.20f,true);
+        check(trial.Beams==0,"longer allowed pose gap cannot itself complete the beam");
+        trial.Hold(Beam(),.25f,true);trial.Hold(gap,.20f,true);trial.Hold(Beam(),1,true);
+        check(trial.Beams==1,"child pose wobble retains progress without repeating the beam");
+        trial=new Trial();trial.Hold(Guard());trial.Hold(Beam(),.20f,true);trial.Hold(gap,.40f,true);trial.Hold(Beam(),.10f,true);
+        check(trial.Beams==0,"long missing-wrist gap still discards incomplete beam progress");
     }
 }
