@@ -29,16 +29,27 @@ def stop_process(process, interrupt_timeout=2, terminate_timeout=1):
 
 
 class RetryBudget:
-    """At most three restarts in two minutes; stable runs age old failures out."""
+    """Bound both rapid flapping and consecutive failures of slow startup."""
     def __init__(self, delays=(1, 2, 4), window=120):
         self.delays, self.window = delays, window
         self.failures = deque()
+        self.consecutive = 0
+        self.healthy_since = None
+
+    def healthy(self, now):
+        if self.healthy_since is None:
+            self.healthy_since = now
+        if now - self.healthy_since >= 60:
+            self.consecutive = 0
 
     def failed(self, now):
         while self.failures and now - self.failures[0] >= self.window:
             self.failures.popleft()
         self.failures.append(now)
-        return self.delays[len(self.failures)-1] if len(self.failures) <= len(self.delays) else None
+        self.consecutive += 1
+        self.healthy_since = None
+        attempt = max(self.consecutive, len(self.failures))
+        return self.delays[attempt-1] if attempt <= len(self.delays) else None
 
 
 class _Heartbeat:
@@ -68,7 +79,7 @@ class CameraSession:
     a new streamId resets gesture history without resetting battle progress.
     """
     def __init__(self, root, log, *, demo=False, environment=None, report=print,
-                 command=None, startup_timeout=20, stall_timeout=6, retries=None):
+                 command=None, startup_timeout=45, stall_timeout=6, retries=None):
         self.root, self.log, self.environment, self.report = root, log, environment, report
         self.command = command if command is not None else [sys.executable, "-m", "vision",
             "--no-preview", "--game-preview", "--ready-json"] + (["--demo"] if demo else [])
@@ -170,11 +181,13 @@ class CameraSession:
                 self._failed("startup timed out before first processed frame")
         elif now - heartbeat_at > self.stall_timeout:
             self._failed("processed frames stopped")
-        elif self.state != "running":
-            self.state = "running"
-            self._log("frames_resumed")
-            if self.generation > 1:
-                self.report("相机画面已恢复，站稳片刻即可接着玩。")
+        else:
+            self.retries.healthy(now)
+            if self.state != "running":
+                self.state = "running"
+                self._log("frames_resumed")
+                if self.generation > 1:
+                    self.report("相机画面已恢复，站稳片刻即可接着玩。")
 
     def close(self):
         self.state = "closed"

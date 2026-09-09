@@ -14,7 +14,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=720)
     parser.add_argument("--fps", type=float, default=30)
-    parser.add_argument("--cpu", action="store_true", help="Compare CPU in an isolated dependency environment")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--cpu", action="store_true", help="Compare CPU in an isolated dependency environment")
+    mode.add_argument("--metal", action="store_true", help="Diagnose the earlier Metal path in an isolated environment")
     args = parser.parse_args()
     if args.seconds <= 0 or args.fps <= 0:
         parser.error("seconds and fps must be positive")
@@ -22,6 +24,8 @@ def main():
     from vision import model as setup
     if args.cpu:
         setup.USE_METAL = False
+    elif args.metal:
+        setup.USE_METAL = True
     frames = poses = 0
     inference = 0
     start = time.monotonic()

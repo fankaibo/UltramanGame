@@ -40,7 +40,9 @@ class LauncherTests(unittest.TestCase):
                     cwd=root, env=env, stdout=log, stderr=log, start_new_session=True)
                 children = []
                 try:
-                    end = time.monotonic()+12
+                    # Freshly installed macOS native libraries took ~25 seconds
+                    # on the first load. Follow the launcher's startup allowance.
+                    end = time.monotonic()+50
                     while time.monotonic()<end:
                         if (root / "game.pid").exists() and (logs / "camera-last.log").exists():
                             events = []

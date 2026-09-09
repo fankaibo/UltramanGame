@@ -19,7 +19,21 @@ class RetryTests(unittest.TestCase):
     def test_retry_budget_is_bounded_and_ages_failures_out(self):
         budget = RetryBudget()
         self.assertEqual([1, 2, 4, None], [budget.failed(t) for t in (0, 2, 5, 10)])
+        budget.healthy(11)
+        budget.healthy(71)
         self.assertEqual(1, budget.failed(131))
+
+    def test_slow_failed_startups_cannot_age_out_the_retry_limit(self):
+        budget = RetryBudget()
+        self.assertEqual([1, 2, 4, None], [budget.failed(t) for t in (45, 92, 140, 190)])
+
+    def test_a_brief_recovery_does_not_reset_consecutive_failures(self):
+        budget = RetryBudget()
+        for now in (0, 50, 100):
+            self.assertIsNotNone(budget.failed(now))
+            budget.healthy(now+1)
+            budget.healthy(now+10)
+        self.assertIsNone(budget.failed(150))
 
     def test_only_advancing_processed_frames_count_as_liveness(self):
         heartbeat = _Heartbeat()
