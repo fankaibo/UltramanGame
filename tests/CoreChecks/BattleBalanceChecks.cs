@@ -27,7 +27,7 @@ static class BattleBalanceChecks
         var high=Start(100);for(int i=0;i<50;i++)Hit(high);
         check(high.EnemyHealth==50&&high.Phase==GamePhase.Battle,"larger custom health does not end at default health");
         check(new Battle(-1).MaxHealth==10&&new Battle(1000).MaxHealth==200,"invalid monster settings clamp to playable bounds");
-        Step(b,7);check(b.Blocks>0&&b.Energy==0,"successful defense does not charge the beam");
+        Step(b,13);check(b.Blocks>0&&b.Energy==0,"successful defense does not charge the beam");
         for(int i=0;i<14;i++) {Hit(b);DrainReady(b);}
         check(b.Punches==14&&b.Energy==14,"fourteen ordinary hits do not fill beam energy");
         b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});

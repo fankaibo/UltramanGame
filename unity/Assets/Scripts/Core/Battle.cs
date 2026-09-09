@@ -19,13 +19,15 @@ namespace UltramanGame.Core
         public float Energy { get; private set; }
         public float ActionAge { get; private set; }
         public float EnemyAge { get; private set; }
+        public float WarningDuration { get; private set; } = WindupSeconds;
+        public float InstructionRemaining { get; private set; }
         public float ResumeProgress { get; private set; }
         public bool Shield { get; private set; }
         public int Punches { get; private set; }
         public int Blocks { get; private set; }
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
-        public const float WindupSeconds=2.4f;
+        public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
@@ -35,6 +37,7 @@ namespace UltramanGame.Core
         bool enemyHitApplied;
         HeroAction queuedPunch;
         float queuedAge;
+        float queuedBeamAge;
 
         public Battle(int monsterHits=DefaultMonsterHits)
         { MaxHealth=ClampMonsterHits(monsterHits);EnemyHealth=MaxHealth; }
@@ -44,12 +47,30 @@ namespace UltramanGame.Core
         public bool TryCue(out GameCue cue)
         { if(cues.Count==0) { cue=default; return false; } cue=cues.Dequeue(); return true; }
         void Cue(GameCue cue) { if(cues.Count<16) cues.Enqueue(cue); }
+        // Called when a guide line actually starts, including lines that waited in the audio queue.
+        // Only the enemy waits: the child may attack or release the beam immediately.
+        public void GiveInstructionTime(float voiceSeconds,bool warning=false)
+        {
+            if(float.IsNaN(voiceSeconds)||float.IsInfinity(voiceSeconds)||voiceSeconds<0)
+                throw new ArgumentOutOfRangeException(nameof(voiceSeconds));
+            if(Phase!=GamePhase.Battle)return;
+            float duration=Math.Min(voiceSeconds,20)+InstructionReactionSeconds;
+            if(warning)
+            {
+                if(Enemy==EnemyPhase.Windup)WarningDuration=Math.Max(WarningDuration,EnemyAge+duration);
+                return;
+            }
+            InstructionRemaining=Math.Max(InstructionRemaining,duration);
+            // A new action lesson replaces an unfinished warning/rush instead of freezing it midair.
+            Enemy=EnemyPhase.Rest;EnemyAge=0;enemyHitApplied=false;
+        }
         public void Pause()
         {
             if(Phase==GamePhase.Paused || Phase==GamePhase.Waiting || Phase==GamePhase.Victory) return;
             resumePhase=Phase; Phase=GamePhase.Paused; ResumeProgress=0;
             Action=HeroAction.None; Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
             queuedPunch=HeroAction.None;queuedAge=0;
+            queuedBeamAge=0;InstructionRemaining=0;WarningDuration=WindupSeconds;
             enemyHitApplied=false;
             cues.Clear();
         }
@@ -62,7 +83,7 @@ namespace UltramanGame.Core
             if(Phase==GamePhase.Paused)
             {
                 ResumeProgress+=dt;
-                if(ResumeProgress>=1.2f) { Phase=resumePhase; immunity=1; Cue(GameCue.Resume); }
+                if(ResumeProgress>=1.2f) { Phase=resumePhase; immunity=1;GiveInstructionTime(0); Cue(GameCue.Resume); }
                 return;
             }
             phaseAge+=dt;
@@ -73,20 +94,24 @@ namespace UltramanGame.Core
             }
             if(Phase==GamePhase.Transforming)
             {
-                if(phaseAge>=2.2f) { Phase=GamePhase.Battle; phaseAge=0; Cue(GameCue.BattleStart); }
+                if(phaseAge>=2.2f) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
                 return;
             }
             immunity=Math.Max(0,immunity-dt);
+            InstructionRemaining=Math.Max(0,InstructionRemaining-dt);
+            queuedBeamAge=Math.Max(0,queuedBeamAge-dt);
+            if(input.Beam&&Energy>=MaxEnergy&&Action!=HeroAction.Beam)queuedBeamAge=.8f;
             queuedAge-=dt;
-            if(queuedAge<=0 || input.Shield || input.Beam) queuedPunch=HeroAction.None;
+            if(queuedAge<=0 || input.Shield || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&
                 ActionAge>=PunchSeconds-.18f && !input.Shield && !input.Beam && (input.LeftPunch || input.RightPunch))
             { queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=.20f; }
             Shield=input.Shield && (Action==HeroAction.None);
             if(Action==HeroAction.None)
             {
-                if(input.Beam && Energy>=MaxEnergy)
+                if(queuedBeamAge>0 && Energy>=MaxEnergy)
                 {
+                    queuedBeamAge=0;InstructionRemaining=0;
                     Energy=0;Begin(HeroAction.Beam);Shield=false;
                     Enemy=EnemyPhase.Rest;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.Beam);
                 }
@@ -111,11 +136,11 @@ namespace UltramanGame.Core
                 if(ActionAge>=duration) Action=HeroAction.None;
             }
             // Special move provides an obvious window of protection.
-            if(Action==HeroAction.Beam) return;
+            if(Action==HeroAction.Beam || InstructionRemaining>0) return;
             EnemyAge+=dt;
             if(Enemy==EnemyPhase.Rest && EnemyAge>=4)
-            { Enemy=EnemyPhase.Windup; EnemyAge=0; Cue(GameCue.Warning); }
-            else if(Enemy==EnemyPhase.Windup && EnemyAge>=WindupSeconds)
+            { Enemy=EnemyPhase.Windup; EnemyAge=0;WarningDuration=WindupSeconds; Cue(GameCue.Warning); }
+            else if(Enemy==EnemyPhase.Windup && EnemyAge>=WarningDuration)
             {
                 Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.EnemyAttack);
             }
@@ -137,7 +162,7 @@ namespace UltramanGame.Core
         {
             float before=Energy;
             Energy=Math.Min(MaxEnergy,Energy+amount);
-            if(before<MaxEnergy && Energy>=MaxEnergy) Cue(GameCue.EnergyReady);
+            if(before<MaxEnergy && Energy>=MaxEnergy) {GiveInstructionTime(0);Cue(GameCue.EnergyReady);}
         }
     }
 }

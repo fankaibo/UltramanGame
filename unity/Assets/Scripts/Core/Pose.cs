@@ -74,12 +74,15 @@ namespace UltramanGame.Core
         long lastSequence, lastStamp;
         readonly PosePoint[] smoothed = new PosePoint[33];
         readonly bool[] wasReliable = new bool[33];
+        readonly PosePoint[] beamPoints = new PosePoint[33];
+        readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
         bool beamFired, transformFired;
         float beamHold,beamGap,beamRelease,transformHold,shieldHold,steady;
         public bool ForwardPunch { get; private set; }
         public float TransformProgress => Math.Min(1,transformHold/.45f);
-        public float BeamProgress => Math.Min(1,beamHold/.35f);
+        public const float BeamHoldSeconds=.30f, BeamGapSeconds=.25f;
+        public float BeamProgress => Math.Min(1,beamHold/BeamHoldSeconds);
 
         public void Reset()
         {
@@ -112,6 +115,16 @@ namespace UltramanGame.Core
                     smoothed[i].z += (frame.points[i].z-smoothed[i].z)*blend;
                 }
                 wasReliable[i]=reliable;
+                // Beam-only tolerance: a partly occluded wrist need not alter working punch/guard input.
+                bool beamVisible=PoseQuality.Reliable(frame.points[i],.45f);
+                if(beamVisible)
+                {
+                    float blend=fresh||!beamReliable[i]?1:alpha;
+                    beamPoints[i].x+=(frame.points[i].x-beamPoints[i].x)*blend;
+                    beamPoints[i].y+=(frame.points[i].y-beamPoints[i].y)*blend;
+                    beamPoints[i].z+=(frame.points[i].z-beamPoints[i].z)*blend;
+                }
+                beamReliable[i]=beamVisible;
             }
             var l=smoothed[11]; var r=smoothed[12];
             var lw=smoothed[15]; var rw=smoothed[16];
@@ -124,8 +137,12 @@ namespace UltramanGame.Core
             bool rightReady=shouldersReady&&wasReliable[16];
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
             bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
-            bool beamShape=wristsReady && (BeamArms(l,lw,rw,cx,sy,scale) || BeamArms(r,rw,lw,cx,sy,scale) ||
-                ForwardPalms(l,r,lw,rw,sy,scale));
+            bool beamWristsReady=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
+            var bl=beamPoints[11];var br=beamPoints[12];var blw=beamPoints[15];var brw=beamPoints[16];
+            float bdx=bl.x-br.x,bdy=bl.y-br.y,bdz=bl.z-br.z;
+            float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy+bdz*bdz)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
+            bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs) || BeamArms(br,brw,blw,bcx,bsy,bs) ||
+                ForwardPalms(bl,br,blw,brw,bsy,bs));
             bool beam=beamAvailable&&beamShape;
             bool shield=wristsReady && !beam && !raised && Math.Abs((l.z-lw.z)-(r.z-rw.z))<.75f*scale &&
                 Math.Abs(lw.x-cx)<.65f*scale && Math.Abs(rw.x-cx)<.65f*scale &&
@@ -136,11 +153,11 @@ namespace UltramanGame.Core
             if (wristsReady && !raised) transformFired=false;
             if (transformHold>=.45f && !transformFired) { input.Transform=true; transformFired=true; }
             if(beam) {beamHold+=dt;beamGap=0;} else
-            {beamGap+=dt;if(beamGap>.12f || !beamAvailable)beamHold=0;}
+            {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
             // A brief imperfect pose pauses progress; it neither adds charge nor rearms a held beam.
-            if(wristsReady&&!beamShape)beamRelease+=dt;else beamRelease=0;
-            if(beamRelease>=.18f)beamFired=false;
-            if (beam && beamHold>=.35f && !beamFired) { input.Beam=true; beamFired=true; }
+            if(beamWristsReady&&!beamShape)beamRelease+=dt;else beamRelease=0;
+            if(beamRelease>=.35f)beamFired=false;
+            if (beam && beamHold>=BeamHoldSeconds && !beamFired) { input.Beam=true; beamFired=true; }
             shieldHold=shield?shieldHold+dt:0;
             input.Shield=shieldHold>=.08f;
             if (beam || raised)
@@ -164,16 +181,16 @@ namespace UltramanGame.Core
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
             // A deeply extended single fist is a punch, even when the other wrist is lower like an L.
-            return shoulder.z-high.z<.9f*scale && low.y-high.y>.28f*scale && high.y<sy+.30f*scale && high.y>sy-1.1f*scale &&
-                low.y>sy-.15f*scale && low.y<sy+.88f*scale && Math.Abs(high.x-cx)<1.05f*scale &&
-                Math.Abs(low.x-cx)<.65f*scale && Math.Abs(high.x-low.x)<1.15f*scale;
+            return shoulder.z-high.z<.9f*scale && low.y-high.y>.22f*scale && high.y<sy+.45f*scale && high.y>sy-1.3f*scale &&
+                low.y>sy-.25f*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<1.25f*scale &&
+                Math.Abs(low.x-cx)<.85f*scale && Math.Abs(high.x-low.x)<1.35f*scale;
         }
         static bool ForwardPalms(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale)
         {
             float separation=Math.Abs(lw.x-rw.x)/scale;
-            return (l.z-lw.z)>.85f*scale && (r.z-rw.z)>.85f*scale && separation>.60f && separation<1.8f &&
-                Math.Abs(lw.y-rw.y)<.5f*scale && lw.y>sy-.3f*scale && rw.y>sy-.3f*scale &&
-                lw.y<sy+.75f*scale && rw.y<sy+.75f*scale;
+            return (l.z-lw.z)>.55f*scale && (r.z-rw.z)>.55f*scale && separation>.60f && separation<2.1f &&
+                Math.Abs(lw.y-rw.y)<.7f*scale && lw.y>sy-.45f*scale && rw.y>sy-.45f*scale &&
+                lw.y<sy+1f*scale && rw.y<sy+1f*scale;
         }
     }
 }

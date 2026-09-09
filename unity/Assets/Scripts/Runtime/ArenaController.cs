@@ -54,6 +54,7 @@ namespace UltramanGame.Runtime
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
             if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
+            sound.InstructionStarted+=InstructionStarted;
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
             photo=new VictoryPhoto(LocalPort("--photo-port",8767));
             hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
@@ -146,12 +147,28 @@ namespace UltramanGame.Runtime
             enemy.SetPresentationOpacity(1-world.Closeup.Focus);
             if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
             {
-                if(battle.Punches==0&&Time.unscaledTime>hintAt)
-                {sound.Speak("tutorial",1,battle.Phase);caption="先把手收回来，再挥出去";captionUntil=Time.unscaledTime+3;hintAt=Time.unscaledTime+20;}
+                if(battle.Punches==0&&Time.unscaledTime>hintAt&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0)
+                {sound.Speak("tutorial",3,battle.Phase);hintAt=Time.unscaledTime+20;}
                 if(battle.Energy<Battle.MaxEnergy)beamHelpAt=Time.unscaledTime+6;
-                else if(Time.unscaledTime>beamHelpAt)
-                {sound.Speak("beam_help",2,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
+                else if(Time.unscaledTime>beamHelpAt&&battle.InstructionRemaining<=0&&battle.Enemy==EnemyPhase.Rest)
+                {sound.Speak("beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
             }
+        }
+        void InstructionStarted(string key,float voiceSeconds)
+        {
+            battle.GiveInstructionTime(voiceSeconds,key=="warning");
+            if(Debug.isDebugBuild)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
+            switch(key)
+            {
+                case "battle":caption="挥动拳头，守护这座城市！";break;
+                case "energy":caption="能量满了 · 双手向前推，停一下";break;
+                case "beam_help":caption="摆 L 形，或双手向前推 · 停一下";break;
+                case "tutorial":caption="先把手收回来，再挥出去";break;
+                case "resume":caption="准备好了，继续！";break;
+                default:return;
+            }
+            captionUntil=Time.unscaledTime+voiceSeconds+Battle.InstructionReactionSeconds;
+            if(key=="energy")beamHelpAt=captionUntil+3;
         }
         void PlayCue(GameCue cue)
         {
@@ -162,12 +179,12 @@ namespace UltramanGame.Runtime
                 case GameCue.BattleStart:caption="挥动拳头，守护这座城市！";hintAt=Time.unscaledTime+12;break;
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
-                case GameCue.EnergyReady:caption="能量满了！摆出光线姿势";break;
+                case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
                 case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+BeamCloseup.Duration+2;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
-            captionUntil=Time.unscaledTime+2.5f;
+            captionUntil=Mathf.Max(captionUntil,Time.unscaledTime+2.5f);
         }
         void Restart()
         {
@@ -364,7 +381,7 @@ namespace UltramanGame.Runtime
                 hud.Panel(new Rect(20,143,230,66),HudPainter.Gold,true);
                 hud.Figure(new Rect(28,150,34,45),"shield",time,HudPainter.Gold);
                 hud.Text(new Rect(73,149,166,42),rushing?"怪兽冲过来了\n双手护住胸前":"怪兽蓄力\n双手护住胸前",16,HudPainter.Gold);
-                hud.Bar(new Rect(32,200,206,3),1-battle.EnemyAge/(rushing?Battle.EnemyHitSeconds:Battle.WindupSeconds),HudPainter.Gold);
+                hud.Bar(new Rect(32,200,206,3),1-battle.EnemyAge/(rushing?Battle.EnemyHitSeconds:battle.WarningDuration),HudPainter.Gold);
             }
             else if(time<hitUntil&&battle.Phase==GamePhase.Battle)
                 hud.Text(new Rect(20,143,230,34),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",20,HudPainter.Gold,TextAnchor.MiddleCenter,true);

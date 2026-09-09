@@ -51,7 +51,7 @@ namespace UltramanGame.Runtime
             charge.enabled=warning;
             if(warning)
             {
-                float p=Mathf.Clamp01(state.EnemyAge/Battle.WindupSeconds);
+                float p=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
                 Circle(charge,monster+Vector3.up*2.75f-camera.transform.forward*.2f,camera,.35f+p*.24f);
                 ColorLine(charge,Amber,.20f+p*.45f);
             }
