@@ -57,7 +57,7 @@ namespace UltramanGame.Editor
             {
                 float t=frame/30f;
                 var input=new PlayerInput {Tracking=true,Shield=t>.2f&&t<2.1f,LeftPunch=frame==72,RightPunch=frame==96,Beam=frame==138};
-                state.Tick(world.Closeup.Active?0:1/30f,input);
+                state.Tick(world.BattleDelta(1/30f,state),input);
                 while(state.TryCue(out var cue))world.Cue(cue);
                 if(state.EnemyHealth<health)world.Hit(health-state.EnemyHealth>1,state);
                 health=state.EnemyHealth;

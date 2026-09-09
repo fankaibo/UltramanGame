@@ -9,6 +9,7 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
+        public Vector3 StrikeOrigin(HeroAction action) => rigged!=null?rigged.StrikeOrigin(action):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
         public Vector3 BeamOrigin => rigged!=null?rigged.BeamOrigin:Root.position+Vector3.up*2.7f;
         public const float PunchAdvance=.75f, EnemyAdvance=.75f;

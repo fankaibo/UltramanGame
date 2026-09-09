@@ -18,6 +18,7 @@ namespace UltramanGame.Runtime
         readonly Vector3 home, forward;
         readonly Dictionary<string, AnimationClip> clips=new Dictionary<string, AnimationClip>();
         readonly Transform[] joints;
+        readonly Renderer[] surfaces;
         readonly Vector3[] positions, scales;
         readonly Quaternion[] rotations;
         readonly List<Material> materials=new List<Material>();
@@ -25,7 +26,8 @@ namespace UltramanGame.Runtime
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         GamePhase previous;
         bool heavyHit;
-        Transform hand,forearm;
+        Transform hand,leftHand,forearm;
+        public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
         public Vector3 BeamOrigin => hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
 
@@ -53,7 +55,7 @@ namespace UltramanGame.Runtime
                 new[]{"Idle","LeftPunch","RightPunch","Guard","Beam","Hurt","Transform","Victory"})
                 if(!clips.ContainsKey(required))throw new InvalidOperationException(name+" is missing animation "+required);
             clips["Idle"].SampleAnimation(model,0);
-            var renderers=model.GetComponentsInChildren<Renderer>();
+            var renderers=model.GetComponentsInChildren<Renderer>();surfaces=renderers;
             if(renderers.Length==0)throw new InvalidOperationException(name+" has no character mesh");
             // Imported skin bounds include every clip and can be much larger than the body.
             // useScale=true compensates for the skin scale, producing mesh-local vertices.
@@ -91,7 +93,7 @@ namespace UltramanGame.Runtime
                 {
                     string key=mapped[i]?mapped[i].name:"Surface";
                     if(!materialCache.TryGetValue(key,out var mat))
-                    {mat=Surface(key,texture,eyes);materialCache[key]=mat;materials.Add(mat);}
+                    {mat=RuntimeResources.Own(Root,Surface(key,texture,eyes));materialCache[key]=mat;materials.Add(mat);}
                     mapped[i]=mat;
                 }
                 renderer.sharedMaterials=mapped;
@@ -102,6 +104,7 @@ namespace UltramanGame.Runtime
                 joint.gameObject.layer=ContactShadows.ActorLayer;
                 if(joint.name==(monster?"bip_hand_R":"HandBase_R"))hand=joint;
                 if(joint.name=="ForearmBase_R")forearm=joint;
+                if(joint.name=="HandBase_L")leftHand=joint;
             }
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
@@ -109,7 +112,8 @@ namespace UltramanGame.Runtime
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes)
         {
-            var mat=new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
+            bool kaiju=name.StartsWith("Golza",StringComparison.Ordinal)&&!name.Contains("Eyes");
+            var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
             mat.color=new Color(.72f,.77f,.85f);mat.SetFloat("_Metallic",.65f);mat.SetFloat("_Glossiness",.55f);
             if(name.StartsWith("Golza",StringComparison.Ordinal))
             {
@@ -117,7 +121,7 @@ namespace UltramanGame.Runtime
                 mat.SetFloat("_Metallic",.03f);mat.SetFloat("_Glossiness",.22f);
                 if(eye){mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",eyes);mat.SetColor("_EmissionColor",new Color(.55f,.35f,.15f));}
             }
-            else if(name.Contains("Suit")) {mat.mainTexture=texture;mat.color=Color.white;mat.SetFloat("_Metallic",.15f);mat.SetFloat("_Glossiness",.42f);}
+            else if(name.Contains("Suit")) {mat.mainTexture=texture;mat.color=Color.white;mat.SetFloat("_Metallic",.12f);mat.SetFloat("_Glossiness",.32f);}
             else if(name.Contains("Gold")) {mat.color=new Color(.78f,.55f,.18f);mat.SetFloat("_Metallic",.7f);}
             else if(name.Contains("EyeRim")) {mat.color=new Color(.03f,.04f,.05f);mat.SetFloat("_Metallic",.3f);}
             else if(name.Contains("EyesGlow")||name.Contains("Timer")||name.Contains("Crystal"))
@@ -130,6 +134,7 @@ namespace UltramanGame.Runtime
         public void SetPresentationOpacity(float opacity)
         {
             float alpha=poseOpacity*Mathf.Clamp01(opacity);
+            foreach(var surface in surfaces)surface.enabled=alpha>.001f;
             foreach(var mat in materials)
             {
                 var color=mat.color;color.a=alpha;mat.color=color;
