@@ -22,7 +22,7 @@ namespace UltramanGame.Runtime
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
-        readonly Vector3 cameraHome=new Vector3(0,4.2f,-12),lookAt=new Vector3(0,1.22f,.4f);
+        readonly Vector3 cameraHome=new Vector3(-.25f,2.9f,-10.5f),lookAt=new Vector3(0,1.65f,.4f);
         float impact,impactAge=10,transformAge,celebrateAt,clock;
         readonly ImpactTiming hitTiming=new ImpactTiming();
         float framingFieldOfView=35;
@@ -41,7 +41,7 @@ namespace UltramanGame.Runtime
             var backMat=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("Backdrop")));backMat.mainTexture=Resources.Load<Texture2D>("Art/CityDusk");
             backdrop=Primitive("City skyline",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
             backdrop.rotation=Camera.transform.rotation;
-            var key=Directional(root,"Warm city key",new Color(1,.83f,.65f),1.35f,new Vector3(38,-38,0));
+            var key=Directional(root,"Warm city key",new Color(1,.87f,.73f),1.05f,new Vector3(38,-38,0));
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
             Directional(root,"Sky fill",new Color(.35f,.56f,1),.38f,new Vector3(25,130,0));
             Directional(root,"Waterfront rim",new Color(.28f,.62f,1),.85f,new Vector3(18,155,0));
@@ -49,7 +49,9 @@ namespace UltramanGame.Runtime
             QualitySettings.shadowResolution=UnityEngine.ShadowResolution.High;QualitySettings.pixelLightCount=6;
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.ambientSkyColor=new Color(.22f,.30f,.48f);RenderSettings.ambientEquatorColor=new Color(.12f,.17f,.26f);
-            RenderSettings.ambientGroundColor=new Color(.07f,.085f,.12f);RenderSettings.fog=false;
+            RenderSettings.ambientGroundColor=new Color(.07f,.085f,.12f);
+            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.Linear;RenderSettings.fogStartDistance=14;RenderSettings.fogEndDistance=37;
+            RenderSettings.fogColor=new Color(.065f,.15f,.26f);
             CityStage.Create(root);
             monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);arcade=new ArcadeStageFx(root,HeroHome);
         }
@@ -94,7 +96,7 @@ namespace UltramanGame.Runtime
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?29:battleView?(state.Action==HeroAction.Beam?26:27):35;
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?30:31):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
@@ -109,6 +111,12 @@ namespace UltramanGame.Runtime
             // One damped recoil, with a restrained camera displacement for a young player.
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
             Vector3 target=lookAt;
+            if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active)
+            {
+                float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+                Camera.transform.position+=new Vector3(-.22f*rush,-.13f*rush,.28f*rush);
+                target+=new Vector3(-.1f*rush,0,0);
+            }
             if(!Showcase&&state.Phase==GamePhase.Transforming)
             {
                 float t=Mathf.Clamp01(arcade.PhaseAge/2.2f),sweep=Mathf.Sin(t*Mathf.PI);

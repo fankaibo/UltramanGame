@@ -118,7 +118,9 @@ def rig_controls(rig):
             ik.pole_subtarget = f'{pole}_{side}'
             ik.chain_count = 2
             ik.use_stretch = False
-            ik.pole_angle = 0
+            # Mirrored arm rest axes need opposite pole rotation; zero on both
+            # sides folds the left elbow into the chest while the right bends out.
+            ik.pole_angle = math.pi if segment=='lowerArm' and side=='L' else 0
         foot = rig.pose.bones[f'bip_foot_{side}']
         planted = foot.constraints.new('COPY_ROTATION')
         planted.target = rig
@@ -229,8 +231,8 @@ def render(output, rig, actions):
     scene.render.engine='CYCLES';scene.cycles.samples=24;scene.cycles.use_denoising=True
     scene.render.resolution_x=800;scene.render.resolution_y=800;scene.render.resolution_percentage=100
     scene.world=bpy.data.worlds.new('Review world');scene.world.use_nodes=True
-    scene.world.node_tree.nodes['Background'].inputs[0].default_value=(.09,.11,.16,1)
-    scene.world.node_tree.nodes['Background'].inputs[1].default_value=.4
+    next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[0].default_value=(.09,.11,.16,1)
+    next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[1].default_value=.4
     camera=bpy.data.objects.new('Review camera',bpy.data.cameras.new('Review camera'));scene.collection.objects.link(camera);scene.camera=camera
     camera.data.type='ORTHO';camera.data.ortho_scale=2.25
     camera.location=(2.4,-4,2);camera.rotation_euler=(Vector((0,.15,.8))-camera.location).to_track_quat('-Z','Y').to_euler()

@@ -9,9 +9,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ffmpeg', default='ffmpeg')
     parser.add_argument('--baseline', type=Path, help='300-frame original RiggedReview output')
+    parser.add_argument('--folder',type=Path,help='Unity review output folder; defaults to artifacts/cinematic-combat')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    folder = root / 'artifacts/cinematic-combat'
+    folder = args.folder.resolve() if args.folder else root / 'artifacts/cinematic-combat'
     frames = sorted((folder / 'frames').glob('frame-*.png'))
     if not (folder / 'validation.txt').exists():
         parser.error('a passed Unity full-battle render is required')

@@ -15,6 +15,7 @@ namespace UltramanGame.Runtime
         readonly LineRenderer[] rays=new LineRenderer[7],orbits=new LineRenderer[3];
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
+        readonly ImpactAtmosphere atmosphere;
         int sparkIndex,flashIndex;
         float hitLightAge=10,clock,beamBurstAge;
         public int ActiveSparkCount {get;private set;}
@@ -22,6 +23,7 @@ namespace UltramanGame.Runtime
         static readonly Color Ice=new Color(.15f,.65f,1),Warm=new Color(1,.48f,.12f);
         public CombatVfx(Transform parent)
         {
+            atmosphere=new ImpactAtmosphere(parent);
             lineMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             for(int i=0;i<sparks.Length;i++)sparks[i]=new Streak {Line=Line(parent,"Impact streak",2,.03f)};
             for(int i=0;i<flashes.Length;i++)
@@ -66,6 +68,7 @@ namespace UltramanGame.Runtime
         }
         public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false)
         {
+            atmosphere.Hit(position,special,blocked);
             Color color=blocked?Ice:hurt?Warm:new Color(1,.75f,.38f);
             Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
             FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
@@ -75,6 +78,7 @@ namespace UltramanGame.Runtime
         }
         public void Clear()
         {
+            atmosphere.Clear();
             ActiveSparkCount=0;beamBurstAge=0;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
@@ -86,6 +90,7 @@ namespace UltramanGame.Runtime
         {
             clock+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
+            atmosphere.Tick(camera,dt);
             ActiveSparkCount=0;
             foreach(var s in sparks)
             {

@@ -29,6 +29,9 @@ namespace UltramanGame.Editor
                 var pose=new PoseFrame{schema=1,source="synthetic",streamId="photo-proportion",tracked=true,sequence=1,capturedMs=10000,points=points};
                 using(var composition=new PhotoComposition())
                 {
+                    var heroBefore=GameObject.Find("Victory photo composition/Tiga front victory").transform;
+                    var fixedScale=heroBefore.localScale;var fixedPosition=heroBefore.localPosition;
+                    var fixedCrop=heroBefore.GetComponent<Renderer>().sharedMaterial.GetVector("_Frame");
                     if(!composition.SetPerson(texture,pose))throw new Exception("Body framing rejected test portrait");
                     var shot=composition.Snapshot();File.WriteAllBytes(Path.Combine(folder,portrait?"half-body.png":"full-body.png"),shot.EncodeToPNG());
                     UnityEngine.Object.DestroyImmediate(shot);
@@ -40,8 +43,10 @@ namespace UltramanGame.Editor
                     float personRatio=(headY+radius-shoulder)/480f/personFrame.w*person.localScale.y;
                     float heroRatio=.17f*.5f/heroFrame.w*hero.localScale.y;
                     if(portrait&&Math.Abs(personRatio-heroRatio)>.12f)throw new Exception("Head/shoulder proportion mismatch");
-                    if(Math.Abs((person.localPosition.y-person.localScale.y/2)-(hero.localPosition.y-hero.localScale.y/2))>.04f)
+                    if(!portrait&&Math.Abs((person.localPosition.y-person.localScale.y/2)-(hero.localPosition.y-hero.localScale.y/2))>.04f)
                         throw new Exception("Photo figure floats above the paired bottom edge");
+                    if(hero.localScale!=fixedScale||hero.localPosition!=fixedPosition||heroFrame!=fixedCrop)
+                        throw new Exception("Camera framing moved, resized or cropped the fixed hero");
                     Debug.Log($"[PhotoProportions] PASS portrait={portrait} personSpan={personRatio:F3} heroSpan={heroRatio:F3}");
                 }
                 UnityEngine.Object.DestroyImmediate(texture);

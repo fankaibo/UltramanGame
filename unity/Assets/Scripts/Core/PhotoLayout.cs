@@ -11,7 +11,7 @@ namespace UltramanGame.Core
             Right>Left&&Top>Bottom&&Center>=Left&&Center<=Right&&Shoulder>Bottom&&Crown>Shoulder&&Crown<=Top;
         static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
     }
-    // Match anatomical landmarks, then fit both figures together. Raised arms and a cropped camera frame are not body height.
+    // The hero is a fixed photo landmark. Only the camera person adapts to distance and framing.
     public struct PhotoLayout
     {
         public float PersonScale,HeroScale,ShoulderY,HeroShoulderY,HeroBottom;
@@ -19,18 +19,18 @@ namespace UltramanGame.Core
         public static bool TryFit(PhotoBody person,PhotoBody hero,out PhotoLayout result)
         {
             result=default;if(!person.Valid||!hero.Valid)return false;
-            float ratio=(person.Crown-person.Shoulder)/(hero.Crown-hero.Shoulder);
+            float heroScale=Math.Min(6.5f/(hero.Right-hero.Left),7.45f/(hero.Top-hero.Bottom));
+            float heroShoulder=-3.9f+(hero.Shoulder-hero.Bottom)*heroScale;
             float below=person.Shoulder-person.Bottom;
-            bool full=below>(hero.Shoulder-hero.Bottom)*ratio;
-            // If both full silhouettes fit, anchor feet and crown; shoulder alignment would make one figure float.
-            if(full)ratio=(person.Crown-person.Bottom)/(hero.Crown-hero.Bottom);
-            float heroBottom=full?hero.Bottom:Math.Max(hero.Bottom,hero.Shoulder-below/ratio);
-            float height=Math.Max(person.Top-person.Bottom,(hero.Top-heroBottom)*ratio);
-            float extent=Math.Max(Math.Max(person.Center-person.Left,person.Right-person.Center),
-                Math.Max(hero.Center-hero.Left,hero.Right-hero.Center)*ratio);
-            float scale=Math.Min(8.25f/height,3.4f/extent);
-            result=new PhotoLayout{PersonScale=scale,HeroScale=scale*ratio,ShoulderY=-4.5f+below*scale,
-                HeroBottom=heroBottom,HeroShoulderY=-4.5f+(hero.Shoulder-heroBottom)*scale*ratio,FullBody=full};
+            bool full=below/(person.Crown-person.Shoulder)>(hero.Shoulder-hero.Bottom)/(hero.Crown-hero.Shoulder);
+            float scale=full?(hero.Crown-hero.Bottom)*heroScale/(person.Crown-person.Bottom):
+                (hero.Crown-hero.Shoulder)*heroScale/(person.Crown-person.Shoulder);
+            float extent=Math.Max(person.Center-person.Left,person.Right-person.Center);
+            scale=Math.Min(scale,3.4f/extent);
+            scale=Math.Min(scale,full?7.45f/(person.Top-person.Bottom):
+                Math.Min((3.75f-heroShoulder)/(person.Top-person.Shoulder),(heroShoulder+4.5f)/below));
+            result=new PhotoLayout{PersonScale=scale,HeroScale=heroScale,ShoulderY=full?-3.9f+below*scale:heroShoulder,
+                HeroBottom=hero.Bottom,HeroShoulderY=heroShoulder,FullBody=full};
             return true;
         }
     }

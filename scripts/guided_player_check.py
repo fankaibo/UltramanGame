@@ -31,7 +31,7 @@ def main():
     factory=FrameFactory(source='synthetic');process=None;photos=[]
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1280','-screen-height','720',
-            '-logFile',str(log),'--guided-proof','--pose-port',str(bridge.address[1]),
+            '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
             '--preview-port',str(preview.bridge.address[1]),'--photo-port',str(photo.bridge.address[1])]
         try:
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

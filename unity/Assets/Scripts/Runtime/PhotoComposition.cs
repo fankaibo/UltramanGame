@@ -17,6 +17,7 @@ namespace UltramanGame.Runtime
         readonly RectInt heroBounds;
         float lastShoulder,lastCenter,lastCrown;
         bool bodyMeasured;
+        public bool FullBody {get;private set;}
         bool disposed;
         public PhotoComposition()
         {
@@ -95,13 +96,10 @@ namespace UltramanGame.Runtime
             var personBody=new PhotoBody(bounds.xMin,bounds.xMax,bounds.yMin,bounds.yMax,center,shoulder,crown);
             var heroBody=new PhotoBody(heroBounds.xMin,heroBounds.xMax,heroBounds.yMin,heroBounds.yMax,heroCenter,heroShoulder,heroCrown);
             if(!PhotoLayout.TryFit(personBody,heroBody,out var layout))return false;
-            var crop=heroBounds;
-            // A half-body camera view gets a matching half-body hero; no full-body/giant-head pairing.
-            int bottom=Mathf.Max(crop.yMin,Mathf.FloorToInt(layout.HeroBottom));
-            crop=new RectInt(crop.x,bottom,crop.width,crop.yMax-bottom);
+            FullBody=layout.FullBody;
             person.mainTexture=texture;
             PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,3.7f,layout.ShoulderY);
-            PlaceBody(heroQuad,hero,heroAtlas,crop,layout.HeroScale,heroCenter,heroShoulder,-3.7f,layout.HeroShoulderY);
+            // Hero placement, crop and scale stay exactly as constructed, across every camera frame and retake.
             return true;
         }
         static float HeadTop(Texture2D texture,RectInt bounds,float center,float nose,float span)
