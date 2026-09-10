@@ -170,7 +170,7 @@ namespace UltramanGame.Runtime
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
-            enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+            enemy.SetPresentationOpacity(world.EnemyOpacity);
             if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
             {autoPhotoOpened=true;photo.Open();}
             if(!keyboard&&!finalGuide&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)

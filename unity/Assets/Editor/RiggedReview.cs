@@ -67,7 +67,7 @@ namespace UltramanGame.Editor
                 while(state.TryCue(out var cue))world.Cue(cue);
                 if(state.EnemyHealth<health)world.Hit(health-state.EnemyHealth>1,state);
                 health=state.EnemyHealth;
-                hero.Update(state,world.Camera,1/30f,t);enemy.Update(state,world.Camera,1/30f,t);world.Tick(state,1/30f,t);enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                hero.Update(state,world.Camera,1/30f,t);enemy.Update(state,world.Camera,1/30f,t);world.Tick(state,1/30f,t);enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)releases++;
                 if(frame>1)maxHandStep=Mathf.Max(maxHandStep,Vector3.Distance(previousHand,wrist.position));previousHand=wrist.position;
                 if(frame%3==0&&state.Phase==GamePhase.Battle)
