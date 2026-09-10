@@ -56,9 +56,9 @@ namespace UltramanGame.Runtime
                 Guide(paused?"休息一下 · 家长按 Esc 继续":"站进镜头，我们接着保护城市", "transform", cyan,battle.ResumeProgress/1.2f);
             }
             else if(warning)
-                Guide("双手护住胸前，挡住怪兽！","shield",gold,1-battle.EnemyAge/(battle.Enemy==EnemyPhase.Windup?battle.WarningDuration:Battle.EnemyAttackSeconds));
+                Guide(battle.Shield?"护盾已展开 · 保持住！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,recognizer.ShieldProgress);
             else if(ready)
-                Guide("双手向前推，停一下！","beam",gold,recognizer.BeamProgress);
+                Guide(recognizer.BeamNeedsRelease?"先收回双手，再摆光线姿势":recognizer.BeamProgress>0?"看见动作了 · 保持，释放光线！":"双手前推，或一手竖起一手横放","beam",gold,recognizer.BeamProgress);
             else if(time<captionUntil||battle.Punches<3)
                 Guide(time<captionUntil?caption:"收回拳头，再向前挥出去","punch",cyan,0);
             DrawArcadePreview();

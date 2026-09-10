@@ -79,12 +79,14 @@ namespace UltramanGame.Core
         readonly PosePoint[] beamPoints = new PosePoint[33];
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
-        bool beamFired, transformFired;
-        float beamHold,beamGap,beamRelease,transformHold,shieldHold,steady;
+        bool beamFired, beamArmed, transformFired;
+        float beamHold,beamGap,beamRelease,transformHold,shieldHold,shieldGap,steady;
         public bool ForwardPunch { get; private set; }
         public float TransformProgress => Math.Min(1,transformHold/.45f);
-        public const float BeamHoldSeconds=.30f, BeamGapSeconds=.25f;
+        public const float BeamHoldSeconds=.65f, BeamGapSeconds=.20f;
         public float BeamProgress => Math.Min(1,beamHold/BeamHoldSeconds);
+        public float ShieldProgress => Math.Min(1,shieldHold/.10f);
+        public bool BeamNeedsRelease {get;private set;}
 
         public void Reset()
         {
@@ -93,8 +95,9 @@ namespace UltramanGame.Core
         }
         void ClearGestures()
         {
-            leftMotion.Reset();rightMotion.Reset();beamFired=transformFired=ForwardPunch=false;
-            beamHold=beamGap=beamRelease=transformHold=shieldHold=steady=0;
+            leftMotion.Reset();rightMotion.Reset();beamFired=beamArmed=transformFired=ForwardPunch=false;
+            BeamNeedsRelease=false;
+            beamHold=beamGap=beamRelease=transformHold=shieldHold=shieldGap=steady=0;
         }
         public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true)
         {
@@ -142,27 +145,38 @@ namespace UltramanGame.Core
             bool beamWristsReady=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
             var bl=beamPoints[11];var br=beamPoints[12];var blw=beamPoints[15];var brw=beamPoints[16];
             float bdx=bl.x-br.x,bdy=bl.y-br.y,bdz=bl.z-br.z;
-            float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy+bdz*bdz)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
+            // Guard and L-shape geometry use image-plane shoulders; noisy inferred depth must not shrink their target.
+            float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
             bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs) || BeamArms(br,brw,blw,bcx,bsy,bs) ||
                 ForwardPalms(bl,br,blw,brw,bsy,bs));
             bool beam=beamAvailable&&beamShape;
-            bool shield=wristsReady && !beam && !raised && Math.Abs((l.z-lw.z)-(r.z-rw.z))<.75f*scale &&
-                Math.Abs(lw.x-cx)<.65f*scale && Math.Abs(rw.x-cx)<.65f*scale &&
-                Math.Abs(lw.x-rw.x)<.65f*scale && lw.y>sy-.25f*scale && rw.y>sy-.25f*scale &&
-                lw.y<sy+.85f*scale && rw.y<sy+.85f*scale;
+            bool shield=beamWristsReady && !beam && !(transformAvailable&&raised) &&
+                Math.Abs(blw.x-bcx)<.95f*bs && Math.Abs(brw.x-bcx)<.95f*bs &&
+                Math.Abs(blw.x-brw.x)<1.55f*bs && Math.Abs(blw.y-brw.y)<.70f*bs &&
+                blw.y>bsy-.65f*bs && brw.y>bsy-.65f*bs && blw.y<bsy+1.0f*bs && brw.y<bsy+1.0f*bs &&
+                Math.Abs((bl.z-blw.z)-(br.z-brw.z))<.90f*bs;
             if (steady<.25f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
             if (transformHold>=.45f && !transformFired) { input.Transform=true; transformFired=true; }
-            if(beam) {beamHold+=dt;beamGap=0;} else
-            {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
-            // A brief imperfect pose pauses progress; it neither adds charge nor rearms a held beam.
+            // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
             if(beamWristsReady&&!beamShape)beamRelease+=dt;else beamRelease=0;
-            if(beamRelease>=.35f)beamFired=false;
-            if (beam && beamHold>=BeamHoldSeconds && !beamFired) { input.Beam=true; beamFired=true; }
-            shieldHold=shield?shieldHold+dt:0;
-            input.Shield=shieldHold>=.08f;
-            if (beam || raised)
+            if(beamRelease>=.25f) {beamFired=false;beamArmed=true;}
+            if(!beamAvailable) {beamArmed=beamRelease>=.25f;beamHold=0;}
+            if(beam&&beamArmed&&!beamFired) {beamHold+=dt;beamGap=0;} else
+            {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
+            if (beam && beamArmed && beamHold>=BeamHoldSeconds && !beamFired)
+            { input.Beam=true;beamFired=true;beamArmed=false; }
+            BeamNeedsRelease=beam&&!beamArmed&&!beamFired;
+            if(shield) {shieldHold+=dt;shieldGap=0;}
+            else
+            {
+                shieldGap+=dt;
+                // Only bridge short wrist occlusion after a real guard, never an observed different action.
+                if(beamWristsReady||shieldGap>.20f)shieldHold=0;
+            }
+            input.Shield=shieldHold>=.10f;
+            if (beam || (raised&&transformAvailable))
             {
                 leftMotion.Reset();rightMotion.Reset();
                 return input;
@@ -183,9 +197,9 @@ namespace UltramanGame.Core
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
             // A deeply extended single fist is a punch, even when the other wrist is lower like an L.
-            return shoulder.z-high.z<.9f*scale && low.y-high.y>.22f*scale && high.y<sy+.45f*scale && high.y>sy-1.3f*scale &&
-                low.y>sy-.25f*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<1.25f*scale &&
-                Math.Abs(low.x-cx)<.85f*scale && Math.Abs(high.x-low.x)<1.35f*scale;
+            return shoulder.z-high.z<.9f*scale && low.y-high.y>.45f*scale && high.y<sy+.10f*scale && high.y>sy-1.3f*scale &&
+                low.y>sy+.20f*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<.90f*scale &&
+                Math.Abs(low.x-cx)<.85f*scale && Math.Abs(high.x-low.x)<.90f*scale;
         }
         static bool ForwardPalms(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale)
         {

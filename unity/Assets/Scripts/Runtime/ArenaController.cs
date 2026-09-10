@@ -124,13 +124,19 @@ namespace UltramanGame.Runtime
                         if(incoming!=null&&(incoming.streamId!=stream||incoming.sequence>sequence))
                         {
                             pose=incoming;stream=pose.streamId;sequence=pose.sequence;
-                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,battle.Phase==GamePhase.Waiting);
+                            bool defending=battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack;
+                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy&&!defending,battle.Phase==GamePhase.Waiting);
                             string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?
                                 (recognizer.ForwardPunch?"向前挥拳":"侧前挥拳"):"";
                             if(detected.Length>0)
                             {
                                 gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
                                 if(Debug.isDebugBuild)Debug.Log("[Gesture] "+detected);
+                            }
+                            if(input.Shield&&!held.Shield)
+                            {
+                                gestureFeedback="护盾已展开";gestureFeedbackUntil=Time.unscaledTime+1.3f;
+                                if(Debug.isDebugBuild)Debug.Log("[Gesture] 护盾已展开");
                             }
                         }
                     }
@@ -175,7 +181,7 @@ namespace UltramanGame.Runtime
                 {sound.Speak("tutorial",3,battle.Phase);hintAt=Time.unscaledTime+20;}
                 if(battle.Energy<Battle.MaxEnergy)beamHelpAt=Time.unscaledTime+6;
                 else if(Time.unscaledTime>beamHelpAt&&battle.InstructionRemaining<=0&&battle.Enemy==EnemyPhase.Rest)
-                {sound.Speak("beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
+                {sound.Speak(recognizer.BeamNeedsRelease&&sound.HasVoice("beam_reset")?"beam_reset":"beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
             }
         }
         void LateUpdate()
@@ -205,6 +211,7 @@ namespace UltramanGame.Runtime
                 case "battle":caption="挥动拳头，守护这座城市！";break;
                 case "energy":caption="能量满了 · 双手向前推，停一下";break;
                 case "beam_help":caption="摆 L 形，或双手向前推 · 停一下";break;
+                case "beam_reset":caption="先收回双手，再摆光线姿势，停一下";break;
                 case "tutorial":caption="先把手收回来，再挥出去";break;
                 case "resume":caption="准备好了，继续！";break;
                 default:return;

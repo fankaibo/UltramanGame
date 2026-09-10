@@ -51,7 +51,8 @@
     "photo_two": "二",
     "photo_one": "一",
     "arcade_ready": "小英雄，城市需要你！站进镜头，把双手举高，和迪迦一起出发！",
-    "arcade_final": "就快成功了！继续挥拳，保护城市！"
+    "arcade_final": "就快成功了！继续挥拳，保护城市！",
+    "beam_reset": "先把双手收回来，再摆光线姿势，停一下。"
   },
   "audio": {
     "welcome": {
@@ -236,6 +237,14 @@
       "sample_rate": 24000,
       "peak": 0.7351,
       "sha256": "f18939a873b5ec764d82f4f5a9667a0f9aeb82dd893dd183d1ce6e14f1de7cc2",
+      "tempo": 1.0
+    },
+    "beam_reset": {
+      "file": "beam_reset.wav",
+      "seconds": 3.675,
+      "sample_rate": 24000,
+      "peak": 0.82,
+      "sha256": "fe2b93983478822474c3208ead74f9f8fbc64f36b04bb9d144a8169c6aa9a6d5",
       "tempo": 1.0
     }
   },

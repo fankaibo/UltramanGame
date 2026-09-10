@@ -95,7 +95,7 @@ static class MotionChecks
         check(trial.Beams==1&&trial.Left==0&&trial.Right==0,"two-hand forward push provides one easy beam at full energy");
         trial=new Trial();trial.Hold(Guard(),beam:true);trial.Hold(Beam(),.22f,true);var gap=Beam();gap[15].visibility=.1f;
         trial.Hold(gap,.066f,true);check(trial.Beams==0,"occlusion cannot fire a partly charged beam");
-        trial.Hold(Beam(),.2f,true);
+        trial.Hold(Beam(),.55f,true);
         check(trial.Beams==1,"brief unreliable frames preserve but do not advance beam progress");
         trial.Hold(Guard(),.099f,true);trial.Hold(Beam(),1,true);
         check(trial.Beams==1,"short pose wobble cannot rearm a held beam");
@@ -113,7 +113,7 @@ static class MotionChecks
         {
             trial=new Trial(fps);var childL=Beam();childL[15].y=.41f;childL[16].y=.49f;
             trial.Hold(Guard());trial.Hold(childL,1,true);
-            check(trial.Beams==1,$"lower, short-arm L pose fires once at {fps} fps");
+            check(trial.Beams==0&&trial.Last.Shield,$"uneven low chest guard cannot become a beam at {fps} fps");
             trial=new Trial(fps);var shallowPush=Push();shallowPush[15].z=shallowPush[16].z=-.29f;
             trial.Hold(Guard());trial.Move(Guard(),shallowPush,beam:true);trial.Hold(shallowPush,1,true);
             check(trial.Beams==1&&trial.Left==0&&trial.Right==0,$"modest two-hand reach fires without full extension at {fps} fps");

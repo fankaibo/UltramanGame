@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using UnityEngine;
 using UltramanGame.Core;
 
@@ -11,6 +12,8 @@ namespace UltramanGame.Runtime
         readonly GameAudio sound;
         readonly GuidedPhoto session=new GuidedPhoto();
         readonly PhotoChoiceGesture choice=new PhotoChoiceGesture();
+        readonly Queue<PoseFrame> photoPoses=new Queue<PoseFrame>();
+        long photoPoseStamp;
         PhotoClient client;
         PhotoComposition composition;
         PhotoFrame frame;
@@ -42,7 +45,8 @@ namespace UltramanGame.Runtime
         void Prepare()
         {
             if(saved)UnityEngine.Object.Destroy(saved);saved=null;photoPng=null;savedPath="";
-            frame=null;validPerson=freshPerson=reportedPerson=false;composition.HidePerson();choice.Reset();
+            frame=null;validPerson=freshPerson=reportedPerson=false;composition.HidePerson();composition.ResetFraming();choice.Reset();
+            photoPoses.Clear();photoPoseStamp=0;
             client?.Dispose();client=new PhotoClient(port);previousNumber=0;
             float seconds=Say("photo_intro");session.Open(Now,seconds);nextGuide=Now+seconds+8;
             message="看着右边的自己，摆个喜欢的姿势";
@@ -57,6 +61,8 @@ namespace UltramanGame.Runtime
         {
             if(!Active)return;
             cameraPreview=liveCamera;
+            if(pose!=null&&pose.capturedMs!=photoPoseStamp)
+            {photoPoseStamp=pose.capturedMs;photoPoses.Enqueue(pose);while(photoPoses.Count>48)photoPoses.Dequeue();}
             if(session.Stage==PhotoStage.Review)
             {
                 if(savedPath.Length==0&&photoPng!=null&&Now>=nextSaveRetry)SavePhoto();
@@ -71,7 +77,13 @@ namespace UltramanGame.Runtime
             if(incoming!=null)
             {
                 if(!person)person=new Texture2D(2,2,TextureFormat.RGBA32,false);
-                validPerson=incoming.Fresh(now)&&incoming.Present&&person.LoadImage(incoming.Png)&&composition.SetPerson(person);
+                PoseFrame nearest=null;long distance=221;
+                foreach(var candidate in photoPoses)
+                {
+                    long age=Math.Abs(candidate.capturedMs-incoming.CapturedMs);
+                    if(age<distance){distance=age;nearest=candidate;}
+                }
+                validPerson=incoming.Fresh(now)&&incoming.Present&&person.LoadImage(incoming.Png)&&composition.SetPerson(person,nearest);
                 frame=incoming;
                 if(validPerson&&!reportedPerson)
                 {reportedPerson=true;Debug.Log($"[Photo] live cutout displayed ageMs={now-incoming.CapturedMs} size={person.width}x{person.height} source={(incoming.Synthetic?"synthetic":"camera")}");}

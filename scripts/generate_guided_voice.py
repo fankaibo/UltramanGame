@@ -12,6 +12,7 @@ LINES = {
     'photo_five': '五', 'photo_four': '四', 'photo_three': '三', 'photo_two': '二', 'photo_one': '一',
     'arcade_ready': '小英雄，城市需要你！站进镜头，把双手举高，和迪迦一起出发！',
     'arcade_final': '就快成功了！继续挥拳，保护城市！',
+    'beam_reset': '先把双手收回来，再摆光线姿势，停一下。',
 }
 
 
