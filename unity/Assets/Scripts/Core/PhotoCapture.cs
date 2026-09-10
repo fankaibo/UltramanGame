@@ -81,6 +81,7 @@ namespace UltramanGame.Core
         volatile bool stopping;
         TcpClient connection;
         PhotoFrame latest;
+        public string Status {get;private set;}="连接中";
         public PhotoClient(int port)
         {this.port=port;worker=new Thread(Run){IsBackground=true,Name="Local photo cutout"};worker.Start();}
         public PhotoFrame TakeLatest()=>Interlocked.Exchange(ref latest,null);
@@ -92,13 +93,15 @@ namespace UltramanGame.Core
                 {
                     using(var client=new TcpClient())
                     {
-                        connection=client;client.NoDelay=true;client.ReceiveTimeout=4000;
+                        connection=client;client.NoDelay=true;client.ReceiveTimeout=15000;
                         client.Connect("127.0.0.1",port);
                         if(stopping)break;
-                        using(var stream=client.GetStream())while(!stopping)Interlocked.Exchange(ref latest,PhotoFrame.Read(stream));
+                        Status="已连接，等待人像";
+                        using(var stream=client.GetStream())while(!stopping)
+                        {Interlocked.Exchange(ref latest,PhotoFrame.Read(stream));Status="人像流正常";}
                     }
                 }
-                catch(Exception e) when(e is IOException||e is SocketException||e is ObjectDisposedException) {}
+                catch(Exception e) when(e is IOException||e is SocketException||e is ObjectDisposedException) {Status="正在重连人像流";}
                 finally {connection=null;Interlocked.Exchange(ref latest,null);}
                 for(int i=0;i<10&&!stopping;i++)Thread.Sleep(50);
             }

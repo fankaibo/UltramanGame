@@ -4,7 +4,7 @@ using UltramanGame.Core;
 
 namespace UltramanGame.Runtime
 {
-    public sealed class ArenaController : MonoBehaviour
+    public sealed partial class ArenaController : MonoBehaviour
     {
         Battle battle=new Battle();
         readonly Battle showcaseBattle=new Battle();
@@ -24,7 +24,8 @@ namespace UltramanGame.Runtime
         LocalMusic music;
         HudPainter hud;
         VictoryPhoto photo;
-        bool photoAvailable;
+        bool photoAvailable,autoPhotoOpened,finalGuide;
+        float victoryAt,waitingGuideAt=20;
         bool keyboard,paused,muted,settings,audioSettings,showPreview=true,previewReported,lastTracking;
         const string MonsterHitsKey="battle.monsterHits";
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
@@ -60,20 +61,26 @@ namespace UltramanGame.Runtime
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
             sound.InstructionStarted+=InstructionStarted;
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
-            photo=new VictoryPhoto(LocalPort("--photo-port",8767));
+            photo=new VictoryPhoto(LocalPort("--photo-port",8767),sound);
             hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             world.BindActors(hero,enemy);
             PresentationWarmup.Run(world,hero,enemy);
             music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
-            if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
+            if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void Update()
         {
+            Cursor.visible=keyboard||settings||showcase||music.Choosing;
             if(photo.Active)
             {
                 if(Input.GetKeyDown(KeyCode.Escape))photo.Back();
                 if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
-                photo.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);return;
+                long photoNow=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                UpdatePreview(photoNow);ReadPhotoPose();
+                sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);
+                photo.Tick(photoNow,pose,previewTexture);
+                if(photo.PlayAgainRequested)Restart();
+                return;
             }
             if(Input.GetKeyDown(KeyCode.F7)&&battle.Phase==GamePhase.Victory&&photoAvailable) {photo.Open();return;}
             if(Input.GetKeyDown(KeyCode.F2))SetMode(!keyboard);
@@ -133,6 +140,8 @@ namespace UltramanGame.Runtime
                 input.Tracking=presence.Update(pose,now);held=input;
             }
             if(review!=null)input=review.Next(battle,dt);
+            if(!keyboard&&battle.Phase==GamePhase.Waiting&&Time.unscaledTime>=waitingGuideAt&&!sound.VoicePlaying)
+            {sound.Speak("arcade_ready",1,GamePhase.Waiting);waitingGuideAt=Time.unscaledTime+22;}
             if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
@@ -156,6 +165,10 @@ namespace UltramanGame.Runtime
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
             enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+            if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
+            {autoPhotoOpened=true;photo.Open();}
+            if(!keyboard&&!finalGuide&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)
+            {finalGuide=true;sound.Speak("arcade_final",3,battle.Phase);}
             if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
             {
                 if(battle.Punches==0&&Time.unscaledTime>hintAt&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0)
@@ -167,6 +180,7 @@ namespace UltramanGame.Runtime
         }
         void LateUpdate()
         {
+            CaptureGuidedProof();
             if(review==null)return;
             if(battle.Phase==GamePhase.Paused)reviewPaused=true;
             if(battle.Phase==GamePhase.Victory)
@@ -209,6 +223,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
                 case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+BeamCloseup.Duration+2;break;
+                case GameCue.Victory:victoryAt=Time.unscaledTime;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
@@ -216,9 +231,10 @@ namespace UltramanGame.Runtime
         }
         void Restart()
         {
-            photo?.Close();
+            photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
             battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
             lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)
         {draftMonsterHits=monsterHits;audioSettings=audio;settings=true;}
@@ -230,7 +246,14 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log($"[Settings] monsterHits={monsterHits} energyPunches={Battle.MaxEnergy}");
             Restart();
         }
-        void SetMode(bool value) {keyboard=value;Restart();}
+        void SetMode(bool value) {keyboard=value;photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;Restart();}
+        void ReadPhotoPose()
+        {
+            var line=client.TakeLatest();
+            if(line==null)return;
+            try {pose=JsonUtility.FromJson<PoseFrame>(line);}
+            catch(ArgumentException) {pose=null;}
+        }
         void UpdatePreview(long now)
         {
             var incoming=previewClient.TakeLatest();
@@ -311,6 +334,7 @@ namespace UltramanGame.Runtime
                 return;
             }
             if(world.Closeup.Active) {DrawBeamCloseup();return;}
+            if(!keyboard) {DrawArcadeHud();return;}
             if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
             {DrawBattleHud();return;}
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float time=Time.unscaledTime;
@@ -489,6 +513,6 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(386,510,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
         }
         void OnDestroy()
-        {photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
+        {Cursor.visible=true;photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
     }
 }

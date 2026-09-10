@@ -18,6 +18,7 @@ namespace UltramanGame.Runtime
         readonly Transform backdrop;
         readonly MonsterAttackEffects monsterEffects;
         readonly CombatVfx effects;
+        readonly ArcadeStageFx arcade;
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
@@ -50,7 +51,7 @@ namespace UltramanGame.Runtime
             RenderSettings.ambientSkyColor=new Color(.22f,.30f,.48f);RenderSettings.ambientEquatorColor=new Color(.12f,.17f,.26f);
             RenderSettings.ambientGroundColor=new Color(.07f,.085f,.12f);RenderSettings.fog=false;
             CityStage.Create(root);
-            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);
+            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);arcade=new ArcadeStageFx(root,HeroHome);
         }
         static Light Directional(Transform parent,string name,Color color,float intensity,Vector3 angles)
         {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Directional;light.color=color;light.intensity=intensity;light.transform.eulerAngles=angles;return light;}
@@ -62,7 +63,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();effects.Clear();monsterEffects.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -79,6 +80,7 @@ namespace UltramanGame.Runtime
             if(cue==GameCue.Block){effects.Impact(ShieldCenter,false,true);monsterEffects.Impact(true);Kick(.04f);}
             if(cue==GameCue.Hurt){effects.Impact(HeroHome+Vector3.up*2,false,false,true);monsterEffects.Impact(false);Kick(.055f);}
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
+            if(cue==GameCue.Victory){effects.Impact(EnemyHome+Vector3.up*1.7f,true);Burst(EnemyHome+Vector3.up*2.2f,48,1.3f);}
             if(cue==GameCue.Beam)
             {
                 Closeup.Begin();Burst(BeamOrigin,12,.4f);
@@ -87,7 +89,7 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,float dt,float time)
         {
-            clock+=dt;hitTiming.Tick(dt,state.Phase);
+            clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
@@ -106,7 +108,16 @@ namespace UltramanGame.Runtime
             float kick=impact*Mathf.Exp(-impactAge*14)*(1-focus);
             // One damped recoil, with a restrained camera displacement for a young player.
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
-            Camera.transform.LookAt(Vector3.Lerp(lookAt,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
+            Vector3 target=lookAt;
+            if(!Showcase&&state.Phase==GamePhase.Transforming)
+            {
+                float t=Mathf.Clamp01(arcade.PhaseAge/2.2f),sweep=Mathf.Sin(t*Mathf.PI);
+                Camera.transform.position+=new Vector3(-sweep*.65f,-sweep*.6f,sweep*.2f);
+                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,sweep*.35f);
+            }
+            if(!Showcase&&state.Phase==GamePhase.Victory)
+                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,Mathf.SmoothStep(0,1,(arcade.PhaseAge-1)/3)*.6f);
+            Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             bool active=state.Phase==GamePhase.Battle;
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.HandPosition:null);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;

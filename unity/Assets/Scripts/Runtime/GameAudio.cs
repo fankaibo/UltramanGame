@@ -16,6 +16,8 @@ namespace UltramanGame.Runtime
         GamePhase phase;
         float phaseAge;
         bool phaseReported;
+        public bool VoicePlaying=>voice.isPlaying;
+        public float VoiceLength(string key) {var clip=Clip("Voice/"+key);return clip?clip.length:0;}
         public bool MusicEnabled=true;
         public float Volume=.75f,MusicVolume=.45f;
         public event System.Action<string,float> InstructionStarted;
@@ -71,7 +73,7 @@ namespace UltramanGame.Runtime
         }
         void NotifyInstruction(string key,float seconds)
         {
-            if(key=="warning"||key=="battle"||key=="energy"||key=="resume"||key=="tutorial"||key=="beam_help")
+            if(key=="warning"||key=="battle"||key=="energy"||key=="resume"||key=="tutorial"||key=="beam_help"||key=="arcade_final")
                 InstructionStarted?.Invoke(key,seconds);
         }
         public void Cue(GameCue cue,GamePhase state)

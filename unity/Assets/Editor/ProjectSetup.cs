@@ -16,7 +16,7 @@ namespace UltramanGame.Editor
             PlayerSettings.defaultScreenWidth=1280;
             PlayerSettings.defaultScreenHeight=720;
             PlayerSettings.defaultIsNativeResolution=false;
-            PlayerSettings.fullScreenMode=FullScreenMode.Windowed;
+            PlayerSettings.fullScreenMode=FullScreenMode.FullScreenWindow;
             PlayerSettings.resizableWindow=true;
             PlayerSettings.runInBackground=true;
             PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Standalone,"com.ultramangame.training");
@@ -59,7 +59,7 @@ namespace UltramanGame.Editor
                 throw new System.Exception("Build person segmentation first: bash scripts/build_native.sh");
             foreach(var name in new[] { "music_ready","music_battle","swing","impact","beam","shield","transform","recover","victory","enemy_rush" })
                 RequireAudio("Assets/Resources/Audio/"+name+".wav");
-            foreach(var name in new[] { "welcome","transform","battle","warning","block","recover","energy","beam","victory","resume","tutorial","beam_help" })
+            foreach(var name in new[] { "welcome","transform","battle","warning","block","recover","energy","beam","victory","resume","tutorial","beam_help","photo_intro","photo_missing","photo_saved","photo_retry","photo_five","photo_four","photo_three","photo_two","photo_one","arcade_ready","arcade_final" })
                 RequireAudio("Assets/Resources/Voice/"+name+".aiff");
             // Optional local original recording is separate from generated guide lines.
             if(System.IO.File.Exists("Assets/Resources/Voice/beam_original.aiff"))
@@ -71,7 +71,7 @@ namespace UltramanGame.Editor
             foreach(var actor in new[]{"Tiga","Golza"})
                 if(!Resources.Load<GameObject>("Characters/"+actor+"/"+actor)||!Resources.Load<TextAsset>("Characters/"+actor+"/ATTRIBUTION"))
                     throw new System.Exception(actor+" model and author attribution are required for this build.");
-            foreach(var shader in new[]{"ContactShadow","ShadowSilhouette","CityGround","CitySky","KaijuSurface","EnergyShield","EnergyFlare","CinematicComposite","SoftGlow"})
+            foreach(var shader in new[]{"ContactShadow","ShadowSilhouette","CityGround","CitySky","KaijuSurface","EnergyShield","EnergyFlare","CinematicComposite","TransformationVeil","SoftGlow"})
                 if(!Resources.Load<Shader>(shader))throw new System.Exception("Missing actor shadow shader: "+shader);
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
