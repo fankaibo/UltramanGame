@@ -9,6 +9,8 @@ namespace UltramanGame.Runtime
         public bool Showcase;
         public readonly BeamCloseup Closeup=new BeamCloseup();
         public bool BeamStarted { get; private set; }
+        public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
+        public float EnemyOpacity=>HeroShot?0:1;
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
@@ -104,6 +106,7 @@ namespace UltramanGame.Runtime
             float scale=Mathf.Max(1,Camera.aspect/aspect)*1.5f;
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
+            backdrop.rotation=backgroundRotation;
             backdrop.position=cameraHome+backgroundRotation*new Vector3(0,h*(scale-1)*.5f,80);
             impactAge+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){impact=0;effects.Clear();}
@@ -126,12 +129,22 @@ namespace UltramanGame.Runtime
             if(!Showcase&&state.Phase==GamePhase.Victory)
                 target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,Mathf.SmoothStep(0,1,(arcade.PhaseAge-1)/3)*.6f);
             Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
+            if(HeroShot)
+            {
+                // Cut to a front three-quarter lens. Moving the arena lens through a city block would occlude the actor.
+                Camera.transform.position=HeroHome+new Vector3(3.8f,2.82f,.9f);
+                Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*2.93f);
+                Camera.fieldOfView=32;
+                // Reproject the distant city matte for this dedicated lens; the foreground stays three-dimensional.
+                backdrop.rotation=Camera.transform.rotation;
+                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,h*(scale-1)*.5f,80);
+            }
             bool active=state.Phase==GamePhase.Battle;
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.HandPosition:null);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;
             BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
-            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.15f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing);
+            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing);
             if(state.Phase!=previous){transformAge=0;previous=state.Phase;}
             transformAge+=dt;
             if(state.Phase==GamePhase.Transforming&&clock>celebrateAt)

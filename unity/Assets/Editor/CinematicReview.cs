@@ -35,7 +35,7 @@ namespace UltramanGame.Editor
                 if(battle.Phase==GamePhase.Paused)paused=true;
                 hero.Update(battle,world.Camera,dt,time);enemy.Update(battle,world.Camera,dt,time);
                 if(battle.EnemyHealth<lastHealth)world.Hit(lastHealth-battle.EnemyHealth>1,battle);lastHealth=battle.EnemyHealth;
-                world.Tick(battle,dt,time);enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                world.Tick(battle,dt,time);enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)beams++;
                 if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.png");output++;}
                 if(battle.Phase==GamePhase.Victory){if(victory<0)victory=time;if(time-victory>3)break;}

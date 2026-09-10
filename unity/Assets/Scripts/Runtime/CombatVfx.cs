@@ -36,7 +36,7 @@ namespace UltramanGame.Runtime
             shield=GameWorld.Primitive("Light shield",PrimitiveType.Sphere,parent,Vector3.zero,new Vector3(1.9f,2.15f,.38f),shieldMaterial);
             chargeMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyFlare")));
             charge=GameWorld.Primitive("Beam energy focus",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,chargeMaterial);
-            for(int i=0;i<rays.Length;i++)rays[i]=Line(parent,"Zeperion beam layer",32,i==0?.48f:i==1?.17f:.025f);
+            for(int i=0;i<rays.Length;i++)rays[i]=Line(parent,"Zeperion beam layer",32,i==0?.66f:i==1?.23f:.028f);
             for(int i=0;i<orbits.Length;i++)orbits[i]=Line(parent,"Charging arc",48,.016f);
             muzzleLight=Point(parent,"Energy spill",Ice,5);hitLight=Point(parent,"Impact spill",Warm,4);
         }
@@ -126,7 +126,7 @@ namespace UltramanGame.Runtime
                 for(int j=0;j<line.positionCount;j++)
                 {
                     float t=j/(float)(line.positionCount-1);Vector3 p=Vector3.Lerp(origin,end,t);
-                    if(i>1){float a=t*28-clock*23+i*1.7f;float radius=.10f+Mathf.Sin(t*13+clock*7+i)*.035f;
+                    if(i>1){float a=t*12-clock*16+i*1.7f;float radius=.065f+Mathf.Sin(t*9+clock*7+i)*.02f;
                         p+=camera.transform.right*Mathf.Sin(a)*radius+camera.transform.up*Mathf.Cos(a*1.1f)*radius;}
                     line.SetPosition(j,p);
                 }
@@ -137,7 +137,7 @@ namespace UltramanGame.Runtime
                 beamBurstAge-=dt;if(beamBurstAge<=0){beamBurstAge=.075f;Burst(end,3,.65f,false);FlashAt(end,1.4f,.12f,new Color(.3f,.7f,1));}
             }
             else beamBurstAge=0;
-            muzzleLight.transform.position=origin;muzzleLight.intensity=firing?3.0f:closeup?focus*2:0;
+            muzzleLight.transform.position=origin;muzzleLight.intensity=firing?2.1f:closeup?focus*.65f:0;
             hitLightAge+=dt;hitLight.intensity=Mathf.Max(0,1-hitLightAge/.22f)*3;
         }
     }

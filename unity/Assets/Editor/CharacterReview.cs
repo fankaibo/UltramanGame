@@ -75,7 +75,8 @@ namespace UltramanGame.Editor
         static void RenderCloseup(GameWorld world,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder)
         {
             var state=BeamReady();float health=state.EnemyHealth;
-            world.Tick(state,1,0);float wideFov=world.Camera.fieldOfView;
+            world.Tick(state,1,0);
+            float wideSpan=Mathf.Abs(world.Camera.WorldToViewportPoint(world.HeroHome+Vector3.up*3.3f).y-world.Camera.WorldToViewportPoint(world.HeroHome+Vector3.up*2.6f).y);
             state.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});
             while(state.TryCue(out var cue))world.Cue(cue);
             int[] captures={5,18,42,54,62,76,90};int capture=0,beamStarts=0;
@@ -84,13 +85,15 @@ namespace UltramanGame.Editor
                 state.Tick(world.Closeup.Active?0:1/60f,new PlayerInput {Tracking=true});
                 hero.Update(state,world.Camera,1/60f,frame/60f);enemy.Update(state,world.Camera,1/60f,frame/60f);
                 world.Tick(state,1/60f,frame/60f);
-                enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)beamStarts++;
                 if(world.Closeup.Active&&state.EnemyHealth!=health)throw new Exception("Damage occurred during closeup");
                 if(frame==18)
                 {
-                    float zoom=Mathf.Tan(wideFov*Mathf.Deg2Rad/2)/Mathf.Tan(world.Camera.fieldOfView*Mathf.Deg2Rad/2);
-                    if(zoom<1.8f||hero.Frame!=4)throw new Exception("Closeup must enlarge the beam illustration");
+                    float closeSpan=Mathf.Abs(world.Camera.WorldToViewportPoint(world.HeroHome+Vector3.up*3.3f).y-world.Camera.WorldToViewportPoint(world.HeroHome+Vector3.up*2.6f).y);
+                    if(closeSpan/wideSpan<1.8f||hero.Frame!=4||!world.HeroShot)throw new Exception("Closeup must visibly enlarge the beam character");
+                    if(Vector3.Dot((world.Camera.transform.position-world.HeroHome).normalized,world.BattleAxis)<.5f)
+                        throw new Exception("Hero closeup must show the front of the character");
                     foreach(float height in new[]{2.6f,3.3f})
                     {
                         var p=world.Camera.WorldToViewportPoint(world.HeroHome+Vector3.up*height);
