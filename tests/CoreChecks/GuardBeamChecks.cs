@@ -48,6 +48,7 @@ static class GuardBeamChecks
         trial=new Trial();trial.Hold(Body(),.6f);trial.Hold(l,1,false);
         check(trial.Beams==0&&trial.Last.Shield,"during an enemy warning an L-like guard remains defense");
         trial=new Trial();trial.Hold(Body(.72f,.72f),1.2f);check(!trial.Last.Shield&&trial.Beams==0,"hands hanging down are neither defense nor a beam");
+        trial=new Trial();var raised=Body();raised[15].y=raised[16].y=.05f;trial.Hold(raised,1.2f);check(!trial.Last.Shield&&trial.Beams==0,"raised hands cannot be mistaken for a chest guard");
         var b=new Battle();b.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
         for(int i=0;i<1000&&b.Enemy!=EnemyPhase.Attack;i++)b.Tick(.02f,new PlayerInput{Tracking=true});
         for(int i=0;i<9;i++)b.Tick(.02f,new PlayerInput{Tracking=true});

@@ -150,7 +150,7 @@ namespace UltramanGame.Core
             bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs) || BeamArms(br,brw,blw,bcx,bsy,bs) ||
                 ForwardPalms(bl,br,blw,brw,bsy,bs));
             bool beam=beamAvailable&&beamShape;
-            bool shield=beamWristsReady && !beam && !(transformAvailable&&raised) &&
+            bool shield=beamWristsReady && !beam && !raised && !(transformAvailable&&raised) &&
                 Math.Abs(blw.x-bcx)<.95f*bs && Math.Abs(brw.x-bcx)<.95f*bs &&
                 Math.Abs(blw.x-brw.x)<1.55f*bs && Math.Abs(blw.y-brw.y)<.70f*bs &&
                 blw.y>bsy-.65f*bs && brw.y>bsy-.65f*bs && blw.y<bsy+1.0f*bs && brw.y<bsy+1.0f*bs &&
@@ -189,6 +189,13 @@ namespace UltramanGame.Core
             float depthDifference=((l.z-lw.z)-(r.z-rw.z))/scale;
             input.LeftPunch=left&&(!shield || leftMotion.ForwardStrike&&depthDifference>.25f);
             input.RightPunch=right&&(!shield || rightMotion.ForwardStrike&&depthDifference<-.25f);
+            if(input.LeftPunch&&input.RightPunch)
+            {
+                // One frame can contain two noisy wrist trajectories. Keep the
+                // stronger arm so a child never gets a double or ambiguous punch.
+                if(leftMotion.LastScore>=rightMotion.LastScore) input.RightPunch=false;
+                else input.LeftPunch=false;
+            }
             ForwardPunch=input.LeftPunch&&leftMotion.ForwardStrike || input.RightPunch&&rightMotion.ForwardStrike;
             if(input.LeftPunch||input.RightPunch) {input.Shield=false;shieldHold=0;}
             return input;

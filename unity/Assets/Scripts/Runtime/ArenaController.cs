@@ -239,7 +239,11 @@ namespace UltramanGame.Runtime
         void Restart()
         {
             photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
-            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
+            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;
+            // A photo round can leave the native worker on the same camera stream.
+            // Reset the envelope cursor so the first frames of the new round are
+            // always eligible to re-arm the raised-hands transform gesture.
+            stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
             lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
