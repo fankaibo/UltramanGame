@@ -101,6 +101,12 @@ namespace UltramanGame.Core
             InstructionRemaining=Math.Max(0,InstructionRemaining-dt);
             queuedBeamAge=Math.Max(0,queuedBeamAge-dt);
             if(input.Beam&&Energy>=MaxEnergy&&Action!=HeroAction.Beam)queuedBeamAge=.8f;
+            if(input.Shield)
+            {
+                queuedBeamAge=0;
+                // A child's guard takes over immediately, including an unfinished punch recovery.
+                if(hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
+            }
             queuedAge-=dt;
             if(queuedAge<=0 || input.Shield || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&

@@ -13,8 +13,9 @@ namespace UltramanGame.Core
         float peakOut,peakDepth,releaseHold,candidateHold;
         long firedAt;
         public bool ForwardStrike { get; private set; }
+        public float LastScore { get; private set; }
         public void Reset()
-        {count=next=candidates=0;latched=false;peakOut=peakDepth=releaseHold=candidateHold=0;firedAt=0;ForwardStrike=false;}
+        {count=next=candidates=0;latched=false;peakOut=peakDepth=releaseHold=candidateHold=0;firedAt=0;ForwardStrike=false;LastScore=0;}
         public bool Update(PosePoint shoulder,PosePoint wrist,bool elbowVisible,float scale,float side,long stamp,float dt)
         {
             ForwardStrike=false;
@@ -48,7 +49,7 @@ namespace UltramanGame.Core
             else {candidates=0;candidateHold=0;}
             // Two fresh observations reject a single bad depth estimate or one noisy wrist location.
             if(candidates<2 || candidateHold<.045f)return false;
-            ForwardStrike=forward;latched=true;firedAt=stamp;peakOut=current.X;peakDepth=current.Depth;
+            ForwardStrike=forward;LastScore=Math.Max(current.Depth,current.X*.72f);latched=true;firedAt=stamp;peakOut=current.X;peakDepth=current.Depth;
             releaseHold=candidateHold=0;candidates=0;
             return true;
         }

@@ -31,6 +31,12 @@ namespace UltramanGame.Editor
             var monsterBounds=BodyBounds(enemy.Root);
             if(Mathf.Abs(monsterBounds.size.y-3.6f)>.04f||Mathf.Abs(monsterBounds.min.y)>.03f)
                 throw new Exception("Monster scale/grounding failed: "+monsterBounds);
+            foreach(string side in new[]{"L","R"})
+            {
+                float shoulder=Mathf.Abs(enemy.Root.InverseTransformPoint(Joint(enemy.Root,"bip_upperArm_"+side).position).x);
+                float elbow=Mathf.Abs(enemy.Root.InverseTransformPoint(Joint(enemy.Root,"bip_lowerArm_"+side).position).x);
+                if(elbow<=shoulder+.025f)throw new Exception("Monster elbow folds into the chest: "+side);
+            }
             var claw=Joint(enemy.Root,"bip_hand_R");var idleClaw=claw.position;
             enemy.Update(state,world.Camera,0,0,2);
             if(Vector3.Distance(idleClaw,claw.position)<.3f)throw new Exception("Monster claw clip did not deform the arm");
@@ -61,7 +67,7 @@ namespace UltramanGame.Editor
                 while(state.TryCue(out var cue))world.Cue(cue);
                 if(state.EnemyHealth<health)world.Hit(health-state.EnemyHealth>1,state);
                 health=state.EnemyHealth;
-                hero.Update(state,world.Camera,1/30f,t);enemy.Update(state,world.Camera,1/30f,t);world.Tick(state,1/30f,t);enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                hero.Update(state,world.Camera,1/30f,t);enemy.Update(state,world.Camera,1/30f,t);world.Tick(state,1/30f,t);enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)releases++;
                 if(frame>1)maxHandStep=Mathf.Max(maxHandStep,Vector3.Distance(previousHand,wrist.position));previousHand=wrist.position;
                 if(frame%3==0&&state.Phase==GamePhase.Battle)

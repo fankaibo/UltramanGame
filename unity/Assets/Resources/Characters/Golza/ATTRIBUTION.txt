@@ -19,7 +19,11 @@ SourceIO: https://github.com/REDxEYE/SourceIO
 
 SHA-256
 Golza.zip: 5ac1708f61e0272c99817f9bdbfaa50499b12982b1d7d7f3435a10289247fb64
-Golza.fbx: f7d0019b03de828ed095f12ffa3b63a4e7c9946c329c268b40b44f831bc00c33
+Golza.fbx: 76c254650bead857a719027cc81b20cc99b064e5ee4057a4c02757a34e0e0423
 GolzaBody.png: 822c69cf4046404fc2b4cbd5b1d0c22b7b3a2f2d51aa73ebcab5b61f4c6408e6
 GolzaEyes.png: 8daa255a739fe91dd072b60dbc2cef67214c29cd5a54919779dedd0d89026853
 Downloaded official SourceIO master ZIP: c141463035c8fc5766ce4b06ac9d58d9fde99c27ad88b5484bdd2ee0ad035cd9
+
+2026-09-11: corrected the mirrored left elbow IK pole angle before rebaking all clips.
+No changes to source meshes or skin weights.
+2026-09-12: re-authored the live-combat Attack clip with separated forward hand targets; widened the mirrored hand clearance so both forearms stay outside the torso silhouette.

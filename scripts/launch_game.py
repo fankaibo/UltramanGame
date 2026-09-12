@@ -47,7 +47,7 @@ def main():
                     environment=environment, report=lambda message: print(message, flush=True)))
                 ports = camera.ports
             print("游戏正在启动。关闭游戏窗口会同时关闭本次相机服务。", flush=True)
-            command = [str(executable), "-screen-fullscreen", "0", "-screen-width", "1280",
+            command = [str(executable), "-screen-fullscreen", "0" if args.keyboard or args.demo else "1", "-screen-width", "1280",
                        "-screen-height", "720", "-logFile", str(logs / "game-last.log")]
             if args.music:
                 command += ["--music", str(args.music.expanduser().resolve())]

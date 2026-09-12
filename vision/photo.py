@@ -2,6 +2,7 @@
 import struct
 import time
 import math
+import sys
 
 from .bridge import LatestBridge, _Handler
 
@@ -25,11 +26,13 @@ class _PhotoHandler(_Handler):
         bridge = self.server.bridge
         with bridge.changed:
             bridge.subscribers += 1
+            print("[PhotoStream] subscribed", file=sys.stderr, flush=True)
         try:
             super().handle()
         finally:
             with bridge.changed:
                 bridge.subscribers -= 1
+                print("[PhotoStream] released", file=sys.stderr, flush=True)
                 if not bridge.subscribers:
                     bridge.latest = b""
 
@@ -39,6 +42,7 @@ class GamePhoto:
         self.bridge = LatestBridge(port, _PhotoHandler, listener=listener)
         self.bridge.subscribers = 0
         self.next_at = 0
+        self.frames = 0
 
     def due(self):
         return self.bridge.subscribers > 0 and time.monotonic() >= self.next_at
@@ -77,6 +81,9 @@ class GamePhoto:
         rgba = cv2.flip(rgba, 1)
         ok, png = cv2.imencode(".png", rgba, [cv2.IMWRITE_PNG_COMPRESSION, 2])
         if ok:
+            self.frames += 1
+            if self.frames == 1 or self.frames % 40 == 0:
+                print(f"[PhotoStream] frames={self.frames} present={present} ageMs={round(time.time()*1000-captured_ms)} size={rgba.shape[1]}x{rgba.shape[0]}", file=sys.stderr, flush=True)
             self.bridge.publish(encode_photo(png.tobytes(), captured_ms, synthetic, bool(present)))
 
     def __enter__(self):

@@ -40,7 +40,19 @@
     "victory": "城市安全了！谢谢你，光之英雄！",
     "resume": "准备好了，继续战斗！",
     "tutorial": "先收手，再向前挥拳。",
-    "beam_help": "一只手抬高，另一只横在胸前。也可以双手向前推，停一下。"
+    "beam_help": "一只手抬高，另一只横在胸前。也可以双手向前推，停一下。",
+    "photo_intro": "来和迪迦合照吧！看着右边的自己，摆个喜欢的姿势。我会倒数五秒，自动拍照。",
+    "photo_missing": "让我看看你！把头和身体移进镜头，站稳一点。",
+    "photo_saved": "合照拍好啦！先放下手，慢慢欣赏。举起一只手可以重拍，双手举高就能再玩一次。",
+    "photo_retry": "没关系，等画面恢复，我们再拍一次。",
+    "photo_five": "五",
+    "photo_four": "四",
+    "photo_three": "三",
+    "photo_two": "二",
+    "photo_one": "一",
+    "arcade_ready": "小英雄，城市需要你！站进镜头，把双手举高，和迪迦一起出发！",
+    "arcade_final": "就快成功了！继续挥拳，保护城市！",
+    "beam_reset": "先把双手收回来，再摆光线姿势，停一下。"
   },
   "audio": {
     "welcome": {
@@ -138,6 +150,108 @@
       "peak": 0.72241,
       "sha256": "123b2c6e469317a5506bed908ab76a46610c23ba15421a903f6f269558ceaf16",
       "tempo": 1.0
+    },
+    "photo_intro": {
+      "file": "photo_intro.wav",
+      "seconds": 7.945,
+      "sample_rate": 24000,
+      "peak": 0.82,
+      "sha256": "403bdfa9be6e0246390252501f5c57499d9a3fb184049d0e314dae1f9a9e4c22",
+      "tempo": 1.0
+    },
+    "photo_missing": {
+      "file": "photo_missing.wav",
+      "seconds": 3.86842,
+      "sample_rate": 24000,
+      "peak": 0.78266,
+      "sha256": "e5437b04b13a5e140151c2b22ba8fbc9a4efa1e4e8baec5f3c39c917562456fe",
+      "tempo": 1.0
+    },
+    "photo_saved": {
+      "file": "photo_saved.wav",
+      "seconds": 8.365,
+      "sample_rate": 24000,
+      "peak": 0.82,
+      "sha256": "6d4e1b25e37c34258253afd02b1333c7475ffeea2f0227c1b6ddf8cd14aa77a3",
+      "tempo": 1.0
+    },
+    "photo_retry": {
+      "file": "photo_retry.wav",
+      "seconds": 2.855,
+      "sample_rate": 24000,
+      "peak": 0.82,
+      "sha256": "77439309d431fd37271895675303ba59a9d65aa800801aa9747e97d6c32481e7",
+      "tempo": 1.0
+    },
+    "photo_five": {
+      "file": "photo_five.wav",
+      "seconds": 0.415,
+      "sample_rate": 24000,
+      "peak": 0.41264,
+      "sha256": "3dc172e5b2acb063a4cbdee58f4c0326b3a210cbbe933cafa51e7041fdb46d78",
+      "tempo": 1.0
+    },
+    "photo_four": {
+      "file": "photo_four.wav",
+      "seconds": 0.445,
+      "sample_rate": 24000,
+      "peak": 0.56674,
+      "sha256": "1a77ffb850f2ffe24c71dfac3b84839aab331cbb9f162d401712b9d18190e66c",
+      "tempo": 1.0
+    },
+    "photo_three": {
+      "file": "photo_three.wav",
+      "seconds": 0.315,
+      "sample_rate": 24000,
+      "peak": 0.74631,
+      "sha256": "a0791471ec6dc933dcdd7203f13e73aa4356d8db5e70a5081b34166cdc02b6b0",
+      "tempo": 1.0
+    },
+    "photo_two": {
+      "file": "photo_two.wav",
+      "seconds": 0.325,
+      "sample_rate": 24000,
+      "peak": 0.48712,
+      "sha256": "ae9618cd3434e44892b31c52d51cf57d2c5765deacb230ee84cd89de951d73c8",
+      "tempo": 1.0
+    },
+    "photo_one": {
+      "file": "photo_one.wav",
+      "seconds": 0.355,
+      "sample_rate": 24000,
+      "peak": 0.45725,
+      "sha256": "e99ded3d1e88e82be6d6d89be70376bc162cf60e90f8e1df8e43490fdc0d9a46",
+      "tempo": 1.0
+    },
+    "arcade_ready": {
+      "file": "arcade_ready.wav",
+      "seconds": 6.45937,
+      "sample_rate": 24000,
+      "peak": 0.7881,
+      "sha256": "626d4e47bd91691a4762f17765bf740707309d123c78bc8afb3a187dd4ce0d36",
+      "tempo": 1.0
+    },
+    "arcade_final": {
+      "file": "arcade_final.wav",
+      "seconds": 3.095,
+      "sample_rate": 24000,
+      "peak": 0.7351,
+      "sha256": "f18939a873b5ec764d82f4f5a9667a0f9aeb82dd893dd183d1ce6e14f1de7cc2",
+      "tempo": 1.0
+    },
+    "beam_reset": {
+      "file": "beam_reset.wav",
+      "seconds": 3.675,
+      "sample_rate": 24000,
+      "peak": 0.82,
+      "sha256": "fe2b93983478822474c3208ead74f9f8fbc64f36b04bb9d144a8169c6aa9a6d5",
+      "tempo": 1.0
     }
+  },
+  "guided_extension": {
+    "date": "2026-09-10",
+    "seed": "140 + line index",
+    "temperature": 0.7,
+    "model": "same local model and synthetic reference"
   }
 }

@@ -4,7 +4,7 @@ using UltramanGame.Core;
 
 namespace UltramanGame.Runtime
 {
-    public sealed class ArenaController : MonoBehaviour
+    public sealed partial class ArenaController : MonoBehaviour
     {
         Battle battle=new Battle();
         readonly Battle showcaseBattle=new Battle();
@@ -24,7 +24,8 @@ namespace UltramanGame.Runtime
         LocalMusic music;
         HudPainter hud;
         VictoryPhoto photo;
-        bool photoAvailable;
+        bool photoAvailable,autoPhotoOpened,finalGuide;
+        float victoryAt,waitingGuideAt=20;
         bool keyboard,paused,muted,settings,audioSettings,showPreview=true,previewReported,lastTracking;
         const string MonsterHitsKey="battle.monsterHits";
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
@@ -60,20 +61,26 @@ namespace UltramanGame.Runtime
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
             sound.InstructionStarted+=InstructionStarted;
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
-            photo=new VictoryPhoto(LocalPort("--photo-port",8767));
+            photo=new VictoryPhoto(LocalPort("--photo-port",8767),sound);
             hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             world.BindActors(hero,enemy);
             PresentationWarmup.Run(world,hero,enemy);
             music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
-            if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
+            if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void Update()
         {
+            Cursor.visible=keyboard||settings||showcase||music.Choosing;
             if(photo.Active)
             {
                 if(Input.GetKeyDown(KeyCode.Escape))photo.Back();
                 if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
-                photo.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);return;
+                long photoNow=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                UpdatePreview(photoNow);ReadPhotoPose();
+                sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);
+                photo.Tick(photoNow,pose,previewTexture);
+                if(photo.PlayAgainRequested)Restart();
+                return;
             }
             if(Input.GetKeyDown(KeyCode.F7)&&battle.Phase==GamePhase.Victory&&photoAvailable) {photo.Open();return;}
             if(Input.GetKeyDown(KeyCode.F2))SetMode(!keyboard);
@@ -117,13 +124,19 @@ namespace UltramanGame.Runtime
                         if(incoming!=null&&(incoming.streamId!=stream||incoming.sequence>sequence))
                         {
                             pose=incoming;stream=pose.streamId;sequence=pose.sequence;
-                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,battle.Phase==GamePhase.Waiting);
+                            bool defending=battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack;
+                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy&&!defending,battle.Phase==GamePhase.Waiting);
                             string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?
                                 (recognizer.ForwardPunch?"向前挥拳":"侧前挥拳"):"";
                             if(detected.Length>0)
                             {
                                 gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
                                 if(Debug.isDebugBuild)Debug.Log("[Gesture] "+detected);
+                            }
+                            if(input.Shield&&!held.Shield)
+                            {
+                                gestureFeedback="护盾已展开";gestureFeedbackUntil=Time.unscaledTime+1.3f;
+                                if(Debug.isDebugBuild)Debug.Log("[Gesture] 护盾已展开");
                             }
                         }
                     }
@@ -133,6 +146,8 @@ namespace UltramanGame.Runtime
                 input.Tracking=presence.Update(pose,now);held=input;
             }
             if(review!=null)input=review.Next(battle,dt);
+            if(!keyboard&&battle.Phase==GamePhase.Waiting&&Time.unscaledTime>=waitingGuideAt&&!sound.VoicePlaying)
+            {sound.Speak("arcade_ready",1,GamePhase.Waiting);waitingGuideAt=Time.unscaledTime+22;}
             if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
@@ -155,18 +170,23 @@ namespace UltramanGame.Runtime
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
-            enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+            enemy.SetPresentationOpacity(world.EnemyOpacity);
+            if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
+            {autoPhotoOpened=true;photo.Open();}
+            if(!keyboard&&!finalGuide&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)
+            {finalGuide=true;sound.Speak("arcade_final",3,battle.Phase);}
             if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
             {
                 if(battle.Punches==0&&Time.unscaledTime>hintAt&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0)
                 {sound.Speak("tutorial",3,battle.Phase);hintAt=Time.unscaledTime+20;}
                 if(battle.Energy<Battle.MaxEnergy)beamHelpAt=Time.unscaledTime+6;
                 else if(Time.unscaledTime>beamHelpAt&&battle.InstructionRemaining<=0&&battle.Enemy==EnemyPhase.Rest)
-                {sound.Speak("beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
+                {sound.Speak(recognizer.BeamNeedsRelease&&sound.HasVoice("beam_reset")?"beam_reset":"beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
             }
         }
         void LateUpdate()
         {
+            CaptureGuidedProof();
             if(review==null)return;
             if(battle.Phase==GamePhase.Paused)reviewPaused=true;
             if(battle.Phase==GamePhase.Victory)
@@ -188,9 +208,10 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
             switch(key)
             {
-                case "battle":caption="挥动拳头，守护这座城市！";break;
+                case "battle":caption="挥动拳头，守护火山基地！";break;
                 case "energy":caption="能量满了 · 双手向前推，停一下";break;
                 case "beam_help":caption="摆 L 形，或双手向前推 · 停一下";break;
+                case "beam_reset":caption="先收回双手，再摆光线姿势，停一下";break;
                 case "tutorial":caption="先把手收回来，再挥出去";break;
                 case "resume":caption="准备好了，继续！";break;
                 default:return;
@@ -204,11 +225,12 @@ namespace UltramanGame.Runtime
             sound.Cue(cue,battle.Phase);world.Cue(cue);
             switch(cue)
             {
-                case GameCue.BattleStart:caption="挥动拳头，守护这座城市！";hintAt=Time.unscaledTime+12;break;
+                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";hintAt=Time.unscaledTime+12;break;
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
                 case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+BeamCloseup.Duration+2;break;
+                case GameCue.Victory:victoryAt=Time.unscaledTime;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
@@ -216,9 +238,14 @@ namespace UltramanGame.Runtime
         }
         void Restart()
         {
-            photo?.Close();
-            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
+            photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
+            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;
+            // A photo round can leave the native worker on the same camera stream.
+            // Reset the envelope cursor so the first frames of the new round are
+            // always eligible to re-arm the raised-hands transform gesture.
+            stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
             lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)
         {draftMonsterHits=monsterHits;audioSettings=audio;settings=true;}
@@ -230,7 +257,14 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log($"[Settings] monsterHits={monsterHits} energyPunches={Battle.MaxEnergy}");
             Restart();
         }
-        void SetMode(bool value) {keyboard=value;Restart();}
+        void SetMode(bool value) {keyboard=value;photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;Restart();}
+        void ReadPhotoPose()
+        {
+            var line=client.TakeLatest();
+            if(line==null)return;
+            try {pose=JsonUtility.FromJson<PoseFrame>(line);}
+            catch(ArgumentException) {pose=null;}
+        }
         void UpdatePreview(long now)
         {
             var incoming=previewClient.TakeLatest();
@@ -311,14 +345,15 @@ namespace UltramanGame.Runtime
                 return;
             }
             if(world.Closeup.Active) {DrawBeamCloseup();return;}
+            if(!keyboard) {DrawArcadeHud();return;}
             if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
             {DrawBattleHud();return;}
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float time=Time.unscaledTime;
             hud.Box(new Rect(0,0,1280,103),new Color(.012f,.025f,.06f,.91f));hud.Box(new Rect(28,101,1224,1),new Color(.25f,.53f,.8f,.25f));
             hud.Dot(new Vector2(47,47),33,new Color(.18f,.4f,.62f));hud.Dot(new Vector2(47,47),13,HudPainter.Cyan);
-            hud.Text(new Rect(78,23,410,41),"迪迦 · 光之训练场",29,HudPainter.Ink,bold:true);
-            hud.Text(new Rect(80,66,390,22),"CITY OF LIGHT  /  一起守护城市",12,HudPainter.Muted);
-            string stage=battle.Phase==GamePhase.Waiting?"准备出发":battle.Phase==GamePhase.Transforming?"光之变身":battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"城市守护";
+            hud.Text(new Rect(78,23,410,41),"迪迦 · 熔岩训练场",29,HudPainter.Ink,bold:true);
+            hud.Text(new Rect(80,66,390,22),"VOLCANIC RUINS  /  守护火山基地",12,HudPainter.Muted);
+            string stage=battle.Phase==GamePhase.Waiting?"准备出发":battle.Phase==GamePhase.Transforming?"光之变身":battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"火山守护";
             hud.Rounded(new Rect(526,30,166,35),new Color(.14f,.37f,.46f,.48f));hud.Text(new Rect(526,30,166,35),stage,17,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(801,20,250,26),"哥尔赞 · 训练对手",17,HudPainter.Ink);
             hud.Text(new Rect(1077,20,171,26),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",15,HudPainter.Muted,TextAnchor.MiddleRight);
@@ -334,7 +369,7 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(48,225,290,24),waiting?"01  /  唤醒光的力量":"光的力量，正在苏醒",14,HudPainter.Cyan);
                 hud.Text(new Rect(48,259,290,43),waiting?(keyboard?"按空格，变身！":"双手举高，变身！"):"迪迦，出发！",27,HudPainter.Ink,bold:true);
                 hud.Figure(new Rect(52,321,108,110),"transform",time,HudPainter.Gold);
-                hud.Text(new Rect(180,323,157,100),keyboard?"空格开始\nA / D 挥拳":waiting?"像左边一样\n把双手举高\n保持一小会儿":"你就是\n守护城市的英雄",17,HudPainter.Muted);
+                hud.Text(new Rect(180,323,157,100),keyboard?"空格开始\nA / D 挥拳":waiting?"像左边一样\n把双手举高\n保持一小会儿":"你就是\n守护火山基地的英雄",17,HudPainter.Muted);
                 float progress=waiting?(keyboard?0:recognizer.TransformProgress):Mathf.Clamp01((time-phaseStarted)/2.2f);
                 hud.Bar(new Rect(49,453,289,7),progress,HudPainter.Cyan);
                 hud.Text(new Rect(49,466,289,22),waiting?(PoseQuality.Present(pose,now)||keyboard?"站稳，慢慢来就可以":"先让肩膀和双手进入画面"):"光之能量充能中",12,HudPainter.Muted);
@@ -395,9 +430,9 @@ namespace UltramanGame.Runtime
             bool ready=battle.Energy>=Battle.MaxEnergy;
             hud.Box(new Rect(0,0,1280,62),new Color(.012f,.025f,.06f,.82f));
             hud.Dot(new Vector2(29,29),18,new Color(.18f,.4f,.62f));hud.Dot(new Vector2(29,29),7,HudPainter.Cyan);
-            hud.Text(new Rect(47,8,310,26),"迪迦 · 光之训练场",18,HudPainter.Ink,bold:true);
+            hud.Text(new Rect(47,8,310,26),"迪迦 · 熔岩训练场",18,HudPainter.Ink,bold:true);
             hud.Text(new Rect(48,34,320,18),keyboard?"键盘练习":pose?.source=="synthetic"?"合成动作测试 · 非摄像头":"摄像头体感",11,HudPainter.Muted);
-            string stage=battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"城市守护";
+            string stage=battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"火山守护";
             hud.Rounded(new Rect(552,15,136,27),new Color(.14f,.37f,.46f,.38f));
             hud.Text(new Rect(552,15,136,27),stage,13,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(850,9,245,20),"哥尔赞",14,HudPainter.Ink);
@@ -428,7 +463,7 @@ namespace UltramanGame.Runtime
             if(battle.Phase==GamePhase.Victory)
             {
                 hud.Panel(new Rect(20,145,252,252),HudPainter.Gold,true);
-                hud.Text(new Rect(38,160,218,36),"城市守护成功！",21,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(38,160,218,36),"火山守护成功！",21,HudPainter.Ink,bold:true);
                 hud.Text(new Rect(38,209,218,42),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次",14,HudPainter.Muted);
                 GUI.enabled=photoAvailable;
                 if(hud.Button(new Rect(38,267,216,42),"      合照 · F7",HudPainter.Cyan,16))photo.Open();
@@ -443,7 +478,7 @@ namespace UltramanGame.Runtime
                 bool interrupted=!keyboard&&!PoseQuality.Fresh(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 hud.Panel(new Rect(462,244,356,142),HudPainter.Cyan);
                 hud.Text(new Rect(478,254,324,32),paused?"休息一下吧":interrupted?"相机连接中断，进度已保留":"等你回来，一起继续",20,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护城市":interrupted?"请稍等，也可以切换到键盘练习":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
+                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护火山基地":interrupted?"请稍等，也可以切换到键盘练习":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
                 if(paused&&hud.Button(new Rect(552,339,176,31),"继续战斗",size:13))paused=false;
                 if(!paused)hud.Bar(new Rect(500,351,280,5),battle.ResumeProgress/1.2f,HudPainter.Cyan);
             }
@@ -489,6 +524,6 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(386,510,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
         }
         void OnDestroy()
-        {photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
+        {Cursor.visible=true;photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
     }
 }

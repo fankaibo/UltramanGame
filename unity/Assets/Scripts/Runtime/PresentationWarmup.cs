@@ -15,7 +15,7 @@ namespace UltramanGame.Runtime
             void Draw(float dt)
             {
                 time+=dt;hero.Update(state,camera,dt,time);enemy.Update(state,camera,dt,time);world.Tick(state,dt,time);
-                enemy.SetPresentationOpacity(1-world.Closeup.Focus);camera.Render();
+                enemy.SetPresentationOpacity(world.EnemyOpacity);camera.Render();
             }
             try
             {

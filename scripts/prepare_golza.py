@@ -118,7 +118,11 @@ def rig_controls(rig):
             ik.pole_subtarget = f'{pole}_{side}'
             ik.chain_count = 2
             ik.use_stretch = False
-            ik.pole_angle = 0
+            # Mirrored arm rest axes need opposite pole rotation; zero on both
+            # sides folds the left elbow into the chest while the right bends out.
+            # The mirrored left arm needs the opposite pole to keep its elbow
+            # outside the torso; the right side uses the source rest orientation.
+            ik.pole_angle = math.pi if segment=='lowerArm' and side=='L' else 0
         foot = rig.pose.bones[f'bip_foot_{side}']
         planted = foot.constraints.new('COPY_ROTATION')
         planted.target = rig
@@ -146,7 +150,10 @@ def author(rig, targets, live_combat=False):
             b.matrix_basis = rest[b.name]
         bpy.context.view_layer.update()
         p = dict(sink=.018, lean=5, yaw=0, jaw=3, head=0,
-                 left=(.30, -.23, 1.07), right=(-.30, -.23, 1.07), sway=0)
+                 # The source mesh's right shoulder sits farther inward after
+                 # mirrored IK bake, so give that hand a little extra lateral
+                 # clearance to keep both palms outside the chest silhouette.
+                 left=(.52, -.23, 1.07), right=(-.32, -.23, 1.07), sway=0)
         p.update(pose)
         pelvis = rig.pose.bones['bip_pelvis']
         rotate('bip_pelvis', (0, 0, 1), p['yaw'])
@@ -185,11 +192,11 @@ def author(rig, targets, live_combat=False):
         'Idle': [(0, {}), (.5, dict(sink=.025, sway=3)), (1, dict(sink=.018, sway=-3)), (1.5, dict(sink=.012,sway=2)), (2, {})],
         'Windup': [(0, {}), (.4, dict(sink=.035, lean=-5, jaw=18, right=(-.40,.02,1.25), sway=9)),
                    (1.1, dict(sink=.06, lean=12, jaw=24,right=(-.37,.00,1.20),left=(.32,-.30,1.02),sway=-8)), (1.5, dict(sink=.05,lean=14,jaw=24,right=(-.38,.01,1.22),sway=9))],
-        'Attack': [(0, dict(sink=.05,lean=14,right=(-.38,.01,1.22),jaw=20)),
-                   (.16, dict(sink=.02,lean=15,foot_l=(0,-.10,.10),foot_r=(0,.04,0),right=(-.39,-.05,1.20),jaw=24,sway=-8)),
-                   (.30, dict(sink=.04,lean=16,foot_l=(0,-.16,0),foot_r=(0,.04,0),right=(-.20,-.40,1.20),jaw=20,sway=10)),
-                   (.4, dict(sink=.065,lean=18,yaw=-14,foot_l=(0,-.15,0),right=(.05,-.39,.93),left=(.27,-.17,1.08),jaw=24,sway=12)),
-                   (.55, dict(sink=.07,lean=16,yaw=-12,right=(.07,-.35,.9),foot_l=(0,-.12,0),sway=9)),
+        'Attack': [(0, dict(sink=.05,lean=14,left=(.52,-.18,1.12),right=(-.32,-.18,1.12),jaw=20)),
+                   (.16, dict(sink=.02,lean=15,foot_l=(0,-.10,.10),foot_r=(0,.04,0),left=(.58,-.25,1.16),right=(-.38,-.25,1.16),jaw=24,sway=-8)),
+                   (.30, dict(sink=.04,lean=16,foot_l=(0,-.16,0),foot_r=(0,.04,0),left=(.66,-.40,1.09),right=(-.46,-.40,1.09),jaw=20,sway=10)),
+                   (.4, dict(sink=.065,lean=18,yaw=0,foot_l=(0,-.15,0),left=(.63,-.48,1.04),right=(-.44,-.48,1.04),jaw=24,sway=12)),
+                   (.55, dict(sink=.07,lean=16,yaw=0,left=(.56,-.40,1.02),right=(-.36,-.40,1.02),foot_l=(0,-.12,0),sway=9)),
                    (.8, dict(sink=.035,lean=6,foot_l=(0,-.05,.04),sway=-6)), (1.05,{})],
         'Hurt': [(0,{}),(.1,dict(lean=-14,sink=.05,yaw=10,jaw=18,right=(-.40,-.07,1.08),left=(.37,-.10,1.12),sway=14)),(.23,dict(lean=-7,sink=.04,jaw=8,sway=-7)),(.4,{})],
         'Defeat': [(0,{}),(.25,dict(lean=-18,jaw=25,sink=.03,sway=14)),(.8,dict(lean=16,sink=.12,jaw=12,right=(-.28,-.25,.92),left=(.29,-.25,.92),sway=-8)),
@@ -229,8 +236,8 @@ def render(output, rig, actions):
     scene.render.engine='CYCLES';scene.cycles.samples=24;scene.cycles.use_denoising=True
     scene.render.resolution_x=800;scene.render.resolution_y=800;scene.render.resolution_percentage=100
     scene.world=bpy.data.worlds.new('Review world');scene.world.use_nodes=True
-    scene.world.node_tree.nodes['Background'].inputs[0].default_value=(.09,.11,.16,1)
-    scene.world.node_tree.nodes['Background'].inputs[1].default_value=.4
+    next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[0].default_value=(.09,.11,.16,1)
+    next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[1].default_value=.4
     camera=bpy.data.objects.new('Review camera',bpy.data.cameras.new('Review camera'));scene.collection.objects.link(camera);scene.camera=camera
     camera.data.type='ORTHO';camera.data.ortho_scale=2.25
     camera.location=(2.4,-4,2);camera.rotation_euler=(Vector((0,.15,.8))-camera.location).to_track_quat('-Z','Y').to_euler()

@@ -152,11 +152,13 @@ namespace UltramanGame.Runtime
             phaseAge+=dt;hitAge+=dt;
             if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;}
             lastHealth=state.EnemyHealth;
-            string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1;
+            string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1,fallTilt=0,fallSide=0,fallDrop=0;
             Frame=0;
             if(monster)
             {
-                if(state.Phase==GamePhase.Victory) {next="Defeat";sample=phaseAge;Frame=7;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1.5f)/1.5f);}
+                if(state.Phase==GamePhase.Transforming&&clips.ContainsKey("Walk"))
+                {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
+                else if(state.Phase==GamePhase.Victory) {next="Defeat";sample=phaseAge;Frame=7;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1.5f)/1.5f);}
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next="Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
                 else if(state.Phase==GamePhase.Battle&&hitAge<.4f) {next="Hurt";sample=hitAge;Frame=heavyHit?6:5;travel=-Mathf.Sin(hitAge/.4f*Mathf.PI)*(heavyHit?.22f:.12f);}
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
@@ -176,7 +178,15 @@ namespace UltramanGame.Runtime
                 if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
                 {next=state.Action==HeroAction.LeftPunch?"LeftPunch":"RightPunch";sample=state.ActionAge;Frame=sample<.07f?1:2;travel=AnimatedActor.Strike(sample)*AnimatedActor.PunchAdvance;}
                 else if(state.Action==HeroAction.Beam) {next="Beam";sample=Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
-                else if(state.Action==HeroAction.Hurt) {next="Hurt";sample=state.ActionAge;Frame=5;}
+                else if(state.Action==HeroAction.Hurt)
+                {
+                    next="Hurt";sample=state.ActionAge;Frame=5;
+                    float p=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.55f)*Mathf.PI);
+                    fallTilt=-28f*p;fallDrop=.32f*p;
+                    // Roll toward the camera-facing side so the fall reads in the
+                    // fixed 45-degree battle composition instead of looking like a lean.
+                    fallSide=54f*p;
+                }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
             }
             if(preview>=0)
@@ -195,7 +205,8 @@ namespace UltramanGame.Runtime
             blendLeft=Mathf.Max(0,blendLeft-dt);
             for(int i=1;i<joints.Length&&mix<1;i++)
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
-            Root.position=home+forward*travel;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
+            Root.position=home+forward*travel+Vector3.down*fallDrop;
+            Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
             poseOpacity=opacity;SetPresentationOpacity(1);
         }
     }

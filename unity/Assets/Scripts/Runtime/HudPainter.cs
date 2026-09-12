@@ -8,14 +8,41 @@ namespace UltramanGame.Runtime
         public static readonly Color Ink=new Color(.91f,.95f,1),Muted=new Color(.56f,.68f,.81f),Cyan=new Color(.25f,.86f,1),Gold=new Color(1,.76f,.38f),Violet=new Color(.65f,.48f,1);
         readonly Font font;
         readonly Texture2D circle;
+        readonly Texture2D fade;
+        readonly Dictionary<string,Texture2D> portraits=new Dictionary<string,Texture2D>();
         readonly Dictionary<int,GUIStyle> styles=new Dictionary<int,GUIStyle>();
         public HudPainter(Font font)
         {
             this.font=font;circle=new Texture2D(64,64,TextureFormat.RGBA32,false);var pixels=new Color[4096];
             for(int y=0;y<64;y++)for(int x=0;x<64;x++) pixels[y*64+x]=new Color(1,1,1,Mathf.Clamp01(32-Vector2.Distance(new Vector2(x+.5f,y+.5f),new Vector2(32,32))));
             circle.SetPixels(pixels);circle.Apply();
+            fade=new Texture2D(1,64,TextureFormat.RGBA32,false){wrapMode=TextureWrapMode.Clamp};var gradient=new Color[64];
+            for(int y=0;y<64;y++)gradient[y]=new Color(1,1,1,y/63f);fade.SetPixels(gradient);fade.Apply();
         }
-        public void Dispose() { Object.Destroy(circle); }
+        public void Dispose() { Object.Destroy(circle);Object.Destroy(fade);foreach(var p in portraits.Values)Object.Destroy(p); }
+        public void Fade(Rect r,Color color)
+        {var before=GUI.color;GUI.color=color;GUI.DrawTexture(r,fade);GUI.color=before;}
+        public void Portrait(Rect r,bool monster)
+        {
+            string name=monster?"GolzaActions":"TigaPhotoActions";
+            if(!portraits.TryGetValue(name,out var portrait))
+            {
+                var atlas=Resources.Load<Texture2D>("Art/"+name);if(!atlas)return;
+                int w=atlas.width/4,h=atlas.height/2;var src=atlas.GetPixels(0,h,w,h);
+                int top=0,left=w,right=0;
+                for(int y=h/3;y<h;y++)for(int x=0;x<w;x++)
+                {var c=src[y*w+x];if(c.g-Mathf.Max(c.r,c.b)<.12f){top=Mathf.Max(top,y);left=Mathf.Min(left,x);right=Mathf.Max(right,x);}}
+                float span=h*.40f,cx=(left+right)*.5f,cy=top-span*.46f;
+                portrait=new Texture2D(128,128,TextureFormat.RGBA32,false);var dst=new Color[128*128];
+                for(int y=0;y<128;y++)for(int x=0;x<128;x++)
+                {
+                    int sx=Mathf.Clamp(Mathf.RoundToInt(cx+(x/127f-.5f)*span),0,w-1),sy=Mathf.Clamp(Mathf.RoundToInt(cy+(y/127f-.5f)*span),0,h-1);
+                    var c=src[sy*w+sx];c.a=1-Mathf.SmoothStep(.12f,.48f,c.g-Mathf.Max(c.r,c.b));c.g=Mathf.Min(c.g,Mathf.Max(c.r,c.b)+.06f);dst[y*128+x]=c;
+                }
+                portrait.SetPixels(dst);portrait.Apply();portraits[name]=portrait;
+            }
+            GUI.DrawTexture(r,portrait,ScaleMode.ScaleToFit);
+        }
         public void Box(Rect rect,Color color)
         { var before=GUI.color;GUI.color=color;GUI.DrawTexture(rect,Texture2D.whiteTexture);GUI.color=before; }
         public void Dot(Vector2 center,float size,Color color)

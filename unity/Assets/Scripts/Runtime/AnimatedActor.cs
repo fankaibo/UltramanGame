@@ -121,7 +121,10 @@ namespace UltramanGame.Runtime
                 else if(state.Phase==GamePhase.Victory)
                 {frame=7;jump=Mathf.Abs(Mathf.Sin(Mathf.Min(phaseAge,2)*Mathf.PI))*.12f;}
                 else if(fighting&&state.Action==HeroAction.Hurt)
-                {frame=5;forward=-Mathf.Sin(Mathf.Clamp01(state.ActionAge/.55f)*Mathf.PI)*.18f;tilt=3;}
+                {
+                    float p=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.55f)*Mathf.PI);
+                    frame=5;forward=-p*.18f;tilt=28*p;jump=-.14f*p;
+                }
                 else if(fighting&&state.Action==HeroAction.Beam)
                 {frame=4;forward=.1f;}
                 else if(fighting&&state.Shield)frame=3;

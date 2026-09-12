@@ -12,13 +12,16 @@ namespace UltramanGame.Editor
     public static class CinematicReview
     {
         public static void RenderRelease() {RiggedReview.ReviewLiveRelease();Render();}
+        public static void RenderCityRelease() {RiggedReview.ValidateMotion();CharacterReview.Render();RenderAt("arcade-city");}
         [MenuItem("UltramanGame/Render full cinematic battle")]
         public static void Render()
+        {RenderAt("cinematic-combat");}
+        static void RenderAt(string outputFolder)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(20260909);
             var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/cinematic-combat"));Directory.CreateDirectory(folder+"/frames");
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts",outputFolder));Directory.CreateDirectory(folder+"/frames");
             foreach(var old in Directory.GetFiles(folder+"/frames","frame-????.png"))File.Delete(old);
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16/9f;
             var events=new StringBuilder("seconds,event,health,energy\n");int beams=0,output=0;bool paused=false;float victory=-1;
@@ -32,7 +35,7 @@ namespace UltramanGame.Editor
                 if(battle.Phase==GamePhase.Paused)paused=true;
                 hero.Update(battle,world.Camera,dt,time);enemy.Update(battle,world.Camera,dt,time);
                 if(battle.EnemyHealth<lastHealth)world.Hit(lastHealth-battle.EnemyHealth>1,battle);lastHealth=battle.EnemyHealth;
-                world.Tick(battle,dt,time);enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                world.Tick(battle,dt,time);enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)beams++;
                 if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.png");output++;}
                 if(battle.Phase==GamePhase.Victory){if(victory<0)victory=time;if(time-victory>3)break;}
