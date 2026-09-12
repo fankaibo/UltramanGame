@@ -64,8 +64,23 @@ namespace UltramanGame.Runtime
         {var t=GameWorld.Primitive("Collapsed ruin",PrimitiveType.Cube,transform,p+Vector3.up*height*.5f,new Vector3(width,height,width*.75f),m);t.rotation=Quaternion.Euler(0,random.Next(0,180),random.Next(-8,8));}
         void Volcano(Vector3 p,float radius,float height,Material m)
         {
-            var t=GameWorld.Primitive("Volcano cone",PrimitiveType.Cylinder,transform,p+Vector3.up*height*.45f,new Vector3(radius,height,radius),m);
-            t.rotation=Quaternion.Euler(0,random.Next(0,360),0);
+            // A tapered mesh reads as a volcano in the fixed 45-degree lens;
+            // cylinders looked like featureless black towers from the arena.
+            const int segments=24;
+            var mesh=new Mesh{name="Volcano cone mesh"};
+            var vertices=new Vector3[segments*2];var triangles=new int[segments*6];
+            for(int i=0;i<segments;i++)
+            {
+                float a=i*Mathf.PI*2/segments,cs=Mathf.Cos(a),sn=Mathf.Sin(a);
+                vertices[i]=new Vector3(cs*radius,0,sn*radius);
+                vertices[segments+i]=new Vector3(cs*radius*.16f,height,sn*radius*.16f);
+                int n=(i+1)%segments;int at=i*6;
+                triangles[at]=i;triangles[at+1]=n;triangles[at+2]=segments+i;
+                triangles[at+3]=n;triangles[at+4]=segments+n;triangles[at+5]=segments+i;
+            }
+            mesh.vertices=vertices;mesh.triangles=triangles;mesh.RecalculateNormals();RuntimeResources.Own(transform,mesh);
+            var obj=new GameObject("Volcano cone");obj.transform.SetParent(transform,false);obj.transform.localPosition=p;obj.transform.localRotation=Quaternion.Euler(0,random.Next(0,360),0);
+            obj.AddComponent<MeshFilter>().sharedMesh=mesh;obj.AddComponent<MeshRenderer>().sharedMaterial=m;
             GameWorld.Primitive("Crater glow",PrimitiveType.Cylinder,transform,p+Vector3.up*(height+.03f),new Vector3(radius*.34f,.025f,radius*.34f),lava);
         }
         LineRenderer Line(string name,int points,float width)
