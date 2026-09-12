@@ -43,10 +43,10 @@ namespace UltramanGame.Runtime
             cinematic=Camera.GetComponent<CinematicCamera>();
             if(!cinematic)cinematic=Camera.gameObject.AddComponent<CinematicCamera>();
             if(!Object.FindFirstObjectByType<AudioListener>())Camera.gameObject.AddComponent<AudioListener>();
-            backdropMaterial=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("VolcanoBackdrop")));
-            backdropMaterial.SetFloat("_Clock",0);
+            backdropMaterial=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("Backdrop")));
+            backdropMaterial.mainTexture=Resources.Load<Texture2D>("Art/VolcanoFujiNight");
             var backMat=backdropMaterial;
-            backdrop=Primitive("City skyline",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
+            backdrop=Primitive("Realistic Mount Fuji night backdrop",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
             backdrop.rotation=Camera.transform.rotation;
             var key=Directional(root,"Volcanic moon key",new Color(.62f,.70f,1),.72f,new Vector3(38,-38,0));
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
@@ -108,10 +108,10 @@ namespace UltramanGame.Runtime
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
-            float aspect=16f/9f;
+            var texture=backdropMaterial.mainTexture;
+            float aspect=texture?texture.width/(float)texture.height:16f/9f;
             float scale=Mathf.Max(1,Camera.aspect/aspect)*1.5f;
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
-            backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
             backdrop.rotation=backgroundRotation;
             backdrop.position=cameraHome+backgroundRotation*new Vector3(0,h*(scale-1)*.5f,80);
