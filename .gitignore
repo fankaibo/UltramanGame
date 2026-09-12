@@ -13,6 +13,8 @@ models/*
 recordings/
 captures/
 artifacts/
+*.MP4
+*.mp4
 logs/
 **/bin/
 **/obj/
