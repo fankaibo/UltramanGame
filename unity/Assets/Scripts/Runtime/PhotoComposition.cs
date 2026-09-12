@@ -27,9 +27,9 @@ namespace UltramanGame.Runtime
             camera.aspect=16f/9;camera.cullingMask=1<<31;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.03f,.06f,.12f);
             camera.nearClipPlane=.1f;camera.farClipPlane=30;
             Preview=new RenderTexture(Width,Height,16,RenderTextureFormat.ARGB32);Preview.Create();camera.targetTexture=Preview;
-            var city=Resources.Load<Texture2D>("Art/CityDusk");
-            background=Layer("City",city,out var cityQuad);background.renderQueue=3000;
-            float scale=Mathf.Max(16f/city.width,9f/city.height);cityQuad.localScale=new Vector3(city.width*scale,city.height*scale,1);cityQuad.localPosition=new Vector3(0,(city.height*scale-9)/2,2);
+            var volcano=Resources.Load<Texture2D>("Art/VolcanoDusk");
+            background=Layer("Volcanic ruins",volcano,out var volcanoQuad);background.renderQueue=3000;
+            float scale=Mathf.Max(16f/volcano.width,9f/volcano.height);volcanoQuad.localScale=new Vector3(volcano.width*scale,volcano.height*scale,1);volcanoQuad.localPosition=new Vector3(0,(volcano.height*scale-9)/2,2);
             var atlas=Resources.Load<Texture2D>("Art/TigaPhotoActions");
             if(!atlas)throw new InvalidOperationException("Missing photo Tiga atlas");
             heroAtlas=atlas;
