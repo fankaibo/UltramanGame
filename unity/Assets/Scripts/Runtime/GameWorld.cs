@@ -18,6 +18,7 @@ namespace UltramanGame.Runtime
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop;
+        readonly CinematicCamera cinematic;
         readonly MonsterAttackEffects monsterEffects;
         readonly CombatVfx effects;
         readonly ArcadeStageFx arcade;
@@ -38,7 +39,8 @@ namespace UltramanGame.Runtime
             Camera.tag="MainCamera";Camera.transform.position=cameraHome;Camera.transform.LookAt(lookAt);Camera.fieldOfView=39;
             Camera.clearFlags=CameraClearFlags.SolidColor;Camera.backgroundColor=new Color(.015f,.03f,.08f);Camera.farClipPlane=150;Camera.allowHDR=true;
             if(!Camera.GetComponent<ContactShadows>())Camera.gameObject.AddComponent<ContactShadows>();
-            if(!Camera.GetComponent<CinematicCamera>())Camera.gameObject.AddComponent<CinematicCamera>();
+            cinematic=Camera.GetComponent<CinematicCamera>();
+            if(!cinematic)cinematic=Camera.gameObject.AddComponent<CinematicCamera>();
             if(!Object.FindFirstObjectByType<AudioListener>())Camera.gameObject.AddComponent<AudioListener>();
             var backMat=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("Backdrop")));backMat.mainTexture=Resources.Load<Texture2D>("Art/CityDusk");
             backdrop=Primitive("City skyline",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
@@ -74,6 +76,7 @@ namespace UltramanGame.Runtime
         public void Hit(bool special,Battle state)
         {
             Kick(special?.10f:.045f,special);
+            cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.72f:.22f);
             // Use the monster's position at this contact, including its own forward step.
             var position=special||hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             effects.Impact(position,special);
