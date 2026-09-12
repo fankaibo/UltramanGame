@@ -5,7 +5,7 @@ Shader "Training/DistrictBuilding" {
   CGPROGRAM
   #pragma surface surf Standard fullforwardshadows
   #pragma target 3.0
-  fixed4 _Color;
+  fixed4 _Color;float _Clock;
   struct Input {float3 worldPos;float3 worldNormal;};
   float hash(float2 p){return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453);}
   void surf(Input i,inout SurfaceOutputStandard o){
@@ -17,6 +17,10 @@ Shader "Training/DistrictBuilding" {
    pane*=1-step(.5,abs(i.worldNormal.y));
    float r=hash(floor(cell));float lit=step(.52,r)*pane;
    float3 light=lerp(float3(.16,.43,.58),float3(.95,.61,.26),step(.84,r));
+   // Only a small, deterministic subset of windows breathes, keeping the city alive
+   // without instantiating animated objects or changing the static mesh batches.
+   float blink=step(.93,r)*(.5+.5*sin(_Clock*(2.2+r*3.1)+r*40));
+   lit*=lerp(1,blink,.28);
    o.Albedo=lerp(_Color.rgb*.7,_Color.rgb*1.5,pane);
    o.Emission=light*lit*.56;o.Metallic=.42*pane;o.Smoothness=.4+.4*pane;
   }

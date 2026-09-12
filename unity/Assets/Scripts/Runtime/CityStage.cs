@@ -73,6 +73,10 @@ namespace UltramanGame.Runtime
             RenderSettings.defaultReflectionMode=DefaultReflectionMode.Custom;RenderSettings.customReflectionTexture=reflections;RenderSettings.reflectionIntensity=.75f;
             CombineStaticGeometry();
         }
+        void Update()
+        {
+            if(glass)glass.SetFloat("_Clock",Time.unscaledTime);
+        }
         void Building(float x,float z,float width,float depth,float height,int variation)
         {
             Box("Windowed tower",new Vector3(x,height/2,z),new Vector3(width,height,depth),glass);
