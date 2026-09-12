@@ -119,6 +119,23 @@ namespace UltramanGame.Runtime
                 float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
                 Camera.transform.position+=new Vector3(-.22f*rush,-.13f*rush,.28f*rush);
                 target+=new Vector3(-.1f*rush,0,0);
+
+                // A short arcade lens move makes each exchange readable on a TV.
+                // It is intentionally small and uses the same deterministic battle clock
+                // as the actors, so it never changes gesture timing or gameplay state.
+                bool heroStrike=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+                float strike=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.42f)*Mathf.PI);
+                if(heroStrike)
+                {
+                    float side=state.Action==HeroAction.LeftPunch?-1:1;
+                    Camera.transform.position+=BattleAxis*(.16f*strike)+Camera.transform.right*(side*.06f*strike);
+                    target+=BattleAxis*(.10f*strike)+Vector3.up*(.035f*strike);
+                }
+                if(rush>.01f)
+                {
+                    Camera.transform.position+=BattleAxis*(.11f*rush);
+                    target+=BattleAxis*(.08f*rush);
+                }
             }
             if(!Showcase&&state.Phase==GamePhase.Transforming)
             {
