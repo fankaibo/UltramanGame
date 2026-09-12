@@ -39,6 +39,15 @@ namespace UltramanGame.Runtime
                     hud.Text(new Rect(37,235,210,77),battle.Punches.ToString("00"),50+(int)(pulse*7),new Color(1,.88f,.52f),bold:true);
                     hud.Text(new Rect(43,306,215,25),"HIT  /  漂亮出击",14,HudPainter.Ink,bold:true);
                     hud.Line(new Vector2(42,335),new Vector2(121,335),gold,2);
+
+                    // The reference cabinet keeps its score at the edge of the playfield.
+                    // Five quiet stars make the combo feel earned without covering either actor.
+                    hud.Text(new Rect(1190,198,60,20),"评分",10,HudPainter.Muted,TextAnchor.MiddleCenter);
+                    for(int i=0;i<5;i++)
+                    {
+                        float earned=Mathf.Clamp01((battle.Punches-i*3)/3f);
+                        Star(new Vector2(1220,236+i*38),11,.16f+.84f*earned);
+                    }
                 }
                 if(time<hitUntil)
                 {
