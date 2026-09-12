@@ -12,9 +12,11 @@ namespace UltramanGame.Runtime
         bool proofBusy;
         void CaptureGuidedProof()
         {
-            if(!Debug.isDebugBuild||pose?.source!="synthetic"||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            bool proofInput=pose?.source=="synthetic"||review!=null;
+            if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            if(review!=null&&battle.Action==HeroAction.Hurt&&battle.ActionAge<.18f)return;
             string key=photo.Active?"photo-"+photo.Stage+(photo.Stage==PhotoStage.Framing?(photo.HasLivePerson?"-live":"-preparing"):""):
-                battle.Phase==GamePhase.Battle?(world.Closeup.Focus>.999f?"beam-closeup-peak":world.Closeup.Active?"beam-closeup":world.BeamVisible?"beam-firing":battle.Enemy==EnemyPhase.Attack?"monster-rush":battle.Enemy==EnemyPhase.Windup?"guard-guide":battle.Energy>=15?"beam-guide":battle.Punches>2?"battle":"battle-entry"):
+                battle.Phase==GamePhase.Battle?(world.Closeup.Focus>.999f?"beam-closeup-peak":world.Closeup.Active?"beam-closeup":world.BeamVisible?"beam-firing":battle.Action==HeroAction.Hurt?"hero-hurt":battle.Enemy==EnemyPhase.Attack?"monster-rush":battle.Enemy==EnemyPhase.Windup?"guard-guide":battle.Energy>=15?"beam-guide":battle.Punches>2?"battle":"battle-entry"):
                 battle.Phase.ToString();
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));
