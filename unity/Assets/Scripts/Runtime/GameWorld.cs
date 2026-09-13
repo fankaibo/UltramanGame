@@ -108,6 +108,7 @@ namespace UltramanGame.Runtime
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
             float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?30:31):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
+            float dynamicZoom=0;
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
             var texture=backdropMaterial.mainTexture;
@@ -138,13 +139,15 @@ namespace UltramanGame.Runtime
                 if(heroStrike)
                 {
                     float side=state.Action==HeroAction.LeftPunch?-1:1;
-                    Camera.transform.position+=BattleAxis*(.16f*strike)+Camera.transform.right*(side*.06f*strike);
-                    target+=BattleAxis*(.10f*strike)+Vector3.up*(.035f*strike);
+                    Camera.transform.position+=BattleAxis*(.22f*strike)+Camera.transform.right*(side*.10f*strike);
+                    target+=BattleAxis*(.14f*strike)+Vector3.up*(.045f*strike);
+                    dynamicZoom+=.8f*strike;
                 }
                 if(rush>.01f)
                 {
-                    Camera.transform.position+=BattleAxis*(.11f*rush);
-                    target+=BattleAxis*(.08f*rush);
+                    Camera.transform.position+=BattleAxis*(.18f*rush);
+                    target+=BattleAxis*(.12f*rush);
+                    dynamicZoom+=.65f*rush;
                 }
             }
             if(!Showcase&&state.Phase==GamePhase.Transforming)
@@ -155,6 +158,9 @@ namespace UltramanGame.Runtime
             }
             if(!Showcase&&state.Phase==GamePhase.Victory)
                 target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,Mathf.SmoothStep(0,1,(arcade.PhaseAge-1)/3)*.6f);
+            // Briefly tighten the lens during a strike or rush, then ease back
+            // to the child-friendly wide framing instead of holding a zoom.
+            Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
             Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)
             {
