@@ -192,12 +192,16 @@ def author(rig, targets, live_combat=False):
         'Idle': [(0, {}), (.5, dict(sink=.025, sway=3)), (1, dict(sink=.018, sway=-3)), (1.5, dict(sink=.012,sway=2)), (2, {})],
         'Windup': [(0, {}), (.4, dict(sink=.035, lean=-5, jaw=18, right=(-.40,.02,1.25), sway=9)),
                    (1.1, dict(sink=.06, lean=12, jaw=24,right=(-.37,.00,1.20),left=(.32,-.30,1.02),sway=-8)), (1.5, dict(sink=.05,lean=14,jaw=24,right=(-.38,.01,1.22),sway=9))],
-        'Attack': [(0, dict(sink=.05,lean=14,left=(.52,-.18,1.12),right=(-.32,-.18,1.12),jaw=20)),
-                   (.16, dict(sink=.02,lean=15,foot_l=(0,-.10,.10),foot_r=(0,.04,0),left=(.58,-.25,1.16),right=(-.38,-.25,1.16),jaw=24,sway=-8)),
-                   (.30, dict(sink=.04,lean=16,foot_l=(0,-.16,0),foot_r=(0,.04,0),left=(.66,-.40,1.09),right=(-.46,-.40,1.09),jaw=20,sway=10)),
-                   (.4, dict(sink=.065,lean=18,yaw=0,foot_l=(0,-.15,0),left=(.63,-.48,1.04),right=(-.44,-.48,1.04),jaw=24,sway=12)),
-                   (.55, dict(sink=.07,lean=16,yaw=0,left=(.56,-.40,1.02),right=(-.36,-.40,1.02),foot_l=(0,-.12,0),sway=9)),
-                   (.8, dict(sink=.035,lean=6,foot_l=(0,-.05,.04),sway=-6)), (1.05,{})],
+        # The live attack is a readable single-claw lunge.  The near hand stays
+        # across the chest while the lead hand opens and reaches through the
+        # contact point; this keeps the silhouette from becoming a symmetric
+        # T-pose and gives the planted leg a visible weight transfer.
+        'Attack': [(0, dict(sink=.05,lean=7,yaw=-6,left=(.34,-.18,1.08),right=(-.22,-.12,1.02),jaw=16,sway=4)),
+                   (.16, dict(sink=.02,lean=10,yaw=-10,foot_l=(0,-.10,.10),foot_r=(0,.04,0),left=(.26,-.18,1.12),right=(-.42,-.34,1.16),jaw=23,sway=-6)),
+                   (.30, dict(sink=.04,lean=13,yaw=-14,foot_l=(0,-.16,0),foot_r=(0,.04,0),left=(.22,-.12,1.08),right=(-.61,-.57,1.10),jaw=26,sway=8)),
+                   (.4, dict(sink=.065,lean=15,yaw=-12,foot_l=(0,-.15,0),left=(.20,-.10,1.05),right=(-.58,-.63,1.05),jaw=24,sway=10)),
+                   (.55, dict(sink=.07,lean=12,yaw=-7,left=(.28,-.18,1.06),right=(-.43,-.42,1.06),foot_l=(0,-.12,0),sway=7)),
+                   (.8, dict(sink=.035,lean=5,yaw=-2,left=(.38,-.18,1.08),right=(-.27,-.16,1.03),foot_l=(0,-.05,.04),sway=-4)), (1.05,{})],
         'Hurt': [(0,{}),(.1,dict(lean=-14,sink=.05,yaw=10,jaw=18,right=(-.40,-.07,1.08),left=(.37,-.10,1.12),sway=14)),(.23,dict(lean=-7,sink=.04,jaw=8,sway=-7)),(.4,{})],
         'Defeat': [(0,{}),(.25,dict(lean=-18,jaw=25,sink=.03,sway=14)),(.8,dict(lean=16,sink=.12,jaw=12,right=(-.28,-.25,.92),left=(.29,-.25,.92),sway=-8)),
                    (1.5,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86))), (2.4,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86)))],
