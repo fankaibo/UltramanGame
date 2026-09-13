@@ -29,6 +29,7 @@ namespace UltramanGame.Runtime
         Transform hand,leftHand,forearm;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
+        public Vector3 EnemyStrikeOrigin(int attackCount) => attackCount%2==0&&leftHand?leftHand.position:HandPosition;
         public Vector3 BeamOrigin => hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
 
         public static RiggedActor CreateIfAvailable(string name,Vector3 position,Vector3 opponent,bool monster)

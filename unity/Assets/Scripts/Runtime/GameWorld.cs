@@ -177,7 +177,7 @@ namespace UltramanGame.Runtime
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
-            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.HandPosition:null);
+            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;
             BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
