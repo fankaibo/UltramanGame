@@ -15,6 +15,11 @@ namespace UltramanGame.Editor
         public static void Render()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+            foreach(string name in new[]{"Backdrop","VolcanoGround"})
+            {
+                var shader=Resources.Load<Shader>(name);
+                if(!shader||ShaderUtil.ShaderHasError(shader))throw new Exception("Invalid arena shader: "+name);
+            }
             var world=new GameWorld();var state=new Battle();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
@@ -80,7 +85,10 @@ namespace UltramanGame.Editor
             state.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});
             while(state.TryCue(out var cue))world.Cue(cue);
             int[] captures={5,18,42,54,62,76,90};int capture=0,beamStarts=0;
-            for(int frame=0;frame<=100;frame++)
+            // Include the presentation hold plus the delayed damage beat.  A
+            // fixed 100-frame capture ended before a 1.35 s closeup could hit.
+            int lastFrame=Mathf.CeilToInt((BeamCloseup.Duration+1f)*60);
+            for(int frame=0;frame<=lastFrame;frame++)
             {
                 state.Tick(world.Closeup.Active?0:1/60f,new PlayerInput {Tracking=true});
                 hero.Update(state,world.Camera,1/60f,frame/60f);enemy.Update(state,world.Camera,1/60f,frame/60f);

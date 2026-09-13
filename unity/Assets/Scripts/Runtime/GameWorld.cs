@@ -23,6 +23,7 @@ namespace UltramanGame.Runtime
         readonly MonsterAttackEffects monsterEffects;
         readonly CombatVfx effects;
         readonly ArcadeStageFx arcade;
+        readonly VolcanoStage volcano;
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
@@ -45,21 +46,22 @@ namespace UltramanGame.Runtime
             if(!Object.FindFirstObjectByType<AudioListener>())Camera.gameObject.AddComponent<AudioListener>();
             backdropMaterial=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("Backdrop")));
             backdropMaterial.mainTexture=Resources.Load<Texture2D>("Art/VolcanoFujiNight");
+            backdropMaterial.SetFloat("_Clock",0);
             var backMat=backdropMaterial;
             backdrop=Primitive("Realistic Mount Fuji night backdrop",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
             backdrop.rotation=Camera.transform.rotation;
             var key=Directional(root,"Volcanic moon key",new Color(.62f,.70f,1),.72f,new Vector3(38,-38,0));
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
             Directional(root,"Ash sky fill",new Color(.18f,.24f,.52f),.28f,new Vector3(25,130,0));
-            Directional(root,"Lava rim",new Color(1,.16f,.045f),.72f,new Vector3(18,155,0));
+            Directional(root,"Lava rim",new Color(1,.28f,.10f),.32f,new Vector3(18,155,0));
             QualitySettings.shadowDistance=30;QualitySettings.antiAliasing=4;QualitySettings.shadows=ShadowQuality.All;
             QualitySettings.shadowResolution=UnityEngine.ShadowResolution.High;QualitySettings.pixelLightCount=6;
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor=new Color(.12f,.035f,.09f);RenderSettings.ambientEquatorColor=new Color(.08f,.018f,.035f);
-            RenderSettings.ambientGroundColor=new Color(.028f,.012f,.02f);
+            RenderSettings.ambientSkyColor=new Color(.18f,.21f,.27f);RenderSettings.ambientEquatorColor=new Color(.11f,.125f,.15f);
+            RenderSettings.ambientGroundColor=new Color(.04f,.045f,.052f);
             RenderSettings.fog=true;RenderSettings.fogMode=FogMode.Linear;RenderSettings.fogStartDistance=13;RenderSettings.fogEndDistance=42;
-            RenderSettings.fogColor=new Color(.075f,.018f,.028f);
-            VolcanoStage.Create(root);
+            RenderSettings.fogColor=new Color(.11f,.125f,.145f);
+            volcano=VolcanoStage.Create(root);
             monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);arcade=new ArcadeStageFx(root,HeroHome);
         }
         static Light Directional(Transform parent,string name,Color color,float intensity,Vector3 angles)
@@ -112,6 +114,7 @@ namespace UltramanGame.Runtime
             float aspect=texture?texture.width/(float)texture.height:16f/9f;
             float scale=Mathf.Max(1,Camera.aspect/aspect)*1.5f;
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
+            backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
             backdrop.rotation=backgroundRotation;
             backdrop.position=cameraHome+backgroundRotation*new Vector3(0,h*(scale-1)*.5f,80);
@@ -163,6 +166,8 @@ namespace UltramanGame.Runtime
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,h*(scale-1)*.5f,80);
             }
+            volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
+            volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.HandPosition:null);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;
