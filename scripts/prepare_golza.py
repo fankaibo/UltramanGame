@@ -153,7 +153,10 @@ def author(rig, targets, live_combat=False):
                  # The source mesh's right shoulder sits farther inward after
                  # mirrored IK bake, so give that hand a little extra lateral
                  # clearance to keep both palms outside the chest silhouette.
-                 left=(.52, -.23, 1.07), right=(-.32, -.23, 1.07), sway=0)
+                 # Keep the resting claws bent in front of the ribcage.  The
+                 # earlier wide targets made the idle silhouette read as a
+                 # rigid T-pose even though the attack clip was asymmetric.
+                 left=(.34, -.10, 1.02), right=(-.23, -.08, 1.00), sway=0)
         p.update(pose)
         pelvis = rig.pose.bones['bip_pelvis']
         rotate('bip_pelvis', (0, 0, 1), p['yaw'])

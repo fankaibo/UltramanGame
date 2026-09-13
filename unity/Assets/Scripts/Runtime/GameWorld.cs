@@ -106,7 +106,9 @@ namespace UltramanGame.Runtime
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?30:31):37;
+            // Give the two fighters the visual priority of an arcade cabinet while
+            // retaining enough margin for the feet, effects and camera preview.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?30:28):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
