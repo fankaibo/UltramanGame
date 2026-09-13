@@ -70,6 +70,14 @@ def import_source(source, output, sourceio):
             mat = bpy.data.materials.new('GolzaEyes' if eye else 'GolzaHide')
             mat.use_nodes = True
             shader = mat.node_tree.nodes.get('Principled BSDF')
+            if shader is None:
+                # Blender 4.5 can import SourceIO materials without a surface
+                # node.  Keep the conversion deterministic by creating the
+                # standard surface and wiring it to the material output.
+                shader = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+                output = mat.node_tree.nodes.get('Material Output') or mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+                if not output.inputs['Surface'].is_linked:
+                    mat.node_tree.links.new(shader.outputs['BSDF'], output.inputs['Surface'])
             shader.inputs['Roughness'].default_value = .54 if eye else .68
             texture = mat.node_tree.nodes.new('ShaderNodeTexImage')
             texture.image = images['GolzaEyes' if eye else 'GolzaBody']
@@ -180,6 +188,8 @@ def author(rig, targets, live_combat=False):
             point = targets[name].copy()
             if name.startswith('HandIK'):
                 point = Vector(p['left' if name.endswith('L') else 'right'])
+            elif name.startswith('Elbow_'):
+                point = Vector(p.get('elbow_l' if name.endswith('L') else 'elbow_r', targets[name]))
             elif name.startswith('FootIK'):
                 point += Vector(p.get('foot_l' if name.endswith('L') else 'foot_r', (0, 0, 0)))
             matrix.translation = point
@@ -209,16 +219,20 @@ def author(rig, targets, live_combat=False):
         'Defeat': [(0,{}),(.25,dict(lean=-18,jaw=25,sink=.03,sway=14)),(.8,dict(lean=16,sink=.12,jaw=12,right=(-.28,-.25,.92),left=(.29,-.25,.92),sway=-8)),
                    (1.5,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86))), (2.4,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86)))],
     }
-    # Mirror the lead claw and torso yaw for every other rush.  Keeping this as
-    # a second baked clip lets the runtime alternate hands without applying a
-    # root mirror that would reverse the actor's facing direction.
+    # Author the alternate rush as a separate left-claw action.  Mirroring the
+    # right-hand target around the torso is not enough for this imported rig:
+    # its left elbow folds across the chest when the depth coordinate keeps the
+    # original sign.  Flip the depth as well, keep the right claw tucked in,
+    # and move the left elbow pole to the outside so the second strike reads as
+    # one clean, forward-facing swipe.
     mirrored=[]
     for t, pose in motions['Attack']:
         mirrored_pose=dict(pose)
-        for side in ('left','right'):
-            value=mirrored_pose.get(side)
-            if value is not None: mirrored_pose[side]=(-value[0],value[1],value[2])
+        lead=pose.get('right',(-.23,-.08,1.00))
+        mirrored_pose['left']=(-lead[0],-lead[1],lead[2])
+        mirrored_pose['right']=(-.24,-.12,1.02)
         if 'yaw' in mirrored_pose: mirrored_pose['yaw']=-mirrored_pose['yaw']
+        mirrored_pose['elbow_l']=(.65,.10,1.05)
         if 'foot_l' in mirrored_pose or 'foot_r' in mirrored_pose:
             mirrored_pose['foot_l'],mirrored_pose['foot_r']=mirrored_pose.get('foot_r',(0,0,0)),mirrored_pose.get('foot_l',(0,0,0))
         mirrored.append((t,mirrored_pose))

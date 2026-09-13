@@ -30,3 +30,6 @@ No changes to source meshes or skin weights.
 2026-09-14: re-authored the live-combat Attack clip as a single-claw lunge: the lead hand reaches through contact while the off hand guards the chest, with asymmetric torso yaw and planted-foot weight transfer.
 2026-09-14: tightened the Idle hand targets into a relaxed bent-claw guard near the ribcage so the resting silhouette no longer reads as a wide T-pose.
 2026-09-14: added a mirrored AttackAlt clip; successive enemy rushes now alternate the lead claw while preserving the same warning, contact and recovery clocks.
+2026-09-14: re-authored AttackAlt as a dedicated left-claw forward swipe with an outside elbow pole and tucked off hand; the previous mirrored cross-chest pose is no longer used.
+
+Current FBX SHA-256: d4ab85bef1042482e890a02f067150c89c1c642dbbe640ecbf955e33f8c900ea
