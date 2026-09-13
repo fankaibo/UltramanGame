@@ -51,7 +51,7 @@ namespace UltramanGame.Runtime
                 string key=clip.name.Substring(clip.name.LastIndexOf('|')+1);
                 clips[key]=clip;
             }
-            foreach(string required in monster?new[]{"Idle","Windup","Attack","Hurt","Defeat"}:
+            foreach(string required in monster?new[]{"Idle","Windup","Attack","AttackAlt","Hurt","Defeat"}:
                 new[]{"Idle","LeftPunch","RightPunch","Guard","Beam","Hurt","Transform","Victory"})
                 if(!clips.ContainsKey(required))throw new InvalidOperationException(name+" is missing animation "+required);
             clips["Idle"].SampleAnimation(model,0);
@@ -159,7 +159,7 @@ namespace UltramanGame.Runtime
                 if(state.Phase==GamePhase.Transforming&&clips.ContainsKey("Walk"))
                 {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
                 else if(state.Phase==GamePhase.Victory) {next="Defeat";sample=phaseAge;Frame=7;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1.5f)/1.5f);}
-                else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next="Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
+                else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
                 else if(state.Phase==GamePhase.Battle&&hitAge<.4f) {next="Hurt";sample=hitAge;Frame=heavyHit?6:5;travel=-Mathf.Sin(hitAge/.4f*Mathf.PI)*(heavyHit?.22f:.12f);}
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {

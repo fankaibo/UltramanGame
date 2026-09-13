@@ -24,6 +24,9 @@ namespace UltramanGame.Core
         public float ResumeProgress { get; private set; }
         public bool Shield { get; private set; }
         public int Punches { get; private set; }
+        // Increments at the start of each telegraphed rush so presentation can
+        // alternate the monster's lead claw without changing combat timing.
+        public int EnemyAttackCount { get; private set; }
         public int Blocks { get; private set; }
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
@@ -148,7 +151,7 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Windup; EnemyAge=0;WarningDuration=WindupSeconds; Cue(GameCue.Warning); }
             else if(Enemy==EnemyPhase.Windup && EnemyAge>=WarningDuration)
             {
-                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.EnemyAttack);
+                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;EnemyAttackCount++;Cue(GameCue.EnemyAttack);
             }
             else if(Enemy==EnemyPhase.Attack)
             {

@@ -209,6 +209,20 @@ def author(rig, targets, live_combat=False):
         'Defeat': [(0,{}),(.25,dict(lean=-18,jaw=25,sink=.03,sway=14)),(.8,dict(lean=16,sink=.12,jaw=12,right=(-.28,-.25,.92),left=(.29,-.25,.92),sway=-8)),
                    (1.5,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86))), (2.4,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86)))],
     }
+    # Mirror the lead claw and torso yaw for every other rush.  Keeping this as
+    # a second baked clip lets the runtime alternate hands without applying a
+    # root mirror that would reverse the actor's facing direction.
+    mirrored=[]
+    for t, pose in motions['Attack']:
+        mirrored_pose=dict(pose)
+        for side in ('left','right'):
+            value=mirrored_pose.get(side)
+            if value is not None: mirrored_pose[side]=(-value[0],value[1],value[2])
+        if 'yaw' in mirrored_pose: mirrored_pose['yaw']=-mirrored_pose['yaw']
+        if 'foot_l' in mirrored_pose or 'foot_r' in mirrored_pose:
+            mirrored_pose['foot_l'],mirrored_pose['foot_r']=mirrored_pose.get('foot_r',(0,0,0)),mirrored_pose.get('foot_l',(0,0,0))
+        mirrored.append((t,mirrored_pose))
+    motions['AttackAlt']=mirrored
     # A slow approach with planted feet, separate from the quick attack clip.
     walk = []
     for i in range(17):
@@ -252,7 +266,7 @@ def render(output, rig, actions):
         data=bpy.data.lights.new(name,'AREA');data.energy=power;data.color=color;data.shape='DISK';data.size=size
         obj=bpy.data.objects.new(name,data);scene.collection.objects.link(obj);obj.location=loc
         obj.rotation_euler=(Vector((0,0,.9))-obj.location).to_track_quat('-Z','Y').to_euler()
-    for name,t in [('Idle',0),('Windup',1.1),('Attack',.4),('Hurt',.1),('Defeat',1.5)]:
+    for name,t in [('Idle',0),('Windup',1.1),('Attack',.4),('AttackAlt',.4),('Hurt',.1),('Defeat',1.5)]:
         rig.animation_data.action=actions[name];scene.frame_set(1+round(t*60))
         scene.render.filepath=str(output/(name+'.png'));bpy.ops.render.render(write_still=True)
 
