@@ -108,7 +108,11 @@ namespace UltramanGame.Runtime
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
             // Give the two fighters the visual priority of an arcade cabinet while
             // retaining enough margin for the feet, effects and camera preview.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?30:28):37;
+            // Keep the fighters large enough to read on a television from across
+            // the room.  The close-up still owns the special-move hero shot; this
+            // tighter battle baseline gives ordinary exchanges the same arcade
+            // presence without changing gameplay timing or cropping the feet.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?27:25):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
