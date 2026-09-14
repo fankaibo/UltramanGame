@@ -12,6 +12,8 @@ namespace UltramanGame.Runtime
         readonly List<float> emberAge=new List<float>();
         readonly LineRenderer[] meteors=new LineRenderer[3];
         readonly LineRenderer[] lavaStreams=new LineRenderer[3];
+        readonly LineRenderer[] eruptionJets=new LineRenderer[4];
+        readonly Light[] ventLights=new Light[2];
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
         Material ground,glow;
@@ -59,6 +61,16 @@ namespace UltramanGame.Runtime
                 }
             }
             for(int i=0;i<meteors.Length;i++)meteors[i]=Line("Distant meteor",2,.013f);
+            // Two staggered lava fountains add a readable moving layer behind the
+            // fighters.  They are deliberately lightweight line effects so the
+            // same deterministic stage clock works in live play and captures.
+            for(int i=0;i<ventLights.Length;i++)
+            {
+                var lightObject=new GameObject("Volcano vent light");lightObject.transform.SetParent(transform,false);
+                ventLights[i]=lightObject.AddComponent<Light>();ventLights[i].type=LightType.Point;
+                ventLights[i].color=new Color(1,.20f,.045f);ventLights[i].range=9;ventLights[i].intensity=0;
+            }
+            for(int i=0;i<eruptionJets.Length;i++)eruptionJets[i]=Line("Eruption lava jet",18,.048f);
             for(int i=0;i<26;i++)
             {
                 var t=GameWorld.Primitive("Vent ember",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*Range(.017f,.032f),emberMaterial);
@@ -117,6 +129,8 @@ namespace UltramanGame.Runtime
         {
             ground.SetTexture("_BackdropTex",texture);ground.SetMatrix("_BackdropWorldToLocal",worldToLocal);ground.SetFloat("_Clock",clock);
         }
+        static void ColorLine(LineRenderer line,Color color,float alpha)
+        {color.a=alpha;line.startColor=color;line.endColor=color;}
         public void Tick(float time)
         {
             for(int i=0;i<meteors.Length;i++)
@@ -129,6 +143,27 @@ namespace UltramanGame.Runtime
             }
             for(int i=0;i<lavaStreams.Length;i++)
             {var color=new Color(1,.25f,.055f,.18f+.07f*Mathf.Sin(time*.7f+i));lavaStreams[i].startColor=lavaStreams[i].endColor=color;}
+            for(int vent=0;vent<vents.Length;vent++)
+            {
+                var origin=vents[vent];origin.y=Height(origin.x,origin.z)+.05f;
+                float cycle=Mathf.Repeat(time*.82f+vent*1.17f,2.8f)/2.8f;
+                float envelope=Mathf.Sin(cycle*Mathf.PI);
+                ventLights[vent].transform.position=origin+Vector3.up*.35f;
+                ventLights[vent].intensity=envelope*2.4f;
+                for(int jet=0;jet<2;jet++)
+                {
+                    var line=eruptionJets[vent*2+jet];line.enabled=envelope>.025f;
+                    if(!line.enabled)continue;
+                    float height=(2.2f+vent*.35f+Mathf.Sin(time*2.1f+jet)*.24f)*envelope;
+                    for(int j=0;j<line.positionCount;j++)
+                    {
+                        float t=j/(float)(line.positionCount-1);
+                        float sway=(jet==0?-1:1)*(.08f+.22f*t)*Mathf.Sin(t*Mathf.PI);
+                        line.SetPosition(j,origin+new Vector3(sway,height*t-.34f*height*t*t,.06f*Mathf.Sin(time*1.7f+t*4+jet)));
+                    }
+                    ColorLine(line,new Color(1,.30f,.06f),envelope*.62f);
+                }
+            }
             for(int i=0;i<embers.Count;i++)
             {
                 float age=Mathf.Repeat(time+emberAge[i],3.8f);var origin=vents[i%vents.Length];origin.y=Height(origin.x,origin.z)+.04f;
