@@ -162,7 +162,17 @@ namespace UltramanGame.Runtime
                 {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
                 else if(state.Phase==GamePhase.Victory) {next="Defeat";sample=phaseAge;Frame=7;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1.5f)/1.5f);}
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
-                else if(state.Phase==GamePhase.Battle&&hitAge<.4f) {next="Hurt";sample=hitAge;Frame=heavyHit?6:5;travel=-Mathf.Sin(hitAge/.4f*Mathf.PI)*(heavyHit?.22f:.12f);}
+                else if(state.Phase==GamePhase.Battle&&hitAge<.4f)
+                {
+                    next="Hurt";sample=hitAge;Frame=heavyHit?6:5;
+                    float recoil=Mathf.Sin(hitAge/.4f*Mathf.PI);
+                    travel=-recoil*(heavyHit?.22f:.12f);
+                    // Make contact read as a physical reaction instead of only a
+                    // texture/clip swap.  The heavier beam hit gets a deeper
+                    // backward pitch and roll, all driven by the same hit clock.
+                    fallTilt=-(heavyHit?16f:8f)*recoil;
+                    fallSide=(heavyHit?9f:4f)*recoil;
+                }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {
                     next=(state.EnemyAttackCount+1)%2==0?"WindupAlt":"Windup";
