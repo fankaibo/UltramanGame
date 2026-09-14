@@ -6,13 +6,16 @@ already verified game frames and event-aligned audio; it does not invent shots.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import shutil
 import subprocess
 from pathlib import Path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", type=Path, default=Path("artifacts/cg-trailer/full-battle.mp4"))
+    parser.add_argument("--source", type=Path, default=Path("artifacts/cinematic-combat/full-battle.mp4"))
     parser.add_argument("--output", type=Path, default=Path("artifacts/cg-trailer/ultraman-cg-trailer.mp4"))
     parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
@@ -21,6 +24,8 @@ def main() -> None:
     if not source.is_file():
         parser.error(f"missing verified Unity source movie: {source}")
     output.parent.mkdir(parents=True, exist_ok=True)
+    if source == output:
+        parser.error('source and trailer output must differ')
 
     # Establishing shot, monster attack/contact, beam close-up and victory.
     # These cuts preserve complete action beats and total about 22 seconds.
@@ -39,6 +44,15 @@ def main() -> None:
         "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output),
     ], check=True)
+    # Publish the full movie and its trailer from the same source. Previously
+    # the default silently reused an older copy in cg-trailer after a rerender.
+    full_movie = output.parent / 'full-battle.mp4'
+    if full_movie.resolve() != source:
+        shutil.copy2(source, full_movie)
+    (output.parent / 'source.json').write_text(json.dumps({
+        'source': str(source), 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+        'trailer': str(output), 'cuts': cuts,
+    }, indent=2) + '\n')
     print(f"{output} ({sum(end - start for start, end in cuts):.2f}s)")
 
 

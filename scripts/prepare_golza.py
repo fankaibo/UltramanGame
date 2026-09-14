@@ -69,15 +69,13 @@ def import_source(source, output, sourceio):
             eye = 'eyes' in slot.material.name.lower()
             mat = bpy.data.materials.new('GolzaEyes' if eye else 'GolzaHide')
             mat.use_nodes = True
-            shader = mat.node_tree.nodes.get('Principled BSDF')
-            if shader is None:
-                # Blender 4.5 can import SourceIO materials without a surface
-                # node.  Keep the conversion deterministic by creating the
-                # standard surface and wiring it to the material output.
-                shader = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
-                output = mat.node_tree.nodes.get('Material Output') or mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
-                if not output.inputs['Surface'].is_linked:
-                    mat.node_tree.links.new(shader.outputs['BSDF'], output.inputs['Surface'])
+            # Node display names are localized in Chinese Blender. Select by
+            # type and explicitly connect the textured surface to the output.
+            shader = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            shader = shader or mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+            material_output = next((n for n in mat.node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
+            material_output = material_output or mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+            mat.node_tree.links.new(shader.outputs['BSDF'], material_output.inputs['Surface'])
             shader.inputs['Roughness'].default_value = .54 if eye else .68
             texture = mat.node_tree.nodes.new('ShaderNodeTexImage')
             texture.image = images['GolzaEyes' if eye else 'GolzaBody']
@@ -209,34 +207,16 @@ def author(rig, targets, live_combat=False):
         # across the chest while the lead hand opens and reaches through the
         # contact point; this keeps the silhouette from becoming a symmetric
         # T-pose and gives the planted leg a visible weight transfer.
-        'Attack': [(0, dict(sink=.05,lean=7,yaw=-6,left=(.34,-.18,1.08),right=(-.22,-.12,1.02),jaw=16,sway=4)),
-                   (.16, dict(sink=.02,lean=10,yaw=-10,foot_l=(0,-.10,.10),foot_r=(0,.04,0),left=(.26,-.18,1.12),right=(-.42,-.34,1.16),jaw=23,sway=-6)),
-                   (.30, dict(sink=.04,lean=13,yaw=-14,foot_l=(0,-.16,0),foot_r=(0,.04,0),left=(.22,-.12,1.08),right=(-.61,-.57,1.10),jaw=26,sway=8)),
-                   (.4, dict(sink=.065,lean=15,yaw=-12,foot_l=(0,-.15,0),left=(.20,-.10,1.05),right=(-.58,-.63,1.05),jaw=24,sway=10)),
-                   (.55, dict(sink=.07,lean=12,yaw=-7,left=(.28,-.18,1.06),right=(-.43,-.42,1.06),foot_l=(0,-.12,0),sway=7)),
-                   (.8, dict(sink=.035,lean=5,yaw=-2,left=(.38,-.18,1.08),right=(-.27,-.16,1.03),foot_l=(0,-.05,.04),sway=-4)), (1.05,{})],
+        'Attack': [(0, dict(sink=.05,lean=14,yaw=0,jaw=24,right=(-.38,.01,1.22),sway=9)),
+                   (.16, dict(sink=.03,lean=13,yaw=-4,left=(.32,-.16,1.06),right=(-.32,-.27,1.20),jaw=25,sway=-6)),
+                   (.30, dict(sink=.05,lean=15,yaw=10,left=(.30,-.16,1.06),right=(-.18,-.43,1.13),jaw=26,sway=8)),
+                   (.4, dict(sink=.065,lean=15,yaw=14,left=(.31,-.16,1.04),right=(-.13,-.46,1.08),jaw=24,sway=10)),
+                   (.55, dict(sink=.06,lean=12,yaw=12,left=(.31,-.16,1.04),right=(-.02,-.44,1.02),sway=7)),
+                   (.8, dict(sink=.035,lean=7,yaw=2,left=(.34,-.14,1.05),right=(-.25,-.19,1.04),sway=-4)), (1.05,{})],
         'Hurt': [(0,{}),(.1,dict(lean=-14,sink=.05,yaw=10,jaw=18,right=(-.40,-.07,1.08),left=(.37,-.10,1.12),sway=14)),(.23,dict(lean=-7,sink=.04,jaw=8,sway=-7)),(.4,{})],
         'Defeat': [(0,{}),(.25,dict(lean=-18,jaw=25,sink=.03,sway=14)),(.8,dict(lean=16,sink=.12,jaw=12,right=(-.28,-.25,.92),left=(.29,-.25,.92),sway=-8)),
                    (1.5,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86))), (2.4,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86)))],
     }
-    # Author the alternate rush as a separate left-claw action.  Mirroring the
-    # right-hand target around the torso is not enough for this imported rig:
-    # its left elbow folds across the chest when the depth coordinate keeps the
-    # original sign.  Flip the depth as well, keep the right claw tucked in,
-    # and move the left elbow pole to the outside so the second strike reads as
-    # one clean, forward-facing swipe.
-    mirrored=[]
-    for t, pose in motions['Attack']:
-        mirrored_pose=dict(pose)
-        lead=pose.get('right',(-.23,-.08,1.00))
-        mirrored_pose['left']=(-lead[0],-lead[1],lead[2])
-        mirrored_pose['right']=(-.24,-.12,1.02)
-        if 'yaw' in mirrored_pose: mirrored_pose['yaw']=-mirrored_pose['yaw']
-        mirrored_pose['elbow_l']=(.65,.10,1.05)
-        if 'foot_l' in mirrored_pose or 'foot_r' in mirrored_pose:
-            mirrored_pose['foot_l'],mirrored_pose['foot_r']=mirrored_pose.get('foot_r',(0,0,0)),mirrored_pose.get('foot_l',(0,0,0))
-        mirrored.append((t,mirrored_pose))
-    motions['AttackAlt']=mirrored
     # A slow approach with planted feet, separate from the quick attack clip.
     walk = []
     for i in range(17):
@@ -254,6 +234,29 @@ def author(rig, targets, live_combat=False):
                  ((0,0,0),(0,.30,.02)),((0,-.10,.04),(0,.12,0)),((0,0,0),(0,0,0))]
         for (_,pose),(left,right) in zip(motions['Attack'],offsets):
             pose.update(foot_l=left,foot_r=right)
+    # Swap sides and reflect only lateral X. Forward is always negative Y in
+    # Source/Blender space. Mirror after the live foot offsets are installed.
+    def mirror_claw(poses):
+        reflected=[]
+        for t, pose in poses:
+            if not pose:
+                reflected.append((t,{}))
+                continue
+            p=dict(pose)
+            left=pose.get('left',(.34,-.10,1.02))
+            right=pose.get('right',(-.23,-.08,1.00))
+            p['left']=(-right[0],right[1],right[2])
+            p['right']=(-left[0],left[1],left[2])
+            p['yaw']=-pose.get('yaw',0)
+            p['sway']=-pose.get('sway',0)
+            for a,b in (('foot_l','foot_r'),('elbow_l','elbow_r')):
+                if a in pose or b in pose:
+                    av,bv=pose.get(a,(0,0,0)),pose.get(b,(0,0,0))
+                    p[a]=(-bv[0],bv[1],bv[2]);p[b]=(-av[0],av[1],av[2])
+            reflected.append((t,p))
+        return reflected
+    motions['AttackAlt']=mirror_claw(motions['Attack'])
+    motions['WindupAlt']=mirror_claw(motions['Windup'])
     actions={}
     for name, poses in motions.items():
         action=bpy.data.actions.new(name);action.use_fake_user=True

@@ -19,7 +19,7 @@ SourceIO: https://github.com/REDxEYE/SourceIO
 
 SHA-256
 Golza.zip: 5ac1708f61e0272c99817f9bdbfaa50499b12982b1d7d7f3435a10289247fb64
-Golza.fbx: 7b036d42ca9cc0e72ebddaf220cd8912dfc1feb79ed775c38f60fa8c0224d2c6
+Golza.fbx: 9ff6a72255a00f9fd7da51010093619574d8d156f4ba4f2b048b514e73d73efe
 GolzaBody.png: 822c69cf4046404fc2b4cbd5b1d0c22b7b3a2f2d51aa73ebcab5b61f4c6408e6
 GolzaEyes.png: 8daa255a739fe91dd072b60dbc2cef67214c29cd5a54919779dedd0d89026853
 Downloaded official SourceIO master ZIP: c141463035c8fc5766ce4b06ac9d58d9fde99c27ad88b5484bdd2ee0ad035cd9
@@ -30,6 +30,7 @@ No changes to source meshes or skin weights.
 2026-09-14: re-authored the live-combat Attack clip as a single-claw lunge: the lead hand reaches through contact while the off hand guards the chest, with asymmetric torso yaw and planted-foot weight transfer.
 2026-09-14: tightened the Idle hand targets into a relaxed bent-claw guard near the ribcage so the resting silhouette no longer reads as a wide T-pose.
 2026-09-14: added a mirrored AttackAlt clip; successive enemy rushes now alternate the lead claw while preserving the same warning, contact and recovery clocks.
-2026-09-14: re-authored AttackAlt as a dedicated left-claw forward swipe with an outside elbow pole and tucked off hand; the previous mirrored cross-chest pose is no longer used.
+2026-09-14 (superseded): an AttackAlt depth flip produced a backward reach. The following bone-space audit corrects this version.
 
-Current FBX SHA-256: d4ab85bef1042482e890a02f067150c89c1c642dbbe640ecbf955e33f8c900ea
+2026-09-14: corrected both attacks to strike along negative Y in Blender space with shoulder-led torso rotation and reachable hand targets. Side-swapped, X-only reflection creates AttackAlt and WindupAlt after the live foot offsets are applied. Runtime binds bip_hand_L explicitly; Unity now verifies both strike bones, forward reach and shield contact.
+Current FBX SHA-256: 9ff6a72255a00f9fd7da51010093619574d8d156f4ba4f2b048b514e73d73efe

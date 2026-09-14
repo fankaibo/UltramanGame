@@ -52,7 +52,7 @@ namespace UltramanGame.Runtime
                 string key=clip.name.Substring(clip.name.LastIndexOf('|')+1);
                 clips[key]=clip;
             }
-            foreach(string required in monster?new[]{"Idle","Windup","Attack","AttackAlt","Hurt","Defeat"}:
+            foreach(string required in monster?new[]{"Idle","Windup","WindupAlt","Attack","AttackAlt","Hurt","Defeat"}:
                 new[]{"Idle","LeftPunch","RightPunch","Guard","Beam","Hurt","Transform","Victory"})
                 if(!clips.ContainsKey(required))throw new InvalidOperationException(name+" is missing animation "+required);
             clips["Idle"].SampleAnimation(model,0);
@@ -105,8 +105,9 @@ namespace UltramanGame.Runtime
                 joint.gameObject.layer=ContactShadows.ActorLayer;
                 if(joint.name==(monster?"bip_hand_R":"HandBase_R"))hand=joint;
                 if(joint.name=="ForearmBase_R")forearm=joint;
-                if(joint.name=="HandBase_L")leftHand=joint;
+                if(joint.name==(monster?"bip_hand_L":"HandBase_L"))leftHand=joint;
             }
+            if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2}");
@@ -164,7 +165,7 @@ namespace UltramanGame.Runtime
                 else if(state.Phase==GamePhase.Battle&&hitAge<.4f) {next="Hurt";sample=hitAge;Frame=heavyHit?6:5;travel=-Mathf.Sin(hitAge/.4f*Mathf.PI)*(heavyHit?.22f:.12f);}
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {
-                    next="Windup";
+                    next=(state.EnemyAttackCount+1)%2==0?"WindupAlt":"Windup";
                     // Hold a readable warning pose while the child listens; complete the
                     // anticipation during the last second instead of stretching every key.
                     sample=state.EnemyAge<.4f?state.EnemyAge:Mathf.Lerp(.4f,clips[next].length,

@@ -55,6 +55,14 @@ namespace UltramanGame.Editor
                 throw new Exception("Enemy contact must combine forward movement, claw effect and one hit");
             var blocked=RenderEnemy(world,hero,enemy,target,folder,"enemy-blocked",EnemyPhase.Attack,.42f,true);
             if(blocked.Blocks!=1||blocked.HitsTaken!=0)throw new Exception("Enemy shield contact did not block");
+            for(int attackNumber=1;attackNumber<=2;attackNumber++)
+            {
+                string side=attackNumber==1?"right":"left";
+                RenderEnemy(world,hero,enemy,target,folder,"enemy-"+side+"-windup",EnemyPhase.Windup,4.8f,true,attackNumber);
+                var claw=RenderEnemy(world,hero,enemy,target,folder,"enemy-"+side+"-contact",EnemyPhase.Attack,.4f,true,attackNumber);
+                VerifyClawContact(world,enemy,claw);
+                RenderEnemy(world,hero,enemy,target,folder,"enemy-"+side+"-followthrough",EnemyPhase.Attack,.55f,true,attackNumber);
+            }
             RenderEnemy(world,hero,enemy,target,folder,"enemy-retreat",EnemyPhase.Attack,.8f);
             RenderEnemy(world,hero,enemy,target,folder,"enemy-home",EnemyPhase.Recover,.2f);
             if(Vector3.Distance(enemy.Root.position,world.EnemyHome)>.001f||world.EnemySlashVisible)
@@ -64,7 +72,7 @@ namespace UltramanGame.Editor
             if(world.EnemySlashVisible)throw new Exception("Pause must clear enemy attack effects");
             RenderCloseup(world,hero,enemy,target,folder);
             RenderTexture.active=null;camera.targetTexture=null;target.Release();UnityEngine.Object.DestroyImmediate(target);
-            Debug.Log($"[CharacterReview] frames=16 battleViews=3 enemyViews=8 closeupViews=8 diagonalPunch=passed enemyContact=passed beamCloseup=passed renderers=2 output={folder}");
+            Debug.Log($"[CharacterReview] frames=16 battleViews=3 enemyViews=14 closeupViews=8 diagonalPunch=passed enemyContact=passed leftRightClaws=passed beamCloseup=passed renderers=2 output={folder}");
         }
         static Battle BeamReady()
         {
@@ -121,11 +129,33 @@ namespace UltramanGame.Editor
             if(world.Closeup.Active||world.Closeup.Focus!=0||world.Camera.fieldOfView<25||world.BeamStarted)
                 throw new Exception("Pause must immediately restore the normal camera without releasing a beam");
         }
-        static Battle RenderEnemy(GameWorld world,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder,string name,EnemyPhase phase,float age,bool shield=false)
+        static void VerifyClawContact(GameWorld world,AnimatedActor enemy,Battle state)
+        {
+            string side=state.EnemyAttackCount%2==0?"L":"R",other=side=="L"?"R":"L";
+            Transform lead=null,off=null,shoulder=null;
+            foreach(var bone in enemy.Root.GetComponentsInChildren<Transform>())
+            {
+                if(bone.name=="bip_hand_"+side)lead=bone;
+                if(bone.name=="bip_hand_"+other)off=bone;
+                if(bone.name=="bip_upperArm_"+side)shoulder=bone;
+            }
+            if(!lead||!off||!shoulder)throw new Exception("Missing monster contact bones for "+side);
+            Vector3 forward=-world.BattleAxis;
+            float bindingError=Vector3.Distance(enemy.EnemyStrikeOrigin(state),lead.position);
+            float reach=Vector3.Dot(lead.position-shoulder.position,forward);
+            float separation=Vector3.Dot(lead.position-off.position,forward);
+            var shieldPlane=world.HeroHome+world.BattleAxis*.78f;
+            float contactGap=Mathf.Abs(Vector3.Dot(lead.position-shieldPlane,forward));
+            Debug.Log($"[ClawContact] attack={state.EnemyAttackCount} side={side} bindingError={bindingError:F4} forwardReach={reach:F3} offHandSeparation={separation:F3} shieldPlaneGap={contactGap:F3} hand={lead.position}");
+            if(bindingError>.001f||reach<.4f||separation<.3f||contactGap>.65f)
+                throw new Exception("Monster "+side+" claw must lead toward the hero, meet the shield and drive its own effect");
+        }
+        static Battle RenderEnemy(GameWorld world,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder,string name,EnemyPhase phase,float age,bool shield=false,int attackNumber=1)
         {
             var state=new Battle();state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,2.3f);
-            for(int i=0;i<1000&&state.Enemy!=phase;i++)state.Tick(.02f,new PlayerInput {Tracking=true,Shield=shield});
-            if(state.Enemy!=phase)throw new Exception("Enemy review phase not reached");
+            int targetCount=phase==EnemyPhase.Windup?attackNumber-1:attackNumber;
+            for(int i=0;i<3000&&(state.Enemy!=phase||state.EnemyAttackCount<targetCount);i++)state.Tick(.02f,new PlayerInput {Tracking=true,Shield=shield});
+            if(state.Enemy!=phase||state.EnemyAttackCount!=targetCount)throw new Exception("Enemy review phase not reached");
             while(age>.0001f) {float dt=Mathf.Min(age,.02f);state.Tick(dt,new PlayerInput {Tracking=true,Shield=shield});age-=dt;}
             world.Tick(state,1,1);
             while(state.TryCue(out var cue))

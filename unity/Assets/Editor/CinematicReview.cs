@@ -34,9 +34,15 @@ namespace UltramanGame.Editor
                 {world.Cue(cue);events.AppendLine($"{time:F3},{cue},{battle.EnemyHealth},{battle.Energy}");}
                 if(battle.Phase==GamePhase.Paused)paused=true;
                 hero.Update(battle,world.Camera,dt,time);enemy.Update(battle,world.Camera,dt,time);
-                if(battle.EnemyHealth<lastHealth)world.Hit(lastHealth-battle.EnemyHealth>1,battle);lastHealth=battle.EnemyHealth;
+                if(battle.EnemyHealth<lastHealth)
+                {
+                    world.Hit(lastHealth-battle.EnemyHealth>1,battle);
+                    events.AppendLine($"{time:F3},HeroHit,{battle.EnemyHealth},{battle.Energy}");
+                }
+                lastHealth=battle.EnemyHealth;
                 world.Tick(battle,dt,time);enemy.SetPresentationOpacity(world.EnemyOpacity);
-                if(world.BeamStarted)beams++;
+                if(world.BeamStarted)
+                {beams++;events.AppendLine($"{time:F3},BeamVisible,{battle.EnemyHealth},{battle.Energy}");}
                 if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.png");output++;}
                 if(battle.Phase==GamePhase.Victory){if(victory<0)victory=time;if(time-victory>3)break;}
             }

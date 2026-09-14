@@ -43,6 +43,7 @@ class GamePhoto:
         self.bridge.subscribers = 0
         self.next_at = 0
         self.frames = 0
+        self.cv = None
 
     def due(self):
         return self.bridge.subscribers > 0 and time.monotonic() >= self.next_at
@@ -51,7 +52,15 @@ class GamePhoto:
         if not self.due():
             return
         self.next_at = time.monotonic() + .125
-        import cv2
+        if self.cv is None:
+            import cv2
+            # These images are bounded to 640x480. OpenCV's default pool
+            # competes with Unity's render workers for tiny color/resize jobs;
+            # keep that CPU work on one thread in the camera process. This does
+            # not change MediaPipe or the separate native segmentation worker.
+            cv2.setNumThreads(1)
+            self.cv = cv2
+        cv2 = self.cv
         import numpy as np
         if synthetic:
             # Procedural test stand-in, deliberately recognisable as a drawing, never a real face.

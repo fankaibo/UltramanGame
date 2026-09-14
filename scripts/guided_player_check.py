@@ -70,10 +70,16 @@ def main():
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
+                publish_at=time.monotonic()
                 frame=factory.make(points);bridge.publish(frame)
+                pose_at=time.monotonic()
                 preview.publish(None,points,frame['capturedMs'],'synthetic')
+                preview_at=time.monotonic()
                 if not loss_start or now-loss_start>1.3:
                     photo.publish(None,None,frame['capturedMs'],synthetic=True)
+                photo_at=time.monotonic()
+                if photo_at-publish_at>.2:
+                    print(f'[GuidedLatency] stage={stage} age={age:.1f} poseMs={(pose_at-publish_at)*1000:.0f} previewMs={(preview_at-pose_at)*1000:.0f} photoMs={(photo_at-preview_at)*1000:.0f}',flush=True)
                 time.sleep(1/30)
             if not replayed:raise RuntimeError('Guided loop did not complete within 240 seconds')
             required=['live cutout displayed','countdown interrupted','gesture=retake','gesture=play-again','automatic capture complete']
