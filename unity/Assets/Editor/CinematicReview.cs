@@ -18,10 +18,12 @@ namespace UltramanGame.Editor
         {RenderAt("cinematic-combat");}
         static void RenderAt(string outputFolder)
         {
+            CinematicFlashReview.Run();
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(20260909);
             var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts",outputFolder));Directory.CreateDirectory(folder+"/frames");
+            File.Delete(folder+"/validation.txt");
             foreach(var old in Directory.GetFiles(folder+"/frames","frame-????.png"))File.Delete(old);
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16/9f;
             var events=new StringBuilder("seconds,event,health,energy\n");int beams=0,output=0;bool paused=false;float victory=-1;

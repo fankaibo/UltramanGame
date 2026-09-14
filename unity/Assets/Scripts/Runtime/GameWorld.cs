@@ -74,7 +74,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -101,6 +101,7 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,float dt,float time)
         {
+            if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting)cinematic.Clear();else cinematic.Tick(dt);
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
