@@ -54,6 +54,18 @@ static class MotionChecks
     {
         foreach(int fps in new[]{15,30,60})
         {
+            var standard=new Trial(fps);standard.Recognizer.Difficulty=1;
+            var lowered=Guard();lowered[15].y=lowered[16].y=.75f;
+            standard.Hold(lowered,.7f);standard.Hold(Guard(),.10f);
+            check(!standard.Last.Shield,$"standard difficulty ignores a brief guard at {fps} fps");
+            standard.Hold(Guard(),.45f);check(standard.Last.Shield,$"standard difficulty accepts a deliberate guard at {fps} fps");
+            standard.Hold(Beam(),.65f,true);check(standard.Beams==0,$"standard difficulty requires a longer beam hold at {fps} fps");
+            standard.Hold(Beam(),.4f,true);check(standard.Beams==1,$"standard difficulty still accepts a clear beam at {fps} fps");
+            standard=new Trial(fps);standard.Recognizer.Difficulty=1;standard.Hold(Guard());standard.Move(Guard(),Forward());standard.Hold(Forward());
+            check(standard.Left==1&&standard.Right==0,$"standard difficulty preserves independent deliberate punches at {fps} fps");
+        }
+        foreach(int fps in new[]{15,30,60})
+        {
             var t=new Trial(fps);t.Hold(Guard());t.Move(Guard(),Forward());t.Hold(Forward(),1.5f);
             check(t.Left==1&&t.Right==0&&t.Forward==1&&!t.Last.Shield,$"forward camera punch works at {fps} fps without repeating or becoming a held shield");
             t.Move(Forward(),Guard());t.Hold(Guard(),.15f);t.Move(Guard(),Forward());t.Hold(Forward());

@@ -82,10 +82,15 @@ namespace UltramanGame.Core
         bool beamFired, beamArmed, transformFired;
         float beamHold,beamGap,beamRelease,transformHold,shieldHold,shieldGap,steady;
         public bool ForwardPunch { get; private set; }
-        public float TransformProgress => Math.Min(1,transformHold/.45f);
+        public int Difficulty {get;set;}
+        int Level=>Math.Max(0,Math.Min(2,Difficulty));
+        float TransformHold=>.45f+Level*.12f;
+        float ShieldHold=>.10f+Level*.14f;
+        float BeamHold=>BeamHoldSeconds+Level*.20f;
+        public float TransformProgress => Math.Min(1,transformHold/TransformHold);
         public const float BeamHoldSeconds=.65f, BeamGapSeconds=.20f;
-        public float BeamProgress => Math.Min(1,beamHold/BeamHoldSeconds);
-        public float ShieldProgress => Math.Min(1,shieldHold/.10f);
+        public float BeamProgress => Math.Min(1,beamHold/BeamHold);
+        public float ShieldProgress => Math.Min(1,shieldHold/ShieldHold);
         public bool BeamNeedsRelease {get;private set;}
 
         public void Reset()
@@ -158,14 +163,14 @@ namespace UltramanGame.Core
             if (steady<.25f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
-            if (transformHold>=.45f && !transformFired) { input.Transform=true; transformFired=true; }
+            if (transformHold>=TransformHold && !transformFired) { input.Transform=true; transformFired=true; }
             // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
             if(beamWristsReady&&!beamShape)beamRelease+=dt;else beamRelease=0;
             if(beamRelease>=.25f) {beamFired=false;beamArmed=true;}
             if(!beamAvailable) {beamArmed=beamRelease>=.25f;beamHold=0;}
             if(beam&&beamArmed&&!beamFired) {beamHold+=dt;beamGap=0;} else
             {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
-            if (beam && beamArmed && beamHold>=BeamHoldSeconds && !beamFired)
+            if (beam && beamArmed && beamHold>=BeamHold && !beamFired)
             { input.Beam=true;beamFired=true;beamArmed=false; }
             BeamNeedsRelease=beam&&!beamArmed&&!beamFired;
             if(shield) {shieldHold+=dt;shieldGap=0;}
@@ -175,15 +180,15 @@ namespace UltramanGame.Core
                 // Only bridge short wrist occlusion after a real guard, never an observed different action.
                 if(beamWristsReady||shieldGap>.20f)shieldHold=0;
             }
-            input.Shield=shieldHold>=.10f;
+            input.Shield=shieldHold>=ShieldHold;
             if (beam || (raised&&transformAvailable))
             {
                 leftMotion.Reset();rightMotion.Reset();
                 return input;
             }
             float side=l.x>=r.x?1:-1;
-            bool left=leftReady&&leftMotion.Update(l,lw,wasReliable[13],scale,side,frame.capturedMs,dt);
-            bool right=rightReady&&rightMotion.Update(r,rw,wasReliable[14],scale,-side,frame.capturedMs,dt);
+            bool left=leftReady&&leftMotion.Update(l,lw,wasReliable[13],scale,side,frame.capturedMs,dt,Level);
+            bool right=rightReady&&rightMotion.Update(r,rw,wasReliable[14],scale,-side,frame.capturedMs,dt,Level);
             if(!leftReady)leftMotion.Reset();if(!rightReady)rightMotion.Reset();
             // A forward punch can begin in a guard. Do not confuse its foreshortened arm with a held shield.
             float depthDifference=((l.z-lw.z)-(r.z-rw.z))/scale;

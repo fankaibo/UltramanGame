@@ -52,8 +52,8 @@ def run_camera(args, bridge, preview=None, photo=None):
     factory = FrameFactory()
     def open_camera():
         camera = cv2.VideoCapture(args.camera, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         camera.set(cv2.CAP_PROP_FPS, 30)
         camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return camera
@@ -82,7 +82,7 @@ def run_camera(args, bridge, preview=None, photo=None):
                 stamp = max(previous_stamp+1, int((captured_at-start)*1000))
                 previous_stamp = stamp
                 inference_start = time.monotonic()
-                result = model.detect_for_video(model_image(image), stamp)
+                result = model.detect_for_video(model_image(cv2.resize(image,(640,round(image.shape[0]*640/image.shape[1]))) if image.shape[1]>640 else image), stamp)
                 inference_seconds += time.monotonic()-inference_start
                 frames += 1
                 landmarks = result.pose_landmarks[0] if result.pose_landmarks else None
@@ -95,7 +95,7 @@ def run_camera(args, bridge, preview=None, photo=None):
                         photo_model = AsyncPersonCutout()
                     if time.monotonic() >= photo_submit_at:
                         # Some cameras ignore their requested capture dimensions.
-                        scale = min(640/image.shape[1], 480/image.shape[0], 1)
+                        scale = min(1280/image.shape[1], 960/image.shape[0], 1)
                         bounded = cv2.resize(image, (round(image.shape[1]*scale), round(image.shape[0]*scale))) if scale < 1 else image
                         photo_model.submit(bounded, captured_ms)
                         photo_submit_at = time.monotonic() + .1

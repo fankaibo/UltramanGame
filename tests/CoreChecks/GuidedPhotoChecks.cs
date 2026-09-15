@@ -19,7 +19,7 @@ static class GuidedPhotoChecks
         check(f.Stage==PhotoStage.Framing,"spoken retry extends preparation deadline");
         f.Close();check(!f.Tick(99,true)&&f.Stage==PhotoStage.Closed,"closed automatic session cannot capture");
         var g=new PhotoChoiceGesture();long stamp=10000;long sequence=0;
-        PhotoChoice Feed(bool left,bool right,int count,bool fresh=true)
+        PhotoChoice Feed(bool left,bool right,int count,bool fresh=true,bool selecting=true,bool wrists=true)
         {
             var result=PhotoChoice.None;
             for(int j=0;j<count;j++)
@@ -27,8 +27,9 @@ static class GuidedPhotoChecks
                 stamp+=50;var p=new PosePoint[33];for(int i=0;i<33;i++)p[i]=new PosePoint(.5f,.5f);
                 p[11]=new PosePoint(.65f,.3f);p[12]=new PosePoint(.35f,.3f);
                 p[15]=new PosePoint(.67f,left?.1f:.6f);p[16]=new PosePoint(.33f,right?.1f:.6f);
+                if(!wrists)p[15].visibility=p[16].visibility=0;
                 var frame=new PoseFrame{schema=1,streamId="test",sequence=++sequence,capturedMs=stamp,tracked=true,points=p};
-                var value=g.Update(frame,stamp+(fresh?0:800));if(value!=PhotoChoice.None)result=value;
+                var value=g.Update(frame,stamp+(fresh?0:800),selecting);if(value!=PhotoChoice.None)result=value;
             }
             return result;
         }
@@ -37,5 +38,9 @@ static class GuidedPhotoChecks
         check(Feed(true,false,24)==PhotoChoice.Retake,"deliberate single raised arm selects retake");
         Feed(false,false,12);check(Feed(true,true,30)==PhotoChoice.PlayAgain,"two raised arms select another round");
         Feed(false,false,12);check(Feed(true,true,40,false)==PhotoChoice.None,"stale camera frames cannot select another round");
+        g.Reset();Feed(false,false,20,selecting:false,wrists:false);
+        check(g.Armed,"lowered wrists outside laptop crop arm the menu during narration");
+        check(Feed(true,true,40,selecting:false)==PhotoChoice.None,"narration still prevents early selection");
+        check(Feed(true,true,30)==PhotoChoice.PlayAgain,"raising hands after narrated release starts the next round without a second release");
     }
 }

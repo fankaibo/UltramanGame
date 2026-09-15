@@ -27,6 +27,7 @@ namespace UltramanGame.Runtime
         GamePhase previous;
         bool heavyHit;
         Transform hand,leftHand,forearm;
+        Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(int attackCount) => attackCount%2==0&&leftHand?leftHand.position:HandPosition;
@@ -94,7 +95,7 @@ namespace UltramanGame.Runtime
                 {
                     string key=mapped[i]?mapped[i].name:"Surface";
                     if(!materialCache.TryGetValue(key,out var mat))
-                    {mat=RuntimeResources.Own(Root,Surface(key,texture,eyes));materialCache[key]=mat;materials.Add(mat);}
+                    {mat=RuntimeResources.Own(Root,Surface(key,texture,eyes,name));materialCache[key]=mat;materials.Add(mat);}
                     mapped[i]=mat;
                 }
                 renderer.sharedMaterials=mapped;
@@ -103,16 +104,23 @@ namespace UltramanGame.Runtime
             foreach(var joint in joints)
             {
                 joint.gameObject.layer=ContactShadows.ActorLayer;
-                if(joint.name==(monster?"bip_hand_R":"HandBase_R"))hand=joint;
-                if(joint.name=="ForearmBase_R")forearm=joint;
-                if(joint.name==(monster?"bip_hand_L":"HandBase_L"))leftHand=joint;
+                if(joint.name=="HandBase_R"||joint.name=="bip_hand_R")hand=joint;
+                if(joint.name=="ForearmBase_R"||joint.name=="bip_lowerArm_R")forearm=joint;
+                if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
             }
             if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
+            if(monster)
+            {
+                var tails=new List<Transform>();foreach(var joint in joints)if(joint.name.StartsWith("tail_",StringComparison.Ordinal))tails.Add(joint);
+                tails.Sort((a,b)=>string.CompareOrdinal(a.name,b.name));tailJoints=tails.ToArray();tailRest=new Quaternion[tailJoints.Length];tailPositions=new Vector3[tailJoints.Length];
+                for(int i=0;i<tailJoints.Length;i++){tailRest[i]=tailJoints[i].localRotation;tailPositions[i]=tailJoints[i].localPosition;}
+                if(tailJoints.Length>0){tailHeight=Root.InverseTransformPoint(tailJoints[0].position).y;tailRootRotation=Quaternion.Inverse(Root.rotation)*tailJoints[0].rotation;}
+            }
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2}");
         }
-        static Material Surface(string name,Texture2D texture,Texture2D eyes)
+        static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
         {
             bool kaiju=name.StartsWith("Golza",StringComparison.Ordinal)&&!name.Contains("Eyes");
             var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
@@ -130,6 +138,13 @@ namespace UltramanGame.Runtime
             {
                 var color=name.Contains("EyesGlow")?new Color(1,.85f,.48f):new Color(.12f,.65f,1);
                 mat.color=color;mat.SetFloat("_Metallic",.1f);mat.EnableKeyword("_EMISSION");mat.SetColor("_EmissionColor",color*1.5f);
+            }
+            var rosterTexture=Resources.Load<Texture2D>("Characters/"+character+"/Textures/"+name);
+            if(rosterTexture)
+            {
+                mat.mainTexture=rosterTexture;mat.color=Color.white;mat.SetFloat("_Metallic",.2f);mat.SetFloat("_Glossiness",.42f);
+                if(name.ToLowerInvariant().Contains("eye")||name.ToLowerInvariant().Contains("timer"))
+                {mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",rosterTexture);mat.SetColor("_EmissionColor",Color.white*.5f);}
             }
             return mat;
         }
@@ -219,6 +234,15 @@ namespace UltramanGame.Runtime
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            // Keep the tail planted while the torso recoils. It follows heading
+            // and travel, but not the pelvis or whole-actor backward hit pitch.
+            if(tailJoints!=null&&tailJoints.Length>0)
+            {
+                for(int i=1;i<tailJoints.Length;i++)
+                {tailJoints[i].localRotation=tailRest[i];tailJoints[i].localPosition=tailPositions[i];}
+                tailJoints[0].rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(Mathf.Sin(time*1.8f)*5,Vector3.up)*tailRootRotation;
+                var anchor=tailJoints[0].position;anchor.y=home.y+tailHeight;tailJoints[0].position=anchor;
+            }
             poseOpacity=opacity;SetPresentationOpacity(1);
         }
     }

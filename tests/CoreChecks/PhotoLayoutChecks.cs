@@ -23,6 +23,12 @@ static class PhotoLayoutChecks
         }
         PhotoLayout.TryFit(new PhotoBody(180,450,0,425,320,220,400),hero,out var portrait);
         check(portrait.HeroBottom==hero.Bottom,"half-body camera never crops the fixed full-body hero");
+        var child=new PhotoBody(180,450,10,430,320,270,425);
+        PhotoLayout.TryFit(child,hero,out var childLayout,true);
+        check(childLayout.FullBody,"visible ankles identify a child's full body despite adult hero proportions");
+        check(Math.Abs(childLayout.ShoulderY+(child.Bottom-child.Shoulder)*childLayout.PersonScale+3.9f)<.001f,
+            "child full-body photo is grounded instead of floating at adult shoulder height");
+        check(childLayout.HeroScale==fixedHero.HeroScale,"child proportion correction does not resize the hero");
         var invalid=hero;invalid.Crown=invalid.Shoulder;
         check(!PhotoLayout.TryFit(invalid,hero,out _),"zero body reference cannot create infinite photo scaling");
         invalid=hero;invalid.Center=float.NaN;

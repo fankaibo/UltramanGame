@@ -12,31 +12,45 @@ namespace UltramanGame.Runtime
         readonly GameObject root;
         readonly Camera camera;
         readonly Material background,hero,person;
-        readonly Transform personQuad,heroQuad;
+        readonly Transform personQuad,heroQuad,backgroundQuad;
         readonly Texture2D heroAtlas;
         readonly RectInt heroBounds;
+        readonly float heroCenter,heroShoulder,heroCrown;
+        [Serializable] class HeroMetrics {public float center,shoulder,crown;}
         float lastShoulder,lastCenter,lastCrown;
         bool bodyMeasured;
+        bool? measuredFullBody;
         public bool FullBody {get;private set;}
         bool disposed;
-        public PhotoComposition()
+        public PhotoComposition(int width=Width,int height=Height,string heroId="Tiga")
         {
             root=new GameObject("Victory photo composition");root.transform.position=new Vector3(10000,10000,0);
             var c=new GameObject("Photo camera");c.transform.SetParent(root.transform,false);c.transform.localPosition=new Vector3(0,0,-10);
             camera=c.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;camera.orthographicSize=4.5f;
             camera.aspect=16f/9;camera.cullingMask=1<<31;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.03f,.06f,.12f);
             camera.nearClipPlane=.1f;camera.farClipPlane=30;
-            Preview=new RenderTexture(Width,Height,16,RenderTextureFormat.ARGB32);Preview.Create();camera.targetTexture=Preview;
+            Preview=new RenderTexture(width,height,16,RenderTextureFormat.ARGB32);Preview.Create();camera.targetTexture=Preview;
             var fuji=Resources.Load<Texture2D>("Art/VolcanoFujiNight");
             background=Layer("Realistic Mount Fuji night",fuji,out var fujiQuad);background.renderQueue=3000;
+            backgroundQuad=fujiQuad;
             float scale=Mathf.Max(16f/fuji.width,9f/fuji.height);fujiQuad.localScale=new Vector3(fuji.width*scale,fuji.height*scale,1);fujiQuad.localPosition=new Vector3(0,(fuji.height*scale-9)/2,2);
-            var atlas=Resources.Load<Texture2D>("Art/TigaPhotoActions");
-            if(!atlas)throw new InvalidOperationException("Missing photo Tiga atlas");
+            bool tiga=heroId=="Tiga";
+            var atlas=Resources.Load<Texture2D>(tiga?"Art/TigaPhotoActions":"Characters/"+heroId+"/Photo");
+            if(!atlas)throw new InvalidOperationException("Missing photo hero: "+heroId);
             heroAtlas=atlas;
-            hero=Layer("Tiga front victory",atlas,out heroQuad);hero.SetFloat("_KeyGreen",1);hero.renderQueue=3001;
+            hero=Layer(heroId+" front victory",atlas,out heroQuad);hero.SetFloat("_KeyGreen",tiga?1:0);hero.renderQueue=3001;
             int w=atlas.width/4,h=atlas.height/2;
-            var bounds=Bounds(atlas,true,new RectInt(w*3,0,w,h));heroBounds=bounds;
-            Place(heroQuad,hero,atlas,bounds,-3.9f);
+            heroBounds=Bounds(atlas,tiga,tiga?new RectInt(w*3,0,w,h):new RectInt(0,0,atlas.width,atlas.height));
+            if(tiga){heroShoulder=h*.57f;heroCrown=h*.74f;heroCenter=w*3.53f;}
+            else
+            {
+                var metrics=Resources.Load<TextAsset>("Characters/"+heroId+"/PhotoMetrics");
+                var measured=metrics?JsonUtility.FromJson<HeroMetrics>(metrics.text):null;
+                heroShoulder=measured?.shoulder??heroBounds.yMin+heroBounds.height*.67f;
+                heroCrown=measured?.crown??heroBounds.yMin+heroBounds.height*.91f;
+                heroCenter=measured?.center??heroBounds.center.x;
+            }
+            Place(heroQuad,hero,atlas,heroBounds,-3.9f);
             person=Layer("Person",null,out personQuad);person.renderQueue=3002;personQuad.gameObject.SetActive(false);
         }
         Material Layer(string name,Texture texture,out Transform quad)
@@ -72,6 +86,16 @@ namespace UltramanGame.Runtime
             if(pose!=null&&PoseQuality.Present(pose,pose.capturedMs)&&PoseQuality.Reliable(pose.points[0],.45f))
             {
                 var p=pose.points;
+                // Visible knees and ankles prove full-body framing without assuming
+                // a four-year-old has the same head/body proportions as an adult hero.
+                bool feet=true;
+                foreach(int side in new[]{0,1})
+                {
+                    var knee=p[25+side];var ankle=p[27+side];
+                    feet&=PoseQuality.Reliable(knee,.6f)&&PoseQuality.Reliable(ankle,.6f)&&
+                        ankle.x>.02f&&ankle.x<.98f&&ankle.y<.98f&&ankle.y>knee.y+.04f&&knee.y>p[11+side].y+.16f;
+                }
+                measuredFullBody=feet?(bool?)true:null;
                 shoulder=(1-(p[11].y+p[12].y)/2)*texture.height;
                 center=(1-p[0].x)*texture.width; // Camera pixels are mirrored once by the photo service.
                 float nose=(1-p[0].y)*texture.height;
@@ -90,12 +114,9 @@ namespace UltramanGame.Runtime
                 lastShoulder=lastCrown-Mathf.Min(bounds.height*.40f,bounds.width*.65f);
             }
             shoulder=lastShoulder;center=lastCenter;crown=lastCrown;
-            float tileW=heroAtlas.width/4f,tileH=heroAtlas.height/2f;
-            // Landmarks of this fixed victory illustration, relative to its atlas cell.
-            float heroShoulder=tileH*.57f,heroCrown=tileH*.74f,heroCenter=tileW*3.53f;
             var personBody=new PhotoBody(bounds.xMin,bounds.xMax,bounds.yMin,bounds.yMax,center,shoulder,crown);
             var heroBody=new PhotoBody(heroBounds.xMin,heroBounds.xMax,heroBounds.yMin,heroBounds.yMax,heroCenter,heroShoulder,heroCrown);
-            if(!PhotoLayout.TryFit(personBody,heroBody,out var layout))return false;
+            if(!PhotoLayout.TryFit(personBody,heroBody,out var layout,measuredFullBody))return false;
             FullBody=layout.FullBody;
             person.mainTexture=texture;
             PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,3.7f,layout.ShoulderY);
@@ -120,16 +141,32 @@ namespace UltramanGame.Runtime
             quad.localScale=new Vector3(bounds.width*scale,bounds.height*scale,1);
             quad.localPosition=new Vector3(x+(bounds.center.x-anchorX)*scale,y+(bounds.center.y-anchorY)*scale,0);
         }
-        public void ResetFraming() {bodyMeasured=false;}
+        public void ResetFraming() {bodyMeasured=false;measuredFullBody=null;}
         public void HidePerson()=>personQuad.gameObject.SetActive(false);
         public void Render()=>camera.Render();
+        public byte[] CleanPlate()
+        {
+            bool visible=personQuad.gameObject.activeSelf;
+            try {personQuad.gameObject.SetActive(false);var picture=Snapshot();try{return picture.EncodeToPNG();}finally{Release(picture);}}
+            finally{personQuad.gameObject.SetActive(visible);}
+        }
+        public byte[] PersonMatte()
+        {
+            var color=camera.backgroundColor;
+            try
+            {
+                backgroundQuad.gameObject.SetActive(false);heroQuad.gameObject.SetActive(false);camera.backgroundColor=Color.black;person.SetFloat("_MaskOnly",1);
+                var picture=Snapshot();try{return picture.EncodeToPNG();}finally{Release(picture);}
+            }
+            finally{backgroundQuad.gameObject.SetActive(true);heroQuad.gameObject.SetActive(true);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);}
+        }
         public Texture2D Snapshot()
         {
             Render();var old=RenderTexture.active;
             try
             {
-                RenderTexture.active=Preview;var texture=new Texture2D(Width,Height,TextureFormat.RGB24,false);
-                texture.ReadPixels(new Rect(0,0,Width,Height),0,0);texture.Apply();return texture;
+                RenderTexture.active=Preview;var texture=new Texture2D(Preview.width,Preview.height,TextureFormat.RGB24,false);
+                texture.ReadPixels(new Rect(0,0,Preview.width,Preview.height),0,0);texture.Apply();return texture;
             }
             finally {RenderTexture.active=old;}
         }

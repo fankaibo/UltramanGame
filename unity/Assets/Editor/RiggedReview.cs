@@ -73,7 +73,11 @@ namespace UltramanGame.Editor
                 if(frame%3==0&&state.Phase==GamePhase.Battle)
                 {
                     float h=BodyBounds(hero.Root).min.y,m=BodyBounds(enemy.Root).min.y;
-                    if(Mathf.Min(h,m)<minGround-.01f)Debug.Log($"[GroundReview] frame={frame} hero={h:F3} monster={m:F3} action={state.Action} age={state.ActionAge:F3} enemy={state.Enemy} enemyAge={state.EnemyAge:F3}");
+                    if(Mathf.Min(h,m)<minGround-.01f)
+                    {
+                        Debug.Log($"[GroundReview] frame={frame} hero={h:F3} monster={m:F3} action={state.Action} age={state.ActionAge:F3} enemy={state.Enemy} enemyAge={state.EnemyAge:F3}");
+                        CharacterReview.Save(world.Camera,target,Path.Combine(folder,$"ground-{frame:D4}.png"));
+                    }
                     minGround=Mathf.Min(minGround,h,m);
                     maxMonsterFootLift=Mathf.Max(maxMonsterFootLift,monsterFoot.position.y-footRest);
                 }

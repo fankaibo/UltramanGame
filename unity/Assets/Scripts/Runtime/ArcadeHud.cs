@@ -17,9 +17,9 @@ namespace UltramanGame.Runtime
             if(!waiting&&!transforming&&!victory)
             {
                 BattlePlate(new Rect(24,18,424,76),cyan,false);
-                hud.Portrait(new Rect(24,12,86,86),false);
-                hud.Text(new Rect(111,17,290,30),"迪迦",24,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(265,23,160,24),"复合型 · 光之英雄",11,HudPainter.Muted,TextAnchor.MiddleRight);
+                hud.HeroPortrait(new Rect(24,12,86,86),SelectedHero.Id);
+                hud.Text(new Rect(111,17,290,30),SelectedHero.Name,24,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(265,23,160,24),SelectedHero.Form+" · 光之英雄",11,HudPainter.Muted,TextAnchor.MiddleRight);
                 for(int i=0;i<15;i++)hud.Box(new Rect(114+i*20,57,16,13),i<battle.Energy?(ready?gold:cyan):new Color(.10f,.21f,.29f));
                 hud.Text(new Rect(116,76,270,20),ready?"必杀能量已充满":$"光线能量  {battle.Energy:0} / 15",11,ready?gold:HudPainter.Muted);
                 BattlePlate(new Rect(832,18,424,76),new Color(1,.47f,.21f),true);
@@ -66,11 +66,12 @@ namespace UltramanGame.Runtime
             {
                 hud.Text(new Rect(345,53,590,67),"光之英雄 · 火山大决战",37,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 hud.Text(new Rect(415,120,450,32),"这一次，由你守护火山基地",20,cyan,TextAnchor.MiddleCenter);
-                Guide("双手举高，和迪迦一起出发","transform",cyan,recognizer.TransformProgress);
+                DrawHeroSelection();
+                Guide(keyboard?"按空格，和"+SelectedHero.Name+"一起出发":"双手举高，和"+SelectedHero.Name+"一起出发","transform",cyan,recognizer.TransformProgress);
             }
             else if(transforming)
             {
-                hud.Text(new Rect(340,66,600,58),"光之英雄 · 迪迦",38,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(340,66,600,58),"光之英雄 · "+SelectedHero.Name,38,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 hud.Text(new Rect(425,611,430,48),"光的力量，准备变身！",27,gold,TextAnchor.MiddleCenter,true);
             }
             else if(victory)
@@ -78,7 +79,7 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(330,67,620,68),"火山守护成功！",43,gold,TextAnchor.MiddleCenter,true);
                 for(int i=0;i<3;i++)Star(new Vector2(582+i*58,161),17,Mathf.Clamp01((time-victoryAt-i*.35f)*2));
                 hud.Text(new Rect(390,571,500,45),"谢谢你，光之英雄！",28,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(360,631,560,30),"接下来和迪迦合照 · 听引导自动拍照",18,cyan,TextAnchor.MiddleCenter);
+                hud.Text(new Rect(360,631,560,30),"接下来和"+SelectedHero.Name+"合照 · 听引导自动拍照",18,cyan,TextAnchor.MiddleCenter);
             }
             else if(battle.Phase==GamePhase.Paused)
                 Guide(paused?"休息一下 · 家长按 Esc 继续":"站进镜头，我们接着守护火山基地","transform",cyan,battle.ResumeProgress/1.2f);

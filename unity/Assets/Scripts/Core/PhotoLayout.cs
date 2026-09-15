@@ -16,13 +16,13 @@ namespace UltramanGame.Core
     {
         public float PersonScale,HeroScale,ShoulderY,HeroShoulderY,HeroBottom;
         public bool FullBody;
-        public static bool TryFit(PhotoBody person,PhotoBody hero,out PhotoLayout result)
+        public static bool TryFit(PhotoBody person,PhotoBody hero,out PhotoLayout result,bool? fullBodyHint=null)
         {
             result=default;if(!person.Valid||!hero.Valid)return false;
             float heroScale=Math.Min(6.5f/(hero.Right-hero.Left),7.45f/(hero.Top-hero.Bottom));
             float heroShoulder=-3.9f+(hero.Shoulder-hero.Bottom)*heroScale;
             float below=person.Shoulder-person.Bottom;
-            bool full=below/(person.Crown-person.Shoulder)>(hero.Shoulder-hero.Bottom)/(hero.Crown-hero.Shoulder);
+            bool full=fullBodyHint??(below/(person.Crown-person.Shoulder)>(hero.Shoulder-hero.Bottom)/(hero.Crown-hero.Shoulder));
             float scale=full?(hero.Crown-hero.Bottom)*heroScale/(person.Crown-person.Bottom):
                 (hero.Crown-hero.Shoulder)*heroScale/(person.Crown-person.Shoulder);
             float extent=Math.Max(person.Center-person.Left,person.Right-person.Center);

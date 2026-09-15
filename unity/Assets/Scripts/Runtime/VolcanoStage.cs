@@ -12,7 +12,8 @@ namespace UltramanGame.Runtime
         readonly List<float> emberAge=new List<float>();
         readonly LineRenderer[] meteors=new LineRenderer[3];
         readonly LineRenderer[] lavaStreams=new LineRenderer[3];
-        readonly LineRenderer[] eruptionJets=new LineRenderer[4];
+        readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
+        readonly Material[] cloudMaterials=new Material[32];
         readonly Light[] ventLights=new Light[2];
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
@@ -70,7 +71,16 @@ namespace UltramanGame.Runtime
                 ventLights[i]=lightObject.AddComponent<Light>();ventLights[i].type=LightType.Point;
                 ventLights[i].color=new Color(1,.20f,.045f);ventLights[i].range=9;ventLights[i].intensity=0;
             }
-            for(int i=0;i<eruptionJets.Length;i++)eruptionJets[i]=Line("Eruption lava jet",18,.048f);
+            for(int i=0;i<eruptionClouds.Length;i++)
+            {
+                var material=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicPlume")));
+                material.SetFloat("_Seed",i*3.71f);cloudMaterials[i]=material;
+                eruptionClouds[i]=GameWorld.Primitive("Billowing volcanic ash",PrimitiveType.Quad,transform,Vector3.zero,Vector3.one,material);
+            }
+            var molten=RuntimeResources.Own(transform,new Material(Resources.Load<Material>("PrototypeSurface")));
+            molten.color=new Color(.42f,.08f,.012f);molten.EnableKeyword("_EMISSION");molten.SetColor("_EmissionColor",new Color(3.4f,.72f,.05f));
+            for(int i=0;i<lavaBombs.Length;i++)
+                lavaBombs[i]=GameWorld.Primitive("Ballistic molten rock",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*.055f,molten);
             for(int i=0;i<26;i++)
             {
                 var t=GameWorld.Primitive("Vent ember",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*Range(.017f,.032f),emberMaterial);
@@ -150,19 +160,26 @@ namespace UltramanGame.Runtime
                 float envelope=Mathf.Sin(cycle*Mathf.PI);
                 ventLights[vent].transform.position=origin+Vector3.up*.35f;
                 ventLights[vent].intensity=envelope*2.4f;
-                for(int jet=0;jet<2;jet++)
-                {
-                    var line=eruptionJets[vent*2+jet];line.enabled=envelope>.025f;
-                    if(!line.enabled)continue;
-                    float height=(2.2f+vent*.35f+Mathf.Sin(time*2.1f+jet)*.24f)*envelope;
-                    for(int j=0;j<line.positionCount;j++)
-                    {
-                        float t=j/(float)(line.positionCount-1);
-                        float sway=(jet==0?-1:1)*(.08f+.22f*t)*Mathf.Sin(t*Mathf.PI);
-                        line.SetPosition(j,origin+new Vector3(sway,height*t-.34f*height*t*t,.06f*Mathf.Sin(time*1.7f+t*4+jet)));
-                    }
-                    ColorLine(line,new Color(1,.30f,.06f),envelope*.62f);
-                }
+            }
+            var lens=Camera.main;
+            for(int i=0;i<eruptionClouds.Length;i++)
+            {
+                int vent=i%2;float life=5.6f,age=Mathf.Repeat(time+i*.397f,life),p=age/life;
+                Vector3 origin=vents[vent];origin.y=Height(origin.x,origin.z);
+                var cloud=eruptionClouds[i];float side=Mathf.Sin(i*9.17f);
+                cloud.position=origin+new Vector3(side*(.10f+p*.85f)+p*.72f,.15f+age*.75f,Mathf.Cos(i*5.3f)*.3f);
+                if(lens)cloud.rotation=lens.transform.rotation*Quaternion.Euler(0,0,side*25+age*9);
+                float size=.48f+p*2.1f;cloud.localScale=new Vector3(size,size*1.15f,1);
+                cloudMaterials[i].SetFloat("_Age",p);cloudMaterials[i].SetFloat("_Clock",age);
+            }
+            for(int i=0;i<lavaBombs.Length;i++)
+            {
+                float age=Mathf.Repeat(time+i*.073f,2.5f),phase=i*2.399f;
+                Vector3 origin=vents[i%2];origin.y=Height(origin.x,origin.z)+.09f;
+                Vector3 velocity=new Vector3(Mathf.Sin(phase)*(.28f+(i%4)*.13f),3.3f+(i%7)*.22f,Mathf.Cos(phase)*.5f);
+                Vector3 point=origin+velocity*age+Vector3.down*2.7f*age*age;
+                bool active=point.y>Height(point.x,point.z);lavaBombs[i].gameObject.SetActive(active);
+                if(active){lavaBombs[i].position=point;lavaBombs[i].localScale=Vector3.one*(.027f+(i%5)*.007f)*(1-age*.13f);}
             }
             for(int i=0;i<embers.Count;i++)
             {

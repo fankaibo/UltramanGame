@@ -15,7 +15,7 @@ namespace UltramanGame.Editor
         public static void Render()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-            foreach(string name in new[]{"Backdrop","VolcanoGround"})
+            foreach(string name in new[]{"Backdrop","VolcanoGround","VolcanicPlume"})
             {
                 var shader=Resources.Load<Shader>(name);
                 if(!shader||ShaderUtil.ShaderHasError(shader))throw new Exception("Invalid arena shader: "+name);
@@ -27,7 +27,7 @@ namespace UltramanGame.Editor
             world.Tick(state,1,1);
             var camera=world.Camera;
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/animation-review"));Directory.CreateDirectory(folder);
-            var target=new RenderTexture(1600,900,24,RenderTextureFormat.ARGB32);target.antiAliasing=4;target.Create();camera.targetTexture=target;
+            var target=new RenderTexture(1920,1080,24,RenderTextureFormat.ARGB32);target.antiAliasing=4;target.Create();camera.targetTexture=target;
             camera.aspect=target.width/(float)target.height;world.Tick(state,1,1);
             for(int frame=0;frame<8;frame++)
             {

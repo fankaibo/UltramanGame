@@ -43,6 +43,12 @@ namespace UltramanGame.Runtime
             }
             GUI.DrawTexture(r,portrait,ScaleMode.ScaleToFit);
         }
+        public void HeroPortrait(Rect r,string hero)
+        {
+            var image=Resources.Load<Texture2D>("Characters/"+hero+"/Photo");
+            if(!image){Portrait(r,false);return;}
+            GUI.DrawTexture(r,image,ScaleMode.ScaleToFit);
+        }
         public void Box(Rect rect,Color color)
         { var before=GUI.color;GUI.color=color;GUI.DrawTexture(rect,Texture2D.whiteTexture);GUI.color=before; }
         public void Dot(Vector2 center,float size,Color color)

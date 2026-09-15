@@ -7,14 +7,14 @@ import sys
 from .bridge import LatestBridge, _Handler
 
 HEADER = struct.Struct("!4sqIBB")
-MAX_PNG_BYTES = 2 * 1024 * 1024
+MAX_PNG_BYTES = 8 * 1024 * 1024
 
 
 def encode_photo(png, captured_ms, synthetic, present):
     if not 33 <= len(png) <= MAX_PNG_BYTES or png[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Invalid photo PNG")
     width, height = struct.unpack("!II", png[16:24])
-    if png[12:16] != b"IHDR" or not 0 < width <= 640 or not 0 < height <= 480 or png[24:26] != b"\x08\x06":
+    if png[12:16] != b"IHDR" or not 0 < width <= 1280 or not 0 < height <= 960 or png[24:26] != b"\x08\x06":
         raise ValueError("Photo must be bounded 8-bit RGBA")
     if captured_ms <= 0 or type(synthetic) is not bool or type(present) is not bool:
         raise ValueError("Invalid photo metadata")
@@ -54,7 +54,7 @@ class GamePhoto:
         self.next_at = time.monotonic() + .125
         if self.cv is None:
             import cv2
-            # These images are bounded to 640x480. OpenCV's default pool
+            # These images are bounded to 1280x960. OpenCV's default pool
             # competes with Unity's render workers for tiny color/resize jobs;
             # keep that CPU work on one thread in the camera process. This does
             # not change MediaPipe or the separate native segmentation worker.

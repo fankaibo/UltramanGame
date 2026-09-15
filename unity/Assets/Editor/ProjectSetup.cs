@@ -13,8 +13,8 @@ namespace UltramanGame.Editor
             if(EditorApplication.isPlayingOrWillChangePlaymode) return;
             PlayerSettings.companyName="UltramanGame";
             PlayerSettings.productName="迪迦体感训练场";
-            PlayerSettings.defaultScreenWidth=1280;
-            PlayerSettings.defaultScreenHeight=720;
+            PlayerSettings.defaultScreenWidth=1920;
+            PlayerSettings.defaultScreenHeight=1080;
             PlayerSettings.defaultIsNativeResolution=false;
             PlayerSettings.fullScreenMode=FullScreenMode.FullScreenWindow;
             PlayerSettings.resizableWindow=true;
@@ -68,10 +68,10 @@ namespace UltramanGame.Editor
                 if(AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Resources/Voice/beam_original.aiff").length>3)
                     throw new System.Exception("Beam battle cry must be a short recording of at most 3 seconds.");
             }
-            foreach(var actor in new[]{"Tiga","Golza"})
+            foreach(var actor in new[]{"Tiga","Golza","Mebius","Zero","Geed","Grigio"})
                 if(!Resources.Load<GameObject>("Characters/"+actor+"/"+actor)||!Resources.Load<TextAsset>("Characters/"+actor+"/ATTRIBUTION"))
                     throw new System.Exception(actor+" model and author attribution are required for this build.");
-            foreach(var shader in new[]{"ContactShadow","ShadowSilhouette","CityGround","CitySky","DistrictBuilding","ImpactCloud","KaijuSurface","EnergyShield","EnergyFlare","CinematicComposite","TransformationVeil","SoftGlow"})
+            foreach(var shader in new[]{"ContactShadow","ShadowSilhouette","CityGround","CitySky","DistrictBuilding","ImpactCloud","KaijuSurface","EnergyShield","EnergyFlare","CinematicComposite","TransformationVeil","SoftGlow","VolcanicPlume"})
                 if(!Resources.Load<Shader>(shader))throw new System.Exception("Missing actor shadow shader: "+shader);
             PhotoCompositionChecks.Run();
             PhotoReview.Proportions();

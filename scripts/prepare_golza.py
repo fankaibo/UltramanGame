@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, Matrix
 
 
 def import_source(source, output, sourceio):
@@ -128,7 +128,7 @@ def rig_controls(rig):
             # sides folds the left elbow into the chest while the right bends out.
             # The mirrored left arm needs the opposite pole to keep its elbow
             # outside the torso; the right side uses the source rest orientation.
-            ik.pole_angle = math.pi if segment=='lowerArm' and side=='L' else 0
+            ik.pole_angle = math.radians(120 if side=='L' else 20) if segment=='lowerArm' else 0
         foot = rig.pose.bones[f'bip_foot_{side}']
         planted = foot.constraints.new('COPY_ROTATION')
         planted.target = rig
@@ -142,7 +142,7 @@ def author(rig, targets, live_combat=False):
     scene = bpy.context.scene
     scene.render.fps = 60
     rest = {b.name: b.matrix_basis.copy() for b in rig.pose.bones}
-    control_names = list(targets) + ['bip_pelvis', 'bip_spine_1', 'bip_spine_2', 'bip_head', 'jaw'] + [f'tail_{i}' for i in range(1, 7)]
+    control_names = list(targets) + ['bip_pelvis', 'bip_spine_1', 'bip_spine_2', 'bip_head', 'jaw','bip_hand_L','bip_hand_R'] + [f'tail_{i}' for i in range(1, 7)]
 
     def rotate(name, axis, angle):
         bone = rig.pose.bones[name]
@@ -162,7 +162,7 @@ def author(rig, targets, live_combat=False):
                  # Keep the resting claws bent in front of the ribcage.  The
                  # earlier wide targets made the idle silhouette read as a
                  # rigid T-pose even though the attack clip was asymmetric.
-                 left=(.34, -.10, 1.02), right=(-.23, -.08, 1.00), sway=0)
+                 left=(.30, -.24, 1.03), right=(-.30, -.24, 1.03), sway=0)
         p.update(pose)
         pelvis = rig.pose.bones['bip_pelvis']
         rotate('bip_pelvis', (0, 0, 1), p['yaw'])
@@ -193,6 +193,24 @@ def author(rig, targets, live_combat=False):
             matrix.translation = point
             bone.matrix = matrix
         bpy.context.view_layer.update()
+        # Source wrists inherited forearm roll after IK. That turned one palm
+        # into the torso and left the other hanging from a raised elbow. Keep
+        # the claw's finger axis forward with a mild downward pitch, preserving
+        # the authored hand position and its skin weights.
+        for side,sign in [('L',1),('R',-1)]:
+            hand=rig.pose.bones['bip_hand_'+side]
+            finger=rig.pose.bones['bip_index_0_'+side]
+            thumb=rig.pose.bones['bip_thumb_0_'+side]
+            direction=(finger.head-hand.head).normalized()
+            desired=Vector((sign*.12,-1,-.28)).normalized()
+            normal=direction.cross(thumb.head-hand.head).normalized()*sign
+            down=Vector((0,0,-1));down=(down-desired*down.dot(desired)).normalized()
+            source=Matrix((direction,normal,direction.cross(normal))).transposed()
+            target=Matrix((desired,down,desired.cross(down))).transposed()
+            matrix=(target @ source.transposed()).to_4x4() @ hand.matrix
+            matrix.translation=hand.matrix.translation
+            hand.rotation_mode='QUATERNION';hand.matrix=matrix
+            bpy.context.view_layer.update()
         rig.animation_data.action = action
         for name in control_names:
             bone = rig.pose.bones[name]
@@ -243,8 +261,8 @@ def author(rig, targets, live_combat=False):
                 reflected.append((t,{}))
                 continue
             p=dict(pose)
-            left=pose.get('left',(.34,-.10,1.02))
-            right=pose.get('right',(-.23,-.08,1.00))
+            left=pose.get('left',(.30,-.24,1.03))
+            right=pose.get('right',(-.30,-.24,1.03))
             p['left']=(-right[0],right[1],right[2])
             p['right']=(-left[0],left[1],left[2])
             p['yaw']=-pose.get('yaw',0)
@@ -303,7 +321,7 @@ def main():
         bpy.ops.object.select_all(action='DESELECT');rig.select_set(True)
         for o in meshes:o.select_set(True)
         bpy.context.view_layer.objects.active=rig
-        bpy.ops.export_scene.fbx(filepath=str(output/'Golza.fbx'),use_selection=True,object_types={'MESH','ARMATURE'},axis_forward='-Z',axis_up='Y',apply_scale_options='FBX_SCALE_ALL',add_leaf_bones=False,use_armature_deform_only=False,bake_anim=True,bake_anim_use_all_actions=True,bake_anim_use_nla_strips=False,bake_anim_force_startend_keying=True,bake_anim_simplify_factor=.1,path_mode='RELATIVE',use_mesh_modifiers=True)
+        bpy.ops.export_scene.fbx(filepath=str(output/'Golza.fbx'),use_selection=True,object_types={'MESH','ARMATURE'},axis_forward='-Z',axis_up='Y',apply_scale_options='FBX_SCALE_ALL',add_leaf_bones=False,use_armature_deform_only=False,bake_anim=True,bake_anim_use_all_actions=True,bake_anim_use_nla_strips=False,bake_anim_force_startend_keying=True,bake_anim_simplify_factor=0,path_mode='RELATIVE',use_mesh_modifiers=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(output/'Golza-review.blend'))
     if args.review:render(output,rig,actions)
     print('GOLZA_REVIEW',json.dumps(report))

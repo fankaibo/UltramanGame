@@ -5,13 +5,18 @@ import wave
 from pathlib import Path
 
 LINES = {
-    'photo_intro': '来和迪迦合照吧！看着右边的自己，摆个喜欢的姿势。我会倒数五秒，自动拍照。',
+    'photo_intro': '来和奥特曼合照吧！看着右边的自己，摆个喜欢的姿势。我会倒数五秒，自动拍照。',
     'photo_missing': '让我看看你！把头和身体移进镜头，站稳一点。',
     'photo_saved': '合照拍好啦！先放下手，慢慢欣赏。举起一只手可以重拍，双手举高就能再玩一次。',
     'photo_retry': '没关系，等画面恢复，我们再拍一次。',
     'photo_five': '五', 'photo_four': '四', 'photo_three': '三', 'photo_two': '二', 'photo_one': '一',
-    'arcade_ready': '小英雄，城市需要你！站进镜头，把双手举高，和迪迦一起出发！',
+    'arcade_ready': '小英雄，城市需要你！站进镜头，把双手举高，和光之英雄一起出发！',
     'arcade_final': '就快成功了！继续挥拳，保护城市！',
+    'hero_tiga':'迪迦奥特曼，准备出发！',
+    'hero_mebius':'梦比优斯奥特曼，准备出发！',
+    'hero_zero':'赛罗奥特曼，准备出发！',
+    'hero_geed':'捷德奥特曼，准备出发！',
+    'hero_grigio':'格力乔奥特曼，准备出发！',
     'beam_reset': '先把双手收回来，再摆光线姿势，停一下。',
 }
 
@@ -26,7 +31,7 @@ def main():
     model = load_model(str(root / '.cache/voice-model-local'))
     for index, (key, text) in enumerate(LINES.items()):
         target = pack / (key+'.wav')
-        if key in manifest['audio'] and target.exists():
+        if key in manifest['audio'] and manifest['lines'].get(key)==text and target.exists():
             continue
         mx.random.seed(140+index)
         print('generating', key, text, flush=True)

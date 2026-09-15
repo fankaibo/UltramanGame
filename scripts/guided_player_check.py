@@ -30,7 +30,7 @@ def main():
     folder=ROOT/'artifacts/guided-arcade';folder.mkdir(parents=True,exist_ok=True)
     factory=FrameFactory(source='synthetic');process=None;photos=[]
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
-        args=[str(binary),'-screen-fullscreen','0','-screen-width','1280','-screen-height','720',
+        args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
             '--preview-port',str(preview.bridge.address[1]),'--photo-port',str(photo.bridge.address[1])]
         try:
@@ -59,7 +59,9 @@ def main():
                 if stage=='review':
                     # Wait through spoken preview instructions, lower hands to rearm,
                     # then retake once and select another round with both hands.
-                    if now-review_at>24:
+                    if now-review_at<5:
+                        points[15].visibility=points[16].visibility=.1
+                    if now-review_at>6:
                         points=landmarks_at(2.5)
                         if photos_seen==1:
                             points[16].y=.61

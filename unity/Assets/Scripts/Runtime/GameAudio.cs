@@ -22,6 +22,7 @@ namespace UltramanGame.Runtime
         public bool MusicEnabled=true;
         public float Volume=.75f,MusicVolume=.45f;
         public event System.Action<string,float> InstructionStarted;
+        public string HeroId="Tiga";
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
         public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} muted={muted}";
         AudioSource Source(GameObject owner)
@@ -92,7 +93,7 @@ namespace UltramanGame.Runtime
                     pending.Clear();Effect("shield",.45f);Speak("energy",5,state);break;
                 case GameCue.Beam:
                     pending.Clear();
-                    Speak(HasOriginalBeamVoice?"beam_original":"beam",5,state);break;
+                    Speak(HeroId=="Tiga"&&HasOriginalBeamVoice?"beam_original":"beam",5,state);break;
                 case GameCue.Victory:effects.Stop();pending.Clear();Speak("victory",6,state);break;
                 case GameCue.Resume:Speak("resume",3,state);break;
             }

@@ -46,8 +46,9 @@ namespace UltramanGame.Core
         PhotoChoice candidate;
         public float Progress=>(float)Math.Min(1,held/(candidate==PhotoChoice.PlayAgain?1.2:2));
         public PhotoChoice Candidate=>candidate;
+        public bool Armed=>armed;
         public void Reset() {stream=null;sequence=stamp=0;neutral=held=0;armed=false;candidate=PhotoChoice.None;}
-        public PhotoChoice Update(PoseFrame frame,long now)
+        public PhotoChoice Update(PoseFrame frame,long now,bool allowSelection=true)
         {
             if(!PoseQuality.Present(frame,now)) {Reset();return PhotoChoice.None;}
             if(stream==frame.streamId&&frame.sequence<=sequence)return PhotoChoice.None;
@@ -56,13 +57,15 @@ namespace UltramanGame.Core
             double dt=stamp>0?Math.Max(0,Math.Min(.1,(frame.capturedMs-stamp)/1000.0)):0;
             stream=frame.streamId;sequence=frame.sequence;stamp=frame.capturedMs;
             var p=frame.points;
-            if(!PoseQuality.Reliable(p[15],.45f)||!PoseQuality.Reliable(p[16],.45f))
-            {held=neutral=0;candidate=PhotoChoice.None;return PhotoChoice.None;}
-            float width=Math.Max(.08f,PoseQuality.Distance(p[11],p[12]));
+            bool leftVisible=PoseQuality.Reliable(p[15],.45f),rightVisible=PoseQuality.Reliable(p[16],.45f);
+            // Lowered wrists often leave a laptop's upper-body crop. That is a
+            // valid release, while only visible raised wrists may select an item.
+            float width=Math.Max(.08f,Math.Abs(p[11].x-p[12].x));
             float shoulders=(p[11].y+p[12].y)/2;
-            bool left=p[15].y<shoulders-.30f*width,right=p[16].y<shoulders-.30f*width;
-            bool down=p[15].y>shoulders-.05f*width&&p[16].y>shoulders-.05f*width;
+            bool left=leftVisible&&p[15].y<shoulders-.24f*width,right=rightVisible&&p[16].y<shoulders-.24f*width;
+            bool down=(!leftVisible||p[15].y>shoulders-.05f*width)&&(!rightVisible||p[16].y>shoulders-.05f*width);
             if(!armed) {neutral=down?neutral+dt:0;if(neutral>=.4)armed=true;return PhotoChoice.None;}
+            if(!allowSelection){held=0;candidate=PhotoChoice.None;return PhotoChoice.None;}
             PhotoChoice next=left&&right?PhotoChoice.PlayAgain:left!=right?PhotoChoice.Retake:PhotoChoice.None;
             if(next!=candidate)held=0;
             candidate=next;held=next==PhotoChoice.None?0:held+dt;

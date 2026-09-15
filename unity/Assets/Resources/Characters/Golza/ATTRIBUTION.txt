@@ -34,3 +34,6 @@ No changes to source meshes or skin weights.
 
 2026-09-14: corrected both attacks to strike along negative Y in Blender space with shoulder-led torso rotation and reachable hand targets. Side-swapped, X-only reflection creates AttackAlt and WindupAlt after the live foot offsets are applied. Runtime binds bip_hand_L explicitly; Unity now verifies both strike bones, forward reach and shield contact.
 Current FBX SHA-256: 9ff6a72255a00f9fd7da51010093619574d8d156f4ba4f2b048b514e73d73efe
+
+2026-09-15: corrected mirrored elbow poles and palm orientation; exported unsimplified 60 Hz curves. Runtime keeps the tail planted during pelvis and whole-body recoil.
+Current FBX SHA-256: d923776ecd36cd86c56111a28da6ba8421a3ee3e2a4cc1e01949d421f911eaaf

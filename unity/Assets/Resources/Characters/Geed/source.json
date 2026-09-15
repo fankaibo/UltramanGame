@@ -1,0 +1,14 @@
+{
+  "character": "Geed",
+  "vertices": 2792,
+  "clips": [
+    "Beam",
+    "Guard",
+    "Hurt",
+    "Idle",
+    "LeftPunch",
+    "RightPunch",
+    "Transform",
+    "Victory"
+  ]
+}

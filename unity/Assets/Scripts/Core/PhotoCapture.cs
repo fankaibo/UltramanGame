@@ -48,7 +48,7 @@ namespace UltramanGame.Core
 
     public sealed class PhotoFrame
     {
-        public const int MaxBytes=2*1024*1024;
+        public const int MaxBytes=8*1024*1024;
         public long CapturedMs;
         public bool Synthetic,Present;
         public byte[] Png;
@@ -67,7 +67,7 @@ namespace UltramanGame.Core
             byte[] signature={137,80,78,71,13,10,26,10};
             for(int i=0;i<8;i++)if(png[i]!=signature[i])throw new IOException("Invalid PNG");
             uint w=UInt(png,16),height=UInt(png,20);
-            if(UInt(png,8)!=13||png[12]!='I'||png[13]!='H'||png[14]!='D'||png[15]!='R'||w<1||w>640||height<1||height>480||png[24]!=8||png[25]!=6)
+            if(UInt(png,8)!=13||png[12]!='I'||png[13]!='H'||png[14]!='D'||png[15]!='R'||w<1||w>1280||height<1||height>960||png[24]!=8||png[25]!=6)
                 throw new IOException("Invalid photo PNG dimensions or channels");
             return new PhotoFrame {CapturedMs=stamp,Synthetic=h[16]==1,Present=h[17]==1,Png=png};
         }
