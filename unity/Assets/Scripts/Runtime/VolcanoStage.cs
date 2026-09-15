@@ -15,6 +15,7 @@ namespace UltramanGame.Runtime
         readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
         readonly Material[] cloudMaterials=new Material[32];
         readonly Light[] ventLights=new Light[2];
+        Light foregroundLavaLight;
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
         Material ground,glow;
@@ -71,6 +72,13 @@ namespace UltramanGame.Runtime
                 ventLights[i]=lightObject.AddComponent<Light>();ventLights[i].type=LightType.Point;
                 ventLights[i].color=new Color(1,.20f,.045f);ventLights[i].range=9;ventLights[i].intensity=0;
             }
+            // A low foreground source ties the cool moonlit actors to the warm
+            // lava field. Its restrained pulse follows the same deterministic
+            // eruption clock as the distant vents, so it never flickers randomly.
+            var glowObject=new GameObject("Foreground lava bounce");glowObject.transform.SetParent(transform,false);
+            foregroundLavaLight=glowObject.AddComponent<Light>();foregroundLavaLight.type=LightType.Point;
+            foregroundLavaLight.color=new Color(1,.18f,.045f);foregroundLavaLight.range=8.5f;foregroundLavaLight.shadows=LightShadows.None;
+            foregroundLavaLight.transform.position=new Vector3(-1.9f,1.0f,4.4f);
             for(int i=0;i<eruptionClouds.Length;i++)
             {
                 var material=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicPlume")));
@@ -161,6 +169,9 @@ namespace UltramanGame.Runtime
                 ventLights[vent].transform.position=origin+Vector3.up*.35f;
                 ventLights[vent].intensity=envelope*2.4f;
             }
+            float pulse=.5f+.5f*Mathf.Sin(time*2.15f+.7f);
+            float eruption=Mathf.Sin(Mathf.Repeat(time*.82f,2.8f)/2.8f*Mathf.PI);
+            foregroundLavaLight.intensity=.16f+.12f*pulse+.26f*eruption;
             var lens=Camera.main;
             for(int i=0;i<eruptionClouds.Length;i++)
             {
