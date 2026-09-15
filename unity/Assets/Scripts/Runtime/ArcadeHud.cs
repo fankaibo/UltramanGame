@@ -102,12 +102,15 @@ namespace UltramanGame.Runtime
         }
         void Guide(string title,string gesture,Color accent,float progress)
         {
-            hud.Fade(new Rect(0,620,1280,100),new Color(.005f,.015f,.035f,.12f));
-            hud.Rounded(new Rect(346,617,585,78),new Color(.007f,.025f,.053f,.84f),8);
-            hud.Box(new Rect(346,632,3,47),accent);
-            hud.Figure(new Rect(363,622,51,66),gesture,Time.unscaledTime,accent);
-            hud.Text(new Rect(437,627,471,43),title,22,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-            hud.Bar(new Rect(453,681,438,3),progress,accent);
+            // Keep the playfield dominant, as on the reference cabinet: the
+            // instruction is a compact rail at the very bottom instead of a
+            // large card covering the fighters' legs and effects.
+            hud.Fade(new Rect(0,640,1280,80),new Color(.005f,.015f,.035f,.10f));
+            hud.Rounded(new Rect(370,638,540,65),new Color(.007f,.025f,.053f,.82f),8);
+            hud.Box(new Rect(370,650,3,41),accent);
+            hud.Figure(new Rect(385,645,43,54),gesture,Time.unscaledTime,accent);
+            hud.Text(new Rect(438,645,440,36),title,18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+            hud.Bar(new Rect(455,690,410,3),progress,accent);
         }
         void DrawArcadePreview()
         {
