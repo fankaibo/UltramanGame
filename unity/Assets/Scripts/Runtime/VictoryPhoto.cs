@@ -163,6 +163,17 @@ namespace UltramanGame.Runtime
                 GUI.DrawTexture(new Rect(735,128,435,402),cameraPreview,ScaleMode.ScaleToFit,false);
                 hud.Text(new Rect(735,529,435,30),"实时镜头 · 正在准备镂空人像",16,HudPainter.Gold,TextAnchor.MiddleCenter);
             }
+            if(!review&&freshPerson&&cameraPreview)
+            {
+                // Keep the child's real pose visible while the cutout composition
+                // remains the main view. The small reference window is deliberately
+                // placed at the far edge so it does not cover the hero or the person.
+                var reference=new Rect(1010,86,238,168);
+                hud.Rounded(new Rect(reference.x-8,reference.y-28,reference.width+16,reference.height+48),new Color(.008f,.025f,.06f,.90f),7);
+                hud.Text(new Rect(reference.x,reference.y-25,reference.width,20),"姿势参考 · 实时镜头",12,HudPainter.Cyan,TextAnchor.MiddleCenter,true);
+                GUI.DrawTexture(reference,cameraPreview,ScaleMode.ScaleToFit,false);
+                hud.Line(new Vector2(reference.x,reference.y+reference.height+7),new Vector2(reference.xMax,reference.y+reference.height+7),HudPainter.Cyan,2);
+            }
             hud.Box(new Rect(0,0,1280,64),new Color(.008f,.025f,.06f,.76f));
             hud.Text(new Rect(32,12,750,38),review?"光之英雄 · 合照纪念":"光之英雄 · 和"+HeroRoster.At(HeroRoster.Index(HeroId)).Name+"站在一起",25,HudPainter.Ink,bold:true);
             hud.Text(new Rect(900,16,345,29),frame?.Synthetic==true?"合成测试 · 非真人":review?"照片预览 · 已定格":"实时镂空取景",14,HudPainter.Cyan,TextAnchor.MiddleRight);
