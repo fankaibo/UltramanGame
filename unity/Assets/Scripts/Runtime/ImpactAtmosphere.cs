@@ -7,7 +7,7 @@ namespace UltramanGame.Runtime
     {
         sealed class Puff {public Transform Root;public Material Mat;public Vector3 Velocity;public float Age=10,Life,Size,Spin;}
         sealed class Chip {public Transform Root;public Vector3 Velocity,Spin;public float Age=10;}
-        readonly Puff[] puffs=new Puff[32];readonly Chip[] chips=new Chip[24];int index,chipIndex;
+        readonly Puff[] puffs=new Puff[64];readonly Chip[] chips=new Chip[24];int index,chipIndex;
         public ImpactAtmosphere(Transform parent)
         {
             for(int i=0;i<puffs.Length;i++)
@@ -35,6 +35,21 @@ namespace UltramanGame.Runtime
             {
                 var c=chips[chipIndex++%chips.Length];c.Age=0;c.Root.position=new Vector3(position.x,.1f,position.z);
                 c.Velocity=Random.onUnitSphere*(special?1.4f:.65f)+Vector3.up*1.3f;c.Spin=Random.onUnitSphere*300;c.Root.gameObject.SetActive(true);
+            }
+        }
+        public void GroundBurst(Vector3 position,Vector3 direction,bool heavy)
+        {
+            position.y=.055f;
+            Vector3 axis=Vector3.ProjectOnPlane(direction,Vector3.up).normalized;
+            Vector3 side=Vector3.Cross(Vector3.up,axis);
+            for(int i=0;i<(heavy?8:4);i++)
+            {
+                var p=puffs[index++%puffs.Length];p.Age=0;p.Life=Random.Range(.55f,.95f);
+                p.Size=heavy?.46f:.26f;p.Spin=Random.Range(-45,45);
+                float spread=(i%2==0?-1:1)*Random.Range(.3f,1);
+                p.Root.position=position+side*spread*.16f;p.Root.gameObject.SetActive(true);
+                p.Velocity=(axis*Random.Range(.45f,1)+side*spread)*(heavy?1.0f:.55f)+Vector3.up*.13f;
+                p.Mat.color=new Color(.40f,.38f,.35f,heavy?.58f:.44f);p.Mat.SetFloat("_Hot",0);
             }
         }
         public void Tick(Camera camera,float dt)

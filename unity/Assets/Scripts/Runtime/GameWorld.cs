@@ -22,11 +22,14 @@ namespace UltramanGame.Runtime
         readonly CinematicCamera cinematic;
         readonly MonsterAttackEffects monsterEffects;
         readonly CombatVfx effects;
+        readonly StrikeTrails strikeTrails;
         readonly ArcadeStageFx arcade;
         readonly VolcanoStage volcano;
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
+        public bool HeroTrailVisible => strikeTrails.HeroVisible;
+        public bool MonsterTrailVisible => strikeTrails.MonsterVisible;
         readonly Vector3 cameraHome=new Vector3(-.25f,2.9f,-10.5f),lookAt=new Vector3(0,1.65f,.4f);
         float impact,impactAge=10,transformAge,celebrateAt,clock;
         readonly ImpactTiming hitTiming=new ImpactTiming();
@@ -62,7 +65,7 @@ namespace UltramanGame.Runtime
             RenderSettings.fog=true;RenderSettings.fogMode=FogMode.Linear;RenderSettings.fogStartDistance=13;RenderSettings.fogEndDistance=42;
             RenderSettings.fogColor=new Color(.11f,.125f,.145f);
             volcano=VolcanoStage.Create(root);
-            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);arcade=new ArcadeStageFx(root,HeroHome);
+            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);strikeTrails=new StrikeTrails(root);arcade=new ArcadeStageFx(root,HeroHome);
         }
         static Light Directional(Transform parent,string name,Color color,float intensity,Vector3 angles)
         {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Directional;light.color=color;light.intensity=intensity;light.transform.eulerAngles=angles;return light;}
@@ -74,7 +77,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -187,6 +190,8 @@ namespace UltramanGame.Runtime
             BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
             effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing);
+            strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active);
+            if(!Closeup.Active&&dt>0)effects.MotionDust(state,hero,enemy,BattleAxis);
             if(state.Phase!=previous){transformAge=0;previous=state.Phase;}
             transformAge+=dt;
             if(state.Phase==GamePhase.Transforming&&clock>celebrateAt)

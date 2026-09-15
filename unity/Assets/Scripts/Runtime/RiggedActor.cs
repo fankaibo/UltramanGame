@@ -26,12 +26,13 @@ namespace UltramanGame.Runtime
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         GamePhase previous;
         bool heavyHit;
-        Transform hand,leftHand,forearm;
+        Transform hand,leftHand,forearm,leftFoot,rightFoot;
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(int attackCount) => attackCount%2==0&&leftHand?leftHand.position:HandPosition;
         public Vector3 BeamOrigin => hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
+        public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
 
         public static RiggedActor CreateIfAvailable(string name,Vector3 position,Vector3 opponent,bool monster)
         {
@@ -107,6 +108,8 @@ namespace UltramanGame.Runtime
                 if(joint.name=="HandBase_R"||joint.name=="bip_hand_R")hand=joint;
                 if(joint.name=="ForearmBase_R"||joint.name=="bip_lowerArm_R")forearm=joint;
                 if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
+                if(joint.name=="Foot_L"||joint.name=="bip_foot_L")leftFoot=joint;
+                if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
             }
             if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
             if(monster)

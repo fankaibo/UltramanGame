@@ -23,6 +23,14 @@ namespace UltramanGame.Runtime
                 state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});world.Cue(GameCue.Transform);Draw(.05f);
                 for(int i=0;i<24;i++)state.Tick(.1f,new PlayerInput{Tracking=true});Draw(.05f);
                 state.Tick(.01f,new PlayerInput{Tracking=true,Shield=true});world.Cue(GameCue.Block);Draw(.02f);
+                // A hand ribbon needs multiple sampled points to create visible
+                // geometry; skipping straight to the end never warms its shader.
+                for(int side=0;side<2;side++)
+                    for(int frame=0;frame<30;frame++)
+                    {
+                        state.Tick(1/60f,new PlayerInput{Tracking=true,LeftPunch=side==0&&frame==0,RightPunch=side==1&&frame==0});
+                        Draw(1/60f);
+                    }
                 for(int punch=0;punch<15;punch++)
                 {state.Tick(.01f,new PlayerInput{Tracking=true,LeftPunch=true});for(int j=0;j<5;j++)state.Tick(.1f,new PlayerInput{Tracking=true});}
                 state.Tick(.01f,new PlayerInput{Tracking=true,Beam=true});world.Cue(GameCue.Beam);Draw(.04f);Draw(.05f);

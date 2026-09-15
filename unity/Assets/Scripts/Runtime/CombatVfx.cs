@@ -19,6 +19,9 @@ namespace UltramanGame.Runtime
         readonly ImpactAtmosphere atmosphere;
         int sparkIndex,flashIndex;
         float hitLightAge=10,clock,beamBurstAge;
+        float previousEnemyAge;
+        int previousAttack,previousPunches;
+        bool motionInitialized;
         public int ActiveSparkCount {get;private set;}
         public bool BeamVisible => rays[0].enabled;
         static readonly Color Ice=new Color(.15f,.65f,1),Warm=new Color(1,.48f,.12f);
@@ -76,13 +79,13 @@ namespace UltramanGame.Runtime
             Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
             FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            FlashAt(new Vector3(position.x,.035f,position.z),special?3.8f:2.0f,.45f,new Color(.15f,.4f,.6f,.45f),true,true);
+            if(special||hurt)atmosphere.GroundBurst(position,Vector3.back,true);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
         public void Clear()
         {
             atmosphere.Clear();
-            ActiveSparkCount=0;beamBurstAge=0;
+            ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var r in rays)r.enabled=false;
@@ -98,6 +101,29 @@ namespace UltramanGame.Runtime
                 line.SetPosition(i,center+new Vector3(Mathf.Cos(a)*radius,.045f,Mathf.Sin(a)*radius));
             }
             line.startColor=color;line.endColor=new Color(color.r,color.g,color.b,0);
+        }
+        public void MotionDust(Battle state,AnimatedActor hero,AnimatedActor enemy,Vector3 axis)
+        {
+            if(state.Phase!=GamePhase.Battle||hero==null||enemy==null)return;
+            if(!motionInitialized)
+            {
+                previousPunches=state.Punches;previousAttack=state.EnemyAttackCount;
+                previousEnemyAge=state.EnemyAge;motionInitialized=true;return;
+            }
+            if(state.Punches>previousPunches)
+                atmosphere.GroundBurst(hero.FootPosition(state.Action==HeroAction.LeftPunch),-axis,false);
+            if(state.EnemyAttackCount!=previousAttack)previousEnemyAge=0;
+            if(state.Enemy==EnemyPhase.Attack)
+            {
+                bool left=state.EnemyAttackCount%2==0;
+                if(previousEnemyAge<.08f&&state.EnemyAge>=.08f)
+                    atmosphere.GroundBurst(enemy.FootPosition(!left),axis,true);
+                if(previousEnemyAge<.36f&&state.EnemyAge>=.36f)
+                    atmosphere.GroundBurst(enemy.FootPosition(left),axis,true);
+                if(previousEnemyAge<.8f&&state.EnemyAge>=.8f)
+                    atmosphere.GroundBurst(enemy.FootPosition(!left),-axis,false);
+            }
+            previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;
         }
         public void Tick(Battle state,Camera camera,float dt,Vector3 origin,Vector3 end,Vector3 shieldCenter,Vector3 axis,bool closeup,float focus,bool firing)
         {
