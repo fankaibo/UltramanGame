@@ -46,14 +46,14 @@ def run_camera(args, bridge, preview=None, photo=None):
     import cv2
     from .capture import LatestCapture
     from .model import create_landmarker, model_image
-    from .segmentation import PersonSegmenter
+    from .async_cutout import AsyncPersonCutout
     if not args.model.is_file():
         raise RuntimeError("模型未准备好，请先运行 scripts/setup.sh。")
     factory = FrameFactory()
     def open_camera():
         camera = cv2.VideoCapture(args.camera, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         camera.set(cv2.CAP_PROP_FPS, 30)
         camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return camera
@@ -62,7 +62,7 @@ def run_camera(args, bridge, preview=None, photo=None):
     frames = poses = revision = skipped = 0
     inference_seconds = 0
     photo_model = None
-    photo_retry_at = 0
+    photo_submit_at = 0
     heartbeat = FrameHeartbeat(args.ready_json)
     try:
         with create_landmarker(args.model) as model, LatestCapture(open_camera) as capture:
@@ -82,7 +82,7 @@ def run_camera(args, bridge, preview=None, photo=None):
                 stamp = max(previous_stamp+1, int((captured_at-start)*1000))
                 previous_stamp = stamp
                 inference_start = time.monotonic()
-                result = model.detect_for_video(model_image(image), stamp)
+                result = model.detect_for_video(model_image(cv2.resize(image,(640,round(image.shape[0]*640/image.shape[1]))) if image.shape[1]>640 else image), stamp)
                 inference_seconds += time.monotonic()-inference_start
                 frames += 1
                 landmarks = result.pose_landmarks[0] if result.pose_landmarks else None
@@ -90,22 +90,20 @@ def run_camera(args, bridge, preview=None, photo=None):
                 bridge.publish(factory.make(landmarks, captured_ms))
                 if preview:
                     preview.publish(image, landmarks, captured_ms)
-                if photo and photo.due():
-                    mask = None
-                    try:
-                        if time.monotonic() >= photo_retry_at:
-                            if photo_model is None:
-                                photo_model = PersonSegmenter()
-                            mask = photo_model.mask(image)
-                    except (RuntimeError, ValueError, OSError) as exc:
-                        # A photo-only failure must not stop ordinary pose tracking.
-                        print("合照人像暂不可用：" + type(exc).__name__, file=sys.stderr, flush=True)
-                        photo_retry_at = time.monotonic() + 3
-                        if photo_model is not None:
-                            photo_model.close()
-                            photo_model = None
-                    photo.publish(image, mask, captured_ms)
-                elif photo_model is not None and not photo.bridge.subscribers:
+                if photo and photo.bridge.subscribers:
+                    if photo_model is None:
+                        photo_model = AsyncPersonCutout()
+                    if time.monotonic() >= photo_submit_at:
+                        # Some cameras ignore their requested capture dimensions.
+                        scale = min(1280/image.shape[1], 960/image.shape[0], 1)
+                        bounded = cv2.resize(image, (round(image.shape[1]*scale), round(image.shape[0]*scale))) if scale < 1 else image
+                        photo_model.submit(bounded, captured_ms)
+                        photo_submit_at = time.monotonic() + .1
+                    cutout = photo_model.take_latest()
+                    if cutout is not None:
+                        source_image, mask, source_stamp = cutout
+                        photo.publish(source_image, mask, source_stamp)
+                elif photo_model is not None:
                     photo_model.close()
                     photo_model = None
                 heartbeat.processed(frames)

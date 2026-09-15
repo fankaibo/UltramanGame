@@ -13,15 +13,21 @@ namespace UltramanGame.Runtime
         readonly Transform shield,charge;
         readonly Material shieldMaterial,chargeMaterial;
         readonly LineRenderer[] rays=new LineRenderer[7],orbits=new LineRenderer[3];
+        readonly LineRenderer warningRing,attackRing;
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
+        readonly ImpactAtmosphere atmosphere;
         int sparkIndex,flashIndex;
         float hitLightAge=10,clock,beamBurstAge;
+        float previousEnemyAge;
+        int previousAttack,previousPunches;
+        bool motionInitialized;
         public int ActiveSparkCount {get;private set;}
         public bool BeamVisible => rays[0].enabled;
         static readonly Color Ice=new Color(.15f,.65f,1),Warm=new Color(1,.48f,.12f);
         public CombatVfx(Transform parent)
         {
+            atmosphere=new ImpactAtmosphere(parent);
             lineMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             for(int i=0;i<sparks.Length;i++)sparks[i]=new Streak {Line=Line(parent,"Impact streak",2,.03f)};
             for(int i=0;i<flashes.Length;i++)
@@ -34,8 +40,10 @@ namespace UltramanGame.Runtime
             shield=GameWorld.Primitive("Light shield",PrimitiveType.Sphere,parent,Vector3.zero,new Vector3(1.9f,2.15f,.38f),shieldMaterial);
             chargeMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyFlare")));
             charge=GameWorld.Primitive("Beam energy focus",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,chargeMaterial);
-            for(int i=0;i<rays.Length;i++)rays[i]=Line(parent,"Zeperion beam layer",32,i==0?.48f:i==1?.17f:.025f);
+            for(int i=0;i<rays.Length;i++)rays[i]=Line(parent,"Zeperion beam layer",32,i==0?.66f:i==1?.23f:.028f);
             for(int i=0;i<orbits.Length;i++)orbits[i]=Line(parent,"Charging arc",48,.016f);
+            warningRing=Line(parent,"Monster warning ground ring",64,.035f);
+            attackRing=Line(parent,"Monster attack ground ring",64,.05f);
             muzzleLight=Point(parent,"Energy spill",Ice,5);hitLight=Point(parent,"Impact spill",Warm,4);
         }
         LineRenderer Line(Transform parent,string name,int count,float width)
@@ -66,26 +74,62 @@ namespace UltramanGame.Runtime
         }
         public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false)
         {
+            atmosphere.Hit(position,special,blocked);
             Color color=blocked?Ice:hurt?Warm:new Color(1,.75f,.38f);
             Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
             FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            FlashAt(new Vector3(position.x,.035f,position.z),special?3.8f:2.0f,.45f,new Color(.15f,.4f,.6f,.45f),true,true);
+            if(special||hurt)atmosphere.GroundBurst(position,Vector3.back,true);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
         public void Clear()
         {
-            ActiveSparkCount=0;beamBurstAge=0;
+            atmosphere.Clear();
+            ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var r in rays)r.enabled=false;
             foreach(var r in orbits)r.enabled=false;
+            warningRing.enabled=attackRing.enabled=false;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=10;muzzleLight.intensity=hitLight.intensity=0;
+        }
+        static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
+        {
+            for(int i=0;i<line.positionCount;i++)
+            {
+                float a=i*Mathf.PI*2/(line.positionCount-1);
+                line.SetPosition(i,center+new Vector3(Mathf.Cos(a)*radius,.045f,Mathf.Sin(a)*radius));
+            }
+            line.startColor=color;line.endColor=new Color(color.r,color.g,color.b,0);
+        }
+        public void MotionDust(Battle state,AnimatedActor hero,AnimatedActor enemy,Vector3 axis)
+        {
+            if(state.Phase!=GamePhase.Battle||hero==null||enemy==null)return;
+            if(!motionInitialized)
+            {
+                previousPunches=state.Punches;previousAttack=state.EnemyAttackCount;
+                previousEnemyAge=state.EnemyAge;motionInitialized=true;return;
+            }
+            if(state.Punches>previousPunches)
+                atmosphere.GroundBurst(hero.FootPosition(state.Action==HeroAction.LeftPunch),-axis,false);
+            if(state.EnemyAttackCount!=previousAttack)previousEnemyAge=0;
+            if(state.Enemy==EnemyPhase.Attack)
+            {
+                bool left=state.EnemyAttackCount%2==0;
+                if(previousEnemyAge<.08f&&state.EnemyAge>=.08f)
+                    atmosphere.GroundBurst(enemy.FootPosition(!left),axis,true);
+                if(previousEnemyAge<.36f&&state.EnemyAge>=.36f)
+                    atmosphere.GroundBurst(enemy.FootPosition(left),axis,true);
+                if(previousEnemyAge<.8f&&state.EnemyAge>=.8f)
+                    atmosphere.GroundBurst(enemy.FootPosition(!left),-axis,false);
+            }
+            previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;
         }
         public void Tick(Battle state,Camera camera,float dt,Vector3 origin,Vector3 end,Vector3 shieldCenter,Vector3 axis,bool closeup,float focus,bool firing)
         {
             clock+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
+            atmosphere.Tick(camera,dt);
             ActiveSparkCount=0;
             foreach(var s in sparks)
             {
@@ -104,6 +148,20 @@ namespace UltramanGame.Runtime
             }
             bool active=state.Phase==GamePhase.Battle;
             shield.gameObject.SetActive(active&&state.Shield);shield.position=shieldCenter;shield.rotation=Quaternion.LookRotation(axis,Vector3.up);shieldMaterial.SetFloat("_Clock",clock);
+            Vector3 enemyGround=end-Vector3.up*2.6f+axis*AnimatedActor.MonsterAdvance(state);
+            bool warning=active&&state.Enemy==EnemyPhase.Windup;
+            bool attack=active&&state.Enemy==EnemyPhase.Attack;
+            warningRing.enabled=warning;attackRing.enabled=attack;
+            if(warning)
+            {
+                float p=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
+                GroundRing(warningRing,enemyGround,.45f+p*.85f,new Color(1,.38f,.10f,.16f+p*.28f));
+            }
+            if(attack)
+            {
+                float p=Mathf.Clamp01(state.EnemyAge/Battle.EnemyHitSeconds);
+                GroundRing(attackRing,enemyGround,.25f+Mathf.SmoothStep(0,1,p)*1.65f,new Color(1,.58f,.20f,(1-p)*.62f));
+            }
             bool charging=closeup||firing;charge.gameObject.SetActive(charging);charge.position=origin-camera.transform.forward*.03f;charge.rotation=camera.transform.rotation;
             charge.localScale=Vector3.one*(firing?1.4f:.45f+focus*.85f);chargeMaterial.color=new Color(.5f,.8f,1,.85f);
             for(int i=0;i<orbits.Length;i++)
@@ -121,7 +179,7 @@ namespace UltramanGame.Runtime
                 for(int j=0;j<line.positionCount;j++)
                 {
                     float t=j/(float)(line.positionCount-1);Vector3 p=Vector3.Lerp(origin,end,t);
-                    if(i>1){float a=t*28-clock*23+i*1.7f;float radius=.10f+Mathf.Sin(t*13+clock*7+i)*.035f;
+                    if(i>1){float a=t*12-clock*16+i*1.7f;float radius=.065f+Mathf.Sin(t*9+clock*7+i)*.02f;
                         p+=camera.transform.right*Mathf.Sin(a)*radius+camera.transform.up*Mathf.Cos(a*1.1f)*radius;}
                     line.SetPosition(j,p);
                 }
@@ -132,7 +190,7 @@ namespace UltramanGame.Runtime
                 beamBurstAge-=dt;if(beamBurstAge<=0){beamBurstAge=.075f;Burst(end,3,.65f,false);FlashAt(end,1.4f,.12f,new Color(.3f,.7f,1));}
             }
             else beamBurstAge=0;
-            muzzleLight.transform.position=origin;muzzleLight.intensity=firing?3.0f:closeup?focus*2:0;
+            muzzleLight.transform.position=origin;muzzleLight.intensity=firing?2.1f:closeup?focus*.65f:0;
             hitLightAge+=dt;hitLight.intensity=Mathf.Max(0,1-hitLightAge/.22f)*3;
         }
     }

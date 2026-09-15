@@ -4,10 +4,13 @@ import plistlib
 import re
 import subprocess
 import time
+import argparse
 from pathlib import Path
 
 
 def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--width',type=int,default=1920);parser.add_argument('--height',type=int,default=1080)
+    args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     app = root / 'unity/Builds/TigaTraining.app'
     with (app / 'Contents/Info.plist').open('rb') as stream:
@@ -16,7 +19,7 @@ def main():
     start = time.monotonic()
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '-screen-fullscreen', '0',
-                                   '-screen-width', '1280', '-screen-height', '720', '-logFile', str(log)],
+                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)],
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         try:
             code = player.wait(timeout=180)
@@ -42,7 +45,7 @@ def main():
         raise RuntimeError('Missing child reaction-time evidence')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
     result = {'result': 'passed', 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
-              'summary': match[0], 'fps_windows': fps}
+              'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height]}
     (root / 'artifacts/cinematic-combat/player-validation.json').write_text(json.dumps(result, indent=2))
     print(json.dumps(result, ensure_ascii=False), flush=True)
 

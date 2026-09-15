@@ -33,3 +33,12 @@
 - 迪迦由 Extrazhang 发布于 [BlendSwap](https://blendswap.com/blend/26877)，作者标注 CC-BY-NC。原作纹理、转换和改编动画的记录见 `unity/Assets/Resources/Characters/Tiga/ATTRIBUTION.txt`。
 - 哥尔赞由 TengenGenesic 上传至 [SFMLab](https://sfmlab.com/project/5e6c0302-9b99-4e34-819f-cd0c5fbcc041/)，源文件路径另署名 ultimo。页面 CC0 标记由上传者选择，网站明确表示未核实；不代表官方商业授权。来源、改编与哈希见 `unity/Assets/Resources/Characters/Golza/ATTRIBUTION.txt`。
 - 两项第三方模型均不适用本仓库的 Apache-2.0 代码许可证；角色权利仍属于原权利人。SourceIO/Blender 仅为本机转换工具，未打包进玩家应用。游戏 F5 页面及构建包保留模型署名。
+
+## 新增可选角色（2026-09-15）
+
+- 梦比优斯：[SFMLab](https://sfmlab.com/project/70e52658-96c6-4434-a06d-f42f8ae666d3/)，TengenGenesic / ultimo。
+- 赛罗：[SFMLab](https://sfmlab.com/project/0068ba82-4091-460a-a601-73ff6c5700ba/)，TengenGenesic / ultimo，页面另署名 Perceptor 的改进。使用普通身体，未启用 Ultimate 装甲。
+- 上述页面由上传者标记 CC0，SFMLab 未核实角色授权；不能据此宣称官方素材或商业授权。
+- 捷德：[用户下载的 GTAall 模型](https://www.gtaall.com/gta-san-andreas/skins/229130-ultraman-geed-dandit-truth-from-ultra-file-v1.html)，页面名称为 Dandit Truth 变体；不是通常的原始形态。格力乔：[用户下载的 GTAall 模型](https://www.gtaall.com/gta-san-andreas/skins/228992-ultrawoman-grigio-from-ultra-file.html)。两者页面作者为 RayNoGame，未核实明确的再分发许可证，当前用于用户本机家庭原型。
+- 每位的原始下载哈希、来源和改编记录保存在对应 `Characters/<名称>/ATTRIBUTION.txt`。保留原始网格外形和贴图，以 Blender 重定向项目自制的八组战斗动作，再烘焙为 FBX。合照立绘由这些模型渲染。
+- GTA 安装包只提取 DFF/TXD 数据，未执行 EXE 安装器。DragonFF、SourceIO 仅用于本机转换，不随游戏发布。新增模型、贴图与角色权利不受仓库 Apache-2.0 代码许可证授予。

@@ -1,0 +1,14 @@
+{
+  "character": "Grigio",
+  "vertices": 2970,
+  "clips": [
+    "Beam",
+    "Guard",
+    "Hurt",
+    "Idle",
+    "LeftPunch",
+    "RightPunch",
+    "Transform",
+    "Victory"
+  ]
+}

@@ -8,6 +8,7 @@ import re
 import tempfile
 import wave
 from pathlib import Path
+from generate_guided_voice import LINES as GUIDED_LINES
 
 LINES={
     'welcome':'小英雄，准备出发！把双手举高。',
@@ -23,6 +24,8 @@ LINES={
     'tutorial':'先收手，再向前挥拳。',
     'beam_help':'一只手抬高，另一只横在胸前。也可以双手向前推，停一下。',
 }
+
+LINES.update(GUIDED_LINES)
 
 def validate_pack(pack):
     manifest = json.loads((pack / 'manifest.json').read_text(encoding='utf-8'))

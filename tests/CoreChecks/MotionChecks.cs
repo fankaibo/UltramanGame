@@ -54,6 +54,18 @@ static class MotionChecks
     {
         foreach(int fps in new[]{15,30,60})
         {
+            var standard=new Trial(fps);standard.Recognizer.Difficulty=1;
+            var lowered=Guard();lowered[15].y=lowered[16].y=.75f;
+            standard.Hold(lowered,.7f);standard.Hold(Guard(),.10f);
+            check(!standard.Last.Shield,$"standard difficulty ignores a brief guard at {fps} fps");
+            standard.Hold(Guard(),.45f);check(standard.Last.Shield,$"standard difficulty accepts a deliberate guard at {fps} fps");
+            standard.Hold(Beam(),.65f,true);check(standard.Beams==0,$"standard difficulty requires a longer beam hold at {fps} fps");
+            standard.Hold(Beam(),.4f,true);check(standard.Beams==1,$"standard difficulty still accepts a clear beam at {fps} fps");
+            standard=new Trial(fps);standard.Recognizer.Difficulty=1;standard.Hold(Guard());standard.Move(Guard(),Forward());standard.Hold(Forward());
+            check(standard.Left==1&&standard.Right==0,$"standard difficulty preserves independent deliberate punches at {fps} fps");
+        }
+        foreach(int fps in new[]{15,30,60})
+        {
             var t=new Trial(fps);t.Hold(Guard());t.Move(Guard(),Forward());t.Hold(Forward(),1.5f);
             check(t.Left==1&&t.Right==0&&t.Forward==1&&!t.Last.Shield,$"forward camera punch works at {fps} fps without repeating or becoming a held shield");
             t.Move(Forward(),Guard());t.Hold(Guard(),.15f);t.Move(Guard(),Forward());t.Hold(Forward());
@@ -95,7 +107,7 @@ static class MotionChecks
         check(trial.Beams==1&&trial.Left==0&&trial.Right==0,"two-hand forward push provides one easy beam at full energy");
         trial=new Trial();trial.Hold(Guard(),beam:true);trial.Hold(Beam(),.22f,true);var gap=Beam();gap[15].visibility=.1f;
         trial.Hold(gap,.066f,true);check(trial.Beams==0,"occlusion cannot fire a partly charged beam");
-        trial.Hold(Beam(),.2f,true);
+        trial.Hold(Beam(),.55f,true);
         check(trial.Beams==1,"brief unreliable frames preserve but do not advance beam progress");
         trial.Hold(Guard(),.099f,true);trial.Hold(Beam(),1,true);
         check(trial.Beams==1,"short pose wobble cannot rearm a held beam");
@@ -113,7 +125,7 @@ static class MotionChecks
         {
             trial=new Trial(fps);var childL=Beam();childL[15].y=.41f;childL[16].y=.49f;
             trial.Hold(Guard());trial.Hold(childL,1,true);
-            check(trial.Beams==1,$"lower, short-arm L pose fires once at {fps} fps");
+            check(trial.Beams==0&&trial.Last.Shield,$"uneven low chest guard cannot become a beam at {fps} fps");
             trial=new Trial(fps);var shallowPush=Push();shallowPush[15].z=shallowPush[16].z=-.29f;
             trial.Hold(Guard());trial.Move(Guard(),shallowPush,beam:true);trial.Hold(shallowPush,1,true);
             check(trial.Beams==1&&trial.Left==0&&trial.Right==0,$"modest two-hand reach fires without full extension at {fps} fps");
