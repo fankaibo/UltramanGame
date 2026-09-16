@@ -78,6 +78,7 @@ namespace UltramanGame.Runtime
         {
             if(Input.mousePosition!=previousMouse){previousMouse=Input.mousePosition;cursorUntil=Time.unscaledTime+3;}
             Cursor.visible=keyboard||settings||showcase||music.Choosing||Time.unscaledTime<cursorUntil||photo.Stage==PhotoStage.Review;
+            if(Input.GetKeyDown(KeyCode.F2)){SetMode(!keyboard);return;}
             if(Input.GetKeyDown(KeyCode.F4)){if(settings)CloseSettings();else OpenSettings();}
             if(settings)
             {
@@ -105,7 +106,6 @@ namespace UltramanGame.Runtime
                 return;
             }
             if(Input.GetKeyDown(KeyCode.F7)&&battle.Phase==GamePhase.Victory&&photoAvailable) {photo.Open();return;}
-            if(Input.GetKeyDown(KeyCode.F2))SetMode(!keyboard);
             if(Input.GetKeyDown(KeyCode.F3))showPreview=!showPreview;
             if(Input.GetKeyDown(KeyCode.F5))showcase=!showcase;
             if(showcase)showcaseFrame=(showcaseFrame+8+(Input.GetKeyDown(KeyCode.RightArrow)?1:0)-(Input.GetKeyDown(KeyCode.LeftArrow)?1:0))%8;
@@ -283,7 +283,18 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log($"[Settings] monsterHits={monsterHits} energyPunches={Battle.MaxEnergy}");
             Restart();
         }
-        void SetMode(bool value) {keyboard=value;photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;Restart();}
+        void SetMode(bool value)
+        {
+            if(keyboard==value)return;
+            keyboard=value;photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
+            // Only replace the input source: keep the round, selected hero and
+            // any open settings/photo review, while discarding stale gestures.
+            recognizer.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
+            lastTracking=false;gestureFeedbackUntil=0;cursorUntil=Time.unscaledTime+3;
+            if(battle.Phase==GamePhase.Waiting&&!photo.Active)
+            {sound.Reset();if(!keyboard&&!settings)sound.Speak("arcade_ready",1,GamePhase.Waiting);}
+            if(Debug.isDebugBuild)Debug.Log($"[InputMode] mode={(keyboard?"keyboard":"camera")} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy} hero={SelectedHero.Id}");
+        }
         void ReadPhotoPose()
         {
             var line=client.TakeLatest();
@@ -294,7 +305,7 @@ namespace UltramanGame.Runtime
         void UpdatePreview(long now)
         {
             var incoming=previewClient.TakeLatest();
-            if(keyboard||!showPreview)
+            if((keyboard&&!photo.Active)||!showPreview)
             {previewFrame=null;if(previewTexture){Destroy(previewTexture);previewTexture=null;}return;}
             if(incoming!=null&&incoming.Fresh(now))
             {
@@ -371,7 +382,7 @@ namespace UltramanGame.Runtime
                 if(hud.Button(new Rect(1050,665,192,37),"返回游戏 · F5"))showcase=false;
                 return;
             }
-            if(world.Closeup.Active) {DrawBeamCloseup();return;}
+            if(world.Closeup.Active) {DrawBeamCloseup();DrawSettingsEntry();return;}
             if(!keyboard||battle.Phase==GamePhase.Waiting) {DrawArcadeHud();DrawSettingsEntry();return;}
             if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
             {DrawBattleHud();return;}
@@ -421,7 +432,7 @@ namespace UltramanGame.Runtime
             hud.Dot(new Vector2(28,y+height/2),compact?5:7,keyboard||PoseQuality.Present(pose,now)?HudPainter.Cyan:HudPainter.Gold);
             hud.Text(new Rect(40,y,570,height),status,compact?11:14,HudPainter.Muted);
             if(hud.Button(new Rect(640,y,116,height),"角色 · F5",size:fontSize))showcase=true;
-            if(hud.Button(new Rect(770,y,130,height),keyboard?"切回体感":"键盘练习",size:fontSize))SetMode(!keyboard);
+            DrawModeSwitch(new Rect(765,y,137,height),fontSize);
             if(hud.Button(new Rect(912,y,108,height),"游戏设置",size:fontSize))OpenSettings();
             if(hud.Button(new Rect(1032,y,100,height),paused?"继续":"暂停",size:fontSize))paused=!paused;
             if(hud.Button(new Rect(1144,y,108,height),"重新开始",size:fontSize))Restart();
@@ -515,6 +526,7 @@ namespace UltramanGame.Runtime
         {
             hud.Box(new Rect(0,0,1280,661),new Color(.005f,.01f,.03f,.72f));hud.Panel(new Rect(355,115,570,521),HudPainter.Cyan);
             hud.Text(new Rect(385,134,500,40),"游戏设置",27,HudPainter.Ink,bold:true);
+            DrawModeSwitch(new Rect(705,138,189,34),14);
             if(hud.Button(new Rect(386,184,160,36),"战斗与动作",!audioSettings&&!videoSettings?HudPainter.Cyan:HudPainter.Muted)){audioSettings=videoSettings=false;}
             if(hud.Button(new Rect(560,184,160,36),"声音与音乐",audioSettings?HudPainter.Cyan:HudPainter.Muted)){audioSettings=true;videoSettings=false;}
             if(hud.Button(new Rect(734,184,160,36),"画面与合照",videoSettings?HudPainter.Cyan:HudPainter.Muted)){videoSettings=true;audioSettings=false;}
@@ -536,7 +548,12 @@ namespace UltramanGame.Runtime
                 ApplySettings();
         }
         void DrawSettingsEntry()
-        {if(hud.Button(new Rect(18,674,145,30),"设置 · F4",HudPainter.Muted,13))OpenSettings();}
+        {
+            if(hud.Button(new Rect(18,674,145,30),"设置 · F4",HudPainter.Muted,13))OpenSettings();
+            DrawModeSwitch(new Rect(175,674,177,30),13);
+        }
+        void DrawModeSwitch(Rect rect,int size)
+        {if(hud.Button(rect,keyboard?"切换体感 · F2":"切换按键 · F2",HudPainter.Cyan,size))SetMode(!keyboard);}
         void DrawDisplaySettings()
         {
             hud.Text(new Rect(386,239,508,30),"画面分辨率 · 目标 60 FPS",21,HudPainter.Ink,bold:true);
