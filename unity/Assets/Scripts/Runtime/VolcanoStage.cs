@@ -14,6 +14,12 @@ namespace UltramanGame.Runtime
         readonly LineRenderer[] lavaStreams=new LineRenderer[3];
         readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
         readonly Material[] cloudMaterials=new Material[32];
+        const int AshCount=42;
+        Mesh ashMesh;
+        readonly Vector3[] ashVertices=new Vector3[AshCount*4];
+        readonly Vector2[] ashStates=new Vector2[AshCount*4];
+        readonly Vector3[] ashOrigins=new Vector3[42],ashVelocities=new Vector3[42];
+        float ashMeshClock=-1;
         readonly Light[] ventLights=new Light[2];
         Light foregroundLavaLight;
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
@@ -95,6 +101,25 @@ namespace UltramanGame.Runtime
                 embers.Add(t);emberVelocity.Add(new Vector3(Range(-.38f,.38f),Range(1.3f,2.3f),Range(-.2f,.2f)));
                 emberAge.Add(Range(0,3.8f));t.gameObject.SetActive(false);
             }
+            // A sparse foreground ash layer adds depth between the camera and the
+            // actors.  The deterministic loops keep editor reviews and live play
+            // identical while the very low opacity leaves the gesture silhouette
+            // readable for a child standing in front of the camera.
+            var ashMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("AshMote")));
+            ashMaterial.SetColor("_Color",new Color(.34f,.39f,.44f,.10f));
+            var ashUv=new Vector2[AshCount*4];var ashTriangles=new int[AshCount*6];
+            for(int i=0;i<AshCount;i++)
+            {
+                ashOrigins[i]=new Vector3(Range(-11,11),Range(.65f,5.1f),Range(1.5f,18.5f));
+                ashVelocities[i]=new Vector3(Range(-.13f,.16f),Range(.025f,.10f),Range(.02f,.12f));
+                int v=i*4,t=i*6;ashUv[v]=new Vector2(0,0);ashUv[v+1]=new Vector2(1,0);ashUv[v+2]=new Vector2(1,1);ashUv[v+3]=new Vector2(0,1);
+                ashTriangles[t]=v;ashTriangles[t+1]=v+1;ashTriangles[t+2]=v+2;ashTriangles[t+3]=v;ashTriangles[t+4]=v+2;ashTriangles[t+5]=v+3;
+            }
+            ashMesh=RuntimeResources.Own(transform,new Mesh{name="Drifting volcanic ash",vertices=ashVertices,uv=ashUv,uv2=ashStates,triangles=ashTriangles});ashMesh.MarkDynamic();
+            ashMesh.bounds=new Bounds(new Vector3(0,3,10),new Vector3(30,12,28));
+            var ashObject=new GameObject("Drifting ash layer",typeof(MeshFilter),typeof(MeshRenderer));ashObject.transform.SetParent(transform,false);
+            ashObject.GetComponent<MeshFilter>().sharedMesh=ashMesh;var ashRenderer=ashObject.GetComponent<MeshRenderer>();ashRenderer.sharedMaterial=ashMaterial;
+            ashRenderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;ashRenderer.receiveShadows=false;
         }
         void BuildTerrain()
         {
@@ -198,6 +223,22 @@ namespace UltramanGame.Runtime
                 Vector3 p=origin+emberVelocity[i]*age+Vector3.down*.95f*age*age;
                 bool active=age<2.1f&&p.y>Height(p.x,p.z);embers[i].gameObject.SetActive(active);if(active)embers[i].position=p;
             }
+            // The tiny foreground motes do not need a vertex upload on every render
+            // tick.  Updating at 45 Hz keeps their motion fluid while leaving the
+            // render thread headroom for skeletal animation and camera compositing.
+            if(ashMesh==null||ashMeshClock>=0&&time-ashMeshClock<1f/45f)return;
+            ashMeshClock=time;
+            Vector3 viewRight=lens?lens.transform.right:Vector3.right,viewUp=lens?lens.transform.up:Vector3.up;
+            for(int i=0;i<AshCount;i++)
+            {
+                float life=9.5f,age=Mathf.Repeat(time*.42f+i*.61f,life),phase=age/life;
+                var point=ashOrigins[i]+ashVelocities[i]*age+new Vector3(Mathf.Sin(time*.32f+i)*.08f,Mathf.Sin(time*.51f+i*1.7f)*.08f,0);
+                float size=(.035f+(i%5)*.012f)*(.55f+.45f*Mathf.Sin(phase*Mathf.PI))*.5f,spin=Mathf.Sin(time*.7f+i)*.31f;
+                Vector3 right=(viewRight*Mathf.Cos(spin)+viewUp*Mathf.Sin(spin))*size,up=(-viewRight*Mathf.Sin(spin)+viewUp*Mathf.Cos(spin))*size;
+                int v=i*4;ashVertices[v]=point-right-up;ashVertices[v+1]=point+right-up;ashVertices[v+2]=point+right+up;ashVertices[v+3]=point-right+up;
+                for(int j=0;j<4;j++)ashStates[v+j]=new Vector2(i*5.17f,phase);
+            }
+            ashMesh.vertices=ashVertices;ashMesh.uv2=ashStates;
         }
     }
 }
