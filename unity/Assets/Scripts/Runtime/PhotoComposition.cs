@@ -21,7 +21,7 @@ namespace UltramanGame.Runtime
         bool bodyMeasured;
         bool? measuredFullBody;
         public bool FullBody {get;private set;}
-        bool disposed;
+        bool disposed,dirty=true;
         public PhotoComposition(int width=Width,int height=Height,string heroId="Tiga")
         {
             root=new GameObject("Victory photo composition");root.transform.position=new Vector3(10000,10000,0);
@@ -79,6 +79,7 @@ namespace UltramanGame.Runtime
         }
         public bool SetPerson(Texture2D texture,PoseFrame pose=null)
         {
+            dirty=true;
             var bounds=Bounds(texture,false,new RectInt(0,0,texture.width,texture.height));
             bool valid=bounds.width>0&&bounds.height>0;personQuad.gameObject.SetActive(valid);
             if(!valid)return false;
@@ -142,13 +143,23 @@ namespace UltramanGame.Runtime
             quad.localPosition=new Vector3(x+(bounds.center.x-anchorX)*scale,y+(bounds.center.y-anchorY)*scale,0);
         }
         public void ResetFraming() {bodyMeasured=false;measuredFullBody=null;}
-        public void HidePerson()=>personQuad.gameObject.SetActive(false);
-        public void Render()=>camera.Render();
+        public void HidePerson()
+        {
+            if(!personQuad.gameObject.activeSelf)return;
+            personQuad.gameObject.SetActive(false);dirty=true;
+        }
+        // Camera cutouts arrive at 8 FPS. Keep the composed texture between
+        // deliveries instead of drawing the same 1080P/2K layers every frame.
+        public void Render(bool force=false)
+        {
+            if(!dirty&&!force)return;
+            camera.Render();dirty=false;
+        }
         public byte[] CleanPlate()
         {
             bool visible=personQuad.gameObject.activeSelf;
             try {personQuad.gameObject.SetActive(false);var picture=Snapshot();try{return picture.EncodeToPNG();}finally{Release(picture);}}
-            finally{personQuad.gameObject.SetActive(visible);}
+            finally{personQuad.gameObject.SetActive(visible);dirty=true;}
         }
         public byte[] PersonMatte()
         {
@@ -158,11 +169,11 @@ namespace UltramanGame.Runtime
                 backgroundQuad.gameObject.SetActive(false);heroQuad.gameObject.SetActive(false);camera.backgroundColor=Color.black;person.SetFloat("_MaskOnly",1);
                 var picture=Snapshot();try{return picture.EncodeToPNG();}finally{Release(picture);}
             }
-            finally{backgroundQuad.gameObject.SetActive(true);heroQuad.gameObject.SetActive(true);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);}
+            finally{backgroundQuad.gameObject.SetActive(true);heroQuad.gameObject.SetActive(true);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);dirty=true;}
         }
         public Texture2D Snapshot()
         {
-            Render();var old=RenderTexture.active;
+            Render(true);var old=RenderTexture.active;
             try
             {
                 RenderTexture.active=Preview;var texture=new Texture2D(Preview.width,Preview.height,TextureFormat.RGB24,false);

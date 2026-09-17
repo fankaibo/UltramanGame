@@ -60,7 +60,7 @@ namespace UltramanGame.Runtime
             Rock(new Vector3(-8.4f,Height(-8.4f,13),13),new Vector3(2.1f,1.15f,1.25f),rock);
             for(int i=0;i<lavaStreams.Length;i++)
             {
-                var line=lavaStreams[i]=Line("Cooling lava seam",42,.018f);line.enabled=true;
+                var line=lavaStreams[i]=Line("Cooling lava seam",42,.012f);line.enabled=true;
                 float sx=i==0?-5.3f:i==1?5.3f:8,sz=i<2?16:23;
                 for(int j=0;j<42;j++)
                 {
@@ -185,7 +185,7 @@ namespace UltramanGame.Runtime
                 r.startColor=new Color(.7f,.8f,1,Mathf.Sin(t*Mathf.PI)*.5f);r.endColor=new Color(.6f,.7f,1,0);
             }
             for(int i=0;i<lavaStreams.Length;i++)
-            {var color=new Color(1,.25f,.055f,.18f+.07f*Mathf.Sin(time*.7f+i));lavaStreams[i].startColor=lavaStreams[i].endColor=color;}
+            {var color=new Color(1,.25f,.055f,.065f+.025f*Mathf.Sin(time*.7f+i));lavaStreams[i].startColor=lavaStreams[i].endColor=color;}
             for(int vent=0;vent<vents.Length;vent++)
             {
                 var origin=vents[vent];origin.y=Height(origin.x,origin.z)+.05f;

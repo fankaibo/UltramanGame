@@ -207,6 +207,9 @@ namespace UltramanGame.Runtime
         }
         void LateUpdate()
         {
+            // The photo view covers the entire screen and owns its offscreen
+            // camera. Suspend arena shadows/bloom until the child returns.
+            world.Camera.enabled=!photo.Active;
             CaptureGuidedProof();
             if(review==null)return;
             if(battle.Phase==GamePhase.Paused)reviewPaused=true;

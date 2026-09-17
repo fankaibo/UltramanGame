@@ -39,6 +39,7 @@ namespace UltramanGame.Core
     public enum PhotoChoice {None,Retake,PlayAgain}
     public sealed class PhotoChoiceGesture
     {
+        const int ReleaseGraceMs=1000;
         string stream;
         long sequence,stamp;
         double neutral,held;
@@ -50,11 +51,20 @@ namespace UltramanGame.Core
         public void Reset() {stream=null;sequence=stamp=0;neutral=held=0;armed=false;candidate=PhotoChoice.None;}
         public PhotoChoice Update(PoseFrame frame,long now,bool allowSelection=true)
         {
-            if(!PoseQuality.Present(frame,now)) {Reset();return PhotoChoice.None;}
+            if(!PoseQuality.Present(frame,now))
+            {
+                // A brief delivery stall must not erase a deliberate hands-down
+                // release seen during narration. Missing time never counts as a hold.
+                neutral=held=0;candidate=PhotoChoice.None;
+                if(stamp==0||now-stamp>ReleaseGraceMs||now<stamp-50||frame!=null&&frame.streamId!=stream)Reset();
+                return PhotoChoice.None;
+            }
             if(stream==frame.streamId&&frame.sequence<=sequence)return PhotoChoice.None;
-            if(stream!=frame.streamId||frame.capturedMs-stamp>250||frame.capturedMs<=stamp)
-            {armed=false;neutral=held=0;candidate=PhotoChoice.None;}
-            double dt=stamp>0?Math.Max(0,Math.Min(.1,(frame.capturedMs-stamp)/1000.0)):0;
+            long gap=frame.capturedMs-stamp;
+            bool resetRelease=stream!=frame.streamId||gap>ReleaseGraceMs||gap<=0;
+            if(resetRelease)armed=false;
+            if(resetRelease||gap>250){neutral=held=0;candidate=PhotoChoice.None;}
+            double dt=stamp>0&&!resetRelease&&gap<=250?Math.Max(0,Math.Min(.1,gap/1000.0)):0;
             stream=frame.streamId;sequence=frame.sequence;stamp=frame.capturedMs;
             var p=frame.points;
             bool leftVisible=PoseQuality.Reliable(p[15],.45f),rightVisible=PoseQuality.Reliable(p[16],.45f);

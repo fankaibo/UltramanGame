@@ -163,17 +163,6 @@ namespace UltramanGame.Runtime
                 GUI.DrawTexture(new Rect(735,128,435,402),cameraPreview,ScaleMode.ScaleToFit,false);
                 hud.Text(new Rect(735,529,435,30),"实时镜头 · 正在准备镂空人像",16,HudPainter.Gold,TextAnchor.MiddleCenter);
             }
-            if(!review&&freshPerson&&cameraPreview)
-            {
-                // Keep the child's real pose visible while the cutout composition
-                // remains the main view. The small reference window is deliberately
-                // placed at the far edge so it does not cover the hero or the person.
-                var reference=new Rect(1010,86,238,168);
-                hud.Rounded(new Rect(reference.x-8,reference.y-28,reference.width+16,reference.height+48),new Color(.008f,.025f,.06f,.90f),7);
-                hud.Text(new Rect(reference.x,reference.y-25,reference.width,20),"姿势参考 · 实时镜头",12,HudPainter.Cyan,TextAnchor.MiddleCenter,true);
-                GUI.DrawTexture(reference,cameraPreview,ScaleMode.ScaleToFit,false);
-                hud.Line(new Vector2(reference.x,reference.y+reference.height+7),new Vector2(reference.xMax,reference.y+reference.height+7),HudPainter.Cyan,2);
-            }
             hud.Box(new Rect(0,0,1280,64),new Color(.008f,.025f,.06f,.76f));
             hud.Text(new Rect(32,12,750,38),review?"光之英雄 · 合照纪念":"光之英雄 · 和"+HeroRoster.At(HeroRoster.Index(HeroId)).Name+"站在一起",25,HudPainter.Ink,bold:true);
             hud.Text(new Rect(900,16,345,29),frame?.Synthetic==true?"合成测试 · 非真人":review?"照片预览 · 已定格":"实时镂空取景",14,HudPainter.Cyan,TextAnchor.MiddleRight);
@@ -191,8 +180,16 @@ namespace UltramanGame.Runtime
             {
                 Corners(hud,new Rect(720,94,470,496),freshPerson?new Color(.3f,.9f,1,.4f):new Color(1,.76f,.38f,.6f));
                 hud.Text(new Rect(770,73,365,28),freshPerson?"这是你 · 姿势实时可见":"让头和身体进入镜头",17,freshPerson?HudPainter.Cyan:HudPainter.Gold,TextAnchor.MiddleCenter);
-                hud.Text(new Rect(60,633,1160,37),counting?"保持喜欢的姿势，马上自动拍照":freshPerson?message:"站进镜头，画面准备好后会自动倒数",25,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(60,677,1160,24),freshPerson&&!composition.FullBody?"英雄大小固定 · 退后一点，让全身入镜，合照更完整":counting?"不需要点击 · 拍完自动显示合照":"先听完引导，再留三秒准备 · 不需要键盘或鼠标",14,HudPainter.Muted,TextAnchor.MiddleCenter);
+                hud.Text(new Rect(60,633,1000,37),counting?"保持喜欢的姿势，马上自动拍照":freshPerson?message:"站进镜头，画面准备好后会自动倒数",25,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(60,677,1000,24),freshPerson&&!composition.FullBody?"英雄大小固定 · 退后一点，让全身入镜，合照更完整":counting?"不需要点击 · 拍完自动显示合照":"先听完引导，再留三秒准备 · 不需要键盘或鼠标",14,HudPainter.Muted,TextAnchor.MiddleCenter);
+                if(freshPerson&&cameraPreview)
+                {
+                    // Keep this HUD-only reference inside the existing footer;
+                    // the old top-right window covered the person's face and raised arm.
+                    var reference=new Rect(1100,636,152,76);
+                    hud.Text(new Rect(1094,616,164,19),"姿势参考 · 实时镜头",10,HudPainter.Cyan,TextAnchor.MiddleCenter,true);
+                    GUI.DrawTexture(reference,cameraPreview,ScaleMode.ScaleToFit,false);
+                }
                 if(counting)
                 {
                     hud.Dot(new Vector2(640,127),94,new Color(.015f,.06f,.11f,.9f));
