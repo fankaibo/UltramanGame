@@ -248,6 +248,29 @@ namespace UltramanGame.Runtime
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack)
+            {
+                // The baked clip owns both hands and the planted-foot keyframes.
+                // This small torso/head layer gives alternating lead claws a
+                // different centre of mass, so a long exchange reads as two
+                // deliberate lunges instead of one repeated pose.
+                float reach=Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI);
+                float side=state.EnemyAttackCount%2==0?-1:1;
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(side*6*reach,Vector3.up)
+                        *Quaternion.AngleAxis(-4*reach,right)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    head.rotation=Quaternion.AngleAxis(side*8*reach,Vector3.up)
+                        *Quaternion.AngleAxis(-3*reach,right)*head.rotation;
+                }
+                contactLayerApplied=true;
+            }
             if(monster&&preview<0&&next=="Hurt"&&state.Phase==GamePhase.Battle)
             {
                 // World axes are deliberate: the mirrored Source bones do not
