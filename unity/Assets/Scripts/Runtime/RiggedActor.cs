@@ -27,6 +27,10 @@ namespace UltramanGame.Runtime
         GamePhase previous;
         bool heavyHit;
         Transform hand,leftHand,forearm,leftFoot,rightFoot;
+        Transform head,upperSpine;
+        Quaternion headBase,spineBase;
+        bool contactLayerApplied;
+        float contactSide;
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
@@ -110,6 +114,8 @@ namespace UltramanGame.Runtime
                 if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
                 if(joint.name=="Foot_L"||joint.name=="bip_foot_L")leftFoot=joint;
                 if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
+                if(monster&&joint.name=="bip_head")head=joint;
+                if(monster&&joint.name=="bip_spine_2")upperSpine=joint;
             }
             if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
             if(monster)
@@ -168,9 +174,18 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            // Blends start from the sampled clip, never from last frame's
+            // additive impact. Otherwise the same impulse feeds back into itself.
+            if(contactLayerApplied)
+            {
+                if(upperSpine)upperSpine.localRotation=spineBase;
+                if(head)head.localRotation=headBase;
+                contactLayerApplied=false;
+            }
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
             phaseAge+=dt;hitAge+=dt;
-            if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;}
+            if(state.EnemyHealth<lastHealth)
+            {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;}
             lastHealth=state.EnemyHealth;
             string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1,fallTilt=0,fallSide=0,fallDrop=0;
             Frame=0;
@@ -180,16 +195,12 @@ namespace UltramanGame.Runtime
                 {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
                 else if(state.Phase==GamePhase.Victory) {next="Defeat";sample=phaseAge;Frame=7;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1.5f)/1.5f);}
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
-                else if(state.Phase==GamePhase.Battle&&hitAge<.4f)
+                else if(state.Phase==GamePhase.Battle&&hitAge<(heavyHit?.9f:.4f))
                 {
-                    next="Hurt";sample=hitAge;Frame=heavyHit?6:5;
-                    float recoil=Mathf.Sin(hitAge/.4f*Mathf.PI);
-                    travel=-recoil*(heavyHit?.22f:.12f);
-                    // Make contact read as a physical reaction instead of only a
-                    // texture/clip swap.  The heavier beam hit gets a deeper
-                    // backward pitch and roll, all driven by the same hit clock.
-                    fallTilt=-(heavyHit?16f:8f)*recoil;
-                    fallSide=(heavyHit?9f:4f)*recoil;
+                    next="Hurt";sample=heavyHit&&hitAge>.14f?Mathf.Lerp(.14f,.4f,(hitAge-.14f)/.76f):hitAge;Frame=heavyHit?6:5;
+                    // The baked pelvis/legs already absorb the hit. Keep the
+                    // actor root upright so both feet retain their planted pose;
+                    // the chest and head supply directional follow-through below.
                 }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {
@@ -237,6 +248,31 @@ namespace UltramanGame.Runtime
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            if(monster&&preview<0&&next=="Hurt"&&state.Phase==GamePhase.Battle)
+            {
+                // World axes are deliberate: the mirrored Source bones do not
+                // share Euler axes. Chest yields first, head follows 35 ms later,
+                // then both settle. Left/right punches twist opposite shoulders.
+                // A beam sustains the recoil while it is striking the chest,
+                // rather than returning to Idle during the visible blast.
+                float chest=ContactPulse(hitAge,0,heavyHit?.12f:.075f,heavyHit?.84f:.35f);
+                float follow=ContactPulse(hitAge,.035f,heavyHit?.20f:.14f,heavyHit?.9f:.4f);
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:9)*chest,right)
+                        *Quaternion.AngleAxis(contactSide*18*chest,Vector3.up)
+                        *Quaternion.AngleAxis(contactSide*4*chest,forward)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    head.rotation=Quaternion.AngleAxis(-(heavyHit?13:7)*follow,right)
+                        *Quaternion.AngleAxis(contactSide*7*follow,Vector3.up)*head.rotation;
+                }
+                contactLayerApplied=true;
+            }
             // Keep the tail planted while the torso recoils. It follows heading
             // and travel, but not the pelvis or whole-actor backward hit pitch.
             if(tailJoints!=null&&tailJoints.Length>0)
@@ -248,5 +284,7 @@ namespace UltramanGame.Runtime
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
         }
+        static float ContactPulse(float age,float start,float peak,float end)
+        {return age<=start||age>=end?0:age<peak?Mathf.SmoothStep(0,1,(age-start)/(peak-start)):1-Mathf.SmoothStep(0,1,(age-peak)/(end-peak));}
     }
 }
