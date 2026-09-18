@@ -15,7 +15,10 @@ namespace UltramanGame.Runtime
         void OnRenderImage(RenderTexture source,RenderTexture destination)
         {
             if(!composite){Graphics.Blit(source,destination);return;}
-            var a=RenderTexture.GetTemporary(Mathf.Max(1,source.width/4),Mathf.Max(1,source.height/4),0,source.format);
+            // Keep the original scene full resolution and use a half-resolution
+            // bloom buffer. The previous quarter-size buffer softened the beam
+            // edge and character rim on a 1080P/2K television.
+            var a=RenderTexture.GetTemporary(Mathf.Max(1,source.width/2),Mathf.Max(1,source.height/2),0,source.format);
             var b=RenderTexture.GetTemporary(a.width,a.height,0,source.format);
             try
             {
