@@ -11,6 +11,7 @@ namespace UltramanGame.Runtime
         readonly List<Vector3> emberVelocity=new List<Vector3>();
         readonly List<float> emberAge=new List<float>();
         readonly LineRenderer[] meteors=new LineRenderer[3];
+        readonly Transform[] meteorHeads=new Transform[3];
         readonly LineRenderer[] lavaStreams=new LineRenderer[3];
         readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
         readonly Material[] cloudMaterials=new Material[32];
@@ -45,6 +46,9 @@ namespace UltramanGame.Runtime
             rock.SetColor("_Color",new Color(.15f,.16f,.17f));
             rock.SetFloat("_BackdropBlend",0);
             glow=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
+            var meteorMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Material>("PrototypeSurface")));
+            meteorMaterial.color=new Color(.46f,.78f,1);meteorMaterial.EnableKeyword("_EMISSION");
+            meteorMaterial.SetColor("_EmissionColor",new Color(2.4f,3.0f,4.2f));
             var emberMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=new Color(1,.32f,.065f,.8f)});
             BuildTerrain();
             for(int i=0;i<64;i++)
@@ -68,7 +72,13 @@ namespace UltramanGame.Runtime
                     line.SetPosition(j,new Vector3(x,Height(x,z)+.014f,z));
                 }
             }
-            for(int i=0;i<meteors.Length;i++)meteors[i]=Line("Distant meteor",2,.013f);
+            // A short multi-point ribbon reads as a luminous meteor instead of
+            // the thin red debug line used by the first stage pass.
+            for(int i=0;i<meteors.Length;i++)
+            {
+                meteors[i]=Line("Distant meteor",5,.055f);
+                meteorHeads[i]=GameWorld.Primitive("Distant meteor head",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*.13f,meteorMaterial);
+            }
             // Two staggered lava fountains add a readable moving layer behind the
             // fighters.  They are deliberately lightweight line effects so the
             // same deterministic stage clock works in live play and captures.
@@ -167,7 +177,7 @@ namespace UltramanGame.Runtime
             obj.GetComponent<MeshFilter>().sharedMesh=mesh;obj.GetComponent<MeshRenderer>().sharedMaterial=material;return obj.transform;
         }
         LineRenderer Line(string name,int points,float width)
-        {var r=new GameObject(name).AddComponent<LineRenderer>();r.transform.SetParent(transform,false);r.sharedMaterial=glow;r.positionCount=points;r.widthMultiplier=width;r.numCapVertices=3;r.enabled=false;return r;}
+        {var r=new GameObject(name).AddComponent<LineRenderer>();r.transform.SetParent(transform,false);r.sharedMaterial=glow;r.useWorldSpace=true;r.positionCount=points;r.widthMultiplier=width;r.numCapVertices=3;r.enabled=false;return r;}
         public void SetBackdrop(Texture texture,Matrix4x4 worldToLocal,float clock)
         {
             ground.SetTexture("_BackdropTex",texture);ground.SetMatrix("_BackdropWorldToLocal",worldToLocal);ground.SetFloat("_Clock",clock);
@@ -178,11 +188,19 @@ namespace UltramanGame.Runtime
         {
             for(int i=0;i<meteors.Length;i++)
             {
-                var r=meteors[i];float age=Mathf.Repeat(time+i*6.1f,19+i*2);float t=age/1.15f;r.enabled=t<1;
+                var r=meteors[i];float age=Mathf.Repeat(time+i*2.7f,7.5f+i*1.1f);float t=age/1.35f;r.enabled=t<1;
+                meteorHeads[i].gameObject.SetActive(r.enabled);
                 if(!r.enabled)continue;
-                var head=new Vector3(-9+i*7+t*3,9+i*.55f-t*2.8f,17+i*2);
-                r.SetPosition(0,head);r.SetPosition(1,head+new Vector3(-.5f,.48f,0));
-                r.startColor=new Color(.7f,.8f,1,Mathf.Sin(t*Mathf.PI)*.5f);r.endColor=new Color(.6f,.7f,1,0);
+                var head=new Vector3(-9+i*6.5f+t*5.4f,4.8f+i*.28f-t*1.8f,11+i*1.5f);
+                var tail=head+new Vector3(-1.45f,.78f,0);
+                meteorHeads[i].position=head;meteorHeads[i].localScale=Vector3.one*(.09f+.055f*Mathf.Sin(Mathf.Clamp01(t)*Mathf.PI));
+                for(int j=0;j<r.positionCount;j++)
+                {
+                    float p=j/(float)(r.positionCount-1);
+                    r.SetPosition(j,Vector3.Lerp(head,tail,p));
+                }
+                float alpha=Mathf.Sin(Mathf.Clamp01(t)*Mathf.PI)*.92f;
+                r.startColor=new Color(.95f,.98f,1,alpha);r.endColor=new Color(.32f,.58f,1,0);
             }
             for(int i=0;i<lavaStreams.Length;i++)
             {var color=new Color(1,.25f,.055f,.065f+.025f*Mathf.Sin(time*.7f+i));lavaStreams[i].startColor=lavaStreams[i].endColor=color;}
