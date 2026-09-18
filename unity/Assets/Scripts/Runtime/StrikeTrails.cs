@@ -77,9 +77,9 @@ namespace UltramanGame.Runtime
         public bool MonsterVisible=>claws[0].Visible||claws[1].Visible||claws[2].Visible;
         public StrikeTrails(Transform parent)
         {
-            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.48f,.8f,1,.85f),.32f,.14f);
+            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,1f),.56f,.26f);
             for(int i=0;i<claws.Length;i++)
-                claws[i]=new Ribbon(parent,"Monster moving claw "+i,new Color(1,.55f,.2f,.78f),.16f,.18f);
+                claws[i]=new Ribbon(parent,"Monster moving claw "+i,new Color(1,.46f,.12f,.96f),.30f,.26f);
         }
         public void Clear()
         {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
@@ -91,8 +91,8 @@ namespace UltramanGame.Runtime
             bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
             if(punch&&(state.Action!=lastAction||state.ActionAge<lastHeroAge))hero.Clear();
             if(state.EnemyAttackCount!=lastEnemyAttack)foreach(var claw in claws)claw.Clear();
-            bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.21f;
-            bool emitMonster=state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.16f&&state.EnemyAge<.54f;
+            bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.34f;
+            bool emitMonster=state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.12f&&state.EnemyAge<.66f;
             hero.Tick(camera,clock,emitHero,heroActor.StrikeOrigin(state.Action));
             var hand=enemyActor.EnemyStrikeOrigin(state);
             for(int i=0;i<claws.Length;i++)

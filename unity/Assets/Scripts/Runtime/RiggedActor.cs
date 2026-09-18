@@ -247,6 +247,8 @@ namespace UltramanGame.Runtime
             for(int i=0;i<joints.Length;i++) {positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
             clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
             if(monster&&preview<0)CorrectRestingArms(state);
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack)
+                CorrectAttackArms(state);
             float mix=preview>=0||dt<=0||blendLeft<=0?1:Mathf.Clamp01(dt/blendLeft);
             blendLeft=Mathf.Max(0,blendLeft-dt);
             for(int i=1;i<joints.Length&&mix<1;i++)
@@ -332,6 +334,26 @@ namespace UltramanGame.Runtime
             SolveArm(upperArm,forearm,hand,
                 center+right*.43f+forward*.04f+Vector3.up*.12f,
                 center+right*.50f+forward*.42f+Vector3.up*.02f,blend);
+        }
+        void CorrectAttackArms(Battle state)
+        {
+            if(!upperArm||!leftUpperArm||!forearm||!leftForearm||!hand||!leftHand)return;
+            // Keep the imported attack clip's timing, but guide the active claw
+            // toward the contact lane. This prevents the low-resolution source
+            // animation from reading as two disconnected arms on a TV.
+            float phase=Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds);
+            float reach=Mathf.Sin(phase*Mathf.PI);
+            bool leadLeft=state.EnemyAttackCount%2==0;
+            float leadSide=leadLeft?-1:1;
+            var right=Vector3.Cross(Vector3.up,forward).normalized;
+            Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
+            Vector3 leadElbow=center+right*leadSide*.52f+forward*.22f+Vector3.up*.24f;
+            Vector3 leadWrist=center+right*leadSide*.50f+forward*(.42f+.44f*reach)+Vector3.up*(.04f+.08f*reach);
+            Vector3 supportElbow=center-right*leadSide*.43f+forward*.08f+Vector3.up*.27f;
+            Vector3 supportWrist=center-right*leadSide*.48f+forward*.30f+Vector3.up*.12f;
+            float leadBlend=.08f+.22f*reach,supportBlend=.08f+.08f*reach;
+            SolveArm(leadLeft?leftUpperArm:upperArm,leadLeft?leftForearm:forearm,leadLeft?leftHand:hand,leadElbow,leadWrist,leadBlend);
+            SolveArm(leadLeft?upperArm:leftUpperArm,leadLeft?forearm:leftForearm,leadLeft?hand:leftHand,supportElbow,supportWrist,supportBlend);
         }
         static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 elbowTarget,Vector3 wristTarget,float blend)
         {

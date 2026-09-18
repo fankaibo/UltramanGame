@@ -100,7 +100,9 @@ namespace UltramanGame.Runtime
                 ray.Age=0;ray.Life=special?.34f:blocked?.27f:.22f;ray.Width=special?.12f:blocked?.085f:.075f;
                 ray.Line.SetPosition(0,position);ray.Line.SetPosition(1,position);ray.Line.enabled=true;
             }
-            if(special||hurt)atmosphere.GroundBurst(position,Vector3.back,true);
+            // Ordinary punches also need a small contact-to-ground cue on a TV;
+            // blocks stay clean so the blue shield remains the readable answer.
+            if(!blocked)atmosphere.GroundBurst(position,Vector3.back,special||hurt);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
         public void Clear()
