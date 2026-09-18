@@ -57,6 +57,9 @@ namespace UltramanGame.Runtime
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
             Directional(root,"Ash sky fill",new Color(.18f,.24f,.52f),.28f,new Vector3(25,130,0));
             Directional(root,"Lava rim",new Color(1,.28f,.10f),.32f,new Vector3(18,155,0));
+            var arcadeFill=Point(root,"Arcade character fill",new Color(.18f,.42f,1),9);
+            arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=.72f;
+            arcadeFill.shadows=LightShadows.None;
             QualitySettings.shadowDistance=30;QualitySettings.antiAliasing=4;QualitySettings.shadows=ShadowQuality.All;
             QualitySettings.shadowResolution=UnityEngine.ShadowResolution.High;QualitySettings.pixelLightCount=6;
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
@@ -69,6 +72,8 @@ namespace UltramanGame.Runtime
         }
         static Light Directional(Transform parent,string name,Color color,float intensity,Vector3 angles)
         {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Directional;light.color=color;light.intensity=intensity;light.transform.eulerAngles=angles;return light;}
+        static Light Point(Transform parent,string name,Color color,float range)
+        {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Point;light.color=color;light.range=range;return light;}
         internal static Transform Primitive(string name,PrimitiveType type,Transform parent,Vector3 position,Vector3 scale,Material material)
         {
             var obj=GameObject.CreatePrimitive(type);obj.name=name;obj.transform.SetParent(parent,false);obj.transform.position=position;obj.transform.localScale=scale;

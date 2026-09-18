@@ -319,20 +319,27 @@ namespace UltramanGame.Runtime
             // television. Gently solve only the resting/wind-up/recovery
             // poses toward a chest-level target; attack and hurt clips retain
             // their authored reach and contact timing.
-            float blend=state.Enemy==EnemyPhase.Rest?.24f:state.Enemy==EnemyPhase.Windup?.11f:state.Enemy==EnemyPhase.Recover?.16f:0;
+            float blend=state.Enemy==EnemyPhase.Rest?.34f:state.Enemy==EnemyPhase.Windup?.20f:state.Enemy==EnemyPhase.Recover?.24f:0;
             if(state.Phase!=GamePhase.Battle||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
             var right=Vector3.Cross(Vector3.up,forward).normalized;
-            Vector3 center=Root.position+forward*.54f+Vector3.up*2.45f;
-            SolveArm(leftUpperArm,leftForearm,leftHand,center-right*.24f,blend);
-            SolveArm(upperArm,forearm,hand,center+right*.24f,blend);
+            Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
+            // Keep the elbows slightly outside and the wrists further forward.
+            // This separates the two claws in the three-quarter camera instead of
+            // folding both arms into one flat silhouette at chest height.
+            SolveArm(leftUpperArm,leftForearm,leftHand,
+                center-right*.43f+forward*.04f+Vector3.up*.12f,
+                center-right*.50f+forward*.42f+Vector3.up*.02f,blend);
+            SolveArm(upperArm,forearm,hand,
+                center+right*.43f+forward*.04f+Vector3.up*.12f,
+                center+right*.50f+forward*.42f+Vector3.up*.02f,blend);
         }
-        static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 target,float blend)
+        static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 elbowTarget,Vector3 wristTarget,float blend)
         {
             if(!upper||!lower||!wrist)return;
-            Vector3 upperVector=lower.position-upper.position,targetVector=target-upper.position;
+            Vector3 upperVector=lower.position-upper.position,targetVector=elbowTarget-upper.position;
             if(upperVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
             upper.rotation=Quaternion.Slerp(upper.rotation,Quaternion.FromToRotation(upperVector,targetVector)*upper.rotation,blend);
-            Vector3 forearmVector=wrist.position-lower.position;targetVector=target-lower.position;
+            Vector3 forearmVector=wrist.position-lower.position;targetVector=wristTarget-lower.position;
             if(forearmVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
             lower.rotation=Quaternion.Slerp(lower.rotation,Quaternion.FromToRotation(forearmVector,targetVector)*lower.rotation,blend);
         }
