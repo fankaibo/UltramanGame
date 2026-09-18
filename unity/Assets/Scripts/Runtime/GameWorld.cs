@@ -94,7 +94,13 @@ namespace UltramanGame.Runtime
         }
         public void Cue(GameCue cue)
         {
-            if(cue==GameCue.EnemyAttack)Burst(EnemyHome+Vector3.up*.1f,14,.5f,true);
+            if(cue==GameCue.EnemyAttack)
+            {
+                // The rush begins with a readable visual beat.  It is a presentation
+                // pulse only; damage is still resolved at EnemyHitSeconds.
+                Burst(EnemyHome+Vector3.up*.16f,22,.62f,true);
+                cinematic.Pulse(new Color(1,.28f,.08f),.18f);
+            }
             if(cue==GameCue.Block){effects.Impact(ShieldCenter,false,true);monsterEffects.Impact(true);Kick(.04f);}
             if(cue==GameCue.Hurt){effects.Impact(HeroHome+Vector3.up*2,false,false,true);monsterEffects.Impact(false);Kick(.055f);}
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
@@ -163,6 +169,11 @@ namespace UltramanGame.Runtime
                 {
                     Camera.transform.position+=BattleAxis*(.23f*rush);
                     target+=BattleAxis*(.16f*rush);
+                    // Alternate the lens toward the lead claw so successive rushes
+                    // do not collapse into one centered, repeated silhouette.
+                    float attackSide=state.EnemyAttackCount%2==0?-1:1;
+                    Camera.transform.position+=Camera.transform.right*(attackSide*.11f*rush);
+                    target+=Camera.transform.right*(attackSide*.06f*rush);
                     dynamicZoom+=.85f*rush;
                 }
             }
