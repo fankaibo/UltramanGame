@@ -27,12 +27,18 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(848,18,315,30),"哥尔赞",24,HudPainter.Ink,TextAnchor.MiddleRight,true);
                 hud.Box(new Rect(853,55,310,17),new Color(.09f,.13f,.19f));
                 float health=Mathf.Clamp01(battle.EnemyHealth/battle.MaxHealth);
+                float healthGhost=Mathf.Clamp01(enemyHealthDisplay/battle.MaxHealth);
+                if(healthGhost>health+.001f)
+                    hud.Box(new Rect(853+310*(1-healthGhost),56,310*(healthGhost-health),14),new Color(1,.84f,.35f,.78f));
                 hud.Box(new Rect(853+310*(1-health),56,310*health,14),health<.3f?new Color(1,.28f,.16f):new Color(1,.63f,.23f));
                 for(int i=1;i<10;i++)hud.Box(new Rect(853+i*31,56,1,14),new Color(.1f,.07f,.02f,.34f));
                 hud.Text(new Rect(856,76,304,20),$"怪兽力量  {Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",11,HudPainter.Muted,TextAnchor.MiddleRight);
                 hud.Text(new Rect(486,22,308,28),"火山大决战",18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 hud.Line(new Vector2(558,60),new Vector2(628,60),cyan,1);
                 hud.Dot(new Vector2(640,60),7,gold);hud.Line(new Vector2(652,60),new Vector2(722,60),cyan,1);
+                float scorePulse=time<hitUntil?Mathf.Clamp01((hitUntil-time)*1.4f):0;
+                hud.Rounded(new Rect(518,101,244,27),new Color(.01f,.04f,.08f,.86f),6);
+                hud.Text(new Rect(524,101,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
                 if(battle.Punches>0)
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
@@ -86,6 +92,7 @@ namespace UltramanGame.Runtime
             {
                 hud.Text(new Rect(330,67,620,68),"火山守护成功！",43,gold,TextAnchor.MiddleCenter,true);
                 for(int i=0;i<3;i++)Star(new Vector2(582+i*58,161),17,Mathf.Clamp01((time-victoryAt-i*.35f)*2));
+                hud.Text(new Rect(445,505,390,30),$"本局得分  {ArcadeScore():000000}",19,gold,TextAnchor.MiddleCenter,true);
                 hud.Text(new Rect(390,571,500,45),"谢谢你，光之英雄！",28,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 hud.Text(new Rect(360,631,560,30),"接下来和"+SelectedHero.Name+"合照 · 听引导自动拍照",18,cyan,TextAnchor.MiddleCenter);
             }
@@ -137,6 +144,12 @@ namespace UltramanGame.Runtime
                 float a=(i*36-90)*Mathf.Deg2Rad,b=((i+1)*36-90)*Mathf.Deg2Rad;
                 hud.Line(center+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*radius*(i%2==0?1:.45f),center+new Vector2(Mathf.Cos(b),Mathf.Sin(b))*radius*(i%2==1?1:.45f),color,3);
             }
+        }
+        int ArcadeScore()
+        {
+            int score=battle.Punches*100+battle.Blocks*250-battle.HitsTaken*50;
+            if(battle.Phase==GamePhase.Victory)score+=1000;
+            return Mathf.Max(0,score);
         }
     }
 }

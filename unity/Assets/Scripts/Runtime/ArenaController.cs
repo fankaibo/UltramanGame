@@ -36,7 +36,7 @@ namespace UltramanGame.Runtime
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
         long sequence;
-        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
         // Presentation-only hit stop. Combat rules keep advancing so this never
         // changes the child's timing window; the actors and lens briefly hold on
         // the contact pose, which makes the cabinet impact readable on a TV.
@@ -58,11 +58,11 @@ namespace UltramanGame.Runtime
         {
             Application.SetStackTraceLogType(LogType.Log,StackTraceLogType.None);
             monsterHits=Battle.ClampMonsterHits(PlayerPrefs.GetInt(MonsterHitsKey,Battle.DefaultMonsterHits));
-            battle=new Battle(monsterHits);lastHealth=battle.MaxHealth;
+            battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;
             DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",1);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
-            {review=new ReviewPlayback();keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=battle.MaxHealth;}
+            {review=new ReviewPlayback();keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
             Application.runInBackground=true;Screen.sleepTimeout=SleepTimeout.NeverSleep;
             client=new PoseClient(LocalPort("--pose-port",8765));previewClient=new PreviewClient(LocalPort("--preview-port",8766));
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
@@ -191,7 +191,7 @@ namespace UltramanGame.Runtime
                 if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] freeze={arcadeFreeze:F3}s special={special} damage={lastDamage}");
                 sound.Effect("impact",special?1:.8f);
             }
-            lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
+            lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
             float presentationDt=arcadeFreeze>0?0:dt;
             arcadeFreeze=Mathf.Max(0,arcadeFreeze-dt);
@@ -281,7 +281,7 @@ namespace UltramanGame.Runtime
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
-            lastHealth=battle.MaxHealth;impact=0;arcadeFreeze=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;arcadeFreeze=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)
@@ -491,6 +491,7 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(552,15,136,27),stage,13,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(850,9,245,20),"哥尔赞",14,HudPainter.Ink);
             hud.Text(new Rect(1090,9,162,20),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",13,HudPainter.Muted,TextAnchor.MiddleRight);
+            hud.Bar(new Rect(850,37,402,6),enemyHealthDisplay/battle.MaxHealth,new Color(1,.78f,.28f,.60f));
             hud.Bar(new Rect(850,37,402,6),battle.EnemyHealth/battle.MaxHealth,new Color(.93f,.49f,.34f));
             hud.Panel(new Rect(20,78,204,49),HudPainter.Gold,ready);
             hud.Text(new Rect(32,83,181,19),ready?"光线就绪":$"光线能量  {battle.Energy:0} / {Battle.MaxEnergy}",12,ready?HudPainter.Gold:HudPainter.Muted);
@@ -518,7 +519,7 @@ namespace UltramanGame.Runtime
             {
                 hud.Panel(new Rect(20,145,252,252),HudPainter.Gold,true);
                 hud.Text(new Rect(38,160,218,36),"火山守护成功！",21,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(38,209,218,42),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次",14,HudPainter.Muted);
+                hud.Text(new Rect(38,209,218,60),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次\n得分 {ArcadeScore():000000}",14,HudPainter.Muted);
                 GUI.enabled=photoAvailable;
                 if(hud.Button(new Rect(38,267,216,42),"      合照 · F7",HudPainter.Cyan,16))photo.Open();
                 hud.Rounded(new Rect(79,283,21,14),photoAvailable?HudPainter.Cyan:HudPainter.Muted,3);
