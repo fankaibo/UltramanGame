@@ -186,7 +186,16 @@ namespace UltramanGame.Runtime
                 target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,sweep*.35f);
             }
             if(!Showcase&&state.Phase==GamePhase.Victory)
-                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,Mathf.SmoothStep(0,1,(arcade.PhaseAge-1)/3)*.6f);
+            {
+                // Hold the win pose like an arcade cabinet: a short push-in and
+                // side-to-side lens move keeps the hero readable while the
+                // monster's defeat animation resolves in the background.
+                float victory=Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-.12f)/2.7f));
+                float sway=Mathf.Sin(Mathf.Clamp01(arcade.PhaseAge/3.1f)*Mathf.PI);
+                Camera.transform.position+=Camera.transform.right*(sway*.34f)+Vector3.up*(victory*.16f)+BattleAxis*(victory*.18f);
+                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,victory*.64f);
+                dynamicZoom+=victory*2.4f;
+            }
             // Briefly tighten the lens during a strike or rush, then ease back
             // to the child-friendly wide framing instead of holding a zoom.
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
