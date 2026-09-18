@@ -26,7 +26,7 @@ namespace UltramanGame.Runtime
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         GamePhase previous;
         bool heavyHit;
-        Transform hand,leftHand,forearm,leftFoot,rightFoot;
+        Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
         Transform head,upperSpine;
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
@@ -112,6 +112,10 @@ namespace UltramanGame.Runtime
                 if(joint.name=="HandBase_R"||joint.name=="bip_hand_R")hand=joint;
                 if(joint.name=="ForearmBase_R"||joint.name=="bip_lowerArm_R")forearm=joint;
                 if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
+                if(monster&&joint.name=="bip_upperArm_L")leftUpperArm=joint;
+                if(monster&&joint.name=="bip_upperArm_R")upperArm=joint;
+                if(monster&&joint.name=="bip_lowerArm_L")leftForearm=joint;
+                if(monster&&joint.name=="bip_lowerArm_R")forearm=joint;
                 if(joint.name=="Foot_L"||joint.name=="bip_foot_L")leftFoot=joint;
                 if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
                 if(monster&&joint.name=="bip_head")head=joint;
@@ -242,6 +246,7 @@ namespace UltramanGame.Runtime
             else clipAge+=dt;
             for(int i=0;i<joints.Length;i++) {positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
             clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
+            if(monster&&preview<0)CorrectRestingArms(state);
             float mix=preview>=0||dt<=0||blendLeft<=0?1:Mathf.Clamp01(dt/blendLeft);
             blendLeft=Mathf.Max(0,blendLeft-dt);
             for(int i=1;i<joints.Length&&mix<1;i++)
@@ -306,6 +311,30 @@ namespace UltramanGame.Runtime
                 var anchor=tailJoints[0].position;anchor.y=home.y+tailHeight;tailJoints[0].position=anchor;
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
+        }
+        void CorrectRestingArms(Battle state)
+        {
+            // The imported Golza idle curve leaves both elbows on the same
+            // plane, which makes the hands read as a flat, mirrored prop on a
+            // television. Gently solve only the resting/wind-up/recovery
+            // poses toward a chest-level target; attack and hurt clips retain
+            // their authored reach and contact timing.
+            float blend=state.Enemy==EnemyPhase.Rest?.24f:state.Enemy==EnemyPhase.Windup?.11f:state.Enemy==EnemyPhase.Recover?.16f:0;
+            if(state.Phase!=GamePhase.Battle||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
+            var right=Vector3.Cross(Vector3.up,forward).normalized;
+            Vector3 center=Root.position+forward*.54f+Vector3.up*2.45f;
+            SolveArm(leftUpperArm,leftForearm,leftHand,center-right*.24f,blend);
+            SolveArm(upperArm,forearm,hand,center+right*.24f,blend);
+        }
+        static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 target,float blend)
+        {
+            if(!upper||!lower||!wrist)return;
+            Vector3 upperVector=lower.position-upper.position,targetVector=target-upper.position;
+            if(upperVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
+            upper.rotation=Quaternion.Slerp(upper.rotation,Quaternion.FromToRotation(upperVector,targetVector)*upper.rotation,blend);
+            Vector3 forearmVector=wrist.position-lower.position;targetVector=target-lower.position;
+            if(forearmVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
+            lower.rotation=Quaternion.Slerp(lower.rotation,Quaternion.FromToRotation(forearmVector,targetVector)*lower.rotation,blend);
         }
         static float ContactPulse(float age,float start,float peak,float end)
         {return age<=start||age>=end?0:age<peak?Mathf.SmoothStep(0,1,(age-start)/(peak-start)):1-Mathf.SmoothStep(0,1,(age-peak)/(end-peak));}
