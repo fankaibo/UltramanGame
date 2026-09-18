@@ -36,7 +36,8 @@ namespace UltramanGame.Runtime
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
         long sequence;
-        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt;
+        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        int lastDamage;
         GamePhase lastPhase;
         float sampleAge,sampleSeconds,sampleWorst;
         int sampleFrames;
@@ -180,7 +181,8 @@ namespace UltramanGame.Runtime
             bool damage=battle.EnemyHealth<lastHealth;bool specialDamage=lastHealth-battle.EnemyHealth>1;
             if(damage)
             {
-                bool special=lastHealth-battle.EnemyHealth>1;impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
+                bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
+                impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 sound.Effect("impact",special?1:.8f);
             }
             lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
@@ -268,7 +270,7 @@ namespace UltramanGame.Runtime
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
-            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)

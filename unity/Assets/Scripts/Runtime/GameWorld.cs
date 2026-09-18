@@ -178,6 +178,13 @@ namespace UltramanGame.Runtime
                     target+=Camera.transform.right*(attackSide*.06f*rush);
                     dynamicZoom+=.85f*rush;
                 }
+                if(state.Action==HeroAction.Hurt)
+                {
+                    float hurt=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.62f)*Mathf.PI);
+                    Camera.transform.position+=Camera.transform.right*(.24f*hurt)+BattleAxis*(.18f*hurt);
+                    target+=Camera.transform.right*(.10f*hurt)+Vector3.up*(.08f*hurt);
+                    dynamicZoom+=1.35f*hurt;
+                }
             }
             if(!Showcase&&state.Phase==GamePhase.Transforming)
             {
