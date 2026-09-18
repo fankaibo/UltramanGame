@@ -8,8 +8,10 @@ namespace UltramanGame.Runtime
     {
         sealed class Streak { public LineRenderer Line;public Vector3 Position,Velocity;public float Age,Life,Width; }
         sealed class Flash {public Transform Quad;public Material Material;public Vector3 Position;public float Age=10,Life,Size,Opacity;public bool Ground;}
+        sealed class RayFlash {public LineRenderer Line;public Vector3 Origin,Direction;public Color Color;public float Age=10,Life,Width;}
         readonly Streak[] sparks=new Streak[96];
         readonly Flash[] flashes=new Flash[12];
+        readonly RayFlash[] hitRays=new RayFlash[24];
         readonly Transform shield,charge;
         readonly Material shieldMaterial,chargeMaterial;
         readonly LineRenderer[] rays=new LineRenderer[7],orbits=new LineRenderer[3];
@@ -17,7 +19,7 @@ namespace UltramanGame.Runtime
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
-        int sparkIndex,flashIndex;
+        int sparkIndex,flashIndex,hitRayIndex;
         float hitLightAge=10,clock,beamBurstAge;
         float previousEnemyAge;
         int previousAttack,previousPunches;
@@ -36,6 +38,7 @@ namespace UltramanGame.Runtime
                 flashes[i]=new Flash {Material=material,Quad=GameWorld.Primitive("Impact flare",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,material)};
                 flashes[i].Quad.gameObject.SetActive(false);
             }
+            for(int i=0;i<hitRays.Length;i++)hitRays[i]=new RayFlash {Line=Line(parent,"Arcade impact ray",2,.035f)};
             shieldMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyShield")));
             shield=GameWorld.Primitive("Light shield",PrimitiveType.Sphere,parent,Vector3.zero,new Vector3(1.9f,2.15f,.38f),shieldMaterial);
             chargeMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyFlare")));
@@ -79,15 +82,34 @@ namespace UltramanGame.Runtime
             Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
             FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             FlashAt(position,special?2.7f:1.7f,.38f,color,true);
+            int rayCount=special?14:blocked?9:7;
+            for(int i=0;i<rayCount;i++)
+            {
+                var ray=hitRays[hitRayIndex++%hitRays.Length];
+                float a=(i+.5f)*Mathf.PI*2/rayCount+(special?.18f:0);
+                ray.Origin=position;
+                // Keep the burst mostly in the camera-facing plane; depth-heavy
+                // rays disappear inside the monster mesh on a three-quarter shot.
+                ray.Direction=(Vector3.right*Mathf.Cos(a)+Vector3.up*Mathf.Sin(a)+Vector3.forward*.12f).normalized;
+                // The cabinet read is a short, camera-facing starburst rather than
+                // a tiny point spark.  A white core keeps it readable on a dark
+                // monster silhouette while the tint still distinguishes block,
+                // ordinary hit and the finisher.
+                var tint=blocked?Ice:hurt?Warm:(special?new Color(.38f,.78f,1):new Color(1,.72f,.28f));
+                ray.Color=Color.Lerp(tint,Color.white,.38f);
+                ray.Age=0;ray.Life=special?.34f:blocked?.27f:.22f;ray.Width=special?.12f:blocked?.085f:.075f;
+                ray.Line.SetPosition(0,position);ray.Line.SetPosition(1,position);ray.Line.enabled=true;
+            }
             if(special||hurt)atmosphere.GroundBurst(position,Vector3.back,true);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
         public void Clear()
         {
             atmosphere.Clear();
-            ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;
+            ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;hitRayIndex=0;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
+            foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             foreach(var r in rays)r.enabled=false;
             foreach(var r in orbits)r.enabled=false;
             warningRing.enabled=attackRing.enabled=false;
@@ -145,6 +167,17 @@ namespace UltramanGame.Runtime
                 float p=f.Age/f.Life;f.Quad.position=f.Position;f.Quad.rotation=f.Ground?Quaternion.Euler(90,0,0):camera.transform.rotation;
                 f.Quad.localScale=Vector3.one*f.Size*Mathf.Lerp(.55f,1.35f,p);
                 var color=f.Material.color;color.a=f.Opacity*(1-p)*(1-p);f.Material.color=color;
+            }
+            foreach(var ray in hitRays)
+            {
+                if(!ray.Line.enabled)continue;
+                ray.Age+=dt;if(ray.Age>=ray.Life){ray.Line.enabled=false;continue;}
+                float p=ray.Age/ray.Life;
+                float start=.025f+p*.16f,rayEnd=.36f+p*(ray.Life>.30f?1.65f:1.20f);
+                ray.Line.SetPosition(0,ray.Origin+ray.Direction*start);
+                ray.Line.SetPosition(1,ray.Origin+ray.Direction*rayEnd);
+                float alpha=(1-p)*(1-p);var c=ray.Color;c.a=alpha;
+                ray.Line.startColor=c;c.a=0;ray.Line.endColor=c;ray.Line.widthMultiplier=ray.Width*(1-.35f*p);
             }
             bool active=state.Phase==GamePhase.Battle;
             shield.gameObject.SetActive(active&&state.Shield);shield.position=shieldCenter;shield.rotation=Quaternion.LookRotation(axis,Vector3.up);shieldMaterial.SetFloat("_Clock",clock);
