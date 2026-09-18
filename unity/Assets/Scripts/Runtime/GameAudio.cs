@@ -16,6 +16,7 @@ namespace UltramanGame.Runtime
         GamePhase phase;
         float phaseAge;
         bool phaseReported;
+        int effectSequence;
         public bool VoicePlaying=>voice.isPlaying;
         public bool HasVoice(string key)=>clips.TryGetValue("Voice/"+key,out var clip)&&clip;
         public float VoiceLength(string key) {var clip=Clip("Voice/"+key);return clip?clip.length:0;}
@@ -24,7 +25,7 @@ namespace UltramanGame.Runtime
         public event System.Action<string,float> InstructionStarted;
         public string HeroId="Tiga";
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
-        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} muted={muted}";
+        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.pitch:F2} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
         public GameAudio(GameObject owner)
@@ -53,7 +54,17 @@ namespace UltramanGame.Runtime
             MusicEnabled=true;
         }
         public void Effect(string key,float gain=1)
-        { if(!muted) { var clip=Clip("Audio/"+key);if(clip)effects.PlayOneShot(clip,gain); } }
+        {
+            if(muted)return;
+            var clip=Clip("Audio/"+key);if(!clip)return;
+            // Small deterministic pitch changes keep repeated punches and hits
+            // from sounding machine-perfect while preserving the authored cue.
+            int n=effectSequence++;
+            effects.pitch=key=="swing"?(n%3==0?1.04f:n%3==1?.96f:1f):
+                key=="impact"?(n%2==0?1.03f:.97f):
+                key=="enemy_rush"?(n%2==0?.94f:1.02f):1f;
+            effects.PlayOneShot(clip,gain);
+        }
         public void Speak(string key,int importance,GamePhase expected)
         {
             if(muted) {NotifyInstruction(key,0);return;}
@@ -120,7 +131,7 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild&&!phaseReported&&phaseAge>1)
             {phaseReported=true;Debug.Log($"[AudioState] phase={state} {Diagnostics}");}
         }
-        public void Reset() { voice.Stop();effects.Stop();pending.Clear();priority=0;beamVoice=false; }
+        public void Reset() { voice.Stop();effects.Stop();effects.pitch=1;pending.Clear();priority=0;beamVoice=false; }
         public void Save()
         {
             PlayerPrefs.SetFloat("sound.master",Volume);PlayerPrefs.SetFloat("sound.music",MusicVolume);

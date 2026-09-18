@@ -37,6 +37,10 @@ namespace UltramanGame.Runtime
         float gestureFeedbackUntil;
         long sequence;
         float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        // Presentation-only hit stop. Combat rules keep advancing so this never
+        // changes the child's timing window; the actors and lens briefly hold on
+        // the contact pose, which makes the cabinet impact readable on a TV.
+        float arcadeFreeze;
         int lastDamage;
         GamePhase lastPhase;
         float sampleAge,sampleSeconds,sampleWorst;
@@ -183,17 +187,24 @@ namespace UltramanGame.Runtime
             {
                 bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
+                arcadeFreeze=Mathf.Max(arcadeFreeze,special?.11f:.045f);
+                if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] freeze={arcadeFreeze:F3}s special={special} damage={lastDamage}");
                 sound.Effect("impact",special?1:.8f);
             }
             lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
-            hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
-            enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
+            float presentationDt=arcadeFreeze>0?0:dt;
+            arcadeFreeze=Mathf.Max(0,arcadeFreeze-dt);
             if(damage)world.Hit(specialDamage,battle);
-            world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
-            if(world.BeamStarted){reviewBeams++;}
-            if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
-            enemy.SetPresentationOpacity(world.EnemyOpacity);
+            if(presentationDt>0)
+            {
+                hero.Update(showcase?showcaseBattle:battle,world.Camera,presentationDt,Time.unscaledTime,showcase?showcaseFrame:-1);
+                enemy.Update(showcase?showcaseBattle:battle,world.Camera,presentationDt,Time.unscaledTime,showcase?showcaseFrame:-1);
+                world.Tick(showcase?showcaseBattle:battle,presentationDt,Time.unscaledTime);
+                if(world.BeamStarted){reviewBeams++;}
+                if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
+                enemy.SetPresentationOpacity(world.EnemyOpacity);
+            }
             if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
             {autoPhotoOpened=true;photo.Open();}
             if(!keyboard&&!finalGuide&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)
@@ -270,7 +281,7 @@ namespace UltramanGame.Runtime
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
-            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            lastHealth=battle.MaxHealth;impact=0;arcadeFreeze=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)
