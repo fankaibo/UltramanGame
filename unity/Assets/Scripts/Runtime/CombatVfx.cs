@@ -187,7 +187,14 @@ namespace UltramanGame.Runtime
             }
             if(firing)
             {
-                beamBurstAge-=dt;if(beamBurstAge<=0){beamBurstAge=.075f;Burst(end,3,.65f,false);FlashAt(end,1.4f,.12f,new Color(.3f,.7f,1));}
+                beamBurstAge-=dt;
+                if(beamBurstAge<=0)
+                {
+                    beamBurstAge=.075f;
+                    Burst(end,5,.78f,false);
+                    FlashAt(end,1.65f,.14f,new Color(.3f,.7f,1));
+                    FlashAt(end,1.85f,.20f,new Color(.35f,.82f,1),true);
+                }
             }
             else beamBurstAge=0;
             muzzleLight.transform.position=origin;muzzleLight.intensity=firing?2.1f:closeup?focus*.65f:0;

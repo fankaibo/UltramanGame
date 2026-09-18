@@ -107,7 +107,9 @@ namespace UltramanGame.Runtime
             if(cue==GameCue.Victory){effects.Impact(EnemyHome+Vector3.up*1.7f,true);Burst(EnemyHome+Vector3.up*2.2f,48,1.3f);}
             if(cue==GameCue.Beam)
             {
-                Closeup.Begin();Burst(BeamOrigin,12,.4f);
+                Closeup.Begin();
+                cinematic.Pulse(new Color(.20f,.68f,1),.42f);
+                Burst(BeamOrigin,18,.48f);
                 if(Debug.isDebugBuild)Debug.Log($"[BeamCloseup] begin duration={BeamCloseup.Duration:F2}");
             }
         }
