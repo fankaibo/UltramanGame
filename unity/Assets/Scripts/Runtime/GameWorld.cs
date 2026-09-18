@@ -83,8 +83,11 @@ namespace UltramanGame.Runtime
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
         public void Hit(bool special,Battle state)
         {
-            Kick(special?.10f:.045f,special);
-            cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.72f:.22f);
+            // Let a normal hit read as a cabinet impact without turning it into
+            // a long shake. The stronger envelope is still short enough for a
+            // four-year-old to keep the action legible.
+            Kick(special?.12f:.065f,special);
+            cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             // Use the monster's position at this contact, including its own forward step.
             var position=special||hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             effects.Impact(position,special);
@@ -138,8 +141,11 @@ namespace UltramanGame.Runtime
             if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active)
             {
                 float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
-                Camera.transform.position+=new Vector3(-.22f*rush,-.13f*rush,.28f*rush);
-                target+=new Vector3(-.1f*rush,0,0);
+                // The attack needs a visible forward camera travel, like an
+                // arcade cabinet's short dolly, so the monster does not appear
+                // to merely change pose in place.
+                Camera.transform.position+=new Vector3(-.28f*rush,-.16f*rush,.36f*rush);
+                target+=new Vector3(-.13f*rush,0,0);
 
                 // A short arcade lens move makes each exchange readable on a TV.
                 // It is intentionally small and uses the same deterministic battle clock
@@ -149,15 +155,15 @@ namespace UltramanGame.Runtime
                 if(heroStrike)
                 {
                     float side=state.Action==HeroAction.LeftPunch?-1:1;
-                    Camera.transform.position+=BattleAxis*(.22f*strike)+Camera.transform.right*(side*.10f*strike);
-                    target+=BattleAxis*(.14f*strike)+Vector3.up*(.045f*strike);
-                    dynamicZoom+=.8f*strike;
+                    Camera.transform.position+=BattleAxis*(.30f*strike)+Camera.transform.right*(side*.14f*strike);
+                    target+=BattleAxis*(.18f*strike)+Vector3.up*(.06f*strike);
+                    dynamicZoom+=1.0f*strike;
                 }
                 if(rush>.01f)
                 {
-                    Camera.transform.position+=BattleAxis*(.18f*rush);
-                    target+=BattleAxis*(.12f*rush);
-                    dynamicZoom+=.65f*rush;
+                    Camera.transform.position+=BattleAxis*(.23f*rush);
+                    target+=BattleAxis*(.16f*rush);
+                    dynamicZoom+=.85f*rush;
                 }
             }
             if(!Showcase&&state.Phase==GamePhase.Transforming)
