@@ -8,7 +8,7 @@ namespace UltramanGame.Runtime
     {
         readonly Vector3 home,target,forward;
         readonly LineRenderer charge,shock;
-        readonly LineRenderer[] trails=new LineRenderer[3],claws=new LineRenderer[3];
+        readonly LineRenderer[] claws=new LineRenderer[3];
         readonly Material glow;
         static readonly Color Amber=new Color(1,.40f,.10f),Ice=new Color(.25f,.86f,1);
         float hitAge=10;
@@ -21,7 +21,7 @@ namespace UltramanGame.Runtime
             charge=Line(parent,"Monster charge",48,.035f,true);
             shock=Line(parent,"Monster contact",48,.07f,true);
             for(int i=0;i<3;i++)
-            {trails[i]=Line(parent,"Monster rush trail",2,.055f);claws[i]=Line(parent,"Monster claw sweep",20,.08f);}
+            {claws[i]=Line(parent,"Monster claw contact",20,.035f);}
         }
         LineRenderer Line(Transform parent,string name,int points,float width,bool loop=false)
         {
@@ -40,7 +40,7 @@ namespace UltramanGame.Runtime
             }
         }
         public void Clear()
-        {hitAge=10;charge.enabled=shock.enabled=false;foreach(var line in trails)line.enabled=false;foreach(var line in claws)line.enabled=false;}
+        {hitAge=10;charge.enabled=shock.enabled=false;foreach(var line in claws)line.enabled=false;}
         public void Impact(bool blocked) {hitAge=0;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
         {
@@ -59,15 +59,8 @@ namespace UltramanGame.Runtime
             }
             for(int i=0;i<3;i++)
             {
-                var trail=trails[i];trail.enabled=attack&&state.EnemyAge<Battle.EnemyHitSeconds;
-                if(trail.enabled)
-                {
-                    Vector3 p=monster+Vector3.up*(.5f+i*.48f)+camera.transform.right*(i-1)*.16f;
-                    trail.SetPosition(0,p-forward*(.7f+i*.12f));trail.SetPosition(1,p);
-                    trail.startColor=new Color(1,.4f,.1f,0);trail.endColor=new Color(1,.65f,.22f,.48f);
-                }
                 var claw=claws[i];float age=state.EnemyAge;
-                claw.enabled=attack&&age>=.23f&&age<.68f;
+                claw.enabled=attack&&age>=.38f&&age<.68f;
                 if(claw.enabled)
                 {
                     float sweep=Mathf.Clamp01((age-.23f)/.17f);
@@ -80,7 +73,9 @@ namespace UltramanGame.Runtime
                             +camera.transform.up*(Mathf.Lerp(.55f,-.55f,t)+(i-1)*.1f);
                         claw.SetPosition(j,p);
                     }
-                    ColorLine(claw,new Color(1,.73f,.34f),Mathf.Clamp01((.68f-age)/.23f)*.85f);
+                    float lineAlpha=Mathf.Clamp01((.68f-age)/.23f)*(i==1?.58f:.22f);
+                    ColorLine(claw,i==1?new Color(1,.76f,.36f):new Color(1,.42f,.14f),lineAlpha);
+                    claw.widthMultiplier=i==1?.052f:.018f;
                 }
             }
             shock.enabled=active&&hitAge<.38f;

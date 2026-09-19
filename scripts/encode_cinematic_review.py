@@ -9,9 +9,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ffmpeg', default='ffmpeg')
     parser.add_argument('--baseline', type=Path, help='300-frame original RiggedReview output')
+    parser.add_argument('--folder',type=Path,help='Unity review output folder; defaults to artifacts/cinematic-combat')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    folder = root / 'artifacts/cinematic-combat'
+    folder = args.folder.resolve() if args.folder else root / 'artifacts/cinematic-combat'
     frames = sorted((folder / 'frames').glob('frame-*.png'))
     if not (folder / 'validation.txt').exists():
         parser.error('a passed Unity full-battle render is required')
@@ -23,20 +24,20 @@ def main():
     audio = root / 'unity/Assets/Resources/Audio'
     voice = root / 'unity/Assets/Resources/Voice'
     events = list(csv.DictReader((folder / 'events.csv').open()))
+    if not any(e['event'] == 'HeroHit' for e in events) or not any(e['event'] == 'BeamVisible' for e in events):
+        parser.error('render again: actual contact and beam-visible timestamps are required for audio sync')
     for e in events:
         at = float(e['seconds'])
         name = e['event']
         effect = {'Transform': 'transform', 'Punch': 'swing', 'EnemyAttack': 'enemy_rush',
-                  'Block': 'shield', 'Hurt': 'impact', 'Resume': 'recover', 'Victory': 'victory'}.get(name)
+                  'Block': 'shield', 'Hurt': 'impact', 'HeroHit': 'impact',
+                  'BeamVisible': 'beam', 'Resume': 'recover', 'Victory': 'victory'}.get(name)
         if effect:
             sounds.append((audio / f'{effect}.wav', at, .62))
-        if name == 'Punch':
-            sounds.append((audio / 'impact.wav', at + .12, .58))
         if name == 'Beam':
             original = voice / 'beam_original.aiff'
             if original.exists():
                 sounds.append((original, at, .9))
-            sounds.append((audio / 'beam.wav', at + .98 + .28, .5))
     # This review uses the same game music/effects. Guided dialogue is exercised in
     # the real player test; it is not synthesized or falsely synchronized here.
     cmd = [args.ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-framerate', '30',

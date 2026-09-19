@@ -2,6 +2,7 @@
 import socket
 import socketserver
 import threading
+import select
 
 from .protocol import encode
 
@@ -13,6 +14,13 @@ class _Handler(socketserver.BaseRequestHandler):
         self.request.settimeout(1.0)
         self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         while not bridge.stopping.is_set():
+            # Detect a subscriber closing even if native photo processing has not
+            # produced a first frame. Otherwise its stale subscription lives forever.
+            try:
+                if select.select([self.request], [], [], 0)[0] and not self.request.recv(1, socket.MSG_PEEK):
+                    break
+            except OSError:
+                break
             with bridge.changed:
                 bridge.changed.wait_for(lambda: bridge.revision != seen or bridge.stopping.is_set(), timeout=1)
                 if bridge.stopping.is_set():

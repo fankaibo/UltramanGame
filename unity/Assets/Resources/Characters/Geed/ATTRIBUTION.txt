@@ -1,0 +1,21 @@
+捷德 (download-page variant: Dandit Truth) — third-party fan character model
+Source: https://www.gtaall.com/gta-san-andreas/skins/229130-ultraman-geed-dandit-truth-from-ultra-file-v1.html
+Source author/uploader: RayNoGame
+Source terms: No explicit redistribution license verified; user-provided fan model for this local family prototype.
+The repository Apache-2.0 code license does not license this character, mesh or texture.
+Character rights remain with their respective owners. Not official game assets.
+
+Adapted 2026-09-15:
+- Converted with Blender 4.5.13 and SourceIO (Mebius/Zero) or DragonFF (Geed/Grigio).
+- Preserved original mesh/UV/texture design and added one silhouette subdivision.
+- Retargeted this project's eight authored Tiga combat clips; baked at 60 samples/sec.
+- Rendered a transparent victory portrait for the selected character's photo stage.
+- GTA archive installer EXE files were never run; extracted only DFF/TXD payload data.
+- Zero uses the standard body, without the optional Ultimate armor.
+Rebuild: scripts/prepare_roster.py; GTA extraction: scripts/extract_gta_skin.py
+SourceIO: https://github.com/REDxEYE/SourceIO
+DragonFF: https://github.com/Parik27/DragonFF
+Conversion tools are not included in the player application.
+
+Source archive: 229130-ultraman-geed-dandit-truth-from-ultra-file-v1.zip
+SHA-256: 97a4a6a53525b2f24c62e1bd15b66b57cda747ee73bd67107a93962b6ef850bb

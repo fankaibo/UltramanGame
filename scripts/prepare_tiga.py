@@ -199,6 +199,55 @@ def animate(rig, combat_sample=False, live_combat=False):
         actions[name] = action
     rig.animation_data.action = actions['Idle']
     scene.frame_set(1)
+    if live_combat:
+        # Match the runtime root curve throughout the step, not just at a few
+        # pose keys. The rear foot supports the whole punch; the lead foot lands
+        # at contact and stays there until the recovery step begins.
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        heights = []
+        for name in CHARACTER_OBJECTS:
+            obj = bpy.data.objects[name]
+            if obj.type != 'MESH':
+                continue
+            evaluated = obj.evaluated_get(depsgraph)
+            mesh = evaluated.to_mesh()
+            heights.extend((evaluated.matrix_world @ v.co).z for v in mesh.vertices)
+            evaluated.to_mesh_clear()
+        units = 3.45 / (max(heights)-min(heights)) * rig.matrix_world.to_scale().z
+
+        def smooth(t):
+            t = max(0, min(1, t))
+            return t*t*(3-2*t)
+
+        for side in ('Left', 'Right'):
+            action = actions[side+'Punch']
+            times = {i/60 for i in range(23)} | {.38}
+            for curve in list(action.fcurves):
+                if 'HeelIKC_' in curve.data_path:
+                    times.update((point.co.x-1)/60 for point in curve.keyframe_points)
+                    action.fcurves.remove(curve)
+            rig.animation_data.action = action
+            for t in sorted(times):
+                frame = 1+t*60
+                scene.frame_set(int(frame), subframe=frame-int(frame))
+                root = .75*(smooth(t/.12) if t<.12 else 1-smooth((t-.12)/.26))
+                lead = .75*(smooth(t/.12) if t<.12 else 1 if t<=.205 else 1-smooth((t-.205)/.175))
+                lift = .13*math.sin(math.pi*t/.12) if t<.12 else 0 if t<=.205 else .14*math.sin(math.pi*(t-.205)/.175)
+                for foot in ('L', 'R'):
+                    leading = foot == side[0]
+                    bone = rig.pose.bones['HeelIKC_'+foot]
+                    matrix = rest_matrices[bone.name].copy()
+                    matrix.translation += Vector((0, (root-(lead if leading else 0))/units, max(0,lift)/units if leading else 0))
+                    bone.matrix = matrix
+                    for channel in ('location', 'rotation_quaternion' if bone.rotation_mode=='QUATERNION' else 'rotation_euler', 'scale'):
+                        bone.keyframe_insert(channel, frame=frame, group=bone.name)
+            for curve in action.fcurves:
+                if 'HeelIKC_' in curve.data_path:
+                    for point in curve.keyframe_points:
+                        point.interpolation = 'LINEAR'
+        rig.animation_data.action = actions['Idle']
+        scene.frame_set(1)
+        print('PLANTED_STEP', json.dumps(dict(unity_units_per_rig_unit=units, landing=.12, lift_off=.205, recovery=.38)))
     return actions
 
 
@@ -213,7 +262,7 @@ def export(rig, output, actions):
                              apply_scale_options='FBX_SCALE_ALL',
                              add_leaf_bones=False, use_armature_deform_only=False,
                              bake_anim=True, bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
-                             bake_anim_force_startend_keying=True, bake_anim_simplify_factor=.1,
+                             bake_anim_force_startend_keying=True, bake_anim_simplify_factor=0,
                              path_mode='RELATIVE', use_mesh_modifiers=True)
     (output / 'clips.json').write_text(json.dumps({name: (a.frame_range[1]-a.frame_range[0])/60
                                                  for name, a in actions.items()}, indent=2))
