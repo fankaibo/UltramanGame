@@ -144,7 +144,9 @@ namespace UltramanGame.Runtime
             backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
             backdrop.rotation=backgroundRotation;
-            backdrop.position=cameraHome+backgroundRotation*new Vector3(0,h*(scale-1)*.5f,80);
+            // Keep Fuji's summit and open sky in frame when the fight lens
+            // tightens. Overscan still covers the wider introduction and recoil.
+            backdrop.position=cameraHome+backgroundRotation*new Vector3(0,-h*.04f,80);
             impactAge+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){impact=0;effects.Clear();}
             float kick=impact*Mathf.Exp(-impactAge*14)*(1-focus);
@@ -218,9 +220,9 @@ namespace UltramanGame.Runtime
                 Camera.transform.position=HeroHome+new Vector3(3.8f,2.82f,.9f);
                 Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*2.93f);
                 Camera.fieldOfView=32;
-                // Reproject the distant city matte for this dedicated lens; the foreground stays three-dimensional.
+                // Reproject the distant landscape for this dedicated lens.
                 backdrop.rotation=Camera.transform.rotation;
-                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,h*(scale-1)*.5f,80);
+                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
             }
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);

@@ -10,8 +10,6 @@ namespace UltramanGame.Runtime
         readonly List<Transform> embers=new List<Transform>();
         readonly List<Vector3> emberVelocity=new List<Vector3>();
         readonly List<float> emberAge=new List<float>();
-        readonly LineRenderer[] meteors=new LineRenderer[3];
-        readonly Transform[] meteorHeads=new Transform[3];
         readonly LineRenderer[] lavaStreams=new LineRenderer[3];
         readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
         readonly Material[] cloudMaterials=new Material[32];
@@ -46,14 +44,14 @@ namespace UltramanGame.Runtime
             rock.SetColor("_Color",new Color(.15f,.16f,.17f));
             rock.SetFloat("_BackdropBlend",0);
             glow=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
-            var meteorMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Material>("PrototypeSurface")));
-            meteorMaterial.color=new Color(.46f,.78f,1);meteorMaterial.EnableKeyword("_EMISSION");
-            meteorMaterial.SetColor("_EmissionColor",new Color(2.4f,3.0f,4.2f));
             var emberMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=new Color(1,.32f,.065f,.8f)});
             BuildTerrain();
             for(int i=0;i<64;i++)
             {
                 float x=Range(-16,16),z=Range(-3,24);
+                // Far terrain blends into the landscape plate. Keep freestanding
+                // rocks on the actual near ground so they cannot float over its horizon.
+                if(new Vector2(x,z-.4f).sqrMagnitude>100)continue;
                 if(Mathf.Abs(x)<3.1f&&z<5)continue;
                 float size=Range(.12f,.6f);
                 Rock(new Vector3(x,Height(x,z)-.035f,z),new Vector3(size*Range(1.1f,2.1f),size*Range(.35f,.7f),size),rock);
@@ -61,7 +59,6 @@ namespace UltramanGame.Runtime
             // Low broken silhouettes frame the fight without hiding the characters.
             Rock(new Vector3(-5.8f,Height(-5.8f,5.8f),5.8f),new Vector3(1.35f,.86f,.95f),rock);
             Rock(new Vector3(6.4f,Height(6.4f,7.4f),7.4f),new Vector3(1.65f,.95f,1.1f),rock);
-            Rock(new Vector3(-8.4f,Height(-8.4f,13),13),new Vector3(2.1f,1.15f,1.25f),rock);
             for(int i=0;i<lavaStreams.Length;i++)
             {
                 var line=lavaStreams[i]=Line("Cooling lava seam",42,.012f);line.enabled=true;
@@ -72,16 +69,8 @@ namespace UltramanGame.Runtime
                     line.SetPosition(j,new Vector3(x,Height(x,z)+.014f,z));
                 }
             }
-            // A short multi-point ribbon reads as a luminous meteor instead of
-            // the thin red debug line used by the first stage pass.
-            for(int i=0;i<meteors.Length;i++)
-            {
-                meteors[i]=Line("Distant meteor",5,.055f);
-                meteorHeads[i]=GameWorld.Primitive("Distant meteor head",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*.13f,meteorMaterial);
-            }
-            // Two staggered lava fountains add a readable moving layer behind the
-            // fighters.  They are deliberately lightweight line effects so the
-            // same deterministic stage clock works in live play and captures.
+            // Two staggered lava fountains share the deterministic stage clock
+            // with their ash plumes, molten rocks and local light.
             for(int i=0;i<ventLights.Length;i++)
             {
                 var lightObject=new GameObject("Volcano vent light");lightObject.transform.SetParent(transform,false);
@@ -186,22 +175,6 @@ namespace UltramanGame.Runtime
         {color.a=alpha;line.startColor=color;line.endColor=color;}
         public void Tick(float time)
         {
-            for(int i=0;i<meteors.Length;i++)
-            {
-                var r=meteors[i];float age=Mathf.Repeat(time+i*2.7f,7.5f+i*1.1f);float t=age/1.35f;r.enabled=t<1;
-                meteorHeads[i].gameObject.SetActive(r.enabled);
-                if(!r.enabled)continue;
-                var head=new Vector3(-9+i*6.5f+t*5.4f,4.8f+i*.28f-t*1.8f,11+i*1.5f);
-                var tail=head+new Vector3(-1.45f,.78f,0);
-                meteorHeads[i].position=head;meteorHeads[i].localScale=Vector3.one*(.09f+.055f*Mathf.Sin(Mathf.Clamp01(t)*Mathf.PI));
-                for(int j=0;j<r.positionCount;j++)
-                {
-                    float p=j/(float)(r.positionCount-1);
-                    r.SetPosition(j,Vector3.Lerp(head,tail,p));
-                }
-                float alpha=Mathf.Sin(Mathf.Clamp01(t)*Mathf.PI)*.92f;
-                r.startColor=new Color(.95f,.98f,1,alpha);r.endColor=new Color(.32f,.58f,1,0);
-            }
             for(int i=0;i<lavaStreams.Length;i++)
             {var color=new Color(1,.25f,.055f,.065f+.025f*Mathf.Sin(time*.7f+i));lavaStreams[i].startColor=lavaStreams[i].endColor=color;}
             for(int vent=0;vent<vents.Length;vent++)

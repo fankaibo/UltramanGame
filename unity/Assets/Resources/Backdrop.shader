@@ -18,8 +18,7 @@ Shader "Training/Backdrop" {
                 // keeping the moon and mountain silhouette stable.
                 fixed4 color=tex2D(_MainTex,AtmosphereUV(i.uv,_Clock));
                 color.rgb*=AtmosphereShade(i.uv);
-                float meteors=AtmosphereMeteor(i.uv,_Clock,.07)+AtmosphereMeteor(i.uv,_Clock,.43)*.82+AtmosphereMeteor(i.uv,_Clock,.76)*.66;
-                color.rgb+=float3(.42,.66,1.0)*meteors;
+                color.rgb+=float3(.80,.88,1.0)*AtmosphereMeteor(i.uv,_Clock);
                 return color;
             }
             ENDCG

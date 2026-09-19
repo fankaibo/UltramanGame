@@ -65,8 +65,15 @@ namespace UltramanGame.Editor
             while(state.TryCue(out _)){}
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
             world.Tick(state,1,0);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/exchange-review",version));
+            var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--exchange-output");
+            string output=outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/exchange-review");
+            string folder=Path.GetFullPath(Path.Combine(output,version));
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
+            var sources=new StringBuilder("Rendered UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
+            using(var sha=System.Security.Cryptography.SHA256.Create())
+                foreach(string path in new[]{"Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
+                    sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
+            File.WriteAllText(folder+"/render-source.txt",sources.ToString());
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();
             world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             var events=new StringBuilder("seconds,event,health,energy\n");float health=state.EnemyHealth;

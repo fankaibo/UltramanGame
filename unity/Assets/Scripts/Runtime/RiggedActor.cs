@@ -360,10 +360,15 @@ namespace UltramanGame.Runtime
             if(!upper||!lower||!wrist)return;
             Vector3 upperVector=lower.position-upper.position,targetVector=elbowTarget-upper.position;
             if(upperVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
+            // The clip already authors a forward-facing claw. Re-aiming upper
+            // and lower arms must not roll that palm with the inherited elbow
+            // rotation, which previously left the claws hanging or folded in.
+            Quaternion palm=wrist.rotation;
             upper.rotation=Quaternion.Slerp(upper.rotation,Quaternion.FromToRotation(upperVector,targetVector)*upper.rotation,blend);
             Vector3 forearmVector=wrist.position-lower.position;targetVector=wristTarget-lower.position;
-            if(forearmVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
-            lower.rotation=Quaternion.Slerp(lower.rotation,Quaternion.FromToRotation(forearmVector,targetVector)*lower.rotation,blend);
+            if(forearmVector.sqrMagnitude>=.0001f&&targetVector.sqrMagnitude>=.0001f)
+                lower.rotation=Quaternion.Slerp(lower.rotation,Quaternion.FromToRotation(forearmVector,targetVector)*lower.rotation,blend);
+            wrist.rotation=palm;
         }
         static float ContactPulse(float age,float start,float peak,float end)
         {return age<=start||age>=end?0:age<peak?Mathf.SmoothStep(0,1,(age-start)/(peak-start)):1-Mathf.SmoothStep(0,1,(age-peak)/(end-peak));}

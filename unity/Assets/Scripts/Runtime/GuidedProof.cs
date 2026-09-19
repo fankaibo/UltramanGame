@@ -33,7 +33,7 @@ namespace UltramanGame.Runtime
             var texture=new Texture2D(Screen.width,Screen.height,TextureFormat.RGB24,false);
             texture.ReadPixels(new Rect(0,0,Screen.width,Screen.height),0,0);texture.Apply();
             File.WriteAllBytes(Path.Combine(folder,key+".png"),texture.EncodeToPNG());Destroy(texture);proofBusy=false;
-            Debug.Log("[GuidedProof] screenshot="+key+" source=synthetic file="+Path.Combine(folder,key+".png"));
+            Debug.Log("[GuidedProof] screenshot="+key+" source="+(review!=null?"review-playback":"synthetic")+" file="+Path.Combine(folder,key+".png"));
         }
     }
 }
