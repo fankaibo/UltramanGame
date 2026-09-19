@@ -71,7 +71,7 @@ namespace UltramanGame.Editor
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var sources=new StringBuilder("Rendered UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string path in new[]{"Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
+                foreach(string path in new[]{"Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/MonsterAttackEffects.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
                     sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
             File.WriteAllText(folder+"/render-source.txt",sources.ToString());
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();

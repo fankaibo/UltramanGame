@@ -73,7 +73,9 @@ namespace UltramanGame.Runtime
                             +camera.transform.up*(Mathf.Lerp(.55f,-.55f,t)+(i-1)*.1f);
                         claw.SetPosition(j,p);
                     }
-                    ColorLine(claw,new Color(1,.73f,.34f),Mathf.Clamp01((.68f-age)/.23f)*.5f);
+                    float lineAlpha=Mathf.Clamp01((.68f-age)/.23f)*(i==1?.58f:.22f);
+                    ColorLine(claw,i==1?new Color(1,.76f,.36f):new Color(1,.42f,.14f),lineAlpha);
+                    claw.widthMultiplier=i==1?.052f:.018f;
                 }
             }
             shock.enabled=active&&hitAge<.38f;

@@ -78,8 +78,12 @@ namespace UltramanGame.Runtime
         public StrikeTrails(Transform parent)
         {
             hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,1f),.56f,.26f);
-            for(int i=0;i<claws.Length;i++)
-                claws[i]=new Ribbon(parent,"Monster moving claw "+i,new Color(1,.46f,.12f,.96f),.30f,.26f);
+            // One lead claw carries the readable contact streak. Two narrower,
+            // shorter echoes add speed without making the attack look like three
+            // identical debug lines.
+            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(1,.31f,.08f,.58f),.13f,.18f);
+            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(1,.52f,.16f,.96f),.34f,.27f);
+            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(1,.37f,.10f,.62f),.16f,.20f);
         }
         public void Clear()
         {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
@@ -96,7 +100,12 @@ namespace UltramanGame.Runtime
             hero.Tick(camera,clock,emitHero,heroActor.StrikeOrigin(state.Action));
             var hand=enemyActor.EnemyStrikeOrigin(state);
             for(int i=0;i<claws.Length;i++)
-                claws[i].Tick(camera,clock,emitMonster,hand+camera.transform.right*(i-1)*.11f+camera.transform.up*(i-1)*.035f);
+            {
+                float side=i-1;
+                claws[i].Tick(camera,clock,emitMonster,
+                    hand+camera.transform.right*side*(i==1?.025f:.065f)
+                        +camera.transform.up*side*(i==1?.012f:.025f));
+            }
             lastAction=state.Action;lastHeroAge=state.ActionAge;lastEnemyAttack=state.EnemyAttackCount;
         }
     }
