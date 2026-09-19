@@ -37,6 +37,8 @@ namespace UltramanGame.Runtime
         float gestureFeedbackUntil;
         long sequence;
         float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        int presentedPunches,presentedHits,comboCount;
+        float comboUntil;
         // Presentation-only hit stop. Combat rules keep advancing so this never
         // changes the child's timing window; the actors and lens briefly hold on
         // the contact pose, which makes the cabinet impact readable on a TV.
@@ -59,6 +61,7 @@ namespace UltramanGame.Runtime
             Application.SetStackTraceLogType(LogType.Log,StackTraceLogType.None);
             monsterHits=Battle.ClampMonsterHits(PlayerPrefs.GetInt(MonsterHitsKey,Battle.DefaultMonsterHits));
             battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;
+            presentedPunches=presentedHits=comboCount=0;comboUntil=0;
             DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",1);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
@@ -178,6 +181,13 @@ namespace UltramanGame.Runtime
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
             if(battle.Phase==GamePhase.Waiting&&Time.unscaledTime-selectionChangedAt<.5f)input.Transform=false;
             battle.Tick(world.BattleDelta(dt,battle),input);
+            if(battle.Punches>presentedPunches)
+            {
+                comboCount=Time.unscaledTime<=comboUntil?comboCount+(battle.Punches-presentedPunches):battle.Punches-presentedPunches;
+                comboUntil=Time.unscaledTime+2.6f;presentedPunches=battle.Punches;
+            }
+            if(battle.HitsTaken>presentedHits)
+            {presentedHits=battle.HitsTaken;comboCount=0;comboUntil=0;}
             if(battle.Phase==GamePhase.Paused)beamTitleUntil=0;
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
@@ -282,6 +292,7 @@ namespace UltramanGame.Runtime
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
             lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;arcadeFreeze=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            presentedPunches=presentedHits=comboCount=0;comboUntil=0;
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)

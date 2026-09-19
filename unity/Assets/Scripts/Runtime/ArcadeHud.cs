@@ -43,7 +43,13 @@ namespace UltramanGame.Runtime
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
                     hud.Text(new Rect(37,235,210,77),battle.Punches.ToString("00"),50+(int)(pulse*7),new Color(1,.88f,.52f),bold:true);
-                    hud.Text(new Rect(43,306,215,25),"HIT  /  漂亮出击",14,HudPainter.Ink,bold:true);
+                    bool comboActive=comboCount>=2&&time<comboUntil;
+                    hud.Text(new Rect(43,306,215,25),comboActive?$"HIT  /  {comboCount:00} COMBO":"HIT  /  漂亮出击",14,comboActive?gold:HudPainter.Ink,bold:true);
+                    if(comboActive)
+                    {
+                        float comboAge=Mathf.Clamp01((comboUntil-time)/.65f);
+                        hud.Text(new Rect(39,337,230,30),$"{comboCount:00} 连击",20+Mathf.RoundToInt(comboAge*4),new Color(1,.78f,.30f,Mathf.Clamp01(comboAge)),TextAnchor.MiddleLeft,true);
+                    }
                     hud.Line(new Vector2(42,335),new Vector2(121,335),gold,2);
 
                     // The reference cabinet keeps its score at the edge of the playfield.
