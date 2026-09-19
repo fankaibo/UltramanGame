@@ -31,6 +31,9 @@ namespace UltramanGame.Runtime
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
         float contactSide;
+        Battle observedBattle;
+        int observedBlocks;
+        float guardAge=10;
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
@@ -120,6 +123,8 @@ namespace UltramanGame.Runtime
                 if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
                 if(monster&&joint.name=="bip_head")head=joint;
                 if(monster&&joint.name=="bip_spine_2")upperSpine=joint;
+                if(!monster&&(joint.name=="head"||joint.name=="bip_head"))head=joint;
+                if(!monster&&(joint.name=="spineLower"||joint.name=="bip_spine_0"))upperSpine=joint;
             }
             if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
             if(monster)
@@ -187,6 +192,16 @@ namespace UltramanGame.Runtime
                 contactLayerApplied=false;
             }
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
+            // A block is a contact event, not the held guard input. Observe it
+            // once per round so a held shield, pause or photo restart cannot
+            // replay the recoil. The layer affects only the torso above the hips.
+            if(!ReferenceEquals(observedBattle,state))
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=10;}
+            if(state.Phase!=GamePhase.Battle)guardAge=10;
+            else if(state.Blocks>observedBlocks)guardAge=0;
+            else guardAge+=dt;
+            observedBlocks=state.Blocks;
+            float guardRecoil=ContactPulse(guardAge,0,.09f,.54f);
             phaseAge+=dt;hitAge+=dt;
             if(state.EnemyHealth<lastHealth)
             {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;}
@@ -261,20 +276,36 @@ namespace UltramanGame.Runtime
                 // This small torso/head layer gives alternating lead claws a
                 // different centre of mass, so a long exchange reads as two
                 // deliberate lunges instead of one repeated pose.
-                float reach=Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI);
+                float reach=Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI)*(1-guardRecoil*.65f);
                 float side=state.EnemyAttackCount%2==0?-1:1;
                 var right=Vector3.Cross(Vector3.up,forward);
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
                     upperSpine.rotation=Quaternion.AngleAxis(side*6*reach,Vector3.up)
-                        *Quaternion.AngleAxis(-4*reach,right)*upperSpine.rotation;
+                        *Quaternion.AngleAxis(-4*reach-17*guardRecoil,right)*upperSpine.rotation;
                 }
                 if(head)
                 {
                     headBase=head.localRotation;
                     head.rotation=Quaternion.AngleAxis(side*8*reach,Vector3.up)
-                        *Quaternion.AngleAxis(-3*reach,right)*head.rotation;
+                        *Quaternion.AngleAxis(-3*reach-6*guardRecoil,right)*head.rotation;
+                }
+                contactLayerApplied=true;
+            }
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Shield&&guardRecoil>0)
+            {
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(-13*guardRecoil,right)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    // Counter the chest tilt slightly to keep eyes on the claw.
+                    head.rotation=Quaternion.AngleAxis(5*guardRecoil,right)*head.rotation;
                 }
                 contactLayerApplied=true;
             }

@@ -55,7 +55,7 @@ def main():
         raise RuntimeError('Missing child reaction-time evidence')
     # These images come from this player run, not the independent Editor render
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
-    required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'hero-hurt',
+    required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'beam-closeup-peak', 'beam-firing', 'Paused', 'Victory')
     for name in required:
         path = native / (name + '.png')

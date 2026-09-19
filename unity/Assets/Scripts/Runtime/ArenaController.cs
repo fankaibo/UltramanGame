@@ -269,7 +269,7 @@ namespace UltramanGame.Runtime
         void PlayCue(GameCue cue)
         {
             if(Debug.isDebugBuild)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
-            sound.Cue(cue,battle.Phase);world.Cue(cue);
+            sound.Cue(cue,battle.Phase);world.Cue(cue,battle);
             switch(cue)
             {
                 case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";hintAt=Time.unscaledTime+12;break;

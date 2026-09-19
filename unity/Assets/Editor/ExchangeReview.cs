@@ -71,7 +71,7 @@ namespace UltramanGame.Editor
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var sources=new StringBuilder("Rendered UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string path in new[]{"Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/MonsterAttackEffects.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
+                foreach(string path in new[]{"Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/MonsterAttackEffects.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/EnergyShield.shader","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
                     sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
             File.WriteAllText(folder+"/render-source.txt",sources.ToString());
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();
@@ -92,7 +92,7 @@ namespace UltramanGame.Editor
                         LeftPunch=frame==156||frame==252,RightPunch=frame==204||frame==294};
                     state.Tick(world.BattleDelta(dt,state),input);
                     while(state.TryCue(out var cue))
-                    {world.Cue(cue);events.AppendLine($"{time:F3},{cue},{state.EnemyHealth},{state.Energy}");}
+                    {world.Cue(cue,state);events.AppendLine($"{time:F3},{cue},{state.EnemyHealth},{state.Energy}");}
                     hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);
                     if(state.EnemyHealth<health)
                     {world.Hit(false,state);events.AppendLine($"{time:F3},HeroHit,{state.EnemyHealth},{state.Energy}");}

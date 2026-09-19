@@ -97,7 +97,7 @@ namespace UltramanGame.Runtime
             var position=special||hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             effects.Impact(position,special);
         }
-        public void Cue(GameCue cue)
+        public void Cue(GameCue cue,Battle state=null)
         {
             if(cue==GameCue.EnemyAttack)
             {
@@ -106,7 +106,13 @@ namespace UltramanGame.Runtime
                 Burst(EnemyHome+Vector3.up*.16f,22,.62f,true);
                 cinematic.Pulse(new Color(1,.28f,.08f),.18f);
             }
-            if(cue==GameCue.Block){effects.Impact(ShieldCenter,false,true);monsterEffects.Impact(true);Kick(.04f);}
+            if(cue==GameCue.Block)
+            {
+                Vector3 contact=ShieldCenter;
+                if(enemy!=null&&state!=null)
+                    contact+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(enemy.EnemyStrikeOrigin(state)-ShieldCenter,BattleAxis),.65f);
+                effects.Impact(contact,false,true);monsterEffects.Impact(true);Kick(.04f);
+            }
             if(cue==GameCue.Hurt){effects.Impact(HeroHome+Vector3.up*2,false,false,true);monsterEffects.Impact(false);Kick(.055f);}
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
             if(cue==GameCue.Victory){effects.Impact(EnemyHome+Vector3.up*1.7f,true);Burst(EnemyHome+Vector3.up*2.2f,48,1.3f);}

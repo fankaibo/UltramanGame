@@ -20,7 +20,7 @@ namespace UltramanGame.Runtime
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
         int sparkIndex,flashIndex,hitRayIndex;
-        float hitLightAge=10,clock,beamBurstAge;
+        float hitLightAge=10,shieldHitAge=10,clock,beamBurstAge;
         float previousEnemyAge;
         int previousAttack,previousPunches;
         bool motionInitialized;
@@ -77,11 +77,16 @@ namespace UltramanGame.Runtime
         }
         public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false)
         {
+            if(blocked)
+            {
+                shieldHitAge=0;
+                shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(position));
+            }
             atmosphere.Hit(position,special,blocked);
             Color color=blocked?Ice:hurt?Warm:new Color(1,.75f,.38f);
             Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
             FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
-            FlashAt(position,special?2.7f:1.7f,.38f,color,true);
+            if(!blocked)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
             int rayCount=special?14:blocked?9:7;
             for(int i=0;i<rayCount;i++)
             {
@@ -115,7 +120,7 @@ namespace UltramanGame.Runtime
             foreach(var r in rays)r.enabled=false;
             foreach(var r in orbits)r.enabled=false;
             warningRing.enabled=attackRing.enabled=false;
-            charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=10;muzzleLight.intensity=hitLight.intensity=0;
+            charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
         {
@@ -182,7 +187,13 @@ namespace UltramanGame.Runtime
                 ray.Line.startColor=c;c.a=0;ray.Line.endColor=c;ray.Line.widthMultiplier=ray.Width*(1-.35f*p);
             }
             bool active=state.Phase==GamePhase.Battle;
-            shield.gameObject.SetActive(active&&state.Shield);shield.position=shieldCenter;shield.rotation=Quaternion.LookRotation(axis,Vector3.up);shieldMaterial.SetFloat("_Clock",clock);
+            shieldHitAge+=dt;
+            float compression=shieldHitAge<.32f?Mathf.Sin(Mathf.Clamp01(shieldHitAge/.32f)*Mathf.PI):0;
+            shield.gameObject.SetActive(active&&state.Shield);
+            shield.position=shieldCenter-axis*(compression*.12f);
+            shield.rotation=Quaternion.LookRotation(axis,Vector3.up);
+            shield.localScale=new Vector3(1.9f+compression*.12f,2.15f+compression*.07f,.38f-compression*.13f);
+            shieldMaterial.SetFloat("_Clock",clock);shieldMaterial.SetFloat("_HitAge",shieldHitAge);
             Vector3 enemyGround=end-Vector3.up*2.6f+axis*AnimatedActor.MonsterAdvance(state);
             bool warning=active&&state.Enemy==EnemyPhase.Windup;
             bool attack=active&&state.Enemy==EnemyPhase.Attack;

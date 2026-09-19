@@ -13,6 +13,7 @@ namespace UltramanGame.Runtime
         static readonly Color Amber=new Color(1,.40f,.10f),Ice=new Color(.25f,.86f,1);
         float hitAge=10;
         Color hitColor;
+        bool blockedImpact;
         public bool SlashVisible => claws[0].enabled;
         public MonsterAttackEffects(Transform parent,Vector3 monsterHome,Vector3 heroHome)
         {
@@ -41,7 +42,7 @@ namespace UltramanGame.Runtime
         }
         public void Clear()
         {hitAge=10;charge.enabled=shock.enabled=false;foreach(var line in claws)line.enabled=false;}
-        public void Impact(bool blocked) {hitAge=0;hitColor=blocked?Ice:Amber;}
+        public void Impact(bool blocked) {hitAge=0;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
         {
             bool active=state.Phase==GamePhase.Battle;
@@ -78,7 +79,9 @@ namespace UltramanGame.Runtime
                     claw.widthMultiplier=i==1?.052f:.018f;
                 }
             }
-            shock.enabled=active&&hitAge<.38f;
+            // Blue ripples now live on the shield surface at the claw contact.
+            // Keep this free-standing shock ring only for an unblocked hit.
+            shock.enabled=active&&hitAge<.38f&&!blockedImpact;
             if(shock.enabled)
             {Circle(shock,contact,camera,Mathf.Lerp(.13f,1.05f,hitAge/.38f));ColorLine(shock,hitColor,(1-hitAge/.38f)*.85f);}
         }
