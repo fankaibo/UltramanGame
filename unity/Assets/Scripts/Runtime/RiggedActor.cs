@@ -325,15 +325,15 @@ namespace UltramanGame.Runtime
             if(state.Phase!=GamePhase.Battle||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
             var right=Vector3.Cross(Vector3.up,forward).normalized;
             Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
-            // Keep the elbows slightly outside and the wrists further forward.
-            // This separates the two claws in the three-quarter camera instead of
-            // folding both arms into one flat silhouette at chest height.
+            // A kaiju guard is asymmetrical: one claw owns the foreground while
+            // the other stays closer to the ribs. Equal forward targets made both
+            // hands flatten into one prop on a three-quarter TV shot.
             SolveArm(leftUpperArm,leftForearm,leftHand,
-                center-right*.43f+forward*.04f+Vector3.up*.12f,
-                center-right*.50f+forward*.42f+Vector3.up*.02f,blend);
+                center-right*.43f+forward*.00f+Vector3.up*.06f,
+                center-right*.47f+forward*.22f+Vector3.up*.00f,blend);
             SolveArm(upperArm,forearm,hand,
                 center+right*.43f+forward*.04f+Vector3.up*.12f,
-                center+right*.50f+forward*.42f+Vector3.up*.02f,blend);
+                center+right*.50f+forward*.44f+Vector3.up*.08f,blend);
         }
         void CorrectAttackArms(Battle state)
         {
@@ -347,11 +347,13 @@ namespace UltramanGame.Runtime
             float leadSide=leadLeft?-1:1;
             var right=Vector3.Cross(Vector3.up,forward).normalized;
             Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
-            Vector3 leadElbow=center+right*leadSide*.52f+forward*.22f+Vector3.up*.24f;
-            Vector3 leadWrist=center+right*leadSide*.50f+forward*(.42f+.44f*reach)+Vector3.up*(.04f+.08f*reach);
-            Vector3 supportElbow=center-right*leadSide*.43f+forward*.08f+Vector3.up*.27f;
-            Vector3 supportWrist=center-right*leadSide*.48f+forward*.30f+Vector3.up*.12f;
-            float leadBlend=.08f+.22f*reach,supportBlend=.08f+.08f*reach;
+            Vector3 leadElbow=center+right*leadSide*.52f+forward*.22f+Vector3.up*(.24f+.08f*reach);
+            Vector3 leadWrist=center+right*leadSide*.50f+forward*(.42f+.44f*reach)+Vector3.up*(.04f+.13f*reach);
+            // Pull the non-leading claw back toward the chest. It still moves
+            // with the attack, but never competes with the contact hand.
+            Vector3 supportElbow=center-right*leadSide*.43f+forward*.01f+Vector3.up*.18f;
+            Vector3 supportWrist=center-right*leadSide*.42f+forward*(.12f+.08f*reach)+Vector3.up*(.08f+.02f*reach);
+            float leadBlend=.08f+.24f*reach,supportBlend=.10f+.10f*reach;
             SolveArm(leadLeft?leftUpperArm:upperArm,leadLeft?leftForearm:forearm,leadLeft?leftHand:hand,leadElbow,leadWrist,leadBlend);
             SolveArm(leadLeft?upperArm:leftUpperArm,leadLeft?forearm:leftForearm,leadLeft?hand:leftHand,supportElbow,supportWrist,supportBlend);
         }
