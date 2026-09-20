@@ -197,7 +197,11 @@ namespace UltramanGame.Runtime
             {
                 bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
-                arcadeFreeze=Mathf.Max(arcadeFreeze,special?.11f:.045f);
+                // Hold the contact pose for a few more display frames so the
+                // cabinet-style hit reads as an impact instead of a flash.
+                // This is presentation time only; Battle damage and gesture
+                // clocks continue to use their existing timing.
+                arcadeFreeze=Mathf.Max(arcadeFreeze,special?.14f:.065f);
                 if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] freeze={arcadeFreeze:F3}s special={special} damage={lastDamage}");
                 sound.Effect("impact",special?1:.8f);
             }
