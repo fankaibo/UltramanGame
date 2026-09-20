@@ -333,6 +333,17 @@ namespace UltramanGame.Runtime
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
+            {
+                // The source Hurt clip supplies the chest recoil, but its root
+                // stays fixed. A short, planted-foot backstep gives each punch
+                // a readable weight transfer and lets the following recovery
+                // settle back into the diagonal arena composition.
+                float recoil=ContactPulse(hitAge,0,heavyHit?.10f:.065f,heavyHit?.78f:.36f);
+                Root.position-=forward*(heavyHit?.14f:.085f)*recoil;
+                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:.028f)*recoil);
+                Root.rotation*=Quaternion.AngleAxis(contactSide*(heavyHit?4.5f:2.5f)*recoil,Vector3.up);
+            }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack)
             {
                 // The baked clip owns both hands and the planted-foot keyframes.
