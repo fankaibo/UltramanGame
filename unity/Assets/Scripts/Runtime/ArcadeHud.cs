@@ -110,8 +110,35 @@ namespace UltramanGame.Runtime
                 Guide(recognizer.BeamProgress>0?"看见动作了 · 保持，释放光线！":"摆 L 形，或双手向前推，停一下","beam",gold,recognizer.BeamProgress);
             else if(time<captionUntil||battle.Punches<3)
                 Guide(time<captionUntil?caption:"收回拳头，再向前挥出去","punch",cyan,0);
+            DrawBattleStartCue();
             DrawArcadePreview();
             if(pose?.source=="synthetic")hud.Text(new Rect(20,695,400,20),"合成动作测试 · 非真人输入",11,HudPainter.Gold);
+        }
+
+        // A short cabinet-style cut-in makes the transition out of the
+        // transformation readable on a TV. It fades before the first enemy
+        // warning so the actors and the camera remain the focus of the round.
+        void DrawBattleStartCue()
+        {
+            if(battle.Phase!=GamePhase.Battle)return;
+            float age=Time.unscaledTime-battleStartCueAt;
+            if(battleStartCueAt<0||age<0||age>2.1f)return;
+            float intro=Mathf.SmoothStep(.42f,1f,Mathf.Clamp01(age/.16f));
+            float outro=1-Mathf.SmoothStep(0,1,Mathf.Clamp01((age-1.28f)/.82f));
+            float alpha=Mathf.Clamp01(intro*outro);
+            float scale=Mathf.Lerp(.88f,1f,intro);
+            float width=620*scale,height=98*scale,x=(1280-width)/2,y=286+(1-scale)*48;
+            var cyan=new Color(.22f,.84f,1,alpha*.92f);
+            var gold=new Color(1,.70f,.25f,alpha*.92f);
+            hud.Rounded(new Rect(x+8,y+8,width,height),new Color(0,0,0,alpha*.35f),12);
+            hud.Rounded(new Rect(x,y,width,height),new Color(.008f,.035f,.075f,alpha*.90f),12);
+            hud.Line(new Vector2(x-54,y+18),new Vector2(x+22,y+18),cyan,3);
+            hud.Line(new Vector2(x+width-22,y+18),new Vector2(x+width+54,y+18),gold,3);
+            hud.Line(new Vector2(x-28,y+height-17),new Vector2(x+66,y+height-17),gold,2);
+            hud.Line(new Vector2(x+width-66,y+height-17),new Vector2(x+width+28,y+height-17),cyan,2);
+            hud.Text(new Rect(x+36,y+9,width-72,25),$"{SelectedHero.Name}  VS  哥尔赞",14,new Color(.74f,.88f,1,alpha),TextAnchor.MiddleCenter,true);
+            hud.Text(new Rect(x+36,y+30,width-72,53),"开战！",39,new Color(1,.88f,.53f,alpha),TextAnchor.MiddleCenter,true);
+            hud.Text(new Rect(x+width-112,y+36,76,22),"FIGHT!",12,new Color(.39f,.86f,1,alpha),TextAnchor.MiddleCenter,true);
         }
         void BattlePlate(Rect r,Color accent,bool right)
         {

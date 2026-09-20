@@ -36,7 +36,7 @@ namespace UltramanGame.Runtime
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
         long sequence;
-        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
         int presentedPunches,presentedHits,comboCount;
         float comboUntil;
         int lastDamage;
@@ -270,7 +270,7 @@ namespace UltramanGame.Runtime
             sound.Cue(cue,battle.Phase);world.Cue(cue,battle);
             switch(cue)
             {
-                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";hintAt=Time.unscaledTime+12;break;
+                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;hintAt=Time.unscaledTime+12;break;
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
@@ -289,7 +289,7 @@ namespace UltramanGame.Runtime
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
-            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;battleStartCueAt=-1;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             presentedPunches=presentedHits=comboCount=0;comboUntil=0;
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
@@ -537,6 +537,7 @@ namespace UltramanGame.Runtime
             BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
             BattleAction(468,"必杀光线",keyboard?"满能量后按 J":ready?"L 形 / 双手前推":$"普攻 {battle.Energy:0}/{Battle.MaxEnergy}","beam",HudPainter.Gold,ready||battle.Action==HeroAction.Beam);
             if(!keyboard&&ready)hud.Bar(new Rect(524,673,145,2),recognizer.BeamProgress,HudPainter.Gold);
+            DrawBattleStartCue();
             DrawPreview(true);
             if(battle.Phase==GamePhase.Victory)
             {
