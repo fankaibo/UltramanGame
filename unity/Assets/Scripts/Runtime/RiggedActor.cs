@@ -405,8 +405,16 @@ namespace UltramanGame.Runtime
                 // Keep the pause between authored clips alive without moving the
                 // feet or changing any combat clock. The two actors breathe out
                 // of phase so a long exchange does not read as a frozen tableau.
-                float wave=Mathf.Sin(time*(monsterBreath?2.05f:2.35f)+(monsterBreath?.8f:0));
                 var right=Vector3.Cross(Vector3.up,forward);
+                // Let each exchange hand off a slightly different centre of
+                // mass. The authored Idle clip is short and otherwise returns
+                // to the same silhouette after every hit; this small planted
+                // weight shift makes a long arcade string feel continuous.
+                float cadence=time*(monsterBreath?1.72f:1.95f)+state.Punches*.55f+state.EnemyAttackCount*.31f;
+                float wave=Mathf.Sin(cadence+(monsterBreath?.8f:0));
+                float footShift=wave*(monsterBreath?.045f:.032f);
+                Root.position+=right*footShift;
+                Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(wave*(monsterBreath?2.6f:1.9f),Vector3.up);
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
