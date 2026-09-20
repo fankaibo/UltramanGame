@@ -3,7 +3,7 @@ Shader "Training/CinematicComposite" {
  SubShader { Cull Off ZWrite Off ZTest Always
  CGINCLUDE
  #include "UnityCG.cginc"
- sampler2D _MainTex,_Bloom;float4 _MainTex_TexelSize;float2 _Direction;float _Strength;float4 _FlashColor;
+ sampler2D _MainTex,_Bloom;float4 _MainTex_TexelSize;float2 _Direction;float _Strength;float4 _FlashColor;float4 _ShockColor;float _ShockRadius;float _ShockStrength;
  half4 extract(v2f_img i):SV_Target {half3 c=tex2D(_MainTex,i.uv).rgb;float b=max(c.r,max(c.g,c.b));return half4(c*saturate((b-.85)/max(b,.001)),1);}
  half4 blur(v2f_img i):SV_Target {
   float2 d=_MainTex_TexelSize.xy*_Direction;
@@ -12,6 +12,9 @@ Shader "Training/CinematicComposite" {
  half4 compose(v2f_img i):SV_Target {
   half3 c=tex2D(_MainTex,i.uv).rgb+tex2D(_Bloom,i.uv).rgb*_Strength;
   c+=_FlashColor.rgb*_FlashColor.a;
+  float distanceFromCenter=distance(i.uv,float2(.5,.49));
+  float ring=exp(-pow((distanceFromCenter-_ShockRadius)/.032,2))*_ShockStrength;
+  c+=_ShockColor.rgb*ring;
   float2 p=i.uv*2-1;c*=1-dot(p,p)*.035;
   return half4(c,1);
  }
