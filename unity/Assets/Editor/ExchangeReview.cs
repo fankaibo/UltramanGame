@@ -78,6 +78,13 @@ namespace UltramanGame.Editor
             world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             var events=new StringBuilder("seconds,event,health,energy\n");float health=state.EnemyHealth;
             int leftWakeFrames=0,rightWakeFrames=0,rightClawFrames=0,leftClawFrames=0,visiblePixelsChecked=0;
+            Transform heroSpine=null;Quaternion punchSpineBase=Quaternion.identity;float punchBodyLead=0;
+            bool punchBodyLeadPassed=false;
+            if(version=="after")
+            {
+                heroSpine=FindBone(hero.Root,"spineLower","bip_spine_0");
+                punchSpineBase=heroSpine.localRotation;
+            }
             if(version=="after")
             {
                 var shader=Resources.Load<Shader>("StrikeRibbon");
@@ -94,6 +101,13 @@ namespace UltramanGame.Editor
                     while(state.TryCue(out var cue))
                     {world.Cue(cue,state);events.AppendLine($"{time:F3},{cue},{state.EnemyHealth},{state.Energy}");}
                     hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);
+                    if(version=="after"&&frame==155)
+                        punchSpineBase=heroSpine.localRotation;
+                    if(version=="after"&&frame>=156&&frame<174&&state.Action==HeroAction.LeftPunch)
+                    {
+                        punchBodyLead=Mathf.Max(punchBodyLead,Quaternion.Angle(punchSpineBase,heroSpine.localRotation));
+                        if(punchBodyLead>=2.0f)punchBodyLeadPassed=true;
+                    }
                     if(state.EnemyHealth<health)
                     {world.Hit(false,state);events.AppendLine($"{time:F3},HeroHit,{state.EnemyHealth},{state.Energy}");}
                     health=state.EnemyHealth;world.Tick(state,dt,time);
@@ -126,8 +140,10 @@ namespace UltramanGame.Editor
                     throw new Exception("Exchange reset retained effects");
                 if(version=="after"&&(leftWakeFrames<4||rightWakeFrames<4||leftClawFrames<4||rightClawFrames<4))
                     throw new Exception("An attacking hand had no visible trajectory");
+                if(version=="after"&&!punchBodyLeadPassed)
+                    throw new Exception($"Hero punch did not transfer into the torso: lead={punchBodyLead:F2}deg");
                 File.WriteAllText(folder+"/events.csv",events.ToString());
-                string result=$"[ExchangeReview] {version} passed duration=16 frames=480 leftPunches=2 rightPunches=2 blocks=1 hurt=1 alternatingClaws=2 reset=passed handTipBinding=passed visiblePixelChecks={visiblePixelsChecked} trailFrames={leftWakeFrames}/{rightWakeFrames}/{rightClawFrames}/{leftClawFrames}";
+                string result=$"[ExchangeReview] {version} passed duration=16 frames=480 leftPunches=2 rightPunches=2 blocks=1 hurt=1 alternatingClaws=2 reset=passed handTipBinding=passed heroBodyLead={punchBodyLead:F2}deg visiblePixelChecks={visiblePixelsChecked} trailFrames={leftWakeFrames}/{rightWakeFrames}/{rightClawFrames}/{leftClawFrames}";
                 File.WriteAllText(folder+"/validation.txt",result);Debug.Log(result);
             }
             finally
@@ -140,6 +156,12 @@ namespace UltramanGame.Editor
             int newest=-1;for(int i=0;i<v.Length;i+=2)if(colors[i].a>0)newest=i;
             if(newest<0||Vector3.Distance((v[newest]+v[newest+1])*.5f,hand)>.035f)
                 throw new Exception("Visible trajectory detached from the active hand: "+name);
+        }
+        static Transform FindBone(Transform root,params string[] names)
+        {
+            foreach(var t in root.GetComponentsInChildren<Transform>())
+                if(Array.IndexOf(names,t.name)>=0)return t;
+            throw new Exception("Missing review bone: "+string.Join("/",names));
         }
         static void VerifyPixels(Camera camera,RenderTexture target,string folder,int frame)
         {
