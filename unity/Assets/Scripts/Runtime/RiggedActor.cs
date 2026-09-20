@@ -115,10 +115,10 @@ namespace UltramanGame.Runtime
                 if(joint.name=="HandBase_R"||joint.name=="bip_hand_R")hand=joint;
                 if(joint.name=="ForearmBase_R"||joint.name=="bip_lowerArm_R")forearm=joint;
                 if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
-                if(monster&&joint.name=="bip_upperArm_L")leftUpperArm=joint;
-                if(monster&&joint.name=="bip_upperArm_R")upperArm=joint;
-                if(monster&&joint.name=="bip_lowerArm_L")leftForearm=joint;
-                if(monster&&joint.name=="bip_lowerArm_R")forearm=joint;
+                if((monster&&joint.name=="bip_upperArm_L")||(!monster&&joint.name=="armBase_L"))leftUpperArm=joint;
+                if((monster&&joint.name=="bip_upperArm_R")||(!monster&&joint.name=="armBase_R"))upperArm=joint;
+                if((monster&&joint.name=="bip_lowerArm_L")||(!monster&&joint.name=="ForearmBase_L"))leftForearm=joint;
+                if((monster&&joint.name=="bip_lowerArm_R")||(!monster&&joint.name=="ForearmBase_R"))forearm=joint;
                 if(joint.name=="Foot_L"||joint.name=="bip_foot_L")leftFoot=joint;
                 if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
                 if(monster&&joint.name=="bip_head")head=joint;
@@ -355,6 +355,16 @@ namespace UltramanGame.Runtime
                     headBase=head.localRotation;
                     head.rotation=Quaternion.AngleAxis(-wave*(monsterBreath?1.8f:1.25f),right)
                         *Quaternion.AngleAxis(wave*(monsterBreath?1.4f:1.0f),Vector3.up)*head.rotation;
+                }
+                if(heroBreath&&upperArm&&leftUpperArm)
+                {
+                    // Keep the hero alive during the short arcade pause. The
+                    // authored idle clip leaves the shoulders almost frozen;
+                    // a tiny opposing arm settle makes the stance read as a
+                    // guarded fighter without changing a punch or shield pose.
+                    float shoulder=wave*1.45f;
+                    upperArm.rotation=Quaternion.AngleAxis(shoulder,forward)*upperArm.rotation;
+                    leftUpperArm.rotation=Quaternion.AngleAxis(-shoulder,forward)*leftUpperArm.rotation;
                 }
                 contactLayerApplied=true;
             }
