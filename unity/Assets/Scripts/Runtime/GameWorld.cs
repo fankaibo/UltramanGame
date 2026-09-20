@@ -228,9 +228,15 @@ namespace UltramanGame.Runtime
             Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)
             {
-                // Cut to a front three-quarter lens. Moving the arena lens through a city block would occlude the actor.
-                Camera.transform.position=HeroHome+new Vector3(3.8f,2.82f,.9f);
-                Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*2.93f);
+                // Cut to a front three-quarter lens. A restrained orbit keeps the
+                // finisher alive like a cabinet cut-in without changing the pose
+                // window or sweeping the camera through the arena.
+                float closeupT=Mathf.Clamp01(Closeup.Age/BeamCloseup.Duration);
+                float orbit=Mathf.Sin(closeupT*Mathf.PI)*5.5f;
+                Vector3 offset=Quaternion.AngleAxis(orbit,Vector3.up)*new Vector3(3.8f,2.82f,.9f);
+                offset.y+=Mathf.Sin(closeupT*Mathf.PI)*.10f;
+                Camera.transform.position=HeroHome+offset;
+                Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
                 Camera.fieldOfView=32;
                 // Reproject the distant landscape for this dedicated lens.
                 backdrop.rotation=Camera.transform.rotation;
