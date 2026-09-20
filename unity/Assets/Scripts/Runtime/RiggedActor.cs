@@ -36,6 +36,10 @@ namespace UltramanGame.Runtime
         Battle observedBattle;
         int observedBlocks;
         float guardAge=10;
+        readonly Dictionary<string,Transform> clawBones=new Dictionary<string,Transform>();
+        readonly Transform[,,] clawFingers=new Transform[4,2,2];
+        readonly Transform[,] clawThumbs=new Transform[2,2];
+        static readonly string[] ClawFingerNames={"index","middle","ring","pinky"};
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
@@ -135,10 +139,25 @@ namespace UltramanGame.Runtime
                 if(monster&&joint.name=="bip_spine_2")upperSpine=joint;
                 if(!monster&&(joint.name=="head"||joint.name=="bip_head"))head=joint;
                 if(!monster&&(joint.name=="spineLower"||joint.name=="bip_spine_0"))upperSpine=joint;
+                if(monster&&(joint.name.StartsWith("bip_index_",StringComparison.Ordinal)||
+                    joint.name.StartsWith("bip_middle_",StringComparison.Ordinal)||
+                    joint.name.StartsWith("bip_ring_",StringComparison.Ordinal)||
+                    joint.name.StartsWith("bip_pinky_",StringComparison.Ordinal)||
+                    joint.name.StartsWith("bip_thumb_",StringComparison.Ordinal)))
+                    clawBones[joint.name]=joint;
             }
             if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
             if(monster)
             {
+                for(int side=0;side<2;side++)
+                {
+                    string suffix=side==0?"L":"R";
+                    for(int finger=0;finger<ClawFingerNames.Length;finger++)
+                        for(int segment=0;segment<2;segment++)
+                            clawBones.TryGetValue($"bip_{ClawFingerNames[finger]}_{segment}_{suffix}",out clawFingers[finger,side,segment]);
+                    for(int segment=0;segment<2;segment++)
+                        clawBones.TryGetValue($"bip_thumb_{segment}_{suffix}",out clawThumbs[side,segment]);
+                }
                 var tails=new List<Transform>();foreach(var joint in joints)if(joint.name.StartsWith("tail_",StringComparison.Ordinal))tails.Add(joint);
                 tails.Sort((a,b)=>string.CompareOrdinal(a.name,b.name));tailJoints=tails.ToArray();tailRest=new Quaternion[tailJoints.Length];tailPositions=new Vector3[tailJoints.Length];
                 for(int i=0;i<tailJoints.Length;i++){tailRest[i]=tailJoints[i].localRotation;tailPositions[i]=tailJoints[i].localPosition;}
@@ -281,6 +300,7 @@ namespace UltramanGame.Runtime
             if(monster&&preview<0)CorrectRestingArms(state);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack)
                 CorrectAttackArms(state);
+            if(monster)ApplyClawPose(state,preview,time);
             float mix=preview>=0||dt<=0||blendLeft<=0?1:Mathf.Clamp01(dt/blendLeft);
             blendLeft=Mathf.Max(0,blendLeft-dt);
             for(int i=1;i<joints.Length&&mix<1;i++)
@@ -478,6 +498,64 @@ namespace UltramanGame.Runtime
             if(forearmVector.sqrMagnitude>=.0001f&&targetVector.sqrMagnitude>=.0001f)
                 lower.rotation=Quaternion.Slerp(lower.rotation,Quaternion.FromToRotation(forearmVector,targetVector)*lower.rotation,blend);
             wrist.rotation=palm;
+        }
+        void ApplyClawPose(Battle state,int preview,float time)
+        {
+            if(clawBones.Count==0)return;
+            float curl=.14f,spread=.8f;
+            bool attack=false;
+            int attackSide=1;
+            if(preview>=0)
+            {
+                curl=preview==1||preview==3?.06f:preview==2?.30f:preview==5?.22f:preview==7?.18f:.14f;
+                attack=preview==2;attackSide=1;
+            }
+            else if(state.Phase==GamePhase.Battle)
+            {
+                attack=state.Enemy==EnemyPhase.Attack;attackSide=state.EnemyAttackCount%2==0?-1:1;
+                if(state.Enemy==EnemyPhase.Attack)
+                {
+                    float reach=Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI);
+                    curl=.19f+.16f*reach;
+                }
+                else if(state.Enemy==EnemyPhase.Windup)
+                {
+                    float wind=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
+                    curl=.04f+.13f*wind;
+                }
+                else if(state.Enemy==EnemyPhase.Rest)curl=.14f+Mathf.Sin(time*2.05f+.8f)*.025f;
+                else if(state.Enemy==EnemyPhase.Recover)curl=.17f;
+                else if(state.Action==HeroAction.Hurt)curl=.22f;
+            }
+            // The imported mesh has two phalanges per claw finger. A small,
+            // camera-readable curl makes the hands read as claws instead of
+            // five flat rods; the lead hand opens a little before curling at
+            // contact while the support hand stays closer to the chest.
+            var right=Vector3.Cross(Vector3.up,forward).normalized;
+            for(int side=0;side<2;side++)
+            {
+                bool lead=attack&&((side==0&&attackSide<0)||(side==1&&attackSide>0));
+                float amount=curl*(lead?1.08f:.86f);
+                float sideSpread=(side==0?-1:1)*spread;
+                for(int i=0;i<ClawFingerNames.Length;i++)
+                {
+                    var first=clawFingers[i,side,0];
+                    if(first)
+                    {
+                        float fan=sideSpread*(i-1.5f)*.7f;
+                        first.rotation=Quaternion.AngleAxis(fan,right)*Quaternion.AngleAxis(amount*58,right)*first.rotation;
+                    }
+                    var tip=clawFingers[i,side,1];
+                    if(tip)
+                        tip.rotation=Quaternion.AngleAxis(amount*78,right)*tip.rotation;
+                }
+                var thumb=clawThumbs[side,0];
+                if(thumb)
+                    thumb.rotation=Quaternion.AngleAxis(sideSpread*1.8f,forward)*Quaternion.AngleAxis(amount*42,right)*thumb.rotation;
+                var thumbTip=clawThumbs[side,1];
+                if(thumbTip)
+                    thumbTip.rotation=Quaternion.AngleAxis(amount*58,right)*thumbTip.rotation;
+            }
         }
         static float ContactPulse(float age,float start,float peak,float end)
         {return age<=start||age>=end?0:age<peak?Mathf.SmoothStep(0,1,(age-start)/(peak-start)):1-Mathf.SmoothStep(0,1,(age-peak)/(end-peak));}

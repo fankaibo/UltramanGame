@@ -38,8 +38,10 @@ namespace UltramanGame.Editor
                 if(elbow<=shoulder+.025f)throw new Exception("Monster elbow folds into the chest: "+side);
             }
             var claw=Joint(enemy.Root,"bip_hand_R");var idleClaw=claw.position;
+            var finger=Joint(enemy.Root,"bip_index_1_L");var idleFinger=finger.position;
             enemy.Update(state,world.Camera,0,0,2);
             if(Vector3.Distance(idleClaw,claw.position)<.3f)throw new Exception("Monster claw clip did not deform the arm");
+            if(Vector3.Distance(idleFinger,finger.position)<.008f)throw new Exception("Monster claw fingers did not articulate");
             enemy.Update(state,world.Camera,0,0,0);
             var wrist=Joint(hero.Root,"HandBase_R");var hip=Joint(hero.Root,"hip");
             var idle=wrist.position;var hipIdle=hip.position;
@@ -92,7 +94,7 @@ namespace UltramanGame.Editor
             if(maxMonsterFootLift<.06f)throw new Exception("Monster rush did not lift its leading foot");
             if(world.Camera.GetComponent<ContactShadows>().RenderCount<(motionOnly?4:300))throw new Exception("Actor contact shadows did not render");
             world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);
-            Debug.Log($"[RiggedReview] bothActors=rigged scale=passed grounding=passed minGround={minGround:F3} monsterStep={maxMonsterFootLift:F3} wristAndHipMotion=passed continuousCombat=passed punches={state.Punches} blocks={state.Blocks} beamReleases={releases} victory=passed maxHandStep={maxHandStep:F3} shadows=passed output={folder}");
+            Debug.Log($"[RiggedReview] bothActors=rigged scale=passed grounding=passed clawFingers=passed minGround={minGround:F3} monsterStep={maxMonsterFootLift:F3} wristAndHipMotion=passed continuousCombat=passed punches={state.Punches} blocks={state.Blocks} beamReleases={releases} victory=passed maxHandStep={maxHandStep:F3} shadows=passed output={folder}");
         }
         static Transform Joint(Transform root,string name)
         {foreach(var t in root.GetComponentsInChildren<Transform>())if(t.name==name)return t;throw new Exception("Missing joint "+name);}

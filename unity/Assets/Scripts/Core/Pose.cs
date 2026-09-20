@@ -109,17 +109,25 @@ namespace UltramanGame.Core
             ForwardPunch=false;
             if (!PoseQuality.Present(frame,nowMs)) { Reset(); return default; }
             if (stream==frame.streamId && frame.sequence<=lastSequence) return default;
-            bool fresh=stream!=frame.streamId || lastStamp==0 || frame.capturedMs-lastStamp>250 || frame.capturedMs<=lastStamp;
-            float dt=fresh ? 0 : Math.Min(.1f,(frame.capturedMs-lastStamp)/1000f);
-            if (fresh) ClearGestures();
+            // A delayed but still-fresh camera packet is not a new gesture
+            // stream. Under TV/Unity load several packets can arrive more than
+            // 250 ms apart; clearing beamHold there made a held finisher turn
+            // into a shield. PoseQuality.Present above already rejects truly
+            // stale frames, while a stream change or non-monotonic timestamp is
+            // the reliable boundary for resetting gesture state.
+            bool resetStream=stream!=frame.streamId || lastStamp==0 || frame.capturedMs<=lastStamp;
+            long gapMs=resetStream?0:frame.capturedMs-lastStamp;
+            float dt=resetStream ? 0 : Math.Min(.1f,gapMs/1000f);
+            if (resetStream) ClearGestures();
             stream=frame.streamId; lastSequence=frame.sequence; lastStamp=frame.capturedMs;
-            float alpha=fresh?1:(float)(1-Math.Exp(-dt/.035));
+            bool delayed=gapMs>250;
+            float alpha=resetStream||delayed?1:(float)(1-Math.Exp(-dt/.035));
             for (int i=0;i<33;i++)
             {
                 bool reliable=PoseQuality.Reliable(frame.points[i]);
                 if(reliable)
                 {
-                    float blend=fresh||!wasReliable[i]?1:alpha;
+                    float blend=resetStream||!wasReliable[i]?1:alpha;
                     smoothed[i].x += (frame.points[i].x-smoothed[i].x)*blend;
                     smoothed[i].y += (frame.points[i].y-smoothed[i].y)*blend;
                     smoothed[i].z += (frame.points[i].z-smoothed[i].z)*blend;
@@ -129,7 +137,7 @@ namespace UltramanGame.Core
                 bool beamVisible=PoseQuality.Reliable(frame.points[i],.45f);
                 if(beamVisible)
                 {
-                    float blend=fresh||!beamReliable[i]?1:alpha;
+                    float blend=resetStream||!beamReliable[i]?1:alpha;
                     beamPoints[i].x+=(frame.points[i].x-beamPoints[i].x)*blend;
                     beamPoints[i].y+=(frame.points[i].y-beamPoints[i].y)*blend;
                     beamPoints[i].z+=(frame.points[i].z-beamPoints[i].z)*blend;
