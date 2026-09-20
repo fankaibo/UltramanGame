@@ -293,6 +293,30 @@ namespace UltramanGame.Runtime
                 }
                 contactLayerApplied=true;
             }
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch))
+            {
+                // The authored Tiga clip drives the hand and planted feet. Add a
+                // restrained body lead so the strike reads as a weight transfer:
+                // shoulder turns into the lane, chest drops toward contact and
+                // the head follows a fraction behind. Hands remain untouched.
+                float punch=AnimatedActor.Strike(state.ActionAge);
+                float side=state.Action==HeroAction.LeftPunch?-1:1;
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(side*7*punch,Vector3.up)
+                        *Quaternion.AngleAxis(-6*punch,right)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    head.rotation=Quaternion.AngleAxis(-side*4*punch,Vector3.up)
+                        *Quaternion.AngleAxis(-2*punch,right)*head.rotation;
+                }
+                contactLayerApplied=true;
+            }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Shield&&guardRecoil>0)
             {
                 var right=Vector3.Cross(Vector3.up,forward);

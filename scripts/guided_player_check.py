@@ -42,6 +42,7 @@ def main():
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0
+            beam_release_until=0
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -50,7 +51,13 @@ def main():
                     if '[Game] cue=' in line:
                         match=re.search(r'cue=(\w+) phase=(\w+)',line)
                         cue,phase=match.groups()
-                        if cue=='EnergyReady':beam=True
+                        if cue=='EnergyReady':
+                            beam=True
+                            # Match the player's spoken instruction: release the
+                            # previous attack/guard pose before holding the beam.
+                            # The runtime intentionally requires this release so a
+                            # held pose cannot fire a second beam accidentally.
+                            beam_release_until=now+.75
                         if cue in ('Beam','Victory'):beam=False;guard=False
                         if cue=='Warning':guard=True
                         if cue in ('Block','Hurt'):guard=False
@@ -79,7 +86,11 @@ def main():
                 elif stage=='replay' or phase=='Waiting':
                     if age>3:points=landmarks_at(2.5)
                 elif phase=='Battle' and stage=='battle':
-                    points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
+                    if beam and now<beam_release_until:
+                        # A short neutral/retract window arms the next beam.
+                        points=landmarks_at(4.15)
+                    else:
+                        points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
                 if stage=='review' and photos_seen==2 and now-review_at>7 and not review_loss_start:
