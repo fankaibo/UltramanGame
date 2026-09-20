@@ -333,6 +333,31 @@ namespace UltramanGame.Runtime
                 }
                 contactLayerApplied=true;
             }
+            bool heroBreath=!monster&&preview<0&&state.Phase==GamePhase.Battle&&
+                state.Action==HeroAction.None&&!state.Shield&&guardRecoil<=0&&hitAge>.4f;
+            bool monsterBreath=monster&&preview<0&&state.Phase==GamePhase.Battle&&
+                state.Enemy==EnemyPhase.Rest&&hitAge>.4f;
+            if(heroBreath||monsterBreath)
+            {
+                // Keep the pause between authored clips alive without moving the
+                // feet or changing any combat clock. The two actors breathe out
+                // of phase so a long exchange does not read as a frozen tableau.
+                float wave=Mathf.Sin(time*(monsterBreath?2.05f:2.35f)+(monsterBreath?.8f:0));
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(wave*(monsterBreath?1.5f:1.0f),right)
+                        *Quaternion.AngleAxis(wave*(monsterBreath?1.1f:.7f),Vector3.up)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    head.rotation=Quaternion.AngleAxis(-wave*(monsterBreath?1.8f:1.25f),right)
+                        *Quaternion.AngleAxis(wave*(monsterBreath?1.4f:1.0f),Vector3.up)*head.rotation;
+                }
+                contactLayerApplied=true;
+            }
             if(monster&&preview<0&&next=="Hurt"&&state.Phase==GamePhase.Battle)
             {
                 // World axes are deliberate: the mirrored Source bones do not
