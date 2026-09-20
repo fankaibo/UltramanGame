@@ -96,6 +96,12 @@ namespace UltramanGame.Runtime
             // Use the monster's position at this contact, including its own forward step.
             var position=special||hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             effects.Impact(position,special);
+            if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
+            {
+                Kick(.09f);
+                cinematic.Pulse(new Color(1,.68f,.20f),.42f);
+                effects.Combo(position);
+            }
         }
         public void Cue(GameCue cue,Battle state=null)
         {

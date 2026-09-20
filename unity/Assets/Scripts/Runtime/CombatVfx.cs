@@ -110,6 +110,15 @@ namespace UltramanGame.Runtime
             if(!blocked)atmosphere.GroundBurst(position,Vector3.back,special||hurt);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
+        public void Combo(Vector3 position)
+        {
+            // A combo milestone is still one ordinary hit in Battle; this is a
+            // presentation layer only. The warm ring and ground dust give the
+            // cabinet a visible cadence without hiding the next pose.
+            Burst(position,20,.95f,true);
+            FlashAt(position,1.65f,.24f,new Color(1,.68f,.20f,.82f),true);
+            atmosphere.GroundBurst(position,Vector3.back,true);
+        }
         public void Clear()
         {
             atmosphere.Clear();
