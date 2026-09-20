@@ -241,7 +241,17 @@ namespace UltramanGame.Runtime
             {
                 if(state.Phase==GamePhase.Transforming&&clips.ContainsKey("Walk"))
                 {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
-                else if(state.Phase==GamePhase.Victory) {next="Defeat";sample=phaseAge;Frame=7;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1.5f)/1.5f);}
+                else if(state.Phase==GamePhase.Victory)
+                {
+                    next="Defeat";sample=phaseAge;Frame=7;
+                    // Let the kaiju visibly lose its balance after the final
+                    // hit. The pivot stays at the planted feet, so the fall
+                    // reads as a weighty arcade defeat instead of a floating
+                    // fade while the hero remains framed for the photo flow.
+                    float defeat=Mathf.SmoothStep(0,1,Mathf.Clamp01((phaseAge-.08f)/1.02f));
+                    fallTilt=-18f-46f*defeat;fallSide=12f*defeat;
+                    opacity=1-Mathf.SmoothStep(0,1,(phaseAge-2.25f)/1.15f);
+                }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
                 else if(state.Phase==GamePhase.Battle&&hitAge<(heavyHit?.9f:.4f))
                 {
