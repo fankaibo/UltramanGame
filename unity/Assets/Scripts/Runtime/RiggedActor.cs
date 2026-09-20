@@ -29,6 +29,9 @@ namespace UltramanGame.Runtime
         readonly List<Material> impactMaterials=new List<Material>();
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
+        float heroRecoveryAge=10;
+        HeroAction observedAction=HeroAction.None;
+        int lastPunchSide;
         GamePhase previous;
         bool heavyHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
@@ -233,6 +236,20 @@ namespace UltramanGame.Runtime
                 contactLayerApplied=false;
             }
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
+            if(!monster)
+            {
+                if(state.Phase!=GamePhase.Battle)
+                {heroRecoveryAge=10;observedAction=state.Action;}
+                else
+                {
+                    bool wasPunch=observedAction==HeroAction.LeftPunch||observedAction==HeroAction.RightPunch;
+                    if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
+                        lastPunchSide=state.Action==HeroAction.LeftPunch?-1:1;
+                    if(state.Action==HeroAction.None&&wasPunch)heroRecoveryAge=0;
+                    else heroRecoveryAge+=dt;
+                    observedAction=state.Action;
+                }
+            }
             // A block is a contact event, not the held guard input. Observe it
             // once per round so a held shield, pause or photo restart cannot
             // replay the recoil. The layer affects only the torso above the hips.
@@ -343,6 +360,29 @@ namespace UltramanGame.Runtime
                 Root.position-=forward*(heavyHit?.14f:.085f)*recoil;
                 Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:.028f)*recoil);
                 Root.rotation*=Quaternion.AngleAxis(contactSide*(heavyHit?4.5f:2.5f)*recoil,Vector3.up);
+            }
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&heroRecoveryAge<.26f)
+            {
+                // Keep a small follow-through after the authored punch clip ends.
+                // The root returns to its home line first, then settles back from
+                // contact so rapid left/right punches do not snap between poses.
+                float settle=1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
+                var right=Vector3.Cross(Vector3.up,forward);
+                Root.position-=forward*(.045f*settle);
+                Root.position+=right*(lastPunchSide*.018f*settle);
+                Root.rotation*=Quaternion.AngleAxis(-lastPunchSide*3.2f*settle,Vector3.up);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(lastPunchSide*5.5f*settle,Vector3.up)
+                        *Quaternion.AngleAxis(-2.5f*settle,right)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    head.rotation=Quaternion.AngleAxis(-lastPunchSide*3.0f*settle,Vector3.up)*head.rotation;
+                }
+                contactLayerApplied=true;
             }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack)
             {
