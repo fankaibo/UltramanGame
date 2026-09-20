@@ -88,6 +88,13 @@ def effect(name, seconds, style):
     elif style == 'beam':
         data = (np.sin(2*np.pi*(160*t+70*t*t))*.28+noise*.09)*np.sin(np.pi*x)**.7
         data += .18*np.sin(2*np.pi*660*t)*np.sin(np.pi*x)**2
+    elif style == 'combo':
+        # A short arcade milestone sting: bright two-note rise over the hit body.
+        data = np.sin(2*np.pi*(260*t+55*t*t))*.18*np.exp(-t*5)
+        data += tone(74, seconds, 'pluck')*.34
+        part=tone(81, max(.001, seconds*.72), 'pluck')*.30
+        data[:len(part)] += part
+        data += noise*.035*np.exp(-t*12)
     elif style == 'shield':
         data = sum(tone(n, seconds)*v for n,v in [(81,.28),(86,.19),(90,.13)])
     elif style == 'rise':
@@ -104,7 +111,8 @@ if __name__ == '__main__':
     score('music_ready', 90, 8, False)
     score('music_battle', 108, 16, True)
     for args in [('swing',.24,'whoosh'),('impact',.32,'hit'),('beam',1.5,'beam'),
-                 ('shield',.75,'shield'),('transform',1.65,'rise'),('recover',.45,'soft'),('enemy_rush',.45,'rush')]:
+                 ('shield',.75,'shield'),('transform',1.65,'rise'),('recover',.45,'soft'),('enemy_rush',.45,'rush'),
+                 ('combo',.36,'combo')]:
         effect(*args)
     win=np.zeros((RATE*4,2))
     for i,n in enumerate((62,66,69,74,78,81,86)):
