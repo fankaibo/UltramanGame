@@ -11,6 +11,7 @@ namespace UltramanGame.Runtime
         readonly List<Vector3> emberVelocity=new List<Vector3>();
         readonly List<float> emberAge=new List<float>();
         readonly LineRenderer[] lavaStreams=new LineRenderer[3];
+        readonly LineRenderer[] lavaCores=new LineRenderer[3];
         readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
         readonly Material[] cloudMaterials=new Material[32];
         const int AshCount=42;
@@ -61,12 +62,14 @@ namespace UltramanGame.Runtime
             Rock(new Vector3(6.4f,Height(6.4f,7.4f),7.4f),new Vector3(1.65f,.95f,1.1f),rock);
             for(int i=0;i<lavaStreams.Length;i++)
             {
-                var line=lavaStreams[i]=Line("Cooling lava seam",42,.012f);line.enabled=true;
+                var line=lavaStreams[i]=Line("Cooling lava seam",42,.052f);line.enabled=true;
+                var core=lavaCores[i]=Line("Molten lava core",42,.014f);core.enabled=true;
                 float sx=i==0?-5.3f:i==1?5.3f:8,sz=i<2?16:23;
                 for(int j=0;j<42;j++)
                 {
                     float z=sz-j*.17f,x=sx+(Mathf.PerlinNoise(j*.21f,3+i*2)-.5f)*.72f;
-                    line.SetPosition(j,new Vector3(x,Height(x,z)+.014f,z));
+                    var point=new Vector3(x,Height(x,z)+.014f,z);
+                    line.SetPosition(j,point);core.SetPosition(j,point+Vector3.up*.004f);
                 }
             }
             // Two staggered lava fountains share the deterministic stage clock
@@ -176,7 +179,13 @@ namespace UltramanGame.Runtime
         public void Tick(float time)
         {
             for(int i=0;i<lavaStreams.Length;i++)
-            {var color=new Color(1,.25f,.055f,.065f+.025f*Mathf.Sin(time*.7f+i));lavaStreams[i].startColor=lavaStreams[i].endColor=color;}
+            {
+                float lavaPulse=.5f+.5f*Mathf.Sin(time*1.35f+i*1.7f);
+                var glowColor=new Color(1,.16f,.025f,.10f+.08f*lavaPulse);
+                var coreColor=new Color(1,.68f,.18f,.28f+.28f*lavaPulse);
+                lavaStreams[i].startColor=lavaStreams[i].endColor=glowColor;
+                lavaCores[i].startColor=lavaCores[i].endColor=coreColor;
+            }
             for(int vent=0;vent<vents.Length;vent++)
             {
                 var origin=vents[vent];origin.y=Height(origin.x,origin.z)+.05f;
