@@ -26,6 +26,7 @@ namespace UltramanGame.Runtime
         readonly List<Material> materials=new List<Material>();
         readonly List<Material> eyeMaterials=new List<Material>();
         readonly List<Material> coreMaterials=new List<Material>();
+        readonly List<Material> impactMaterials=new List<Material>();
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         GamePhase previous;
@@ -124,6 +125,11 @@ namespace UltramanGame.Runtime
                         if(!eyeMaterials.Contains(mat))eyeMaterials.Add(mat);
                     if(key.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)>=0)
                         if(!coreMaterials.Contains(mat))coreMaterials.Add(mat);
+                    if((monster&&key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)<0&&key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)<0)||
+                       (!monster&&(key.IndexOf("Suit",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Gold",StringComparison.OrdinalIgnoreCase)>=0)))
+                    {
+                        if(mat.HasProperty("_EmissionColor")){mat.EnableKeyword("_EMISSION");if(!impactMaterials.Contains(mat))impactMaterials.Add(mat);}
+                    }
                     mapped[i]=mat;
                 }
                 renderer.sharedMaterials=mapped;
@@ -476,6 +482,12 @@ namespace UltramanGame.Runtime
             float coreGlow=!monster&&state.Action==HeroAction.Beam
                 ?.55f+.95f*Mathf.Sin(Mathf.Clamp01(state.ActionAge/1.9f)*Mathf.PI):
                 !monster&&state.Phase==GamePhase.Transforming?.55f+.35f*Mathf.Sin(phaseAge*8):.08f;
+            float impactGlow=monster
+                ?ContactPulse(hitAge,0,heavyHit?.10f:.055f,heavyHit?.72f:.38f)
+                :ContactPulse(guardAge,0,.075f,.42f);
+            Color impactColor=monster?new Color(1,.16f,.035f):new Color(.14f,.62f,1);
+            foreach(var mat in impactMaterials)
+                mat.SetColor("_EmissionColor",impactColor*(impactGlow*(monster?1.15f:.85f)));
             foreach(var mat in coreMaterials)
             {
                 Color c=new Color(.10f,.68f,1);
