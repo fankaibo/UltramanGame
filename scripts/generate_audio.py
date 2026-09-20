@@ -95,6 +95,15 @@ def effect(name, seconds, style):
         part=tone(81, max(.001, seconds*.72), 'pluck')*.30
         data[:len(part)] += part
         data += noise*.035*np.exp(-t*12)
+    elif style == 'warning':
+        # A readable arcade warning: low monster rumble, a rising pulse and
+        # a short bright edge at the end. It is original synthesis, not a
+        # sampled film or game recording.
+        rumble=np.sin(2*np.pi*(48*t+13*t*t))*.36*np.sin(np.pi*x)**.55
+        pulse=np.sin(2*np.pi*(118*t+42*t*t))*.16*np.sin(np.pi*x)**1.15
+        data=rumble+pulse+noise*.035*np.sin(np.pi*x)**1.4
+        edge=tone(69,max(.001,seconds*.22),'pluck')*.26
+        data[-len(edge):]+=edge
     elif style == 'shield':
         data = sum(tone(n, seconds)*v for n,v in [(81,.28),(86,.19),(90,.13)])
     elif style == 'rise':
@@ -112,11 +121,11 @@ if __name__ == '__main__':
     score('music_battle', 108, 16, True)
     for args in [('swing',.24,'whoosh'),('impact',.32,'hit'),('beam',1.5,'beam'),
                  ('shield',.75,'shield'),('transform',1.65,'rise'),('recover',.45,'soft'),('enemy_rush',.45,'rush'),
-                 ('combo',.36,'combo')]:
+                 ('combo',.36,'combo'),('warning',1.05,'warning')]:
         effect(*args)
     win=np.zeros((RATE*4,2))
     for i,n in enumerate((62,66,69,74,78,81,86)):
         part=tone(n,1.6)*.25;start=int(i*.27*RATE)
         win[start:start+len(part),:] += part[:,None]
     save('victory',win)
-    print('Generated 2 original music loops and 8 effects in '+str(ROOT))
+    print('Generated 2 original music loops and 9 effects in '+str(ROOT))

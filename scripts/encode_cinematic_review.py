@@ -29,7 +29,7 @@ def main():
     for e in events:
         at = float(e['seconds'])
         name = e['event']
-        effect = {'Transform': 'transform', 'Punch': 'swing', 'EnemyAttack': 'enemy_rush',
+        effect = {'Transform': 'transform', 'Punch': 'swing', 'Warning': 'warning', 'EnemyAttack': 'enemy_rush',
                   'Block': 'shield', 'Hurt': 'impact', 'HeroHit': 'impact',
                   'BeamVisible': 'beam', 'Resume': 'recover', 'Victory': 'victory'}.get(name)
         if effect:

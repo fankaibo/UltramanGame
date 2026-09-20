@@ -96,7 +96,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Transform:Effect("transform");Speak("transform",4,state);break;
                 case GameCue.BattleStart:Speak("battle",3,state);break;
                 case GameCue.Punch:Effect("swing",.7f);break;
-                case GameCue.Warning:Speak("warning",5,state);break;
+                case GameCue.Warning:Effect("warning",.72f);Speak("warning",5,state);break;
                 case GameCue.EnemyAttack:Effect("enemy_rush",.85f);break;
                 case GameCue.Block:Effect("shield");Speak("block",2,state);break;
                 case GameCue.Hurt:Effect("impact",.7f);Effect("recover");Speak("recover",2,state);break;
