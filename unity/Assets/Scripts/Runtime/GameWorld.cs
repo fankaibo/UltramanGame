@@ -25,6 +25,8 @@ namespace UltramanGame.Runtime
         readonly StrikeTrails strikeTrails;
         readonly ArcadeStageFx arcade;
         readonly VolcanoStage volcano;
+        readonly Light heroRim;
+        readonly Light monsterRim;
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
@@ -60,6 +62,13 @@ namespace UltramanGame.Runtime
             var arcadeFill=Point(root,"Arcade character fill",new Color(.18f,.42f,1),9);
             arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=.72f;
             arcadeFill.shadows=LightShadows.None;
+            // A cabinet uses colored edge light to keep the fighters readable
+            // against a dark stage. These two small, shadowless sources breathe
+            // with the combat clocks instead of flattening the Fuji backdrop.
+            heroRim=Point(root,"Hero blue rim",new Color(.12f,.56f,1),6.5f);
+            heroRim.shadows=LightShadows.None;
+            monsterRim=Point(root,"Monster ember rim",new Color(1,.20f,.055f),6.5f);
+            monsterRim.shadows=LightShadows.None;
             QualitySettings.shadowDistance=30;QualitySettings.antiAliasing=4;QualitySettings.shadows=ShadowQuality.All;
             QualitySettings.shadowResolution=UnityEngine.ShadowResolution.High;QualitySettings.pixelLightCount=6;
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
@@ -137,6 +146,28 @@ namespace UltramanGame.Runtime
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
+            bool combat=state.Phase==GamePhase.Battle;
+            float punchPulse=combat&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
+                ?Mathf.Sin(Mathf.Clamp01(state.ActionAge/.42f)*Mathf.PI):0;
+            float enemyPulse=combat&&state.Enemy==EnemyPhase.Attack
+                ?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+            float warningPulse=combat&&state.Enemy==EnemyPhase.Windup
+                ?.5f+.5f*Mathf.Sin(state.EnemyAge*8):0;
+            float beamPulse=state.Action==HeroAction.Beam?Mathf.Clamp01(state.ActionAge/1.15f):0;
+            heroRim.transform.position=HeroHome-BattleAxis*1.15f+Vector3.up*2.35f;
+            monsterRim.transform.position=EnemyHome+BattleAxis*1.05f+Vector3.up*2.35f;
+            heroRim.intensity=Showcase?.55f:combat?.48f+punchPulse*1.6f+beamPulse*2.8f:state.Phase==GamePhase.Transforming?1.1f:.32f;
+            monsterRim.intensity=Showcase?.42f:combat?.42f+enemyPulse*1.45f+warningPulse*.9f:state.Phase==GamePhase.Victory?Mathf.Max(0,.75f-arcade.PhaseAge*.3f):.24f;
+            if(state.Phase==GamePhase.Victory)
+            {
+                heroRim.color=new Color(.18f,.66f,1);
+                monsterRim.color=new Color(1,.28f,.08f);
+            }
+            else
+            {
+                heroRim.color=state.Action==HeroAction.Beam?new Color(.20f,.78f,1):new Color(.12f,.56f,1);
+                monsterRim.color=state.Enemy==EnemyPhase.Attack?new Color(1,.30f,.08f):new Color(1,.20f,.055f);
+            }
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
             // Give the two fighters the visual priority of an arcade cabinet while
             // retaining enough margin for the feet, effects and camera preview.

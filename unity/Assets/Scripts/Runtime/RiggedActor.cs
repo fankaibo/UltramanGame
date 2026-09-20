@@ -249,7 +249,11 @@ namespace UltramanGame.Runtime
                     // reads as a weighty arcade defeat instead of a floating
                     // fade while the hero remains framed for the photo flow.
                     float defeat=Mathf.SmoothStep(0,1,Mathf.Clamp01((phaseAge-.08f)/1.02f));
-                    fallTilt=-18f-46f*defeat;fallSide=12f*defeat;
+                    // Exaggerate the first readable beat for a distant TV view:
+                    // the planted-foot pivot tips back, then gives way into a
+                    // short rearward/downward settle before the photo cue.
+                    fallTilt=-28f-58f*defeat;fallSide=24f*defeat;
+                    travel=-.18f*defeat;fallDrop=.22f*defeat;
                     opacity=1-Mathf.SmoothStep(0,1,(phaseAge-2.25f)/1.15f);
                 }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
