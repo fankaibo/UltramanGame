@@ -182,27 +182,27 @@ namespace UltramanGame.Runtime
                 if(heroStrike)
                 {
                     float side=state.Action==HeroAction.LeftPunch?-1:1;
-                    Camera.transform.position+=BattleAxis*(.30f*strike)+Camera.transform.right*(side*.14f*strike);
-                    target+=BattleAxis*(.18f*strike)+Vector3.up*(.06f*strike);
-                    dynamicZoom+=1.0f*strike;
+                    Camera.transform.position+=BattleAxis*(.40f*strike)+Camera.transform.right*(side*.18f*strike);
+                    target+=BattleAxis*(.23f*strike)+Vector3.up*(.075f*strike);
+                    dynamicZoom+=1.45f*strike;
                 }
                 if(rush>.01f)
                 {
-                    Camera.transform.position+=BattleAxis*(.23f*rush);
-                    target+=BattleAxis*(.16f*rush);
+                    Camera.transform.position+=BattleAxis*(.30f*rush);
+                    target+=BattleAxis*(.20f*rush);
                     // Alternate the lens toward the lead claw so successive rushes
                     // do not collapse into one centered, repeated silhouette.
                     float attackSide=state.EnemyAttackCount%2==0?-1:1;
-                    Camera.transform.position+=Camera.transform.right*(attackSide*.11f*rush);
-                    target+=Camera.transform.right*(attackSide*.06f*rush);
-                    dynamicZoom+=.85f*rush;
+                    Camera.transform.position+=Camera.transform.right*(attackSide*.15f*rush);
+                    target+=Camera.transform.right*(attackSide*.08f*rush);
+                    dynamicZoom+=1.20f*rush;
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
                     float hurt=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.62f)*Mathf.PI);
-                    Camera.transform.position+=Camera.transform.right*(.24f*hurt)+BattleAxis*(.18f*hurt);
-                    target+=Camera.transform.right*(.10f*hurt)+Vector3.up*(.08f*hurt);
-                    dynamicZoom+=1.35f*hurt;
+                    Camera.transform.position+=Camera.transform.right*(.30f*hurt)+BattleAxis*(.22f*hurt);
+                    target+=Camera.transform.right*(.13f*hurt)+Vector3.up*(.10f*hurt);
+                    dynamicZoom+=1.65f*hurt;
                 }
             }
             if(!Showcase&&state.Phase==GamePhase.Transforming)

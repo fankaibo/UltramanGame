@@ -77,13 +77,13 @@ namespace UltramanGame.Runtime
         public bool MonsterVisible=>claws[0].Visible||claws[1].Visible||claws[2].Visible;
         public StrikeTrails(Transform parent)
         {
-            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,1f),.56f,.26f);
+            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,1f),.72f,.30f);
             // One lead claw carries the readable contact streak. Two narrower,
             // shorter echoes add speed without making the attack look like three
             // identical debug lines.
-            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(1,.31f,.08f,.58f),.13f,.18f);
-            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(1,.52f,.16f,.96f),.34f,.27f);
-            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(1,.37f,.10f,.62f),.16f,.20f);
+            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(1,.31f,.08f,.58f),.17f,.22f);
+            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(1,.52f,.16f,.96f),.46f,.32f);
+            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(1,.37f,.10f,.62f),.20f,.24f);
         }
         public void Clear()
         {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
