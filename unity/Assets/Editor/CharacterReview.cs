@@ -39,7 +39,7 @@ namespace UltramanGame.Editor
             state.Tick(.06f,new PlayerInput {Tracking=true,LeftPunch=true});Step(state,.06f);
             RenderBattle(world,state,hero,enemy,target,folder,"battle-punch");
             var travel=hero.Root.position-world.HeroHome;
-            if(Mathf.Abs(travel.magnitude-AnimatedActor.PunchAdvance)>.02f || Vector3.Angle(travel,world.EnemyHome-world.HeroHome)>.1f)
+            if(Mathf.Abs(travel.magnitude-hero.StrikeAdvance)>.02f || Vector3.Angle(travel,world.EnemyHome-world.HeroHome)>.1f)
                 throw new Exception("Punch must travel toward Golza in both X and Z");
             Step(state,.4f);state.Tick(.01f,new PlayerInput {Tracking=true,Shield=true});
             RenderBattle(world,state,hero,enemy,target,folder,"battle-shield");

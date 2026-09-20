@@ -9,6 +9,7 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
+        public float StrikeAdvance=>rigged!=null?rigged.StrikeAdvance:PunchAdvance;
         public Vector3 StrikeOrigin(HeroAction action) => rigged!=null?rigged.StrikeOrigin(action):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(Battle state) => rigged!=null?rigged.EnemyStrikeOrigin(state.EnemyAttackCount):Root.position+forwardAxis*.6f+Vector3.up*2.4f;

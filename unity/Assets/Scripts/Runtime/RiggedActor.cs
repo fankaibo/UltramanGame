@@ -13,6 +13,8 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         public int Frame { get; private set; }
         public int BoneCount { get; private set; }
+        public float StrikeAdvance {get;private set;}=AnimatedActor.PunchAdvance;
+        [Serializable] sealed class MotionTuning {public float punchAdvance=AnimatedActor.PunchAdvance;}
         readonly GameObject model;
         readonly bool monster;
         readonly Vector3 home, forward;
@@ -50,6 +52,14 @@ namespace UltramanGame.Runtime
         RiggedActor(string name,string path,GameObject prefab,Vector3 position,Vector3 opponent,bool isMonster)
         {
             monster=isMonster;home=position;forward=Vector3.ProjectOnPlane(opponent-position,Vector3.up).normalized;
+            var motion=Resources.Load<TextAsset>("Characters/"+name+"/motion");
+            if(motion)
+            {
+                var tuning=JsonUtility.FromJson<MotionTuning>(motion.text);
+                if(tuning==null||float.IsNaN(tuning.punchAdvance)||tuning.punchAdvance<.25f||tuning.punchAdvance>1.5f)
+                    throw new InvalidOperationException(name+" has invalid authored punch travel");
+                StrikeAdvance=tuning.punchAdvance;
+            }
             Root=new GameObject(name+" skeletal actor").transform;
             var placement=new GameObject("Model placement").transform;placement.SetParent(Root,false);
             model=UnityEngine.Object.Instantiate(prefab,placement,false);model.name="Character";
@@ -236,7 +246,7 @@ namespace UltramanGame.Runtime
             else if(state.Phase==GamePhase.Battle)
             {
                 if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
-                {next=state.Action==HeroAction.LeftPunch?"LeftPunch":"RightPunch";sample=state.ActionAge;Frame=sample<.07f?1:2;travel=AnimatedActor.Strike(sample)*AnimatedActor.PunchAdvance;}
+                {next=state.Action==HeroAction.LeftPunch?"LeftPunch":"RightPunch";sample=state.ActionAge;Frame=sample<.07f?1:2;travel=AnimatedActor.Strike(sample)*StrikeAdvance;}
                 else if(state.Action==HeroAction.Beam) {next="Beam";sample=Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
                 else if(state.Action==HeroAction.Hurt)
                 {
@@ -257,7 +267,14 @@ namespace UltramanGame.Runtime
                 float[] moments=monster?new[]{0,.15f,.4f,.8f,0,.15f,.3f,.5f}:new[]{0,.045f,.12f,.3f,.85f,.15f,1.2f,.8f};
                 next=names[Frame];sample=moments[Frame];
             }
-            if(playing!=next) {playing=next;clipAge=0;blendLeft=.055f;}
+            if(playing!=next)
+            {
+                playing=next;clipAge=0;
+                // Punch clips already start at the combat stance. A long blend
+                // delays their baked foot compensation while the actor root
+                // advances, sliding the support foot during the first step.
+                blendLeft=!monster&&(next=="LeftPunch"||next=="RightPunch")?.025f:.055f;
+            }
             else clipAge+=dt;
             for(int i=0;i<joints.Length;i++) {positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
             clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));

@@ -71,13 +71,14 @@ namespace UltramanGame.Editor
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var sources=new StringBuilder("Rendered UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string path in new[]{"Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/MonsterAttackEffects.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/EnergyShield.shader","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
+                foreach(string path in new[]{"Scripts/Core/ImpactTiming.cs","Resources/Characters/Tiga/Tiga.fbx","Resources/Characters/Tiga/motion.json","Scripts/Runtime/StrikeTrails.cs","Scripts/Runtime/MonsterAttackEffects.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/VolcanoStage.cs","Resources/EnergyShield.shader","Resources/StrikeRibbon.shader","Resources/Backdrop.shader","Resources/BackdropAtmosphere.cginc"})
                     sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
             File.WriteAllText(folder+"/render-source.txt",sources.ToString());
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();
             world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             var events=new StringBuilder("seconds,event,health,energy\n");float health=state.EnemyHealth;
             int leftWakeFrames=0,rightWakeFrames=0,rightClawFrames=0,leftClawFrames=0,visiblePixelsChecked=0;
+            var pixelEvents=new System.Collections.Generic.HashSet<string>();
             Transform heroSpine=null;Quaternion punchSpineBase=Quaternion.identity;float punchBodyLead=0;
             bool punchBodyLeadPassed=false;
             if(version=="after")
@@ -128,7 +129,15 @@ namespace UltramanGame.Editor
                         }
                         if(time>6&&time<10&&(world.HeroTrailVisible||world.MonsterTrailVisible))
                             throw new Exception("Idle exchange retained a movement trail");
-                        if(frame==161||frame==209||frame==64||frame==821)
+                        // Contact holds change wall-clock frame indices. Check
+                        // each actual lead hand at its attack phase instead of
+                        // accidentally measuring an idle frame at an old index.
+                        string pixelEvent=null;
+                        if(world.HeroTrailVisible&&state.ActionAge>=.08f&&state.ActionAge<=.12f)
+                            pixelEvent=state.Action.ToString();
+                        if(world.MonsterTrailVisible&&state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.40f&&state.EnemyAge<.52f)
+                            pixelEvent="Claw"+state.EnemyAttackCount;
+                        if(pixelEvent!=null&&pixelEvents.Add(pixelEvent))
                         {VerifyPixels(world.Camera,target,folder,frame);visiblePixelsChecked++;}
                     }
                     if(frame%2==0)CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{frame/2:D4}.png");
@@ -142,6 +151,8 @@ namespace UltramanGame.Editor
                     throw new Exception("An attacking hand had no visible trajectory");
                 if(version=="after"&&!punchBodyLeadPassed)
                     throw new Exception($"Hero punch did not transfer into the torso: lead={punchBodyLead:F2}deg");
+                if(version=="after"&&visiblePixelsChecked!=4)
+                    throw new Exception("Missing a left/right hand contact pixel check");
                 File.WriteAllText(folder+"/events.csv",events.ToString());
                 string result=$"[ExchangeReview] {version} passed duration=16 frames=480 leftPunches=2 rightPunches=2 blocks=1 hurt=1 alternatingClaws=2 reset=passed handTipBinding=passed heroBodyLead={punchBodyLead:F2}deg visiblePixelChecks={visiblePixelsChecked} trailFrames={leftWakeFrames}/{rightWakeFrames}/{rightClawFrames}/{leftClawFrames}";
                 File.WriteAllText(folder+"/validation.txt",result);Debug.Log(result);
