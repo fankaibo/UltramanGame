@@ -24,6 +24,8 @@ namespace UltramanGame.Runtime
         readonly Vector3[] positions, scales;
         readonly Quaternion[] rotations;
         readonly List<Material> materials=new List<Material>();
+        readonly List<Material> eyeMaterials=new List<Material>();
+        readonly List<Material> coreMaterials=new List<Material>();
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         GamePhase previous;
@@ -118,6 +120,10 @@ namespace UltramanGame.Runtime
                     string key=mapped[i]?mapped[i].name:"Surface";
                     if(!materialCache.TryGetValue(key,out var mat))
                     {mat=RuntimeResources.Own(Root,Surface(key,texture,eyes,name));materialCache[key]=mat;materials.Add(mat);}
+                    if(key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0)
+                        if(!eyeMaterials.Contains(mat))eyeMaterials.Add(mat);
+                    if(key.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)>=0)
+                        if(!coreMaterials.Contains(mat))coreMaterials.Add(mat);
                     mapped[i]=mat;
                 }
                 renderer.sharedMaterials=mapped;
@@ -452,6 +458,28 @@ namespace UltramanGame.Runtime
                 {tailJoints[i].localRotation=tailRest[i];tailJoints[i].localPosition=tailPositions[i];}
                 tailJoints[0].rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(Mathf.Sin(time*1.8f)*5,Vector3.up)*tailRootRotation;
                 var anchor=tailJoints[0].position;anchor.y=home.y+tailHeight;tailJoints[0].position=anchor;
+            }
+            // Character-local emission carries the same readable signals as the
+            // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
+            // timer and crystal intensify during transformation and beam charge.
+            float warningGlow=monster&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup
+                ?.65f+.55f*Mathf.Sin(state.EnemyAge*9):0;
+            float attackGlow=monster&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack
+                ?.45f+.75f*Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+            float victoryGlow=monster&&state.Phase==GamePhase.Victory?Mathf.Clamp01(1-phaseAge/2.5f):0;
+            float eyeGlow=Mathf.Clamp01(.18f+warningGlow+attackGlow+victoryGlow);
+            foreach(var mat in eyeMaterials)
+            {
+                Color c=monster?new Color(1,.24f,.055f):new Color(.72f,.92f,1);
+                mat.SetColor("_EmissionColor",c*(.25f+eyeGlow*1.7f));
+            }
+            float coreGlow=!monster&&state.Action==HeroAction.Beam
+                ?.55f+.95f*Mathf.Sin(Mathf.Clamp01(state.ActionAge/1.9f)*Mathf.PI):
+                !monster&&state.Phase==GamePhase.Transforming?.55f+.35f*Mathf.Sin(phaseAge*8):.08f;
+            foreach(var mat in coreMaterials)
+            {
+                Color c=new Color(.10f,.68f,1);
+                mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
         }
