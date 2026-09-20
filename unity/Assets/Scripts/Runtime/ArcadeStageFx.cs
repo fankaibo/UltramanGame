@@ -8,9 +8,11 @@ namespace UltramanGame.Runtime
     {
         readonly LineRenderer[] helix=new LineRenderer[4];
         readonly LineRenderer[] victoryRings=new LineRenderer[2];
+        readonly LineRenderer[] speedLines=new LineRenderer[10];
         readonly Transform veil;
         readonly Material veilMaterial;
         readonly Material victoryMaterial;
+        readonly Material speedMaterial;
         readonly Light light;
         readonly Light victoryLight;
         readonly Vector3 hero;
@@ -33,13 +35,21 @@ namespace UltramanGame.Runtime
                 r.sharedMaterial=victoryMaterial;r.positionCount=72;r.widthMultiplier=i==0?.045f:.025f;r.enabled=false;r.numCapVertices=3;
                 victoryRings[i]=r;
             }
+            speedMaterial=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("SoftGlow")));
+            for(int i=0;i<speedLines.Length;i++)
+            {
+                var r=new GameObject("Arcade peripheral speed line").AddComponent<LineRenderer>();
+                r.transform.SetParent(root,false);r.useWorldSpace=true;r.positionCount=2;
+                r.sharedMaterial=speedMaterial;r.widthMultiplier=.009f+(i%3)*.003f;
+                r.numCapVertices=3;r.enabled=false;speedLines[i]=r;
+            }
             veilMaterial=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("TransformationVeil")));
             veil=GameWorld.Primitive("Light transformation veil",PrimitiveType.Cylinder,root,hero+Vector3.up*2,new Vector3(1.8f,2.3f,1.8f),veilMaterial);
             veil.gameObject.SetActive(false);
             light=new GameObject("Transformation radiance").AddComponent<Light>();light.transform.SetParent(root,false);light.type=LightType.Point;light.range=7;light.color=new Color(.25f,.66f,1);light.intensity=0;
             victoryLight=new GameObject("Victory radiance").AddComponent<Light>();victoryLight.transform.SetParent(root,false);victoryLight.type=LightType.Point;victoryLight.range=8;victoryLight.color=new Color(1,.58f,.16f);victoryLight.intensity=0;
         }
-        public void Clear() {foreach(var r in helix)r.enabled=false;foreach(var r in victoryRings)r.enabled=false;veil.gameObject.SetActive(false);light.intensity=0;victoryLight.intensity=0;}
+        public void Clear() {foreach(var r in helix)r.enabled=false;foreach(var r in victoryRings)r.enabled=false;foreach(var r in speedLines)r.enabled=false;veil.gameObject.SetActive(false);light.intensity=0;victoryLight.intensity=0;}
         public void Tick(Battle battle,float dt,float clock)
         {
             if(previous!=battle.Phase) {age=0;previous=battle.Phase;}age+=dt;
@@ -81,6 +91,41 @@ namespace UltramanGame.Runtime
                 var color=new Color(1,.72f,.20f,Mathf.Max(.05f,fade));
                 ring.startColor=color;ring.endColor=new Color(color.r,color.g,color.b,0);
             }
+
+            // A short peripheral streak burst gives each committed strike the
+            // visual rhythm of an arcade cabinet without covering either actor.
+            // It is driven by the combat clock, so it cannot outrun gesture timing.
+            var camera=Camera.main;
+            float punchBurst=battle.Phase==GamePhase.Battle&&
+                (battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch)
+                ?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/.42f)*Mathf.PI):0;
+            float rushBurst=battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Attack
+                ?Mathf.Sin(Mathf.Clamp01(battle.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+            float hurtBurst=battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt
+                ?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/.62f)*Mathf.PI):0;
+            float burst=Mathf.Max(punchBurst,rushBurst*.92f,hurtBurst*.72f);
+            if(camera&&burst>.015f&&battle.Action!=HeroAction.Beam)
+            {
+                Vector3 center=camera.transform.position+camera.transform.forward*(4.15f+.35f*burst);
+                for(int i=0;i<speedLines.Length;i++)
+                {
+                    int band=i/2;float side=i%2==0?-1:1;
+                    // The streaks live just inside the 25-degree battle lens;
+                    // a wider offset would project outside a 16:9 TV frame.
+                    float vertical=(band-2)*.34f+Mathf.Sin(clock*5.4f+i*1.7f)*.025f;
+                    float lateral=side*(.86f+band*.025f);
+                    Vector3 start=center+camera.transform.right*lateral+camera.transform.up*vertical;
+                    Vector3 end=start-camera.transform.right*side*(.06f+burst*(.11f+(i%3)*.025f))
+                        +camera.transform.up*side*(.11f+burst*.05f);
+                    var line=speedLines[i];line.SetPosition(0,start);line.SetPosition(1,end);line.enabled=true;
+                    Color color=rushBurst>=punchBurst?new Color(1,.38f,.12f,.10f+.18f*burst):
+                        new Color(.20f,.72f,1,.09f+.16f*burst);
+                    if(hurtBurst>punchBurst&&hurtBurst>rushBurst)color=new Color(1,.22f,.12f,.08f+.14f*burst);
+                    line.startColor=color;line.endColor=new Color(color.r,color.g,color.b,0);
+                    line.widthMultiplier=(.009f+(i%3)*.003f)*(1+burst*.45f);
+                }
+            }
+            else foreach(var line in speedLines)line.enabled=false;
         }
     }
 }
