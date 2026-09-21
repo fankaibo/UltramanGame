@@ -609,8 +609,17 @@ namespace UltramanGame.Runtime
             upper.rotation=Quaternion.Slerp(upper.rotation,Quaternion.FromToRotation(upperVector,targetVector)*upper.rotation,blend);
             Vector3 forearmVector=wrist.position-lower.position;targetVector=wristTarget-lower.position;
             if(forearmVector.sqrMagnitude>=.0001f&&targetVector.sqrMagnitude>=.0001f)
-                lower.rotation=Quaternion.Slerp(lower.rotation,Quaternion.FromToRotation(forearmVector,targetVector)*lower.rotation,blend);
-            wrist.rotation=palm;
+            {
+                Quaternion forearmAim=Quaternion.FromToRotation(forearmVector,targetVector);
+                lower.rotation=Quaternion.Slerp(lower.rotation,forearmAim*lower.rotation,blend);
+                // The old correction restored the wrist world rotation after
+                // re-aiming the arm. On a close 45-degree shot that made the
+                // palm hang sideways from a correctly placed forearm. Follow
+                // the forearm only part way, preserving the authored claw roll
+                // while keeping the fingers attached to the strike lane.
+                wrist.rotation=Quaternion.Slerp(palm,forearmAim*palm,Mathf.Clamp01(blend*.72f));
+            }
+            else wrist.rotation=palm;
         }
         void ApplyClawPose(Battle state,int preview,float time)
         {
