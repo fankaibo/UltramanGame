@@ -8,6 +8,7 @@ namespace UltramanGame.Runtime
     {
         readonly AudioSource calm,battle,voice,effects;
         AudioClip localMusic;
+        readonly AudioClip battleStinger;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -25,12 +26,13 @@ namespace UltramanGame.Runtime
         public event System.Action<string,float> InstructionStarted;
         public string HeroId="Tiga";
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
-        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.pitch:F2} muted={muted}";
+        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.pitch:F2} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
         public GameAudio(GameObject owner)
         {
             calm=Source(owner);battle=Source(owner);voice=Source(owner);effects=Source(owner);
+            battleStinger=CreateBattleStinger();
             // Load once at startup so a first punch/voice line does not perform resource I/O mid-fight.
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
@@ -45,6 +47,25 @@ namespace UltramanGame.Runtime
             if(!clips.TryGetValue(key,out var clip))
             { clip=Resources.Load<AudioClip>(key);clips[key]=clip;if(!clip)Debug.LogWarning("Missing audio: "+key); }
             return clip;
+        }
+        static AudioClip CreateBattleStinger()
+        {
+            const int sampleRate=22050;const float duration=.52f;int count=Mathf.RoundToInt(sampleRate*duration);
+            var clip=AudioClip.Create("BattleStartStinger",count,1,sampleRate,false);var samples=new float[count];
+            for(int i=0;i<count;i++)
+            {
+                float t=i/(float)sampleRate;
+                float boom=Mathf.Sin(2*Mathf.PI*(74+18*t)*t)*Mathf.Exp(-5.2f*t)*.34f;
+                float rise=Mathf.Sin(2*Mathf.PI*(185+120*t)*t)*Mathf.Exp(-4.4f*t)*.22f;
+                float hit=t<.055f?Mathf.Sin(2*Mathf.PI*920*t)*Mathf.Exp(-55*t)*.16f:0;
+                samples[i]=Mathf.Clamp(boom+rise+hit,-.9f,.9f);
+            }
+            clip.SetData(samples,0);return clip;
+        }
+        void PlayBattleStinger()
+        {
+            if(muted||battleStinger==null)return;
+            effects.pitch=1;effects.PlayOneShot(battleStinger,.68f);
         }
         public void UseLocalMusic(AudioClip clip)
         {
@@ -94,7 +115,7 @@ namespace UltramanGame.Runtime
             switch(cue)
             {
                 case GameCue.Transform:Effect("transform");Speak("transform",4,state);break;
-                case GameCue.BattleStart:Speak("battle",3,state);break;
+                case GameCue.BattleStart:PlayBattleStinger();Speak("battle",3,state);break;
                 case GameCue.Punch:Effect("swing",.7f);break;
                 case GameCue.Warning:Effect("warning",.72f);Speak("warning",5,state);break;
                 case GameCue.EnemyAttack:Effect("enemy_rush",.85f);break;
