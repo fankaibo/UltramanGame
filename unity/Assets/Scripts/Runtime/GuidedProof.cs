@@ -31,6 +31,9 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Phase==GamePhase.Victory)
                 key=world.VictoryAge<.8f?"Victory":world.VictoryAge<1.45f?"victory-collapse":
                     world.VictoryAge<3.7f?"victory-turn":"victory-hero";
+            if(!photo.Active&&battle.Phase==GamePhase.Transforming)
+                key=world.EntranceAge<.26f?"Transforming":world.EntranceAge<1?"transform-front":
+                    world.EntranceAge<1.66f?"transform-radiance":"transform-return";
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));

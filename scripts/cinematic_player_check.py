@@ -60,7 +60,8 @@ def main():
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
                 'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'Paused', 'Victory',
-                'victory-collapse', 'victory-turn', 'victory-hero')
+                'victory-collapse', 'victory-turn', 'victory-hero',
+                'transform-front', 'transform-radiance', 'transform-return')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:

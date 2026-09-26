@@ -18,6 +18,7 @@ namespace UltramanGame.Core
         public float EnemyHealth { get; private set; }
         public float Energy { get; private set; }
         public float ActionAge { get; private set; }
+        public float TransformationAge=>Phase==GamePhase.Transforming?phaseAge:0;
         public float EnemyAge { get; private set; }
         public float WarningDuration { get; private set; } = WindupSeconds;
         public float InstructionRemaining { get; private set; }
@@ -31,6 +32,7 @@ namespace UltramanGame.Core
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
         public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
+        public const float TransformationSeconds=2.2f;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
         public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;
@@ -98,7 +100,7 @@ namespace UltramanGame.Core
             }
             if(Phase==GamePhase.Transforming)
             {
-                if(phaseAge>=2.2f) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
+                if(phaseAge>=TransformationSeconds) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
                 return;
             }
             immunity=Math.Max(0,immunity-dt);

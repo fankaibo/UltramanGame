@@ -317,7 +317,7 @@ namespace UltramanGame.Runtime
             if(monster)
             {
                 if(state.Phase==GamePhase.Transforming&&clips.ContainsKey("Walk"))
-                {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
+                {next="Walk";sample=state.TransformationAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,state.TransformationAge/Battle.TransformationSeconds));}
                 else if(state.Phase==GamePhase.Victory)
                 {
                     next="Defeat";sample=Mathf.Min(1.5f,phaseAge);Frame=7;
@@ -344,7 +344,7 @@ namespace UltramanGame.Runtime
                     Frame=3;travel=AnimatedActor.MonsterAdvance(state);
                 }
             }
-            else if(state.Phase==GamePhase.Transforming) {next="Transform";sample=phaseAge;Frame=6;}
+            else if(state.Phase==GamePhase.Transforming) {next="Transform";sample=state.TransformationAge;Frame=6;}
             else if(state.Phase==GamePhase.Victory) {next="Victory";sample=Mathf.Max(0,phaseAge-VictoryMotion.TurnStartSeconds);Frame=7;}
             else if(state.Phase==GamePhase.Battle)
             {

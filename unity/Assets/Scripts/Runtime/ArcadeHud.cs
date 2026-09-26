@@ -13,7 +13,8 @@ namespace UltramanGame.Runtime
             bool victory=battle.Phase==GamePhase.Victory,ready=battle.Energy>=Battle.MaxEnergy;
             bool warning=battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack;
             var gold=HudPainter.Gold;var cyan=HudPainter.Cyan;
-            hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
+            bool opening=battle.Phase==GamePhase.Battle&&battleStartCueAt>=0&&time-battleStartCueAt<2.1f;
+            if(!transforming)hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
             if(!waiting&&!transforming&&!victory)
             {
                 BattlePlate(new Rect(24,18,424,76),cyan,false);
@@ -33,11 +34,14 @@ namespace UltramanGame.Runtime
                 hud.Box(new Rect(853+310*(1-health),56,310*health,14),health<.3f?new Color(1,.28f,.16f):new Color(1,.63f,.23f));
                 for(int i=1;i<10;i++)hud.Box(new Rect(853+i*31,56,1,14),new Color(.1f,.07f,.02f,.34f));
                 hud.Text(new Rect(856,76,304,20),$"怪兽力量  {Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",11,HudPainter.Muted,TextAnchor.MiddleRight);
-                hud.Text(new Rect(486,22,308,28),"火山大决战",18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Line(new Vector2(558,60),new Vector2(628,60),cyan,1);
-                hud.Dot(new Vector2(640,60),7,gold);hud.Line(new Vector2(652,60),new Vector2(722,60),cyan,1);
+                if(!opening)
+                {
+                    hud.Text(new Rect(486,22,308,28),"火山大决战",18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+                    hud.Line(new Vector2(558,60),new Vector2(628,60),cyan,1);
+                    hud.Dot(new Vector2(640,60),7,gold);hud.Line(new Vector2(652,60),new Vector2(722,60),cyan,1);
+                }
                 float scorePulse=time<hitUntil?Mathf.Clamp01((hitUntil-time)*1.4f):0;
-                if(battle.Action!=HeroAction.Beam)
+                if(battle.Action!=HeroAction.Beam&&!opening)
                 {
                     hud.Rounded(new Rect(518,101,244,27),new Color(.01f,.04f,.08f,.86f),6);
                     hud.Text(new Rect(524,101,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
@@ -94,8 +98,11 @@ namespace UltramanGame.Runtime
             }
             else if(transforming)
             {
-                hud.Text(new Rect(340,66,600,58),"光之英雄 · "+SelectedHero.Name,38,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(425,611,430,48),"光的力量，准备变身！",27,gold,TextAnchor.MiddleCenter,true);
+                hud.Fade(new Rect(20,128,290,170),new Color(.006f,.023f,.048f,.78f));
+                hud.Line(new Vector2(38,154),new Vector2(91,154),cyan,2);
+                hud.Text(new Rect(38,166,252,25),"光之英雄",16,cyan,bold:true);
+                hud.Text(new Rect(38,195,272,47),SelectedHero.Name,34,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(38,250,272,28),"光的力量，正在觉醒",16,gold);
             }
             else if(victory)
             {
@@ -146,18 +153,14 @@ namespace UltramanGame.Runtime
             float outro=1-Mathf.SmoothStep(0,1,Mathf.Clamp01((age-1.28f)/.82f));
             float alpha=Mathf.Clamp01(intro*outro);
             float scale=Mathf.Lerp(.88f,1f,intro);
-            float width=620*scale,height=98*scale,x=(1280-width)/2,y=286+(1-scale)*48;
+            float width=330*scale,height=60*scale,x=(1280-width)/2,y=3;
             var cyan=new Color(.22f,.84f,1,alpha*.92f);
             var gold=new Color(1,.70f,.25f,alpha*.92f);
-            hud.Rounded(new Rect(x+8,y+8,width,height),new Color(0,0,0,alpha*.35f),12);
-            hud.Rounded(new Rect(x,y,width,height),new Color(.008f,.035f,.075f,alpha*.90f),12);
-            hud.Line(new Vector2(x-54,y+18),new Vector2(x+22,y+18),cyan,3);
-            hud.Line(new Vector2(x+width-22,y+18),new Vector2(x+width+54,y+18),gold,3);
-            hud.Line(new Vector2(x-28,y+height-17),new Vector2(x+66,y+height-17),gold,2);
-            hud.Line(new Vector2(x+width-66,y+height-17),new Vector2(x+width+28,y+height-17),cyan,2);
-            hud.Text(new Rect(x+36,y+9,width-72,25),$"{SelectedHero.Name}  VS  哥尔赞",14,new Color(.74f,.88f,1,alpha),TextAnchor.MiddleCenter,true);
-            hud.Text(new Rect(x+36,y+30,width-72,53),"开战！",39,new Color(1,.88f,.53f,alpha),TextAnchor.MiddleCenter,true);
-            hud.Text(new Rect(x+width-112,y+36,76,22),"FIGHT!",12,new Color(.39f,.86f,1,alpha),TextAnchor.MiddleCenter,true);
+            hud.Rounded(new Rect(x,y,width,height),new Color(.008f,.035f,.075f,alpha*.95f),8);
+            hud.Line(new Vector2(x+8,y+16),new Vector2(x+50,y+16),cyan,2);
+            hud.Line(new Vector2(x+width-50,y+16),new Vector2(x+width-8,y+16),gold,2);
+            hud.Text(new Rect(x+18,y+5,width-36,20),$"{SelectedHero.Name}  VS  哥尔赞",12,new Color(.74f,.88f,1,alpha),TextAnchor.MiddleCenter,true);
+            hud.Text(new Rect(x+18,y+24,width-36,34),"开战！",25,new Color(1,.88f,.53f,alpha),TextAnchor.MiddleCenter,true);
         }
         void BattlePlate(Rect r,Color accent,bool right)
         {
@@ -181,6 +184,7 @@ namespace UltramanGame.Runtime
         }
         void DrawArcadePreview()
         {
+            if(keyboard)return;
             var r=new Rect(1100,566,156,117);
             hud.Rounded(new Rect(r.x-4,r.y-18,r.width+8,r.height+40),new Color(.01f,.025f,.05f,.84f),6);
             hud.Text(new Rect(r.x,r.y-18,r.width,17),"镜像取景",10,HudPainter.Cyan);

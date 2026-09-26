@@ -11,8 +11,11 @@ namespace UltramanGame.Runtime
         public bool BeamStarted { get; private set; }
         public bool MonsterLanded { get; private set; }
         public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
+        public float EntranceAge {get;private set;}
+        public bool TransformationCloseup {get;private set;}
+        float lastEntranceAge;
         public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
-        public float EnemyOpacity=>HeroShot?0:1;
+        public float EnemyOpacity=>HeroShot||TransformationCloseup?0:1;
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
@@ -94,7 +97,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=TransformationCloseup=false;EntranceAge=lastEntranceAge=0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -165,6 +168,17 @@ namespace UltramanGame.Runtime
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting)cinematic.Clear();else cinematic.Tick(dt);
             float priorVictoryAge=previous==GamePhase.Victory?arcade.PhaseAge:0;
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
+            EntranceAge=state.TransformationAge;
+            TransformationCloseup=!Showcase&&state.Phase==GamePhase.Transforming&&TransformationMotion.Closeup(EntranceAge);
+            if(!Showcase&&state.Phase==GamePhase.Transforming)
+            {
+                if(lastEntranceAge<TransformationMotion.CloseupStart&&EntranceAge>=TransformationMotion.CloseupStart)
+                    cinematic.Pulse(new Color(.38f,.70f,1),.20f);
+                if(lastEntranceAge<TransformationMotion.CloseupEnd&&EntranceAge>=TransformationMotion.CloseupEnd)
+                    cinematic.Pulse(new Color(.58f,.80f,1),.22f);
+                lastEntranceAge=EntranceAge;
+            }
+            else if(state.Phase!=GamePhase.Paused)lastEntranceAge=0;
             if(!Showcase&&state.Phase==GamePhase.Victory&&priorVictoryAge<VictoryMotion.LandingSeconds&&arcade.PhaseAge>=VictoryMotion.LandingSeconds)
             {
                 MonsterLanded=true;
@@ -205,7 +219,7 @@ namespace UltramanGame.Runtime
             // the room.  The close-up still owns the special-move hero shot; this
             // tighter battle baseline gives ordinary exchanges the same arcade
             // presence without changing gameplay timing or cropping the feet.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?27:25):37;
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27:25):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
@@ -216,7 +230,7 @@ namespace UltramanGame.Runtime
             // the distant plate with that pan so its edge never enters view.
             float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
                 ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*Mathf.Lerp(1.5f,1.7f,victoryFraming);
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*(TransformationCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
@@ -275,12 +289,6 @@ namespace UltramanGame.Runtime
                     dynamicZoom-=3.8f*hurt;
                 }
             }
-            if(!Showcase&&state.Phase==GamePhase.Transforming)
-            {
-                float t=Mathf.Clamp01(arcade.PhaseAge/2.2f),sweep=Mathf.Sin(t*Mathf.PI);
-                Camera.transform.position+=new Vector3(-sweep*.65f,-sweep*.6f,sweep*.2f);
-                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,sweep*.35f);
-            }
             if(!Showcase&&state.Phase==GamePhase.Victory)
             {
                 // Let the collapse finish in the two-actor shot, then follow
@@ -308,6 +316,17 @@ namespace UltramanGame.Runtime
                 Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
                 Camera.fieldOfView=32;
                 // Reproject the distant landscape for this dedicated lens.
+                backdrop.rotation=Camera.transform.rotation;
+                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
+            }
+            if(TransformationCloseup)
+            {
+                float t=Mathf.InverseLerp(TransformationMotion.CloseupStart,TransformationMotion.CloseupEnd,EntranceAge);
+                // One front three-quarter reveal, then cut back under the
+                // release pulse. No fast orbit through the monster or scenery.
+                Vector3 side=Vector3.Cross(Vector3.up,BattleAxis);
+                Camera.transform.position=HeroHome+BattleAxis*Mathf.Lerp(6.7f,6.3f,t)+side*1.75f+Vector3.up*2.55f;
+                Camera.transform.LookAt(HeroHome+Vector3.up*2.02f);Camera.fieldOfView=37;
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
             }

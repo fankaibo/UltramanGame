@@ -408,7 +408,7 @@ namespace UltramanGame.Runtime
                 return;
             }
             if(world.Closeup.Active) {DrawBeamCloseup();DrawSettingsEntry();return;}
-            if(!keyboard||battle.Phase==GamePhase.Waiting) {DrawArcadeHud();DrawSettingsEntry();return;}
+            if(!keyboard||battle.Phase==GamePhase.Waiting||battle.Phase==GamePhase.Transforming) {DrawArcadeHud();DrawSettingsEntry();return;}
             if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
             {DrawBattleHud();return;}
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float time=Time.unscaledTime;
