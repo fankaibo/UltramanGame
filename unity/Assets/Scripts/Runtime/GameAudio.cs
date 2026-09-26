@@ -8,7 +8,7 @@ namespace UltramanGame.Runtime
     {
         readonly AudioSource calm,battle,voice,effects;
         AudioClip localMusic;
-        readonly AudioClip battleStinger;
+        readonly AudioClip battleStinger,landingThud;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -33,6 +33,7 @@ namespace UltramanGame.Runtime
         {
             calm=Source(owner);battle=Source(owner);voice=Source(owner);effects=Source(owner);
             battleStinger=CreateBattleStinger();
+            landingThud=CreateLandingThud();
             // Load once at startup so a first punch/voice line does not perform resource I/O mid-fight.
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
@@ -66,6 +67,24 @@ namespace UltramanGame.Runtime
         {
             if(muted||battleStinger==null)return;
             effects.pitch=1;effects.PlayOneShot(battleStinger,.68f);
+        }
+        static AudioClip CreateLandingThud()
+        {
+            const int rate=22050;int count=(int)(rate*.62f);var samples=new float[count];
+            var noise=new System.Random(260926);float gravel=0;
+            for(int i=0;i<count;i++)
+            {
+                float t=i/(float)rate;gravel=Mathf.Lerp(gravel,(float)noise.NextDouble()*2-1,.16f);
+                float low=Mathf.Sin(2*Mathf.PI*(62*t-20*t*t))*Mathf.Exp(-7*t)*.48f;
+                samples[i]=(low+gravel*Mathf.Exp(-14*t)*.38f)*Mathf.Min(1,t/.006f);
+            }
+            var clip=AudioClip.Create("MonsterLandingThud",count,1,rate,false);clip.SetData(samples,0);return clip;
+        }
+        public void MonsterLanding()
+        {
+            if(muted||!landingThud)return;
+            effects.pitch=1;effects.PlayOneShot(landingThud,.72f);
+            if(Debug.isDebugBuild)Debug.Log("[VictoryStage] landing-thud playing=True");
         }
         public void UseLocalMusic(AudioClip clip)
         {

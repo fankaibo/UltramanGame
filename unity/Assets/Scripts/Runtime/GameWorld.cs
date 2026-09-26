@@ -9,6 +9,8 @@ namespace UltramanGame.Runtime
         public bool Showcase;
         public readonly BeamCloseup Closeup=new BeamCloseup();
         public bool BeamStarted { get; private set; }
+        public bool MonsterLanded { get; private set; }
+        public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
         public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
         public float EnemyOpacity=>HeroShot?0:1;
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
@@ -92,7 +94,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=false;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -148,6 +150,7 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,float dt,float time)
         {
+            MonsterLanded=false;
             // Cues arrive before actor sampling. Emit the ground hit here,
             // using the pelvis from the actual landing pose, once per contact.
             if(landingPending)
@@ -160,7 +163,16 @@ namespace UltramanGame.Runtime
                 landingPending=false;
             }
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting)cinematic.Clear();else cinematic.Tick(dt);
+            float priorVictoryAge=previous==GamePhase.Victory?arcade.PhaseAge:0;
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
+            if(!Showcase&&state.Phase==GamePhase.Victory&&priorVictoryAge<VictoryMotion.LandingSeconds&&arcade.PhaseAge>=VictoryMotion.LandingSeconds)
+            {
+                MonsterLanded=true;
+                effects.GroundBurst(enemy!=null?enemy.FootPosition(true):EnemyHome,-BattleAxis,true);
+                effects.GroundBurst(enemy!=null?enemy.FootPosition(false):EnemyHome,BattleAxis,false);
+                impact=.032f;impactAge=0;
+                if(Debug.isDebugBuild)Debug.Log("[VictoryStage] monster-landed age="+arcade.PhaseAge.ToString("F2"));
+            }
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
@@ -200,7 +212,11 @@ namespace UltramanGame.Runtime
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
             var texture=backdropMaterial.mainTexture;
             float aspect=texture?texture.width/(float)texture.height:16f/9f;
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*1.5f;
+            // The victory pan looks farther left than the combat lens. Grow
+            // the distant plate with that pan so its edge never enters view.
+            float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
+                ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*Mathf.Lerp(1.5f,1.7f,victoryFraming);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
@@ -267,14 +283,13 @@ namespace UltramanGame.Runtime
             }
             if(!Showcase&&state.Phase==GamePhase.Victory)
             {
-                // Hold the win pose like an arcade cabinet: a short push-in and
-                // side-to-side lens move keeps the hero readable while the
-                // monster's defeat animation resolves in the background.
-                float victory=Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-.12f)/2.7f));
+                // Let the collapse finish in the two-actor shot, then follow
+                // the hero's planted-foot turn toward the child.
+                float victory=victoryFraming;
                 float sway=Mathf.Sin(Mathf.Clamp01(arcade.PhaseAge/3.1f)*Mathf.PI);
                 Camera.transform.position+=Camera.transform.right*(sway*.34f)+Vector3.up*(victory*.16f)+BattleAxis*(victory*.18f);
-                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,victory*.64f);
-                dynamicZoom+=victory*2.4f;
+                target=Vector3.Lerp(lookAt,(hero!=null?hero.Root.position:HeroHome)+Vector3.up*2.04f,victory*.92f);
+                dynamicZoom+=victory*1.5f;
             }
             // Briefly tighten the lens during a strike or rush, then ease back
             // to the child-friendly wide framing instead of holding a zoom.

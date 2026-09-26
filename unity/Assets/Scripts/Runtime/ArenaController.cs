@@ -209,6 +209,7 @@ namespace UltramanGame.Runtime
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             if(damage)world.Hit(specialDamage,battle);
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(world.MonsterLanded)sound.MonsterLanding();
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
             enemy.SetPresentationOpacity(world.EnemyOpacity);
@@ -242,7 +243,7 @@ namespace UltramanGame.Runtime
                     Debug.Log($"[FullGameReview] pass={pass} age={review.Age:F2} punches={battle.Punches} beams={reviewBeams} blocks={battle.Blocks} hurt={battle.HitsTaken} pause={reviewPaused} health={battle.EnemyHealth}");
                     if(!pass){Application.Quit(2);return;}
                 }
-                if(review.Age-reviewFinishedAt>3)Application.Quit(0);
+                if(review.Age-reviewFinishedAt>5)Application.Quit(0);
             }
             else if(review.Age>150){Debug.LogError("[FullGameReview] timeout");Application.Quit(3);}
         }

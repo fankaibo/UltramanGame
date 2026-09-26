@@ -99,11 +99,16 @@ namespace UltramanGame.Runtime
             }
             else if(victory)
             {
-                hud.Text(new Rect(330,67,620,68),"火山守护成功！",43,gold,TextAnchor.MiddleCenter,true);
-                for(int i=0;i<3;i++)Star(new Vector2(582+i*58,161),17,Mathf.Clamp01((time-victoryAt-i*.35f)*2));
-                hud.Text(new Rect(445,505,390,30),$"本局得分  {ArcadeScore():000000}",19,gold,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(390,571,500,45),"谢谢你，光之英雄！",28,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(360,631,560,30),"接下来和"+SelectedHero.Name+"合照 · 听引导自动拍照",18,cyan,TextAnchor.MiddleCenter);
+                float age=time-victoryAt,alpha=Mathf.SmoothStep(0,1,(age-.85f)/.45f);
+                var winColor=new Color(gold.r,gold.g,gold.b,alpha);
+                hud.Text(new Rect(38,78,325,62),"守护成功！",35,winColor,TextAnchor.MiddleLeft,true);
+                for(int i=0;i<3;i++)Star(new Vector2(65+i*53,164),15,Mathf.Clamp01((age-1.1f-i*.25f)*2));
+                hud.Text(new Rect(41,213,285,30),$"本局得分  {ArcadeScore():000000}",18,winColor,TextAnchor.MiddleLeft,true);
+                if(age>3)
+                {
+                    hud.Rounded(new Rect(32,264,292,76),new Color(.007f,.025f,.053f,.82f),8);
+                    hud.Text(new Rect(46,272,266,60),"谢谢你！\n接下来，和"+SelectedHero.Name+"合照",18,HudPainter.Ink,TextAnchor.MiddleLeft,true);
+                }
             }
             else if(battle.Phase==GamePhase.Paused)
                 Guide(paused?"休息一下 · 家长按 Esc 继续":"站进镜头，我们接着守护火山基地","transform",cyan,battle.ResumeProgress/1.2f);

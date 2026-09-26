@@ -39,6 +39,7 @@ namespace UltramanGame.Runtime
         Vector3 beamContactLocal;
         Transform leftThigh,rightThigh,leftShin,rightShin;
         Quaternion leftFootRest,rightFootRest;
+        Vector3 leftFootLocal,rightFootLocal;
         float leftFootClearance,rightFootClearance;
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
@@ -205,6 +206,8 @@ namespace UltramanGame.Runtime
             if(upperSpine)beamContactLocal=upperSpine.InverseTransformPoint(home+Vector3.up*2.48f+forward*.33f);
             if(leftFoot)leftFootRest=Quaternion.Inverse(Root.rotation)*leftFoot.rotation;
             if(rightFoot)rightFootRest=Quaternion.Inverse(Root.rotation)*rightFoot.rotation;
+            if(leftFoot)leftFootLocal=Root.InverseTransformPoint(leftFoot.position);
+            if(rightFoot)rightFootLocal=Root.InverseTransformPoint(rightFoot.position);
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
             rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2}");
@@ -299,18 +302,11 @@ namespace UltramanGame.Runtime
                 {next="Walk";sample=phaseAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,phaseAge/2.2f));}
                 else if(state.Phase==GamePhase.Victory)
                 {
-                    next="Defeat";sample=phaseAge;Frame=7;
-                    // Let the kaiju visibly lose its balance after the final
-                    // hit. The pivot stays at the planted feet, so the fall
-                    // reads as a weighty arcade defeat instead of a floating
-                    // fade while the hero remains framed for the photo flow.
-                    float defeat=Mathf.SmoothStep(0,1,Mathf.Clamp01((phaseAge-.08f)/1.02f));
-                    // Exaggerate the first readable beat for a distant TV view:
-                    // the planted-foot pivot tips back, then gives way into a
-                    // short rearward/downward settle before the photo cue.
-                    fallTilt=-28f-58f*defeat;fallSide=24f*defeat;
-                    travel=-.18f*defeat;fallDrop=.22f*defeat;
-                    opacity=1-Mathf.SmoothStep(0,1,(phaseAge-2.25f)/1.15f);
+                    next="Defeat";sample=Mathf.Min(1.5f,phaseAge);Frame=7;
+                    float collapse=VictoryMotion.Collapse(phaseAge);
+                    float stagger=Mathf.Sin(Mathf.Clamp01(phaseAge/.5f)*Mathf.PI);
+                    fallTilt=-12f*stagger+20f*collapse;fallSide=-6f*collapse;
+                    opacity=VictoryMotion.Opacity(phaseAge);
                 }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
                 else if(state.Phase==GamePhase.Battle&&hitAge<(heavyHit?.9f:.4f))
@@ -331,7 +327,7 @@ namespace UltramanGame.Runtime
                 }
             }
             else if(state.Phase==GamePhase.Transforming) {next="Transform";sample=phaseAge;Frame=6;}
-            else if(state.Phase==GamePhase.Victory) {next="Victory";sample=phaseAge;Frame=7;}
+            else if(state.Phase==GamePhase.Victory) {next="Victory";sample=Mathf.Max(0,phaseAge-VictoryMotion.TurnStartSeconds);Frame=7;}
             else if(state.Phase==GamePhase.Battle)
             {
                 if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
@@ -377,6 +373,11 @@ namespace UltramanGame.Runtime
             if(monster)AlignClawWrists();
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            if(preview<0&&state.Phase==GamePhase.Victory)
+            {
+                if(monster)PoseDefeat(VictoryMotion.Collapse(phaseAge));
+                else PoseVictoryTurn(VictoryMotion.Turn(phaseAge));
+            }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
                 PoseKnockdown(KnockdownMotion.Weight(state.ActionAge));
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
@@ -551,7 +552,21 @@ namespace UltramanGame.Runtime
                 for(int i=1;i<tailJoints.Length;i++)
                 {tailJoints[i].localRotation=tailRest[i];tailJoints[i].localPosition=tailPositions[i];}
                 tailJoints[0].rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(Mathf.Sin(time*1.8f)*5,Vector3.up)*tailRootRotation;
-                var anchor=tailJoints[0].position;anchor.y=home.y+tailHeight;tailJoints[0].position=anchor;
+                var anchor=tailJoints[0].position;
+                if(state.Phase!=GamePhase.Victory||preview>=0)anchor.y=home.y+tailHeight;
+                else anchor.y=Mathf.Max(home.y+.70f,anchor.y);
+                tailJoints[0].position=anchor;
+                if(state.Phase==GamePhase.Victory&&preview<0&&tailJoints.Length>1)
+                {
+                    // Lowering the hips must not drag the distal tail through
+                    // the floor. Rotate the chain at its base, preserving all
+                    // segment lengths, so its tip settles just above the ash.
+                    Vector3 span=tailJoints[tailJoints.Length-1].position-anchor;
+                    float length=span.magnitude;
+                    float dy=Mathf.Clamp(home.y+.32f-anchor.y,-length*.95f,length*.95f);
+                    Vector3 desired=Vector3.ProjectOnPlane(span,Vector3.up).normalized*Mathf.Sqrt(Mathf.Max(0,length*length-dy*dy))+Vector3.up*dy;
+                    tailJoints[0].rotation=Quaternion.FromToRotation(span,desired)*tailJoints[0].rotation;
+                }
             }
             // Character-local emission carries the same readable signals as the
             // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
@@ -582,6 +597,40 @@ namespace UltramanGame.Runtime
                 mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
+        }
+        void PoseDefeat(float collapse)
+        {
+            if(!pelvis)return;
+            var side=Vector3.Cross(Vector3.up,forward);var facing=Quaternion.LookRotation(forward);
+            // Knees fold beneath the body while the claws drop to either side.
+            // A feet-pivot whole-body flip used to bury the belly in the floor.
+            Vector3 hips=home-forward*.18f+Vector3.up*.82f;
+            Root.position+=Vector3.Lerp(pelvis.position,hips,collapse)-pelvis.position;
+            PoseLimb(leftThigh,leftShin,leftFoot,home+facing*leftFootLocal,1,forward-side*.3f,leftFootClearance);
+            PoseLimb(rightThigh,rightShin,rightFoot,home+facing*rightFootLocal,1,forward+side*.3f,rightFootClearance);
+            leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
+            float hands=Mathf.SmoothStep(0,1,(collapse-.15f)/.85f);
+            Vector3 contact=home+forward*.85f+Vector3.up*.30f;
+            PoseLimb(leftUpperArm,leftForearm,leftHand,contact-side*.64f,hands,-side,.30f);
+            PoseLimb(upperArm,forearm,hand,contact+side*.64f-forward*.12f,hands,side,.30f);
+            AlignClawWrists();
+        }
+        void PoseVictoryTurn(float progress)
+        {
+            if(progress<=0||!leftFoot||!rightFoot)return;
+            Quaternion start=Quaternion.LookRotation(forward),finish=Quaternion.LookRotation(Vector3.back);
+            Quaternion half=Quaternion.Slerp(start,finish,.5f);
+            Vector3 plantedLeft=home+start*leftFootLocal;
+            Vector3 halfRoot=plantedLeft-half*leftFootLocal,plantedRight=halfRoot+half*rightFootLocal;
+            bool first=progress<.5f;float step=first?progress*2:(progress-.5f)*2;
+            Root.rotation=Quaternion.Slerp(first?start:half,first?half:finish,Mathf.SmoothStep(0,1,step));
+            Root.position=first?plantedLeft-Root.rotation*leftFootLocal:plantedRight-Root.rotation*rightFootLocal;
+            float lift=.16f*Mathf.Sin(step*Mathf.PI);
+            var swinging=first?rightFoot:leftFoot;
+            Vector3 target=swinging.position+Vector3.up*lift;
+            PoseLimb(first?rightThigh:leftThigh,first?rightShin:leftShin,swinging,target,1,Root.forward,
+                home.y+(first?rightFootLocal.y:leftFootLocal.y));
+            leftFoot.rotation=Root.rotation*leftFootRest;rightFoot.rotation=Root.rotation*rightFootRest;
         }
         void PoseKnockdown(float weight)
         {

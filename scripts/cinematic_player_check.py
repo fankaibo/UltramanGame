@@ -51,13 +51,16 @@ def main():
         raise RuntimeError('Presentation was not prewarmed')
     if output.count('[Voice] key=beam_original playing=True') != 2:
         raise RuntimeError('Expected two original battle cries')
+    if output.count('[VictoryStage] landing-thud playing=True') != 1:
+        raise RuntimeError('Expected exactly one landing sound for the defeated monster')
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
     # These images come from this player run, not the independent Editor render
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
-                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'Paused', 'Victory')
+                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'Paused', 'Victory',
+                'victory-collapse', 'victory-turn', 'victory-hero')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
