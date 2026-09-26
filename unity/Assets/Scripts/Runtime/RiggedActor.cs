@@ -48,6 +48,7 @@ namespace UltramanGame.Runtime
         readonly Dictionary<string,Transform> clawBones=new Dictionary<string,Transform>();
         readonly Transform[,,] clawFingers=new Transform[4,2,2];
         readonly Transform[,] clawThumbs=new Transform[2,2];
+        readonly Vector3[] palmForwardLocal=new Vector3[2],palmUpLocal=new Vector3[2];
         static readonly string[] ClawFingerNames={"index","middle","ring","pinky"};
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
@@ -181,6 +182,14 @@ namespace UltramanGame.Runtime
                             clawBones.TryGetValue($"bip_{ClawFingerNames[finger]}_{segment}_{suffix}",out clawFingers[finger,side,segment]);
                     for(int segment=0;segment<2;segment++)
                         clawBones.TryGetValue($"bip_thumb_{segment}_{suffix}",out clawThumbs[side,segment]);
+                    var wrist=side==0?leftHand:hand;
+                    Vector3 palmCenter=Vector3.zero;
+                    for(int finger=0;finger<4;finger++)palmCenter+=clawFingers[finger,side,0].position;
+                    Vector3 direction=(palmCenter/4-wrist.position).normalized;
+                    Vector3 across=clawFingers[0,side,0].position-clawFingers[3,side,0].position;
+                    Vector3 normal=Vector3.Cross(direction,across).normalized*(side==0?1:-1);
+                    palmForwardLocal[side]=wrist.InverseTransformDirection(direction);
+                    palmUpLocal[side]=wrist.InverseTransformDirection(normal);
                 }
                 var tails=new List<Transform>();foreach(var joint in joints)if(joint.name.StartsWith("tail_",StringComparison.Ordinal))tails.Add(joint);
                 tails.Sort((a,b)=>string.CompareOrdinal(a.name,b.name));tailJoints=tails.ToArray();tailRest=new Quaternion[tailJoints.Length];tailPositions=new Vector3[tailJoints.Length];
@@ -358,6 +367,9 @@ namespace UltramanGame.Runtime
             blendLeft=Mathf.Max(0,blendLeft-dt);
             for(int i=1;i<joints.Length&&mix<1;i++)
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
+            // Clip blending changes the elbow and palm together. Limit the
+            // resulting pose, including the transition frames between clips.
+            if(monster)AlignClawWrists();
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
@@ -666,6 +678,22 @@ namespace UltramanGame.Runtime
             }
             else wrist.rotation=palm;
         }
+        void AlignClawWrists()
+        {
+            // A world-facing palm can fold back over a raised forearm during
+            // anticipation. Constrain the actual metacarpal axis, not the
+            // mirrored bone's arbitrary local Euler angles. Only the wrist
+            // rotates: elbow, contact point and attack timing stay authored.
+            for(int side=0;side<2;side++)
+            {
+                Transform wrist=side==0?leftHand:hand,lower=side==0?leftForearm:forearm;
+                if(!wrist||!lower||palmForwardLocal[side].sqrMagnitude<.5f)continue;
+                Vector3 palm=wrist.TransformDirection(palmForwardLocal[side]);
+                Vector3 arm=(wrist.position-lower.position).normalized;
+                Vector3 limited=Vector3.RotateTowards(arm,palm,35*Mathf.Deg2Rad,0);
+                wrist.rotation=Quaternion.FromToRotation(palm,limited)*wrist.rotation;
+            }
+        }
         void ApplyClawPose(Battle state,int preview,float time)
         {
             if(clawBones.Count==0)return;
@@ -698,9 +726,12 @@ namespace UltramanGame.Runtime
             // camera-readable curl makes the hands read as claws instead of
             // five flat rods; the lead hand opens a little before curling at
             // contact while the support hand stays closer to the chest.
-            var right=Vector3.Cross(Vector3.up,forward).normalized;
             for(int side=0;side<2;side++)
             {
+                var wrist=side==0?leftHand:hand;
+                Vector3 palmForward=wrist.TransformDirection(palmForwardLocal[side]);
+                Vector3 palmUp=wrist.TransformDirection(palmUpLocal[side]);
+                Vector3 curlAxis=Vector3.Cross(palmForward,-palmUp).normalized;
                 bool lead=attack&&((side==0&&attackSide<0)||(side==1&&attackSide>0));
                 float amount=curl*(lead?1.08f:.86f);
                 float sideSpread=(side==0?-1:1)*spread;
@@ -710,18 +741,18 @@ namespace UltramanGame.Runtime
                     if(first)
                     {
                         float fan=sideSpread*(i-1.5f)*.7f;
-                        first.rotation=Quaternion.AngleAxis(fan,right)*Quaternion.AngleAxis(amount*58,right)*first.rotation;
+                        first.rotation=Quaternion.AngleAxis(fan,palmUp)*Quaternion.AngleAxis(amount*58,curlAxis)*first.rotation;
                     }
                     var tip=clawFingers[i,side,1];
                     if(tip)
-                        tip.rotation=Quaternion.AngleAxis(amount*78,right)*tip.rotation;
+                        tip.rotation=Quaternion.AngleAxis(amount*78,curlAxis)*tip.rotation;
                 }
                 var thumb=clawThumbs[side,0];
                 if(thumb)
-                    thumb.rotation=Quaternion.AngleAxis(sideSpread*1.8f,forward)*Quaternion.AngleAxis(amount*42,right)*thumb.rotation;
+                    thumb.rotation=Quaternion.AngleAxis(sideSpread*1.8f,palmForward)*Quaternion.AngleAxis(amount*42,curlAxis)*thumb.rotation;
                 var thumbTip=clawThumbs[side,1];
                 if(thumbTip)
-                    thumbTip.rotation=Quaternion.AngleAxis(amount*58,right)*thumbTip.rotation;
+                    thumbTip.rotation=Quaternion.AngleAxis(amount*58,curlAxis)*thumbTip.rotation;
             }
         }
         static float ContactPulse(float age,float start,float peak,float end)
