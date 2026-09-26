@@ -17,7 +17,9 @@ namespace UltramanGame.Runtime
         [Serializable] sealed class MotionTuning {public float punchAdvance=AnimatedActor.PunchAdvance;}
         readonly GameObject model;
         readonly bool monster;
-        readonly Vector3 home, forward;
+        readonly bool retargetedPunch;
+        readonly Vector3 home, forward,opponentHome;
+        AnimatedActor opponent;
         readonly Dictionary<string, AnimationClip> clips=new Dictionary<string, AnimationClip>();
         readonly Transform[] joints;
         readonly Renderer[] surfaces;
@@ -37,6 +39,7 @@ namespace UltramanGame.Runtime
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
         Transform head,upperSpine,pelvis;
         Vector3 beamContactLocal;
+        Vector3 surfaceContactLocal;
         Transform leftThigh,rightThigh,leftShin,rightShin;
         Quaternion leftFootRest,rightFootRest;
         Vector3 leftFootLocal,rightFootLocal;
@@ -67,6 +70,15 @@ namespace UltramanGame.Runtime
         public Vector3 BeamContact => upperSpine?upperSpine.TransformPoint(beamContactLocal):Root.position+Vector3.up*2.48f;
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
         public Vector3 GroundContactPosition => pelvis?pelvis.position:Root.position;
+        public void SetOpponent(AnimatedActor actor){opponent=actor;}
+        public void BindSurfaceImpact(Vector3 worldPosition)
+        {
+            if(!monster||!upperSpine)return;
+            // Called after the contact pose is sampled. Store the actual fist
+            // or beam contact in chest space so recoil carries the light.
+            surfaceContactLocal=upperSpine.InverseTransformPoint(worldPosition);
+            UpdateSurfaceImpact();
+        }
 
         public static RiggedActor CreateIfAvailable(string name,Vector3 position,Vector3 opponent,bool monster)
         {
@@ -76,7 +88,7 @@ namespace UltramanGame.Runtime
         }
         RiggedActor(string name,string path,GameObject prefab,Vector3 position,Vector3 opponent,bool isMonster)
         {
-            monster=isMonster;home=position;forward=Vector3.ProjectOnPlane(opponent-position,Vector3.up).normalized;
+            monster=isMonster;home=position;opponentHome=opponent;retargetedPunch=!monster&&name!="Tiga";forward=Vector3.ProjectOnPlane(opponent-position,Vector3.up).normalized;
             var motion=Resources.Load<TextAsset>("Characters/"+name+"/motion");
             if(motion)
             {
@@ -320,6 +332,7 @@ namespace UltramanGame.Runtime
                 recoilStart=carryPose?Vector3.ProjectOnPlane(Root.position-home,Vector3.up):Vector3.zero;
                 recoilStartYaw=carryPose?Vector3.SignedAngle(forward,Root.forward,Vector3.up):0;
                 hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;
+                surfaceContactLocal=beamContactLocal;
             }
             lastHealth=state.EnemyHealth;
             string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1,fallTilt=0,fallSide=0,fallDrop=0;
@@ -574,6 +587,9 @@ namespace UltramanGame.Runtime
             }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest)
                 AnchorMonsterFeet();
+            if(retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch))
+                AimRetargetedPunch(state);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
@@ -622,13 +638,28 @@ namespace UltramanGame.Runtime
                 :ContactPulse(guardAge,0,.075f,.42f);
             Color impactColor=monster?(heavyHit?new Color(.055f,.18f,.36f):new Color(1,.16f,.035f)):new Color(.14f,.62f,1);
             foreach(var mat in impactMaterials)
-                mat.SetColor("_EmissionColor",impactColor*(impactGlow*(monster?1.15f:.85f)));
+                mat.SetColor("_EmissionColor",monster?Color.black:impactColor*(impactGlow*.85f));
+            if(monster)UpdateSurfaceImpact();
             foreach(var mat in coreMaterials)
             {
                 Color c=new Color(.10f,.68f,1);
                 mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
+        }
+        void UpdateSurfaceImpact()
+        {
+            float strength=heavyHit
+                ?(1-Mathf.SmoothStep(0,1,(hitAge-.74f)/.28f))*(.85f+.15f*Mathf.Sin(hitAge*28)*Mathf.Sin(hitAge*28))
+                :1-Mathf.SmoothStep(0,1,(hitAge-.02f)/.22f);
+            Vector3 contact=upperSpine?upperSpine.TransformPoint(surfaceContactLocal):BeamContact;
+            Color color=heavyHit?new Color(.15f,.60f,1.30f,strength):new Color(1.25f,.65f,.26f,strength);
+            foreach(var mat in impactMaterials)
+            {
+                if(!mat.HasProperty("_ImpactPoint"))continue;
+                mat.SetVector("_ImpactPoint",new Vector4(contact.x,contact.y,contact.z,heavyHit?1.05f:.80f));
+                mat.SetVector("_ImpactDirection",Root.forward);mat.SetColor("_ImpactColor",color);
+            }
         }
         void PoseDefeat(float collapse)
         {
@@ -701,6 +732,28 @@ namespace UltramanGame.Runtime
             PoseLimb(leftThigh,leftShin,leftFoot,left,1,forward-side*.20f,leftFootLocal.y);
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.20f,rightFootLocal.y);
             leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
+        }
+        void AimRetargetedPunch(Battle state)
+        {
+            if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
+            float age=state.ActionAge;
+            float weight=Mathf.SmoothStep(0,1,age/.10f)*(1-Mathf.SmoothStep(0,1,(age-.16f)/.22f));
+            if(weight<=0)return;
+            // Imported heroes have different arm lengths and shoulder axes.
+            // Transfer the chest forward over the authored feet, then guide
+            // only the striking fist while the other arm retains its guard.
+            var side=Vector3.Cross(Vector3.up,forward);
+            if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(16*weight,side)*upperSpine.rotation;
+            if(head)head.rotation=Quaternion.AngleAxis(-8*weight,side)*head.rotation;
+            stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
+            stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
+            bool left=state.Action==HeroAction.LeftPunch;
+            var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+            Vector3 contact=opponent!=null?opponent.BeamContact:opponentHome-forward*.33f+Vector3.up*2.48f;
+            Vector3 target=contact-forward*.12f+side*(left?-.10f:.10f);
+            var palm=wrist.rotation;var previousForearm=wrist.position-lower.position;
+            PoseLimb(upper,lower,wrist,target,weight,side*(left?-1:1)+Vector3.down*.25f,.30f);
+            wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
         }
         static float LegDrop(Transform hip,Transform knee,Transform ankle,Vector3 target)
         {

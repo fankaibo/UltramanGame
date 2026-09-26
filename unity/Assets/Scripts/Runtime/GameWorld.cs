@@ -19,7 +19,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
@@ -110,6 +110,7 @@ namespace UltramanGame.Runtime
             cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             // Use the monster's position at this contact, including its own forward step.
             var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
+            enemy?.BindSurfaceImpact(position);
             effects.Impact(position,special);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {

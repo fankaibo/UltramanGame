@@ -66,7 +66,14 @@ namespace UltramanGame.Editor
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var left=Bone(enemy.Root,"bip_foot_L");var right=Bone(enemy.Root,"bip_foot_R");var head=Bone(enemy.Root,"bip_head");
             Vector3 lf=left.position,rf=right.position,lastHead=head.position;float health=state.EnemyHealth,maxFootHeight=0,maxHeadStep=0;
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/contact-reaction",version));Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--contact-output");
+            string output=at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/contact-reaction");
+            string folder=Path.GetFullPath(Path.Combine(output,version));Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
+            var sources=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\n");
+            using(var sha=System.Security.Cryptography.SHA256.Create())
+                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Resources/KaijuSurface.shader","Editor/ContactReactionReview.cs"})
+                    sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,file)))).Replace("-","").ToLowerInvariant());
+            File.WriteAllText(folder+"/render-source.txt",sources.ToString());
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             var csv=new StringBuilder("frame,time,health,leftFootY,rightFootY,headX,headY,headZ\n");
             int contacts=0;float contactAge=10;string contact="";var markers=new bool[4];float[] moments={.04f,.12f,.23f,.38f};
