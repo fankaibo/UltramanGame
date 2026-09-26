@@ -28,6 +28,12 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&world.BeamVisible)
                 key=battle.ActionAge<Battle.BeamHitSeconds?"beam-firing":battle.ActionAge<.62f?"beam-contact":
                     battle.ActionAge<1.3f?"beam-sustain":"beam-fade";
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Enemy!=EnemyPhase.Attack&&battle.Punches>0&&
+                battle.ActionAge>=.20f&&battle.ActionAge<.28f)
+            {
+                if(battle.Action==HeroAction.LeftPunch)key="left-punch-recoil";
+                else if(battle.Action==HeroAction.RightPunch)key="right-punch-recoil";
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Victory)
                 key=world.VictoryAge<.8f?"Victory":world.VictoryAge<1.45f?"victory-collapse":
                     world.VictoryAge<3.7f?"victory-turn":"victory-hero";

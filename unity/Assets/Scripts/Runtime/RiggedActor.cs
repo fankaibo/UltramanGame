@@ -44,6 +44,8 @@ namespace UltramanGame.Runtime
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
         float contactSide;
+        Vector3 recoilStart;
+        float recoilStartYaw;
         Battle observedBattle;
         int observedBlocks;
         float guardAge=10;
@@ -302,15 +304,23 @@ namespace UltramanGame.Runtime
             // once per round so a held shield, pause or photo restart cannot
             // replay the recoil. The layer affects only the torso above the hips.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=10;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;recoilStart=Vector3.zero;recoilStartYaw=0;}
             if(state.Phase!=GamePhase.Battle)guardAge=10;
             else if(state.Blocks>observedBlocks)guardAge=0;
             else guardAge+=dt;
             observedBlocks=state.Blocks;
             float guardRecoil=ContactPulse(guardAge,0,.09f,.54f);
             phaseAge+=dt;hitAge+=dt;
-            if(state.EnemyHealth<lastHealth)
-            {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;}
+            if(state.Phase!=GamePhase.Battle){hitAge=10;recoilStart=Vector3.zero;recoilStartYaw=0;}
+            else if(state.EnemyHealth<lastHealth)
+            {
+                // Continue from a still-settling hit when punches arrive quickly.
+                // Do not carry a lunge displacement into a different hit pose.
+                bool carryPose=playing=="Hurt"||playing=="Idle";
+                recoilStart=carryPose?Vector3.ProjectOnPlane(Root.position-home,Vector3.up):Vector3.zero;
+                recoilStartYaw=carryPose?Vector3.SignedAngle(forward,Root.forward,Vector3.up):0;
+                hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;
+            }
             lastHealth=state.EnemyHealth;
             string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1,fallTilt=0,fallSide=0,fallDrop=0;
             Frame=0;
@@ -327,12 +337,9 @@ namespace UltramanGame.Runtime
                     opacity=VictoryMotion.Opacity(phaseAge);
                 }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=state.EnemyAttackCount%2==0?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state);}
-                else if(state.Phase==GamePhase.Battle&&hitAge<(heavyHit?.9f:.4f))
+                else if(state.Phase==GamePhase.Battle&&hitAge<(heavyHit?.9f:MonsterRecoilMotion.Duration))
                 {
-                    next="Hurt";sample=heavyHit&&hitAge>.14f?Mathf.Lerp(.14f,.4f,(hitAge-.14f)/.76f):hitAge;Frame=heavyHit?6:5;
-                    // The baked pelvis/legs already absorb the hit. Keep the
-                    // actor root upright so both feet retain their planted pose;
-                    // the chest and head supply directional follow-through below.
+                    next="Hurt";sample=heavyHit?(hitAge>.14f?Mathf.Lerp(.14f,.4f,(hitAge-.14f)/.76f):hitAge):hitAge*.4f/MonsterRecoilMotion.Duration;Frame=heavyHit?6:5;
                 }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {
@@ -400,14 +407,14 @@ namespace UltramanGame.Runtime
                 PoseKnockdown(KnockdownMotion.Weight(state.ActionAge));
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
             {
-                // The source Hurt clip supplies the chest recoil, but its root
-                // stays fixed. A short, planted-foot backstep gives each punch
-                // a readable weight transfer and lets the following recovery
-                // settle back into the diagonal arena composition.
-                float recoil=ContactPulse(hitAge,0,heavyHit?.10f:.065f,heavyHit?.78f:.36f);
-                Root.position-=forward*(heavyHit?.14f:.085f)*recoil;
-                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:.028f)*recoil);
-                Root.rotation*=Quaternion.AngleAxis(contactSide*(heavyHit?4.5f:2.5f)*recoil,Vector3.up);
+                // Hips yield over anchored feet instead of sliding the entire
+                // actor backwards. Chest, head and knees settle at different
+                // times; the next punch keeps the remaining root momentum.
+                float recoil=heavyHit?ContactPulse(hitAge,0,.10f,.78f):MonsterRecoilMotion.Weight(hitAge);
+                float carry=MonsterRecoilMotion.Carry(hitAge);
+                Root.position+=recoilStart*carry-forward*(heavyHit?.14f:.23f)*recoil;
+                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:.065f)*recoil);
+                Root.rotation*=Quaternion.AngleAxis(recoilStartYaw*carry+contactSide*(heavyHit?4.5f:4f)*recoil,Vector3.up);
             }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&heroRecoveryAge<.26f)
             {
@@ -498,7 +505,7 @@ namespace UltramanGame.Runtime
             bool heroBreath=!monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 state.Action==HeroAction.None&&!state.Shield&&guardRecoil<=0&&hitAge>.4f;
             bool monsterBreath=monster&&preview<0&&state.Phase==GamePhase.Battle&&
-                state.Enemy==EnemyPhase.Rest&&hitAge>.4f;
+                state.Enemy==EnemyPhase.Rest&&next=="Idle";
             if(heroBreath||monsterBreath)
             {
                 // Keep the pause between authored clips alive without moving the
@@ -511,6 +518,7 @@ namespace UltramanGame.Runtime
                 // weight shift makes a long arcade string feel continuous.
                 float cadence=time*(monsterBreath?1.72f:1.95f)+state.Punches*.55f+state.EnemyAttackCount*.31f;
                 float wave=Mathf.Sin(cadence+(monsterBreath?.8f:0));
+                if(monsterBreath)wave*=Mathf.SmoothStep(0,1,(hitAge-MonsterRecoilMotion.Duration)/.25f);
                 float footShift=wave*(monsterBreath?.045f:.032f);
                 Root.position+=right*footShift;
                 Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(wave*(monsterBreath?2.6f:1.9f),Vector3.up);
@@ -545,13 +553,13 @@ namespace UltramanGame.Runtime
                 // then both settle. Left/right punches twist opposite shoulders.
                 // A beam sustains the recoil while it is striking the chest,
                 // rather than returning to Idle during the visible blast.
-                float chest=ContactPulse(hitAge,0,heavyHit?.12f:.075f,heavyHit?.84f:.35f);
-                float follow=ContactPulse(hitAge,.035f,heavyHit?.20f:.14f,heavyHit?.9f:.4f);
+                float chest=ContactPulse(hitAge,0,heavyHit?.12f:.075f,heavyHit?.84f:.46f);
+                float follow=ContactPulse(hitAge,.035f,heavyHit?.20f:.14f,heavyHit?.9f:MonsterRecoilMotion.Duration);
                 var right=Vector3.Cross(Vector3.up,forward);
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
-                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:9)*chest,right)
+                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:13)*chest,right)
                         *Quaternion.AngleAxis(contactSide*18*chest,Vector3.up)
                         *Quaternion.AngleAxis(contactSide*4*chest,forward)*upperSpine.rotation;
                 }
@@ -562,7 +570,10 @@ namespace UltramanGame.Runtime
                         *Quaternion.AngleAxis(contactSide*7*follow,Vector3.up)*head.rotation;
                 }
                 contactLayerApplied=true;
+                AnchorMonsterFeet();
             }
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest)
+                AnchorMonsterFeet();
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
@@ -677,6 +688,19 @@ namespace UltramanGame.Runtime
                 PoseLimb(upperArm,forearm,hand,clawRight,1,side,.30f);
                 leftHand.rotation=rotationLeft;hand.rotation=rotationRight;AlignClawWrists();
             }
+        }
+        void AnchorMonsterFeet()
+        {
+            if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
+            Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
+            stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+            stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            stepDrop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));
+            Root.position-=Vector3.up*stepDrop;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,1,forward-side*.20f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.20f,rightFootLocal.y);
+            leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
         }
         static float LegDrop(Transform hip,Transform knee,Transform ankle,Vector3 target)
         {
