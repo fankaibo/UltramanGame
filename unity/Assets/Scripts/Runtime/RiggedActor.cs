@@ -36,6 +36,7 @@ namespace UltramanGame.Runtime
         bool heavyHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
         Transform head,upperSpine,pelvis;
+        Vector3 beamContactLocal;
         Transform leftThigh,rightThigh,leftShin,rightShin;
         Quaternion leftFootRest,rightFootRest;
         float leftFootClearance,rightFootClearance;
@@ -55,6 +56,7 @@ namespace UltramanGame.Runtime
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(int attackCount) => attackCount%2==0&&leftHand?leftHand.position:HandPosition;
         public Vector3 BeamOrigin => hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
+        public Vector3 BeamContact => upperSpine?upperSpine.TransformPoint(beamContactLocal):Root.position+Vector3.up*2.48f;
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
         public Vector3 GroundContactPosition => pelvis?pelvis.position:Root.position;
 
@@ -198,6 +200,9 @@ namespace UltramanGame.Runtime
             }
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
+            // A point on the front of the resting chest, carried by its sampled
+            // bone through recoil. Root/home coordinates drift off the skin.
+            if(upperSpine)beamContactLocal=upperSpine.InverseTransformPoint(home+Vector3.up*2.48f+forward*.33f);
             if(leftFoot)leftFootRest=Quaternion.Inverse(Root.rotation)*leftFoot.rotation;
             if(rightFoot)rightFootRest=Quaternion.Inverse(Root.rotation)*rightFoot.rotation;
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
@@ -568,7 +573,7 @@ namespace UltramanGame.Runtime
             float impactGlow=monster
                 ?ContactPulse(hitAge,0,heavyHit?.10f:.055f,heavyHit?.72f:.38f)
                 :ContactPulse(guardAge,0,.075f,.42f);
-            Color impactColor=monster?new Color(1,.16f,.035f):new Color(.14f,.62f,1);
+            Color impactColor=monster?(heavyHit?new Color(.055f,.18f,.36f):new Color(1,.16f,.035f)):new Color(.14f,.62f,1);
             foreach(var mat in impactMaterials)
                 mat.SetColor("_EmissionColor",impactColor*(impactGlow*(monster?1.15f:.85f)));
             foreach(var mat in coreMaterials)

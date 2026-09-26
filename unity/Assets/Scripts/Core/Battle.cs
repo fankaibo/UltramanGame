@@ -33,6 +33,7 @@ namespace UltramanGame.Core
         public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
+        public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
         GamePhase resumePhase;
         float phaseAge, immunity;
@@ -136,7 +137,7 @@ namespace UltramanGame.Core
                 ActionAge+=dt;
                 if(Action==HeroAction.Hurt&&previousActionAge<KnockdownMotion.LandingSeconds&&ActionAge>=KnockdownMotion.LandingSeconds)
                     Cue(GameCue.HeroLanded);
-                float hitTime=Action==HeroAction.Beam?.45f:PunchHitSeconds;
+                float hitTime=Action==HeroAction.Beam?BeamHitSeconds:PunchHitSeconds;
                 if(!hitApplied && Action!=HeroAction.Hurt && ActionAge>=hitTime)
                 {
                     hitApplied=true;
@@ -144,7 +145,7 @@ namespace UltramanGame.Core
                     else { EnemyHealth=Math.Max(0,EnemyHealth-1); Punches++; AddEnergy(1); }
                     if(EnemyHealth<=0) { Phase=GamePhase.Victory; Shield=false; Cue(GameCue.Victory); return; }
                 }
-                float duration=Action==HeroAction.Beam?1.5f:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
+                float duration=Action==HeroAction.Beam?BeamSeconds:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
                 if(ActionAge>=duration) Action=HeroAction.None;
             }
             // Special move provides an obvious window of protection.

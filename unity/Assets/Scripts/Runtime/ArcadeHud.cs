@@ -37,8 +37,11 @@ namespace UltramanGame.Runtime
                 hud.Line(new Vector2(558,60),new Vector2(628,60),cyan,1);
                 hud.Dot(new Vector2(640,60),7,gold);hud.Line(new Vector2(652,60),new Vector2(722,60),cyan,1);
                 float scorePulse=time<hitUntil?Mathf.Clamp01((hitUntil-time)*1.4f):0;
-                hud.Rounded(new Rect(518,101,244,27),new Color(.01f,.04f,.08f,.86f),6);
-                hud.Text(new Rect(524,101,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
+                if(battle.Action!=HeroAction.Beam)
+                {
+                    hud.Rounded(new Rect(518,101,244,27),new Color(.01f,.04f,.08f,.86f),6);
+                    hud.Text(new Rect(524,101,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
+                }
                 if(battle.Punches>0)
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
@@ -61,7 +64,7 @@ namespace UltramanGame.Runtime
                         Star(new Vector2(1220,236+i*38),11,.16f+.84f*earned);
                     }
                 }
-                if(time<hitUntil)
+                if(time<hitUntil&&battle.Action!=HeroAction.Beam)
                 {
                     float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*32;
                     hud.Text(new Rect(800,213-lift,295,62),battle.Action==HeroAction.Beam?"光线爆发！":battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?35:29,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleCenter,true);
@@ -104,6 +107,7 @@ namespace UltramanGame.Runtime
             }
             else if(battle.Phase==GamePhase.Paused)
                 Guide(paused?"休息一下 · 家长按 Esc 继续":"站进镜头，我们接着守护火山基地","transform",cyan,battle.ResumeProgress/1.2f);
+            else if(battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
             else if(warning)
                 Guide(battle.Shield?"护盾已展开 · 保持住！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,recognizer.ShieldProgress);
             else if(ready)
@@ -113,6 +117,16 @@ namespace UltramanGame.Runtime
             DrawBattleStartCue();
             DrawArcadePreview();
             if(pose?.source=="synthetic")hud.Text(new Rect(20,695,400,20),"合成动作测试 · 非真人输入",11,HudPainter.Gold);
+        }
+
+        void DrawBeamReleaseTitle()
+        {
+            // Keep the forearm, flight path and monster's reaction unobstructed
+            // when handing the closeup back to the two-fighter battle shot.
+            float alpha=1-Mathf.SmoothStep(0,1,(battle.ActionAge-1.25f)/.25f);
+            hud.Rounded(new Rect(406,630,468,42),new Color(.006f,.02f,.055f,.80f*alpha),8);
+            hud.Line(new Vector2(424,668),new Vector2(856,668),new Color(.22f,.72f,1,.65f*alpha),2);
+            hud.Text(new Rect(420,633,440,34),SelectedHero.Beam+"！",22,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
         }
 
         // A short cabinet-style cut-in makes the transition out of the

@@ -57,7 +57,7 @@ def main():
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
-                'beam-closeup-peak', 'beam-firing', 'Paused', 'Victory')
+                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'Paused', 'Victory')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:

@@ -36,7 +36,7 @@ namespace UltramanGame.Runtime
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
         long sequence;
-        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        float captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
         int presentedPunches,presentedHits,comboCount;
         float comboUntil;
         int lastDamage;
@@ -188,7 +188,6 @@ namespace UltramanGame.Runtime
             }
             if(battle.HitsTaken>presentedHits)
             {presentedHits=battle.HitsTaken;comboCount=0;comboUntil=0;}
-            if(battle.Phase==GamePhase.Paused)beamTitleUntil=0;
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
             while(battle.TryCue(out var cue))PlayCue(cue);
@@ -274,7 +273,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
-                case GameCue.Beam:caption=SelectedHero.Beam+"！";beamTitleUntil=Time.unscaledTime+BeamCloseup.Duration+2;break;
+                case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
                 case GameCue.Victory:victoryAt=Time.unscaledTime;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
@@ -289,7 +288,7 @@ namespace UltramanGame.Runtime
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
-            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;battleStartCueAt=-1;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;battleStartCueAt=-1;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             presentedPunches=presentedHits=comboCount=0;comboUntil=0;
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
@@ -529,11 +528,10 @@ namespace UltramanGame.Runtime
             }
             else if(time<hitUntil&&battle.Phase==GamePhase.Battle)
                 hud.Text(new Rect(20,143,230,34),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",20,HudPainter.Gold,TextAnchor.MiddleCenter,true);
-            if(time<beamTitleUntil&&(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Victory))
-            {hud.Panel(new Rect(455,78,370,46),HudPainter.Gold,true);hud.Text(new Rect(465,84,350,34),SelectedHero.Beam+"！",23,HudPainter.Gold,TextAnchor.MiddleCenter,true);}
+            if(battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
             else if(time<captionUntil&&battle.Phase==GamePhase.Battle)
             {hud.Panel(new Rect(465,78,350,29),HudPainter.Cyan);hud.Text(new Rect(475,81,330,23),caption,13,HudPainter.Ink,TextAnchor.MiddleCenter);}
-            if(battle.Phase!=GamePhase.Victory&&battle.Action!=HeroAction.Hurt)
+            if(battle.Phase!=GamePhase.Victory&&battle.Action!=HeroAction.Hurt&&battle.Action!=HeroAction.Beam)
             {
                 BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
                 BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);

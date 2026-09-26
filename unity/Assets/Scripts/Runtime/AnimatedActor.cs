@@ -14,6 +14,7 @@ namespace UltramanGame.Runtime
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(Battle state) => rigged!=null?rigged.EnemyStrikeOrigin(state.EnemyAttackCount):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 BeamOrigin => rigged!=null?rigged.BeamOrigin:Root.position+Vector3.up*2.7f;
+        public Vector3 BeamContact => rigged!=null?rigged.BeamContact:Root.position+forwardAxis*.33f+Vector3.up*2.48f;
         public Vector3 FootPosition(bool left) => rigged!=null?rigged.FootPosition(left):Root.position;
         public Vector3 GroundContactPosition => rigged!=null?rigged.GroundContactPosition:Root.position;
         public const float PunchAdvance=.75f, EnemyAdvance=.75f;

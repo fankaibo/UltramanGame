@@ -16,6 +16,7 @@ namespace UltramanGame.Runtime
         AnimatedActor hero,enemy;
         public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
+        public Vector3 BeamTarget => enemy!=null?enemy.BeamContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop;
         readonly Material backdropMaterial;
@@ -103,7 +104,7 @@ namespace UltramanGame.Runtime
             Kick(special?.12f:.065f,special);
             cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             // Use the monster's position at this contact, including its own forward step.
-            var position=special||hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
+            var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             effects.Impact(position,special);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {
@@ -299,10 +300,10 @@ namespace UltramanGame.Runtime
             volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null);
-            bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;
+            bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>BeamStream.LaunchSeconds;
             BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
-            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing);
+            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget);
             strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active);
             if(!Closeup.Active&&dt>0)effects.MotionDust(state,hero,enemy,BattleAxis);
             if(state.Phase!=previous){transformAge=0;previous=state.Phase;}

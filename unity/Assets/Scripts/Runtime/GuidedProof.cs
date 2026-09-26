@@ -25,6 +25,9 @@ namespace UltramanGame.Runtime
                 key=battle.ActionAge<KnockdownMotion.LandingSeconds+.13f?"hero-hurt":
                     battle.ActionAge<KnockdownMotion.RiseSeconds+.24f?"hero-landed":
                     battle.ActionAge<KnockdownMotion.Duration-.20f?"hero-rising":"hero-recovered";
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&world.BeamVisible)
+                key=battle.ActionAge<Battle.BeamHitSeconds?"beam-firing":battle.ActionAge<.62f?"beam-contact":
+                    battle.ActionAge<1.3f?"beam-sustain":"beam-fade";
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));
