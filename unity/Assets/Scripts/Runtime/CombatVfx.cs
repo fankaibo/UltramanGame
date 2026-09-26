@@ -158,13 +158,13 @@ namespace UltramanGame.Runtime
             if(state.EnemyAttackCount!=previousAttack)previousEnemyAge=0;
             if(state.Enemy==EnemyPhase.Attack)
             {
-                bool left=state.EnemyAttackCount%2==0;
+                bool left=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
                 if(previousEnemyAge<.08f&&state.EnemyAge>=.08f)
                     atmosphere.GroundBurst(enemy.FootPosition(!left),axis,true);
-                if(previousEnemyAge<.36f&&state.EnemyAge>=.36f)
+                if(previousEnemyAge<MonsterStepMotion.LandingSeconds&&state.EnemyAge>=MonsterStepMotion.LandingSeconds)
                     atmosphere.GroundBurst(enemy.FootPosition(left),axis,true);
-                if(previousEnemyAge<.8f&&state.EnemyAge>=.8f)
-                    atmosphere.GroundBurst(enemy.FootPosition(!left),-axis,false);
+                if(previousEnemyAge<MonsterStepMotion.ReturnLandingSeconds&&state.EnemyAge>=MonsterStepMotion.ReturnLandingSeconds)
+                    atmosphere.GroundBurst(enemy.FootPosition(left),-axis,false);
             }
             previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;
         }

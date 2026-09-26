@@ -47,6 +47,11 @@ namespace UltramanGame.Runtime
         Battle observedBattle;
         int observedBlocks;
         float guardAge=10;
+        float stepDrop;
+        bool stepArmsApplied;
+        readonly Quaternion[] stepArmRotations=new Quaternion[6];
+        bool stepLegsApplied;
+        readonly Quaternion[] stepLegRotations=new Quaternion[6];
         readonly Dictionary<string,Transform> clawBones=new Dictionary<string,Transform>();
         readonly Transform[,,] clawFingers=new Transform[4,2,2];
         readonly Transform[,] clawThumbs=new Transform[2,2];
@@ -257,6 +262,19 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            // The leg reach correction is a presentation layer; remove it
+            // before arm targeting and clip blending on the following frame.
+            Root.position+=Vector3.up*stepDrop;stepDrop=0;
+            if(stepLegsApplied)
+            {
+                leftThigh.localRotation=stepLegRotations[0];leftShin.localRotation=stepLegRotations[1];leftFoot.localRotation=stepLegRotations[2];
+                rightThigh.localRotation=stepLegRotations[3];rightShin.localRotation=stepLegRotations[4];rightFoot.localRotation=stepLegRotations[5];stepLegsApplied=false;
+            }
+            if(stepArmsApplied)
+            {
+                leftUpperArm.localRotation=stepArmRotations[0];leftForearm.localRotation=stepArmRotations[1];leftHand.localRotation=stepArmRotations[2];
+                upperArm.localRotation=stepArmRotations[3];forearm.localRotation=stepArmRotations[4];hand.localRotation=stepArmRotations[5];stepArmsApplied=false;
+            }
             // Blends start from the sampled clip, never from last frame's
             // additive impact. Otherwise the same impulse feeds back into itself.
             if(contactLayerApplied)
@@ -545,6 +563,9 @@ namespace UltramanGame.Runtime
                 }
                 contactLayerApplied=true;
             }
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&
+                (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
+                PoseMonsterStep(state);
             // Keep the tail planted while the torso recoils. It follows heading
             // and travel, but not the pelvis or whole-actor backward hit pitch.
             if(tailJoints!=null&&tailJoints.Length>0)
@@ -614,6 +635,55 @@ namespace UltramanGame.Runtime
             PoseLimb(leftUpperArm,leftForearm,leftHand,contact-side*.64f,hands,-side,.30f);
             PoseLimb(upperArm,forearm,hand,contact+side*.64f-forward*.12f,hands,side,.30f);
             AlignClawWrists();
+        }
+        void PoseMonsterStep(Battle state)
+        {
+            if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
+            Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
+            float weight=1;
+            if(state.Enemy==EnemyPhase.Windup)weight=Mathf.SmoothStep(0,1,state.EnemyAge/.20f);
+            else if(state.Enemy==EnemyPhase.Attack)
+            {
+                // The opposite leg supports the claw lunge. Plant the moving
+                // foot before contact, hold its landing, then lift it to return.
+                float age=state.EnemyAge,advance,lift;
+                if(age<MonsterStepMotion.LandingSeconds)
+                {float t=Mathf.Clamp01(age/MonsterStepMotion.LandingSeconds);advance=AnimatedActor.EnemyAdvance*Mathf.SmoothStep(0,1,t);lift=.20f*Mathf.Sin(t*Mathf.PI);}
+                else if(age<MonsterStepMotion.ReturnStartSeconds){advance=AnimatedActor.EnemyAdvance;lift=0;}
+                else
+                {float t=Mathf.Clamp01((age-MonsterStepMotion.ReturnStartSeconds)/(MonsterStepMotion.ReturnLandingSeconds-MonsterStepMotion.ReturnStartSeconds));advance=AnimatedActor.EnemyAdvance*(1-Mathf.SmoothStep(0,1,t));lift=.16f*Mathf.Sin(t*Mathf.PI);}
+                Vector3 step=forward*advance+Vector3.up*lift;
+                if(MonsterStepMotion.LeadLeft(state.EnemyAttackCount))left+=step;else right+=step;
+            }
+            // Lower the hips only as far as the leg lengths need. Keep the
+            // authored claw contact in world space while the knees take weight.
+            Vector3 clawLeft=leftHand.position,clawRight=hand.position;
+            Quaternion rotationLeft=leftHand.rotation,rotationRight=hand.rotation;
+            Quaternion footLeft=leftFoot.rotation,footRight=rightFoot.rotation;
+            stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+            stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));
+            stepDrop=drop*weight;Root.position-=Vector3.up*stepDrop;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,weight,forward-side*.20f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,weight,forward+side*.20f,rightFootLocal.y);
+            leftFoot.rotation=Quaternion.Slerp(footLeft,facing*leftFootRest,weight);
+            rightFoot.rotation=Quaternion.Slerp(footRight,facing*rightFootRest,weight);
+            if(drop>0)
+            {
+                stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
+                stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
+                PoseLimb(leftUpperArm,leftForearm,leftHand,clawLeft,1,-side,.30f);
+                PoseLimb(upperArm,forearm,hand,clawRight,1,side,.30f);
+                leftHand.rotation=rotationLeft;hand.rotation=rotationRight;AlignClawWrists();
+            }
+        }
+        static float LegDrop(Transform hip,Transform knee,Transform ankle,Vector3 target)
+        {
+            float reach=Vector3.Distance(hip.position,knee.position)+Vector3.Distance(knee.position,ankle.position)-.015f;
+            float horizontal=Vector3.ProjectOnPlane(hip.position-target,Vector3.up).sqrMagnitude;
+            float vertical=Mathf.Sqrt(Mathf.Max(0,reach*reach-horizontal));
+            return Mathf.Clamp(hip.position.y-target.y-vertical,0,.28f);
         }
         void PoseVictoryTurn(float progress)
         {
