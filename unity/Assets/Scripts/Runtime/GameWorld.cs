@@ -9,51 +9,83 @@ namespace UltramanGame.Runtime
         public bool Showcase;
         public readonly BeamCloseup Closeup=new BeamCloseup();
         public bool BeamStarted { get; private set; }
+        public bool MonsterLanded { get; private set; }
+        public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
+        public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
+        public float EnemyOpacity=>HeroShot?0:1;
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
         public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
+        public Vector3 BeamTarget => enemy!=null?enemy.BeamContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop;
+        readonly Material backdropMaterial;
+        readonly CinematicCamera cinematic;
         readonly MonsterAttackEffects monsterEffects;
         readonly CombatVfx effects;
+        readonly StrikeTrails strikeTrails;
+        readonly ArcadeStageFx arcade;
+        readonly VolcanoStage volcano;
+        readonly Light heroRim;
+        readonly Light monsterRim;
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
-        readonly Vector3 cameraHome=new Vector3(0,4.2f,-12),lookAt=new Vector3(0,1.22f,.4f);
+        public bool HeroTrailVisible => strikeTrails.HeroVisible;
+        public bool MonsterTrailVisible => strikeTrails.MonsterVisible;
+        readonly Vector3 cameraHome=new Vector3(-.25f,2.9f,-10.5f),lookAt=new Vector3(0,1.65f,.4f);
         float impact,impactAge=10,transformAge,celebrateAt,clock;
         readonly ImpactTiming hitTiming=new ImpactTiming();
         float framingFieldOfView=35;
-        bool beamWasVisible;
+        bool beamWasVisible,landingPending;
         GamePhase previous;
         public GameWorld()
         {
-            var root=new GameObject("City of light").transform;
+            var root=new GameObject("Volcanic night arena").transform;
             Camera=UnityEngine.Camera.main;
             if(!Camera)Camera=new GameObject("Main Camera").AddComponent<Camera>();
             Camera.tag="MainCamera";Camera.transform.position=cameraHome;Camera.transform.LookAt(lookAt);Camera.fieldOfView=39;
-            Camera.clearFlags=CameraClearFlags.SolidColor;Camera.backgroundColor=new Color(.015f,.03f,.08f);Camera.farClipPlane=150;Camera.allowHDR=true;
+            Camera.clearFlags=CameraClearFlags.SolidColor;Camera.backgroundColor=new Color(.02f,.006f,.018f);Camera.farClipPlane=150;Camera.allowHDR=true;
             if(!Camera.GetComponent<ContactShadows>())Camera.gameObject.AddComponent<ContactShadows>();
-            if(!Camera.GetComponent<CinematicCamera>())Camera.gameObject.AddComponent<CinematicCamera>();
+            cinematic=Camera.GetComponent<CinematicCamera>();
+            if(!cinematic)cinematic=Camera.gameObject.AddComponent<CinematicCamera>();
             if(!Object.FindFirstObjectByType<AudioListener>())Camera.gameObject.AddComponent<AudioListener>();
-            var backMat=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("Backdrop")));backMat.mainTexture=Resources.Load<Texture2D>("Art/CityDusk");
-            backdrop=Primitive("City skyline",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
+            backdropMaterial=RuntimeResources.Own(root,new Material(Resources.Load<Shader>("Backdrop")));
+            backdropMaterial.mainTexture=Resources.Load<Texture2D>("Art/VolcanoFujiNight");
+            backdropMaterial.SetFloat("_Clock",0);
+            var backMat=backdropMaterial;
+            backdrop=Primitive("Realistic Mount Fuji night backdrop",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
             backdrop.rotation=Camera.transform.rotation;
-            var key=Directional(root,"Warm city key",new Color(1,.83f,.65f),1.35f,new Vector3(38,-38,0));
+            var key=Directional(root,"Volcanic moon key",new Color(.62f,.70f,1),.72f,new Vector3(38,-38,0));
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
-            Directional(root,"Sky fill",new Color(.35f,.56f,1),.38f,new Vector3(25,130,0));
-            Directional(root,"Waterfront rim",new Color(.28f,.62f,1),.85f,new Vector3(18,155,0));
+            Directional(root,"Ash sky fill",new Color(.18f,.24f,.52f),.28f,new Vector3(25,130,0));
+            Directional(root,"Lava rim",new Color(1,.28f,.10f),.32f,new Vector3(18,155,0));
+            var arcadeFill=Point(root,"Arcade character fill",new Color(.18f,.42f,1),9);
+            arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=.72f;
+            arcadeFill.shadows=LightShadows.None;
+            // A cabinet uses colored edge light to keep the fighters readable
+            // against a dark stage. These two small, shadowless sources breathe
+            // with the combat clocks instead of flattening the Fuji backdrop.
+            heroRim=Point(root,"Hero blue rim",new Color(.12f,.56f,1),6.5f);
+            heroRim.shadows=LightShadows.None;
+            monsterRim=Point(root,"Monster ember rim",new Color(1,.20f,.055f),6.5f);
+            monsterRim.shadows=LightShadows.None;
             QualitySettings.shadowDistance=30;QualitySettings.antiAliasing=4;QualitySettings.shadows=ShadowQuality.All;
             QualitySettings.shadowResolution=UnityEngine.ShadowResolution.High;QualitySettings.pixelLightCount=6;
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor=new Color(.22f,.30f,.48f);RenderSettings.ambientEquatorColor=new Color(.12f,.17f,.26f);
-            RenderSettings.ambientGroundColor=new Color(.07f,.085f,.12f);RenderSettings.fog=false;
-            CityStage.Create(root);
-            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);
+            RenderSettings.ambientSkyColor=new Color(.18f,.21f,.27f);RenderSettings.ambientEquatorColor=new Color(.11f,.125f,.15f);
+            RenderSettings.ambientGroundColor=new Color(.04f,.045f,.052f);
+            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.Linear;RenderSettings.fogStartDistance=13;RenderSettings.fogEndDistance=42;
+            RenderSettings.fogColor=new Color(.11f,.125f,.145f);
+            volcano=VolcanoStage.Create(root);
+            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);effects=new CombatVfx(root);strikeTrails=new StrikeTrails(root);arcade=new ArcadeStageFx(root,HeroHome);
         }
         static Light Directional(Transform parent,string name,Color color,float intensity,Vector3 angles)
         {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Directional;light.color=color;light.intensity=intensity;light.transform.eulerAngles=angles;return light;}
+        static Light Point(Transform parent,string name,Color color,float range)
+        {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Point;light.color=color;light.range=range;return light;}
         internal static Transform Primitive(string name,PrimitiveType type,Transform parent,Vector3 position,Vector3 scale,Material material)
         {
             var obj=GameObject.CreatePrimitive(type);obj.name=name;obj.transform.SetParent(parent,false);obj.transform.position=position;obj.transform.localScale=scale;
@@ -62,57 +94,233 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();effects.Clear();monsterEffects.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=false;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
         public void Hit(bool special,Battle state)
         {
-            Kick(special?.10f:.045f,special);
+            // Let a normal hit read as a cabinet impact without turning it into
+            // a long shake. The stronger envelope is still short enough for a
+            // four-year-old to keep the action legible.
+            Kick(special?.12f:.065f,special);
+            cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             // Use the monster's position at this contact, including its own forward step.
-            var position=special||hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
+            var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             effects.Impact(position,special);
+            if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
+            {
+                Kick(.09f);
+                cinematic.Pulse(new Color(1,.68f,.20f),.42f);
+                effects.Combo(position);
+            }
         }
-        public void Cue(GameCue cue)
+        public void Cue(GameCue cue,Battle state=null)
         {
-            if(cue==GameCue.EnemyAttack)Burst(EnemyHome+Vector3.up*.1f,14,.5f,true);
-            if(cue==GameCue.Block){effects.Impact(ShieldCenter,false,true);monsterEffects.Impact(true);Kick(.04f);}
-            if(cue==GameCue.Hurt){effects.Impact(HeroHome+Vector3.up*2,false,false,true);monsterEffects.Impact(false);Kick(.055f);}
+            if(cue==GameCue.EnemyAttack)
+            {
+                // The rush begins with a readable visual beat.  It is a presentation
+                // pulse only; damage is still resolved at EnemyHitSeconds.
+                Burst(EnemyHome+Vector3.up*.16f,22,.62f,true);
+                cinematic.Pulse(new Color(1,.28f,.08f),.18f);
+            }
+            if(cue==GameCue.Block)
+            {
+                Vector3 contact=ShieldCenter;
+                if(enemy!=null&&state!=null)
+                    contact+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(enemy.EnemyStrikeOrigin(state)-ShieldCenter,BattleAxis),.65f);
+                effects.Impact(contact,false,true);monsterEffects.Impact(true);Kick(.04f);
+            }
+            if(cue==GameCue.Hurt)
+            {
+                Vector3 impact=HeroHome+Vector3.up*2;
+                effects.Impact(impact,false,false,true);
+                monsterEffects.Impact(false);Kick(.055f);
+            }
+            if(cue==GameCue.HeroLanded)landingPending=true;
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
+            if(cue==GameCue.Victory){effects.Impact(EnemyHome+Vector3.up*1.7f,true);Burst(EnemyHome+Vector3.up*2.2f,48,1.3f);}
             if(cue==GameCue.Beam)
             {
-                Closeup.Begin();Burst(BeamOrigin,12,.4f);
+                Closeup.Begin();
+                cinematic.Pulse(new Color(.20f,.68f,1),.42f);
+                Burst(BeamOrigin,18,.48f);
                 if(Debug.isDebugBuild)Debug.Log($"[BeamCloseup] begin duration={BeamCloseup.Duration:F2}");
             }
         }
         public void Tick(Battle state,float dt,float time)
         {
-            clock+=dt;hitTiming.Tick(dt,state.Phase);
+            MonsterLanded=false;
+            // Cues arrive before actor sampling. Emit the ground hit here,
+            // using the pelvis from the actual landing pose, once per contact.
+            if(landingPending)
+            {
+                if(state.Phase==GamePhase.Battle&&state.Action==HeroAction.Hurt)
+                {
+                    effects.GroundBurst(hero!=null?hero.GroundContactPosition:HeroHome,-BattleAxis,true);
+                    impact=.025f;impactAge=0;
+                }
+                landingPending=false;
+            }
+            if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting)cinematic.Clear();else cinematic.Tick(dt);
+            float priorVictoryAge=previous==GamePhase.Victory?arcade.PhaseAge:0;
+            clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
+            if(!Showcase&&state.Phase==GamePhase.Victory&&priorVictoryAge<VictoryMotion.LandingSeconds&&arcade.PhaseAge>=VictoryMotion.LandingSeconds)
+            {
+                MonsterLanded=true;
+                effects.GroundBurst(enemy!=null?enemy.FootPosition(true):EnemyHome,-BattleAxis,true);
+                effects.GroundBurst(enemy!=null?enemy.FootPosition(false):EnemyHome,BattleAxis,false);
+                impact=.032f;impactAge=0;
+                if(Debug.isDebugBuild)Debug.Log("[VictoryStage] monster-landed age="+arcade.PhaseAge.ToString("F2"));
+            }
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
             float focus=Closeup.Focus;
+            bool combat=state.Phase==GamePhase.Battle;
+            float punchPulse=combat&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
+                ?Mathf.Sin(Mathf.Clamp01(state.ActionAge/.42f)*Mathf.PI):0;
+            float enemyPulse=combat&&state.Enemy==EnemyPhase.Attack
+                ?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+            float warningPulse=combat&&state.Enemy==EnemyPhase.Windup
+                ?.5f+.5f*Mathf.Sin(state.EnemyAge*8):0;
+            float beamPulse=state.Action==HeroAction.Beam?Mathf.Clamp01(state.ActionAge/1.15f):0;
+            heroRim.transform.position=HeroHome-BattleAxis*1.15f+Vector3.up*2.35f;
+            monsterRim.transform.position=EnemyHome+BattleAxis*1.05f+Vector3.up*2.35f;
+            heroRim.intensity=Showcase?.55f:combat?.48f+punchPulse*1.6f+beamPulse*2.8f:state.Phase==GamePhase.Transforming?1.1f:.32f;
+            monsterRim.intensity=Showcase?.42f:combat?.42f+enemyPulse*1.45f+warningPulse*.9f:state.Phase==GamePhase.Victory?Mathf.Max(0,.75f-arcade.PhaseAge*.3f):.24f;
+            if(state.Phase==GamePhase.Victory)
+            {
+                heroRim.color=new Color(.18f,.66f,1);
+                monsterRim.color=new Color(1,.28f,.08f);
+            }
+            else
+            {
+                heroRim.color=state.Action==HeroAction.Beam?new Color(.20f,.78f,1):new Color(.12f,.56f,1);
+                monsterRim.color=state.Enemy==EnemyPhase.Attack?new Color(1,.30f,.08f):new Color(1,.20f,.055f);
+            }
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?29:battleView?(state.Action==HeroAction.Beam?26:27):35;
+            // Give the two fighters the visual priority of an arcade cabinet while
+            // retaining enough margin for the feet, effects and camera preview.
+            // Keep the fighters large enough to read on a television from across
+            // the room.  The close-up still owns the special-move hero shot; this
+            // tighter battle baseline gives ordinary exchanges the same arcade
+            // presence without changing gameplay timing or cropping the feet.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory?32:battleView?(state.Action==HeroAction.Beam?27:25):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
+            float dynamicZoom=0;
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
-            float aspect=backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.width/(float)backdrop.GetComponent<Renderer>().sharedMaterial.mainTexture.height;
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*1.5f;
+            var texture=backdropMaterial.mainTexture;
+            float aspect=texture?texture.width/(float)texture.height:16f/9f;
+            // The victory pan looks farther left than the combat lens. Grow
+            // the distant plate with that pan so its edge never enters view.
+            float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
+                ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*Mathf.Lerp(1.5f,1.7f,victoryFraming);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
+            backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
-            backdrop.position=cameraHome+backgroundRotation*new Vector3(0,h*(scale-1)*.5f,80);
+            backdrop.rotation=backgroundRotation;
+            // Keep Fuji's summit and open sky in frame when the fight lens
+            // tightens. Overscan still covers the wider introduction and recoil.
+            backdrop.position=cameraHome+backgroundRotation*new Vector3(0,-h*.04f,80);
             impactAge+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){impact=0;effects.Clear();}
             float kick=impact*Mathf.Exp(-impactAge*14)*(1-focus);
             // One damped recoil, with a restrained camera displacement for a young player.
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
-            Camera.transform.LookAt(Vector3.Lerp(lookAt,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
+            Vector3 target=lookAt;
+            if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active)
+            {
+                float hurt=state.Action==HeroAction.Hurt?KnockdownMotion.Weight(state.ActionAge):0;
+                float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI)*(1-hurt):0;
+                // The attack needs a visible forward camera travel, like an
+                // arcade cabinet's short dolly, so the monster does not appear
+                // to merely change pose in place.
+                Camera.transform.position+=new Vector3(-.28f*rush,-.16f*rush,.36f*rush);
+                target+=new Vector3(-.13f*rush,0,0);
+
+                // A short arcade lens move makes each exchange readable on a TV.
+                // It is intentionally small and uses the same deterministic battle clock
+                // as the actors, so it never changes gesture timing or gameplay state.
+                bool heroStrike=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+                float strike=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.42f)*Mathf.PI);
+                if(heroStrike)
+                {
+                    float side=state.Action==HeroAction.LeftPunch?-1:1;
+                    Camera.transform.position+=BattleAxis*(.40f*strike)+Camera.transform.right*(side*.18f*strike);
+                    target+=BattleAxis*(.23f*strike)+Vector3.up*(.075f*strike);
+                    dynamicZoom+=1.45f*strike;
+                }
+                if(rush>.01f)
+                {
+                    Camera.transform.position+=BattleAxis*(.30f*rush);
+                    target+=BattleAxis*(.20f*rush);
+                    // Alternate the lens toward the lead claw so successive rushes
+                    // do not collapse into one centered, repeated silhouette.
+                    float attackSide=state.EnemyAttackCount%2==0?-1:1;
+                    Camera.transform.position+=Camera.transform.right*(attackSide*.15f*rush);
+                    target+=Camera.transform.right*(attackSide*.08f*rush);
+                    dynamicZoom+=1.20f*rush;
+                }
+                if(state.Action==HeroAction.Hurt)
+                {
+                    // Keep the falling hero inside the 16:9 frame. The old
+                    // positive lateral kick pushed the silhouette into the
+                    // lower-left corner while the HUD was still visible.
+                    Camera.transform.position+=Camera.transform.right*(-.10f*hurt)+BattleAxis*(.10f*hurt);
+                    target+=Camera.transform.right*(-.34f*hurt)+Vector3.up*(-.16f*hurt);
+                    // Open the lens for the fall so the full body, dust and
+                    // the monster's reaction share one readable cabinet shot.
+                    dynamicZoom-=3.8f*hurt;
+                }
+            }
+            if(!Showcase&&state.Phase==GamePhase.Transforming)
+            {
+                float t=Mathf.Clamp01(arcade.PhaseAge/2.2f),sweep=Mathf.Sin(t*Mathf.PI);
+                Camera.transform.position+=new Vector3(-sweep*.65f,-sweep*.6f,sweep*.2f);
+                target=Vector3.Lerp(lookAt,HeroHome+Vector3.up*1.65f,sweep*.35f);
+            }
+            if(!Showcase&&state.Phase==GamePhase.Victory)
+            {
+                // Let the collapse finish in the two-actor shot, then follow
+                // the hero's planted-foot turn toward the child.
+                float victory=victoryFraming;
+                float sway=Mathf.Sin(Mathf.Clamp01(arcade.PhaseAge/3.1f)*Mathf.PI);
+                Camera.transform.position+=Camera.transform.right*(sway*.34f)+Vector3.up*(victory*.16f)+BattleAxis*(victory*.18f);
+                target=Vector3.Lerp(lookAt,(hero!=null?hero.Root.position:HeroHome)+Vector3.up*2.04f,victory*.92f);
+                dynamicZoom+=victory*1.5f;
+            }
+            // Briefly tighten the lens during a strike or rush, then ease back
+            // to the child-friendly wide framing instead of holding a zoom.
+            Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
+            Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
+            if(HeroShot)
+            {
+                // Cut to a front three-quarter lens. A restrained orbit keeps the
+                // finisher alive like a cabinet cut-in without changing the pose
+                // window or sweeping the camera through the arena.
+                float closeupT=Mathf.Clamp01(Closeup.Age/BeamCloseup.Duration);
+                float orbit=Mathf.Sin(closeupT*Mathf.PI)*5.5f;
+                Vector3 offset=Quaternion.AngleAxis(orbit,Vector3.up)*new Vector3(3.8f,2.82f,.9f);
+                offset.y+=Mathf.Sin(closeupT*Mathf.PI)*.10f;
+                Camera.transform.position=HeroHome+offset;
+                Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
+                Camera.fieldOfView=32;
+                // Reproject the distant landscape for this dedicated lens.
+                backdrop.rotation=Camera.transform.rotation;
+                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
+            }
+            volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
+            volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
-            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.HandPosition:null);
-            bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>.28f;
+            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null);
+            bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>BeamStream.LaunchSeconds;
             BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
-            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.15f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing);
+            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget);
+            strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active);
+            if(!Closeup.Active&&dt>0)effects.MotionDust(state,hero,enemy,BattleAxis);
             if(state.Phase!=previous){transformAge=0;previous=state.Phase;}
             transformAge+=dt;
             if(state.Phase==GamePhase.Transforming&&clock>celebrateAt)

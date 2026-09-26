@@ -13,7 +13,9 @@ class PhotoTests(unittest.TestCase):
     def test_photo_metadata_and_limits(self):
         packet = encode_photo(self.png(), 123456, True, True)
         self.assertEqual((b'UGF1', 123456, 33, 1, 1), HEADER.unpack(packet[:18]))
-        for png in (b'bad', self.png() + bytes(MAX_PNG_BYTES), self.png()[:16] + struct.pack('!I', 641) + self.png()[20:]):
+        hd=self.png()[:16]+struct.pack('!II',1280,720)+self.png()[24:]
+        self.assertEqual(51,len(encode_photo(hd,123456,False,True)))
+        for png in (b'bad', self.png() + bytes(MAX_PNG_BYTES), self.png()[:16] + struct.pack('!I', 1281) + self.png()[20:]):
             with self.assertRaises(ValueError):
                 encode_photo(png, 123456, False, True)
         with self.assertRaises(ValueError):

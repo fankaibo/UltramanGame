@@ -4,7 +4,7 @@ using UltramanGame.Core;
 
 namespace UltramanGame.Runtime
 {
-    public sealed class ArenaController : MonoBehaviour
+    public sealed partial class ArenaController : MonoBehaviour
     {
         Battle battle=new Battle();
         readonly Battle showcaseBattle=new Battle();
@@ -24,14 +24,22 @@ namespace UltramanGame.Runtime
         LocalMusic music;
         HudPainter hud;
         VictoryPhoto photo;
-        bool photoAvailable;
-        bool keyboard,paused,muted,settings,audioSettings,showPreview=true,previewReported,lastTracking;
+        bool photoAvailable,autoPhotoOpened,finalGuide;
+        float victoryAt,waitingGuideAt=20;
+        bool keyboard,paused,muted,settings,audioSettings,videoSettings,showPreview=true,previewReported,lastTracking;
+        int draftDifficulty=1,draftResolution=1;
+        bool draftPhotoAi=true;
+        Vector3 previousMouse;
+        float cursorUntil;
         const string MonsterHitsKey="battle.monsterHits";
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
         long sequence;
-        float beamTitleUntil,captionUntil,lastHealth=Battle.DefaultMonsterHits,impact,phaseStarted,hintAt=12,hitUntil,beamHelpAt;
+        float captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        int presentedPunches,presentedHits,comboCount;
+        float comboUntil;
+        int lastDamage;
         GamePhase lastPhase;
         float sampleAge,sampleSeconds,sampleWorst;
         int sampleFrames;
@@ -48,11 +56,12 @@ namespace UltramanGame.Runtime
         {
             Application.SetStackTraceLogType(LogType.Log,StackTraceLogType.None);
             monsterHits=Battle.ClampMonsterHits(PlayerPrefs.GetInt(MonsterHitsKey,Battle.DefaultMonsterHits));
-            battle=new Battle(monsterHits);lastHealth=battle.MaxHealth;
-            QualitySettings.vSyncCount=0;Application.targetFrameRate=60;
+            battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;
+            presentedPunches=presentedHits=comboCount=0;comboUntil=0;
+            DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",1);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
-            {review=new ReviewPlayback();keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=battle.MaxHealth;}
+            {review=new ReviewPlayback();keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
             Application.runInBackground=true;Screen.sleepTimeout=SleepTimeout.NeverSleep;
             client=new PoseClient(LocalPort("--pose-port",8765));previewClient=new PreviewClient(LocalPort("--preview-port",8766));
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
@@ -60,34 +69,56 @@ namespace UltramanGame.Runtime
             hud=new HudPainter(font);world=new GameWorld();sound=new GameAudio(gameObject);
             sound.InstructionStarted+=InstructionStarted;
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
-            photo=new VictoryPhoto(LocalPort("--photo-port",8767));
-            hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
+            photo=new VictoryPhoto(LocalPort("--photo-port",8767),sound);
+            heroIndex=HeroRoster.Index(PlayerPrefs.GetString("hero.selected","Tiga"));if(review!=null||!HeroAvailable(heroIndex))heroIndex=0;
+            photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;
+            hero=new AnimatedActor(SelectedHero.Id,world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             world.BindActors(hero,enemy);
             PresentationWarmup.Run(world,hero,enemy);
             music=gameObject.AddComponent<LocalMusic>();music.Initialize(sound);
-            if(!keyboard)sound.Speak("welcome",1,GamePhase.Waiting);
+            if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void Update()
         {
+            if(Input.mousePosition!=previousMouse){previousMouse=Input.mousePosition;cursorUntil=Time.unscaledTime+3;}
+            Cursor.visible=keyboard||settings||showcase||music.Choosing||Time.unscaledTime<cursorUntil||photo.Stage==PhotoStage.Review;
+            if(Input.GetKeyDown(KeyCode.F2)){SetMode(!keyboard);return;}
+            if(Input.GetKeyDown(KeyCode.F4)){if(settings)CloseSettings();else OpenSettings();}
+            if(settings)
+            {
+                if(!audioSettings&&!videoSettings)
+                {
+                    if(Input.GetKeyDown(KeyCode.LeftArrow))draftMonsterHits=Battle.ClampMonsterHits(draftMonsterHits-10);
+                    if(Input.GetKeyDown(KeyCode.RightArrow))draftMonsterHits=Battle.ClampMonsterHits(draftMonsterHits+10);
+                }
+                if(Input.GetKeyDown(KeyCode.Escape))CloseSettings();
+                if(Input.GetKeyDown(KeyCode.Return))ApplySettings();
+                sound.Tick(GamePhase.Paused,muted,Time.unscaledDeltaTime);
+                return;
+            }
             if(photo.Active)
             {
                 if(Input.GetKeyDown(KeyCode.Escape))photo.Back();
+                if(Input.GetKeyDown(KeyCode.Return))photo.PlayAgain();
+                if(Input.GetKeyDown(KeyCode.Space))photo.Retake();
                 if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
-                photo.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);return;
+                long photoNow=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                UpdatePreview(photoNow);ReadPhotoPose();
+                sound.Tick(GamePhase.Victory,muted,Time.unscaledDeltaTime);
+                photo.Tick(photoNow,pose,previewTexture);
+                if(photo.PlayAgainRequested)Restart();
+                return;
             }
             if(Input.GetKeyDown(KeyCode.F7)&&battle.Phase==GamePhase.Victory&&photoAvailable) {photo.Open();return;}
-            if(Input.GetKeyDown(KeyCode.F2))SetMode(!keyboard);
             if(Input.GetKeyDown(KeyCode.F3))showPreview=!showPreview;
-            if(Input.GetKeyDown(KeyCode.F4)) {if(settings)settings=false;else OpenSettings();}
             if(Input.GetKeyDown(KeyCode.F5))showcase=!showcase;
             if(showcase)showcaseFrame=(showcaseFrame+8+(Input.GetKeyDown(KeyCode.RightArrow)?1:0)-(Input.GetKeyDown(KeyCode.LeftArrow)?1:0))%8;
-            if(Input.GetKeyDown(KeyCode.F6)) {showcase=false;OpenSettings(true);music.Choose();}
-            if(settings&&!audioSettings)
+            if(!showcase&&battle.Phase==GamePhase.Waiting)
             {
-                if(Input.GetKeyDown(KeyCode.LeftArrow))draftMonsterHits=Battle.ClampMonsterHits(draftMonsterHits-10);
-                if(Input.GetKeyDown(KeyCode.RightArrow))draftMonsterHits=Battle.ClampMonsterHits(draftMonsterHits+10);
-                if(Input.GetKeyDown(KeyCode.Return))ApplySettings();
+                if(Input.GetKeyDown(KeyCode.LeftArrow))SelectHero(heroIndex-1);
+                if(Input.GetKeyDown(KeyCode.RightArrow))SelectHero(heroIndex+1);
             }
+            if(Input.GetKeyDown(KeyCode.F6)) {showcase=false;OpenSettings(true);music.Choose();}
             if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
             if(Input.GetKeyDown(KeyCode.Escape)) { if(showcase)showcase=false;else if(settings)settings=false;else paused=!paused; }
             if(Input.GetKeyDown(KeyCode.R))Restart();
@@ -117,6 +148,11 @@ namespace UltramanGame.Runtime
                         if(incoming!=null&&(incoming.streamId!=stream||incoming.sequence>sequence))
                         {
                             pose=incoming;stream=pose.streamId;sequence=pose.sequence;
+                            // A charged finisher must remain available through the
+                            // monster's warning beat. Previously this was disabled
+                            // during Windup/Attack, so a child who started the beam
+                            // pose at the warning could be forced into guard and
+                            // miss the arcade finisher window.
                             input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,battle.Phase==GamePhase.Waiting);
                             string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?
                                 (recognizer.ForwardPunch?"向前挥拳":"侧前挥拳"):"";
@@ -124,6 +160,11 @@ namespace UltramanGame.Runtime
                             {
                                 gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
                                 if(Debug.isDebugBuild)Debug.Log("[Gesture] "+detected);
+                            }
+                            if(input.Shield&&!held.Shield)
+                            {
+                                gestureFeedback="护盾已展开";gestureFeedbackUntil=Time.unscaledTime+1.3f;
+                                if(Debug.isDebugBuild)Debug.Log("[Gesture] 护盾已展开");
                             }
                         }
                     }
@@ -133,40 +174,64 @@ namespace UltramanGame.Runtime
                 input.Tracking=presence.Update(pose,now);held=input;
             }
             if(review!=null)input=review.Next(battle,dt);
+            if(!keyboard&&battle.Phase==GamePhase.Waiting&&Time.unscaledTime>=waitingGuideAt&&!sound.VoicePlaying)
+            {sound.Speak("arcade_ready",1,GamePhase.Waiting);waitingGuideAt=Time.unscaledTime+22;}
             if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
             { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
+            if(battle.Phase==GamePhase.Waiting&&Time.unscaledTime-selectionChangedAt<.5f)input.Transform=false;
             battle.Tick(world.BattleDelta(dt,battle),input);
-            if(battle.Phase==GamePhase.Paused)beamTitleUntil=0;
+            if(battle.Punches>presentedPunches)
+            {
+                comboCount=Time.unscaledTime<=comboUntil?comboCount+(battle.Punches-presentedPunches):battle.Punches-presentedPunches;
+                comboUntil=Time.unscaledTime+2.6f;presentedPunches=battle.Punches;
+            }
+            if(battle.HitsTaken>presentedHits)
+            {presentedHits=battle.HitsTaken;comboCount=0;comboUntil=0;}
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
             while(battle.TryCue(out var cue))PlayCue(cue);
             bool damage=battle.EnemyHealth<lastHealth;bool specialDamage=lastHealth-battle.EnemyHealth>1;
             if(damage)
             {
-                bool special=lastHealth-battle.EnemyHealth>1;impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
+                bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
+                impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
+                if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
                 sound.Effect("impact",special?1:.8f);
+                if(!special&&battle.Punches%5==0)sound.Effect("combo",.82f);
             }
-            lastHealth=battle.EnemyHealth;impact=Mathf.Max(0,impact-dt);
+            lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
+            // Sample the contact pose first. The shared impact clock holds its
+            // action age on following frames while sparks, light and recoil
+            // continue to move. Never freeze the renderer on a pre-contact pose.
             hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             if(damage)world.Hit(specialDamage,battle);
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(world.MonsterLanded)sound.MonsterLanding();
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
-            enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+            enemy.SetPresentationOpacity(world.EnemyOpacity);
+            if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
+            {autoPhotoOpened=true;photo.Open();}
+            if(!keyboard&&!finalGuide&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)
+            {finalGuide=true;sound.Speak("arcade_final",3,battle.Phase);}
             if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
             {
                 if(battle.Punches==0&&Time.unscaledTime>hintAt&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0)
                 {sound.Speak("tutorial",3,battle.Phase);hintAt=Time.unscaledTime+20;}
                 if(battle.Energy<Battle.MaxEnergy)beamHelpAt=Time.unscaledTime+6;
                 else if(Time.unscaledTime>beamHelpAt&&battle.InstructionRemaining<=0&&battle.Enemy==EnemyPhase.Rest)
-                {sound.Speak("beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
+                {sound.Speak(recognizer.BeamNeedsRelease&&sound.HasVoice("beam_reset")?"beam_reset":"beam_help",3,battle.Phase);beamHelpAt=Time.unscaledTime+22;}
             }
         }
         void LateUpdate()
         {
+            // The photo view covers the entire screen and owns its offscreen
+            // camera. Suspend arena shadows/bloom until the child returns.
+            world.Camera.enabled=!photo.Active;
+            CaptureGuidedProof();
             if(review==null)return;
             if(battle.Phase==GamePhase.Paused)reviewPaused=true;
             if(battle.Phase==GamePhase.Victory)
@@ -178,7 +243,7 @@ namespace UltramanGame.Runtime
                     Debug.Log($"[FullGameReview] pass={pass} age={review.Age:F2} punches={battle.Punches} beams={reviewBeams} blocks={battle.Blocks} hurt={battle.HitsTaken} pause={reviewPaused} health={battle.EnemyHealth}");
                     if(!pass){Application.Quit(2);return;}
                 }
-                if(review.Age-reviewFinishedAt>3)Application.Quit(0);
+                if(review.Age-reviewFinishedAt>5)Application.Quit(0);
             }
             else if(review.Age>150){Debug.LogError("[FullGameReview] timeout");Application.Quit(3);}
         }
@@ -188,9 +253,10 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
             switch(key)
             {
-                case "battle":caption="挥动拳头，守护这座城市！";break;
+                case "battle":caption="挥动拳头，守护火山基地！";break;
                 case "energy":caption="能量满了 · 双手向前推，停一下";break;
                 case "beam_help":caption="摆 L 形，或双手向前推 · 停一下";break;
+                case "beam_reset":caption="先收回双手，再摆光线姿势，停一下";break;
                 case "tutorial":caption="先把手收回来，再挥出去";break;
                 case "resume":caption="准备好了，继续！";break;
                 default:return;
@@ -201,14 +267,15 @@ namespace UltramanGame.Runtime
         void PlayCue(GameCue cue)
         {
             if(Debug.isDebugBuild)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
-            sound.Cue(cue,battle.Phase);world.Cue(cue);
+            sound.Cue(cue,battle.Phase);world.Cue(cue,battle);
             switch(cue)
             {
-                case GameCue.BattleStart:caption="挥动拳头，守护这座城市！";hintAt=Time.unscaledTime+12;break;
+                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;hintAt=Time.unscaledTime+12;break;
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
-                case GameCue.Beam:caption="哉佩利敖光线！";beamTitleUntil=Time.unscaledTime+BeamCloseup.Duration+2;break;
+                case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
+                case GameCue.Victory:victoryAt=Time.unscaledTime;break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
@@ -216,25 +283,54 @@ namespace UltramanGame.Runtime
         }
         void Restart()
         {
-            photo?.Close();
-            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;paused=settings=showcase=false;
-            lastHealth=battle.MaxHealth;impact=0;captionUntil=0;beamTitleUntil=0;hitUntil=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
+            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;
+            // A photo round can leave the native worker on the same camera stream.
+            // Reset the envelope cursor so the first frames of the new round are
+            // always eligible to re-arm the raised-hands transform gesture.
+            stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
+            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;battleStartCueAt=-1;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            presentedPunches=presentedHits=comboCount=0;comboUntil=0;
+            if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
         void OpenSettings(bool audio=false)
-        {draftMonsterHits=monsterHits;audioSettings=audio;settings=true;}
+        {draftMonsterHits=monsterHits;draftDifficulty=recognizer.Difficulty;draftResolution=DisplayPreferences.Quality;
+         draftPhotoAi=PlayerPrefs.GetInt("photo.ai",1)==1;audioSettings=audio;videoSettings=false;settings=true;}
+        void CloseSettings(){settings=false;photo.ResumeGuidance();recognizer.Reset();held=default;}
         void ApplySettings()
         {
-            sound.Save();settings=false;
+            sound.Save();recognizer.Difficulty=draftDifficulty;
+            PlayerPrefs.SetInt("gesture.difficulty",draftDifficulty);PlayerPrefs.SetInt("photo.ai",draftPhotoAi?1:0);
+            if(DisplayPreferences.Quality!=draftResolution)DisplayPreferences.Apply(draftResolution);
+            PlayerPrefs.SetInt("display.resolution",draftResolution);PlayerPrefs.Save();CloseSettings();
             if(draftMonsterHits==monsterHits)return;
             monsterHits=Battle.ClampMonsterHits(draftMonsterHits);PlayerPrefs.SetInt(MonsterHitsKey,monsterHits);PlayerPrefs.Save();
             if(Debug.isDebugBuild)Debug.Log($"[Settings] monsterHits={monsterHits} energyPunches={Battle.MaxEnergy}");
             Restart();
         }
-        void SetMode(bool value) {keyboard=value;Restart();}
+        void SetMode(bool value)
+        {
+            if(keyboard==value)return;
+            keyboard=value;photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
+            // Only replace the input source: keep the round, selected hero and
+            // any open settings/photo review, while discarding stale gestures.
+            recognizer.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
+            lastTracking=false;gestureFeedbackUntil=0;cursorUntil=Time.unscaledTime+3;
+            if(battle.Phase==GamePhase.Waiting&&!photo.Active)
+            {sound.Reset();if(!keyboard&&!settings)sound.Speak("arcade_ready",1,GamePhase.Waiting);}
+            if(Debug.isDebugBuild)Debug.Log($"[InputMode] mode={(keyboard?"keyboard":"camera")} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy} hero={SelectedHero.Id}");
+        }
+        void ReadPhotoPose()
+        {
+            var line=client.TakeLatest();
+            if(line==null)return;
+            try {pose=JsonUtility.FromJson<PoseFrame>(line);}
+            catch(ArgumentException) {pose=null;}
+        }
         void UpdatePreview(long now)
         {
             var incoming=previewClient.TakeLatest();
-            if(keyboard||!showPreview)
+            if((keyboard&&!photo.Active)||!showPreview)
             {previewFrame=null;if(previewTexture){Destroy(previewTexture);previewTexture=null;}return;}
             if(incoming!=null&&incoming.Fresh(now))
             {
@@ -287,21 +383,22 @@ namespace UltramanGame.Runtime
         {
             if(hud==null)return;
             GUI.matrix=Matrix4x4.TRS(Vector3.zero,Quaternion.identity,new Vector3(Screen.width/1280f,Screen.height/720f,1));
+            if(settings){DrawSettings();return;}
             if(photo.Active)
             {
                 GUI.matrix=Matrix4x4.identity;hud.Box(new Rect(0,0,Screen.width,Screen.height),new Color(.012f,.025f,.05f));
                 float scale=Mathf.Min(Screen.width/1280f,Screen.height/720f);
                 GUI.matrix=Matrix4x4.TRS(new Vector3((Screen.width-1280*scale)/2,(Screen.height-720*scale)/2,0),Quaternion.identity,new Vector3(scale,scale,1));
-                photo.Draw(hud);return;
+                photo.Draw(hud);DrawSettingsEntry();return;
             }
             // Give modal controls a stable event path; do not submit background buttons while it is open.
             if(settings) {DrawSettings();return;}
             if(showcase)
             {
                 hud.Box(new Rect(0,0,1280,94),new Color(.012f,.025f,.06f,.92f));
-                hud.Text(new Rect(34,18,800,43),"角色展示 · 迪迦与哥尔赞",28,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(36,63,900,24),"迪迦 · "+AnimatedActor.HeroPoses[showcaseFrame]+"    /    哥尔赞 · "+AnimatedActor.MonsterPoses[showcaseFrame],17,HudPainter.Cyan);
-                if(hero.IsRigged)hud.Text(new Rect(844,23,400,34),"迪迦：Extrazhang · BlendSwap · CC-BY-NC",13,HudPainter.Muted);
+                hud.Text(new Rect(34,18,800,43),"角色展示 · "+SelectedHero.Name+"与哥尔赞",28,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(36,63,900,24),SelectedHero.Name+" · "+(showcaseFrame==4?SelectedHero.Beam:AnimatedActor.HeroPoses[showcaseFrame])+"    /    哥尔赞 · "+AnimatedActor.MonsterPoses[showcaseFrame],17,HudPainter.Cyan);
+                if(hero.IsRigged)hud.Text(new Rect(844,23,400,34),SelectedHero.Id=="Tiga"?"迪迦：Extrazhang · BlendSwap · CC-BY-NC":SelectedHero.Id=="Geed"||SelectedHero.Id=="Grigio"?SelectedHero.Name+"：RayNoGame · GTAall":SelectedHero.Name+"：TengenGenesic / ultimo · SFMLab",12,HudPainter.Muted);
                 if(enemy.IsRigged)hud.Text(new Rect(844,48,400,28),"哥尔赞：TengenGenesic / ultimo · SFMLab",12,HudPainter.Muted);
                 hud.Box(new Rect(0,648,1280,72),new Color(.012f,.025f,.06f,.95f));
                 if(hud.Button(new Rect(36,665,144,37),"上个动作"))showcaseFrame=(showcaseFrame+7)%8;
@@ -310,15 +407,16 @@ namespace UltramanGame.Runtime
                 if(hud.Button(new Rect(1050,665,192,37),"返回游戏 · F5"))showcase=false;
                 return;
             }
-            if(world.Closeup.Active) {DrawBeamCloseup();return;}
+            if(world.Closeup.Active) {DrawBeamCloseup();DrawSettingsEntry();return;}
+            if(!keyboard||battle.Phase==GamePhase.Waiting) {DrawArcadeHud();DrawSettingsEntry();return;}
             if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
             {DrawBattleHud();return;}
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float time=Time.unscaledTime;
             hud.Box(new Rect(0,0,1280,103),new Color(.012f,.025f,.06f,.91f));hud.Box(new Rect(28,101,1224,1),new Color(.25f,.53f,.8f,.25f));
             hud.Dot(new Vector2(47,47),33,new Color(.18f,.4f,.62f));hud.Dot(new Vector2(47,47),13,HudPainter.Cyan);
-            hud.Text(new Rect(78,23,410,41),"迪迦 · 光之训练场",29,HudPainter.Ink,bold:true);
-            hud.Text(new Rect(80,66,390,22),"CITY OF LIGHT  /  一起守护城市",12,HudPainter.Muted);
-            string stage=battle.Phase==GamePhase.Waiting?"准备出发":battle.Phase==GamePhase.Transforming?"光之变身":battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"城市守护";
+            hud.Text(new Rect(78,23,410,41),SelectedHero.Name+" · 熔岩训练场",29,HudPainter.Ink,bold:true);
+            hud.Text(new Rect(80,66,390,22),"VOLCANIC RUINS  /  守护火山基地",12,HudPainter.Muted);
+            string stage=battle.Phase==GamePhase.Waiting?"准备出发":battle.Phase==GamePhase.Transforming?"光之变身":battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"火山守护";
             hud.Rounded(new Rect(526,30,166,35),new Color(.14f,.37f,.46f,.48f));hud.Text(new Rect(526,30,166,35),stage,17,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(801,20,250,26),"哥尔赞 · 训练对手",17,HudPainter.Ink);
             hud.Text(new Rect(1077,20,171,26),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",15,HudPainter.Muted,TextAnchor.MiddleRight);
@@ -332,16 +430,30 @@ namespace UltramanGame.Runtime
                 bool waiting=battle.Phase==GamePhase.Waiting;
                 hud.Panel(new Rect(28,209,330,289),HudPainter.Cyan,true);
                 hud.Text(new Rect(48,225,290,24),waiting?"01  /  唤醒光的力量":"光的力量，正在苏醒",14,HudPainter.Cyan);
-                hud.Text(new Rect(48,259,290,43),waiting?(keyboard?"按空格，变身！":"双手举高，变身！"):"迪迦，出发！",27,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(48,259,290,43),waiting?(keyboard?"按空格，变身！":"双手举高，变身！"):SelectedHero.Name+"，出发！",27,HudPainter.Ink,bold:true);
                 hud.Figure(new Rect(52,321,108,110),"transform",time,HudPainter.Gold);
-                hud.Text(new Rect(180,323,157,100),keyboard?"空格开始\nA / D 挥拳":waiting?"像左边一样\n把双手举高\n保持一小会儿":"你就是\n守护城市的英雄",17,HudPainter.Muted);
+                hud.Text(new Rect(180,323,157,100),keyboard?"空格开始\nA / D 挥拳":waiting?"像左边一样\n把双手举高\n保持一小会儿":"你就是\n守护火山基地的英雄",17,HudPainter.Muted);
                 float progress=waiting?(keyboard?0:recognizer.TransformProgress):Mathf.Clamp01((time-phaseStarted)/2.2f);
                 hud.Bar(new Rect(49,453,289,7),progress,HudPainter.Cyan);
                 hud.Text(new Rect(49,466,289,22),waiting?(PoseQuality.Present(pose,now)||keyboard?"站稳，慢慢来就可以":"先让肩膀和双手进入画面"):"光之能量充能中",12,HudPainter.Muted);
             }
-            ActionCard(28,"挥拳出击",keyboard?"A / D · 左右交替":$"收手，再挥出去  ·  命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Phase==GamePhase.Battle&&(battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch));
-            ActionCard(348,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
-            ActionCard(668,"必杀光线",keyboard?"能量满后按 J":battle.Energy>=Battle.MaxEnergy?"摆 L 形 / 双手前推":$"普攻命中 {Battle.MaxEnergy} 次蓄满","beam",HudPainter.Gold,battle.Phase==GamePhase.Battle&&(battle.Energy>=Battle.MaxEnergy||battle.Action==HeroAction.Beam));
+            bool compactBattle=battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused;
+            if(compactBattle&&battle.Action!=HeroAction.Hurt)
+            {
+                // Once the round starts, keep the playfield dominant like the
+                // reference cabinet. The large cards remain useful during the
+                // waiting/transform handoff, then collapse into a small rail so
+                // the actors, sparks and camera moves are not hidden by UI.
+                BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
+                BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
+                BattleAction(468,"必杀光线",keyboard?"满能量后按 J":battle.Energy>=Battle.MaxEnergy?"L 形 / 双手前推":$"普攻 {battle.Energy}/{Battle.MaxEnergy}","beam",HudPainter.Gold,battle.Energy>=Battle.MaxEnergy||battle.Action==HeroAction.Beam);
+            }
+            else if(!compactBattle&&battle.Phase!=GamePhase.Victory)
+            {
+                ActionCard(28,"挥拳出击",keyboard?"A / D · 左右交替":$"收手，再挥出去  ·  命中 {battle.Punches}","punch",HudPainter.Cyan,false);
+                ActionCard(348,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,false);
+                ActionCard(668,"必杀光线",keyboard?"能量满后按 J":battle.Energy>=Battle.MaxEnergy?"摆 L 形 / 双手前推":$"普攻命中 {Battle.MaxEnergy} 次蓄满","beam",HudPainter.Gold,false);
+            }
             if(!keyboard&&battle.Energy>=Battle.MaxEnergy)hud.Bar(new Rect(764,623,180,4),recognizer.BeamProgress,HudPainter.Gold);
             DrawPreview();
             DrawFooter(false);
@@ -359,7 +471,7 @@ namespace UltramanGame.Runtime
             hud.Dot(new Vector2(28,y+height/2),compact?5:7,keyboard||PoseQuality.Present(pose,now)?HudPainter.Cyan:HudPainter.Gold);
             hud.Text(new Rect(40,y,570,height),status,compact?11:14,HudPainter.Muted);
             if(hud.Button(new Rect(640,y,116,height),"角色 · F5",size:fontSize))showcase=true;
-            if(hud.Button(new Rect(770,y,130,height),keyboard?"切回体感":"键盘练习",size:fontSize))SetMode(!keyboard);
+            DrawModeSwitch(new Rect(765,y,137,height),fontSize);
             if(hud.Button(new Rect(912,y,108,height),"游戏设置",size:fontSize))OpenSettings();
             if(hud.Button(new Rect(1032,y,100,height),paused?"继续":"暂停",size:fontSize))paused=!paused;
             if(hud.Button(new Rect(1144,y,108,height),"重新开始",size:fontSize))Restart();
@@ -387,7 +499,7 @@ namespace UltramanGame.Runtime
                 hud.Line(new Vector2(-offset,y),new Vector2(115+i*17-offset,y-12),color,2);
                 hud.Line(new Vector2(1165+offset,y-12),new Vector2(1320+offset,y),color,2);
             }
-            hud.Text(new Rect(140,720-band,1000,band),"哉佩利敖光线！",32,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
+            hud.Text(new Rect(140,720-band,1000,band),SelectedHero.Beam+"！",32,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
         }
         void DrawBattleHud()
         {
@@ -395,13 +507,14 @@ namespace UltramanGame.Runtime
             bool ready=battle.Energy>=Battle.MaxEnergy;
             hud.Box(new Rect(0,0,1280,62),new Color(.012f,.025f,.06f,.82f));
             hud.Dot(new Vector2(29,29),18,new Color(.18f,.4f,.62f));hud.Dot(new Vector2(29,29),7,HudPainter.Cyan);
-            hud.Text(new Rect(47,8,310,26),"迪迦 · 光之训练场",18,HudPainter.Ink,bold:true);
+            hud.Text(new Rect(47,8,310,26),SelectedHero.Name+" · 熔岩训练场",18,HudPainter.Ink,bold:true);
             hud.Text(new Rect(48,34,320,18),keyboard?"键盘练习":pose?.source=="synthetic"?"合成动作测试 · 非摄像头":"摄像头体感",11,HudPainter.Muted);
-            string stage=battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"城市守护";
+            string stage=battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"火山守护";
             hud.Rounded(new Rect(552,15,136,27),new Color(.14f,.37f,.46f,.38f));
             hud.Text(new Rect(552,15,136,27),stage,13,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(850,9,245,20),"哥尔赞",14,HudPainter.Ink);
             hud.Text(new Rect(1090,9,162,20),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",13,HudPainter.Muted,TextAnchor.MiddleRight);
+            hud.Bar(new Rect(850,37,402,6),enemyHealthDisplay/battle.MaxHealth,new Color(1,.78f,.28f,.60f));
             hud.Bar(new Rect(850,37,402,6),battle.EnemyHealth/battle.MaxHealth,new Color(.93f,.49f,.34f));
             hud.Panel(new Rect(20,78,204,49),HudPainter.Gold,ready);
             hud.Text(new Rect(32,83,181,19),ready?"光线就绪":$"光线能量  {battle.Energy:0} / {Battle.MaxEnergy}",12,ready?HudPainter.Gold:HudPainter.Muted);
@@ -416,20 +529,23 @@ namespace UltramanGame.Runtime
             }
             else if(time<hitUntil&&battle.Phase==GamePhase.Battle)
                 hud.Text(new Rect(20,143,230,34),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",20,HudPainter.Gold,TextAnchor.MiddleCenter,true);
-            if(time<beamTitleUntil&&(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Victory))
-            {hud.Panel(new Rect(455,78,370,46),HudPainter.Gold,true);hud.Text(new Rect(465,84,350,34),"哉佩利敖光线！",23,HudPainter.Gold,TextAnchor.MiddleCenter,true);}
+            if(battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
             else if(time<captionUntil&&battle.Phase==GamePhase.Battle)
             {hud.Panel(new Rect(465,78,350,29),HudPainter.Cyan);hud.Text(new Rect(475,81,330,23),caption,13,HudPainter.Ink,TextAnchor.MiddleCenter);}
-            BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
-            BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
-            BattleAction(468,"必杀光线",keyboard?"满能量后按 J":ready?"L 形 / 双手前推":$"普攻 {battle.Energy:0}/{Battle.MaxEnergy}","beam",HudPainter.Gold,ready||battle.Action==HeroAction.Beam);
-            if(!keyboard&&ready)hud.Bar(new Rect(524,673,145,2),recognizer.BeamProgress,HudPainter.Gold);
+            if(battle.Phase!=GamePhase.Victory&&battle.Action!=HeroAction.Hurt&&battle.Action!=HeroAction.Beam)
+            {
+                BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
+                BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
+                BattleAction(468,"必杀光线",keyboard?"满能量后按 J":ready?"L 形 / 双手前推":$"普攻 {battle.Energy:0}/{Battle.MaxEnergy}","beam",HudPainter.Gold,ready||battle.Action==HeroAction.Beam);
+                if(!keyboard&&ready)hud.Bar(new Rect(524,673,145,2),recognizer.BeamProgress,HudPainter.Gold);
+            }
+            DrawBattleStartCue();
             DrawPreview(true);
             if(battle.Phase==GamePhase.Victory)
             {
                 hud.Panel(new Rect(20,145,252,252),HudPainter.Gold,true);
-                hud.Text(new Rect(38,160,218,36),"城市守护成功！",21,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(38,209,218,42),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次",14,HudPainter.Muted);
+                hud.Text(new Rect(38,160,218,36),"火山守护成功！",21,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(38,209,218,60),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次\n得分 {ArcadeScore():000000}",14,HudPainter.Muted);
                 GUI.enabled=photoAvailable;
                 if(hud.Button(new Rect(38,267,216,42),"      合照 · F7",HudPainter.Cyan,16))photo.Open();
                 hud.Rounded(new Rect(79,283,21,14),photoAvailable?HudPainter.Cyan:HudPainter.Muted,3);
@@ -443,7 +559,7 @@ namespace UltramanGame.Runtime
                 bool interrupted=!keyboard&&!PoseQuality.Fresh(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 hud.Panel(new Rect(462,244,356,142),HudPainter.Cyan);
                 hud.Text(new Rect(478,254,324,32),paused?"休息一下吧":interrupted?"相机连接中断，进度已保留":"等你回来，一起继续",20,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护城市":interrupted?"请稍等，也可以切换到键盘练习":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
+                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护火山基地":interrupted?"请稍等，也可以切换到键盘练习":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
                 if(paused&&hud.Button(new Rect(552,339,176,31),"继续战斗",size:13))paused=false;
                 if(!paused)hud.Bar(new Rect(500,351,280,5),battle.ResumeProgress/1.2f,HudPainter.Cyan);
             }
@@ -453,9 +569,11 @@ namespace UltramanGame.Runtime
         {
             hud.Box(new Rect(0,0,1280,661),new Color(.005f,.01f,.03f,.72f));hud.Panel(new Rect(355,115,570,521),HudPainter.Cyan);
             hud.Text(new Rect(385,134,500,40),"游戏设置",27,HudPainter.Ink,bold:true);
-            if(hud.Button(new Rect(386,184,246,36),"战斗",audioSettings?HudPainter.Muted:HudPainter.Cyan))audioSettings=false;
-            if(hud.Button(new Rect(648,184,246,36),"声音与音乐",audioSettings?HudPainter.Cyan:HudPainter.Muted))audioSettings=true;
-            if(audioSettings)DrawAudioSettings();else
+            DrawModeSwitch(new Rect(705,138,189,34),14);
+            if(hud.Button(new Rect(386,184,160,36),"战斗与动作",!audioSettings&&!videoSettings?HudPainter.Cyan:HudPainter.Muted)){audioSettings=videoSettings=false;}
+            if(hud.Button(new Rect(560,184,160,36),"声音与音乐",audioSettings?HudPainter.Cyan:HudPainter.Muted)){audioSettings=true;videoSettings=false;}
+            if(hud.Button(new Rect(734,184,160,36),"画面与合照",videoSettings?HudPainter.Cyan:HudPainter.Muted)){videoSettings=true;audioSettings=false;}
+            if(videoSettings)DrawDisplaySettings();else if(audioSettings)DrawAudioSettings();else
             {
                 hud.Text(new Rect(386,241,508,28),"怪兽血量 · 可承受的普攻次数",20,HudPainter.Ink,bold:true);
                 if(hud.Button(new Rect(386,289,64,42),"−10"))draftMonsterHits=Battle.ClampMonsterHits(draftMonsterHits-10);
@@ -464,12 +582,28 @@ namespace UltramanGame.Runtime
                 draftMonsterHits=Mathf.RoundToInt(GUI.HorizontalSlider(new Rect(400,356,480,24),draftMonsterHits,Battle.MinMonsterHits,Battle.MaxMonsterHits)/10)*10;
                 hud.Text(new Rect(386,382,320,30),$"{Battle.MinMonsterHits}–{Battle.MaxMonsterHits} 次 · 每次调整 10",14,HudPainter.Muted);
                 if(hud.Button(new Rect(760,382,134,30),"恢复默认 50"))draftMonsterHits=Battle.DefaultMonsterHits;
-                hud.Text(new Rect(386,435,508,30),$"大招蓄能：每命中 {Battle.MaxEnergy} 次普攻攒满",20,HudPainter.Cyan);
-                hud.Text(new Rect(386,477,508,55),"光线伤害相当于 9 次普攻；防御不增加能量。\n← / → 调整，Enter 应用；修改后重开并记住设置。",15,HudPainter.Muted);
+                hud.Text(new Rect(386,429,508,25),"动作门槛 · 默认标准，减少误触发",17,HudPainter.Cyan);
+                for(int i=0;i<3;i++)if(hud.Button(new Rect(386+i*174,466,160,34),new[]{"宽松","标准","挑战"}[i],draftDifficulty==i?HudPainter.Gold:HudPainter.Muted,15))draftDifficulty=i;
+                hud.Text(new Rect(386,516,508,28),$"大招需 {Battle.MaxEnergy} 次普攻蓄满 · 更换血量会开始新一局",14,HudPainter.Muted);
             }
             bool changed=draftMonsterHits!=monsterHits;
             if(hud.Button(new Rect(386,567,508,40),changed?"应用并开始新一局":"保存并返回"))
                 ApplySettings();
+        }
+        void DrawSettingsEntry()
+        {
+            if(hud.Button(new Rect(18,674,145,30),"设置 · F4",HudPainter.Muted,13))OpenSettings();
+            DrawModeSwitch(new Rect(175,674,177,30),13);
+        }
+        void DrawModeSwitch(Rect rect,int size)
+        {if(hud.Button(rect,keyboard?"切换体感 · F2":"切换按键 · F2",HudPainter.Cyan,size))SetMode(!keyboard);}
+        void DrawDisplaySettings()
+        {
+            hud.Text(new Rect(386,239,508,30),"画面分辨率 · 目标 60 FPS",21,HudPainter.Ink,bold:true);
+            for(int i=0;i<3;i++)if(hud.Button(new Rect(386,280+i*46,508,36),DisplayPreferences.Label(i),draftResolution==i?HudPainter.Gold:HudPainter.Muted,18))draftResolution=i;
+            hud.Text(new Rect(386,423,508,26),$"当前画面 {Screen.width} × {Screen.height} · 60 FPS 上限",14,HudPainter.Muted);
+            if(hud.Button(new Rect(386,462,508,35),draftPhotoAi?"合照 AI 融合美化：开":"合照 AI 融合美化：关",draftPhotoAi?HudPainter.Cyan:HudPainter.Muted,17))draftPhotoAi=!draftPhotoAi;
+            hud.Text(new Rect(386,510,508,40),"原图先保存，AI 版本完成后另存；不耽误下一局。\n2K 对显卡要求更高，可随时切回 1080P。",14,HudPainter.Muted);
         }
         void DrawAudioSettings()
         {
@@ -489,6 +623,6 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(386,510,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
         }
         void OnDestroy()
-        {photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
+        {Cursor.visible=true;photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}
     }
 }

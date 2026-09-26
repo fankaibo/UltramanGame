@@ -6,7 +6,7 @@ namespace UltramanGame.Core
     public enum GamePhase { Waiting, Transforming, Battle, Paused, Victory }
     public enum EnemyPhase { Rest, Windup, Attack, Recover }
     public enum HeroAction { None, LeftPunch, RightPunch, Beam, Hurt }
-    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack }
+    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack, HeroLanded }
 
     // Unity-free deterministic rules. The renderer observes state; it never awards damage.
     public sealed class Battle
@@ -24,12 +24,16 @@ namespace UltramanGame.Core
         public float ResumeProgress { get; private set; }
         public bool Shield { get; private set; }
         public int Punches { get; private set; }
+        // Increments at the start of each telegraphed rush so presentation can
+        // alternate the monster's lead claw without changing combat timing.
+        public int EnemyAttackCount { get; private set; }
         public int Blocks { get; private set; }
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
         public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
+        public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
         GamePhase resumePhase;
         float phaseAge, immunity;
@@ -101,6 +105,12 @@ namespace UltramanGame.Core
             InstructionRemaining=Math.Max(0,InstructionRemaining-dt);
             queuedBeamAge=Math.Max(0,queuedBeamAge-dt);
             if(input.Beam&&Energy>=MaxEnergy&&Action!=HeroAction.Beam)queuedBeamAge=.8f;
+            if(input.Shield)
+            {
+                queuedBeamAge=0;
+                // A child's guard takes over immediately, including an unfinished punch recovery.
+                if(hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
+            }
             queuedAge-=dt;
             if(queuedAge<=0 || input.Shield || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&
@@ -123,8 +133,11 @@ namespace UltramanGame.Core
             }
             if(Action!=HeroAction.None)
             {
+                float previousActionAge=ActionAge;
                 ActionAge+=dt;
-                float hitTime=Action==HeroAction.Beam?.45f:PunchHitSeconds;
+                if(Action==HeroAction.Hurt&&previousActionAge<KnockdownMotion.LandingSeconds&&ActionAge>=KnockdownMotion.LandingSeconds)
+                    Cue(GameCue.HeroLanded);
+                float hitTime=Action==HeroAction.Beam?BeamHitSeconds:PunchHitSeconds;
                 if(!hitApplied && Action!=HeroAction.Hurt && ActionAge>=hitTime)
                 {
                     hitApplied=true;
@@ -132,7 +145,7 @@ namespace UltramanGame.Core
                     else { EnemyHealth=Math.Max(0,EnemyHealth-1); Punches++; AddEnergy(1); }
                     if(EnemyHealth<=0) { Phase=GamePhase.Victory; Shield=false; Cue(GameCue.Victory); return; }
                 }
-                float duration=Action==HeroAction.Beam?1.5f:Action==HeroAction.Hurt?.55f:PunchSeconds;
+                float duration=Action==HeroAction.Beam?BeamSeconds:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
                 if(ActionAge>=duration) Action=HeroAction.None;
             }
             // Special move provides an obvious window of protection.
@@ -142,7 +155,7 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Windup; EnemyAge=0;WarningDuration=WindupSeconds; Cue(GameCue.Warning); }
             else if(Enemy==EnemyPhase.Windup && EnemyAge>=WarningDuration)
             {
-                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.EnemyAttack);
+                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;EnemyAttackCount++;Cue(GameCue.EnemyAttack);
             }
             else if(Enemy==EnemyPhase.Attack)
             {

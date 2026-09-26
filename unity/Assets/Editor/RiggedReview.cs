@@ -31,9 +31,17 @@ namespace UltramanGame.Editor
             var monsterBounds=BodyBounds(enemy.Root);
             if(Mathf.Abs(monsterBounds.size.y-3.6f)>.04f||Mathf.Abs(monsterBounds.min.y)>.03f)
                 throw new Exception("Monster scale/grounding failed: "+monsterBounds);
+            foreach(string side in new[]{"L","R"})
+            {
+                float shoulder=Mathf.Abs(enemy.Root.InverseTransformPoint(Joint(enemy.Root,"bip_upperArm_"+side).position).x);
+                float elbow=Mathf.Abs(enemy.Root.InverseTransformPoint(Joint(enemy.Root,"bip_lowerArm_"+side).position).x);
+                if(elbow<=shoulder+.025f)throw new Exception("Monster elbow folds into the chest: "+side);
+            }
             var claw=Joint(enemy.Root,"bip_hand_R");var idleClaw=claw.position;
+            var finger=Joint(enemy.Root,"bip_index_1_L");var idleFinger=finger.position;
             enemy.Update(state,world.Camera,0,0,2);
             if(Vector3.Distance(idleClaw,claw.position)<.3f)throw new Exception("Monster claw clip did not deform the arm");
+            if(Vector3.Distance(idleFinger,finger.position)<.008f)throw new Exception("Monster claw fingers did not articulate");
             enemy.Update(state,world.Camera,0,0,0);
             var wrist=Joint(hero.Root,"HandBase_R");var hip=Joint(hero.Root,"hip");
             var idle=wrist.position;var hipIdle=hip.position;
@@ -61,13 +69,17 @@ namespace UltramanGame.Editor
                 while(state.TryCue(out var cue))world.Cue(cue);
                 if(state.EnemyHealth<health)world.Hit(health-state.EnemyHealth>1,state);
                 health=state.EnemyHealth;
-                hero.Update(state,world.Camera,1/30f,t);enemy.Update(state,world.Camera,1/30f,t);world.Tick(state,1/30f,t);enemy.SetPresentationOpacity(1-world.Closeup.Focus);
+                hero.Update(state,world.Camera,1/30f,t);enemy.Update(state,world.Camera,1/30f,t);world.Tick(state,1/30f,t);enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)releases++;
                 if(frame>1)maxHandStep=Mathf.Max(maxHandStep,Vector3.Distance(previousHand,wrist.position));previousHand=wrist.position;
                 if(frame%3==0&&state.Phase==GamePhase.Battle)
                 {
                     float h=BodyBounds(hero.Root).min.y,m=BodyBounds(enemy.Root).min.y;
-                    if(Mathf.Min(h,m)<minGround-.01f)Debug.Log($"[GroundReview] frame={frame} hero={h:F3} monster={m:F3} action={state.Action} age={state.ActionAge:F3} enemy={state.Enemy} enemyAge={state.EnemyAge:F3}");
+                    if(Mathf.Min(h,m)<minGround-.01f)
+                    {
+                        Debug.Log($"[GroundReview] frame={frame} hero={h:F3} monster={m:F3} action={state.Action} age={state.ActionAge:F3} enemy={state.Enemy} enemyAge={state.EnemyAge:F3}");
+                        CharacterReview.Save(world.Camera,target,Path.Combine(folder,$"ground-{frame:D4}.png"));
+                    }
                     minGround=Mathf.Min(minGround,h,m);
                     maxMonsterFootLift=Mathf.Max(maxMonsterFootLift,monsterFoot.position.y-footRest);
                 }
@@ -82,7 +94,7 @@ namespace UltramanGame.Editor
             if(maxMonsterFootLift<.06f)throw new Exception("Monster rush did not lift its leading foot");
             if(world.Camera.GetComponent<ContactShadows>().RenderCount<(motionOnly?4:300))throw new Exception("Actor contact shadows did not render");
             world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);
-            Debug.Log($"[RiggedReview] bothActors=rigged scale=passed grounding=passed minGround={minGround:F3} monsterStep={maxMonsterFootLift:F3} wristAndHipMotion=passed continuousCombat=passed punches={state.Punches} blocks={state.Blocks} beamReleases={releases} victory=passed maxHandStep={maxHandStep:F3} shadows=passed output={folder}");
+            Debug.Log($"[RiggedReview] bothActors=rigged scale=passed grounding=passed clawFingers=passed minGround={minGround:F3} monsterStep={maxMonsterFootLift:F3} wristAndHipMotion=passed continuousCombat=passed punches={state.Punches} blocks={state.Blocks} beamReleases={releases} victory=passed maxHandStep={maxHandStep:F3} shadows=passed output={folder}");
         }
         static Transform Joint(Transform root,string name)
         {foreach(var t in root.GetComponentsInChildren<Transform>())if(t.name==name)return t;throw new Exception("Missing joint "+name);}
