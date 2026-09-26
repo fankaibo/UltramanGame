@@ -438,7 +438,7 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(49,466,289,22),waiting?(PoseQuality.Present(pose,now)||keyboard?"站稳，慢慢来就可以":"先让肩膀和双手进入画面"):"光之能量充能中",12,HudPainter.Muted);
             }
             bool compactBattle=battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused;
-            if(compactBattle)
+            if(compactBattle&&battle.Action!=HeroAction.Hurt)
             {
                 // Once the round starts, keep the playfield dominant like the
                 // reference cabinet. The large cards remain useful during the
@@ -448,7 +448,7 @@ namespace UltramanGame.Runtime
                 BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
                 BattleAction(468,"必杀光线",keyboard?"满能量后按 J":battle.Energy>=Battle.MaxEnergy?"L 形 / 双手前推":$"普攻 {battle.Energy}/{Battle.MaxEnergy}","beam",HudPainter.Gold,battle.Energy>=Battle.MaxEnergy||battle.Action==HeroAction.Beam);
             }
-            else if(battle.Phase!=GamePhase.Victory)
+            else if(!compactBattle&&battle.Phase!=GamePhase.Victory)
             {
                 ActionCard(28,"挥拳出击",keyboard?"A / D · 左右交替":$"收手，再挥出去  ·  命中 {battle.Punches}","punch",HudPainter.Cyan,false);
                 ActionCard(348,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,false);
@@ -533,10 +533,13 @@ namespace UltramanGame.Runtime
             {hud.Panel(new Rect(455,78,370,46),HudPainter.Gold,true);hud.Text(new Rect(465,84,350,34),SelectedHero.Beam+"！",23,HudPainter.Gold,TextAnchor.MiddleCenter,true);}
             else if(time<captionUntil&&battle.Phase==GamePhase.Battle)
             {hud.Panel(new Rect(465,78,350,29),HudPainter.Cyan);hud.Text(new Rect(475,81,330,23),caption,13,HudPainter.Ink,TextAnchor.MiddleCenter);}
-            BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
-            BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
-            BattleAction(468,"必杀光线",keyboard?"满能量后按 J":ready?"L 形 / 双手前推":$"普攻 {battle.Energy:0}/{Battle.MaxEnergy}","beam",HudPainter.Gold,ready||battle.Action==HeroAction.Beam);
-            if(!keyboard&&ready)hud.Bar(new Rect(524,673,145,2),recognizer.BeamProgress,HudPainter.Gold);
+            if(battle.Phase!=GamePhase.Victory&&battle.Action!=HeroAction.Hurt)
+            {
+                BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
+                BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
+                BattleAction(468,"必杀光线",keyboard?"满能量后按 J":ready?"L 形 / 双手前推":$"普攻 {battle.Energy:0}/{Battle.MaxEnergy}","beam",HudPainter.Gold,ready||battle.Action==HeroAction.Beam);
+                if(!keyboard&&ready)hud.Bar(new Rect(524,673,145,2),recognizer.BeamProgress,HudPainter.Gold);
+            }
             DrawBattleStartCue();
             DrawPreview(true);
             if(battle.Phase==GamePhase.Victory)

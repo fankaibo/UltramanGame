@@ -21,6 +21,10 @@ namespace UltramanGame.Runtime
             string key=photo.Active?"photo-"+photo.Stage+(photo.Stage==PhotoStage.Framing?(photo.HasLivePerson?"-live":"-preparing"):""):
                 battle.Phase==GamePhase.Battle?(world.Closeup.Focus>.999f?"beam-closeup-peak":world.Closeup.Active?"beam-closeup":world.BeamVisible?"beam-firing":battle.Action==HeroAction.Hurt?"hero-hurt":battle.Enemy==EnemyPhase.Attack&&battle.Shield&&battle.EnemyAge>Battle.EnemyHitSeconds+.09f&&battle.EnemyAge<Battle.EnemyHitSeconds+.32f?"guard-impact":battle.Enemy==EnemyPhase.Attack?(battle.EnemyAttackCount%2==0?"monster-rush-left":"monster-rush-right"):battle.Enemy==EnemyPhase.Windup?"guard-guide":battle.Energy>=15?"beam-guide":battle.Punches>2?"battle":"battle-entry"):
                 battle.Phase.ToString();
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt)
+                key=battle.ActionAge<KnockdownMotion.LandingSeconds+.13f?"hero-hurt":
+                    battle.ActionAge<KnockdownMotion.RiseSeconds+.24f?"hero-landed":
+                    battle.ActionAge<KnockdownMotion.Duration-.20f?"hero-rising":"hero-recovered";
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));

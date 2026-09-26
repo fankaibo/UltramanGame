@@ -107,7 +107,7 @@ namespace UltramanGame.Runtime
             }
             // Ordinary punches also need a small contact-to-ground cue on a TV;
             // blocks stay clean so the blue shield remains the readable answer.
-            if(!blocked)atmosphere.GroundBurst(position,Vector3.back,special||hurt);
+            if(!blocked&&!hurt)atmosphere.GroundBurst(position,Vector3.back,special);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
         public void Combo(Vector3 position)
@@ -118,6 +118,10 @@ namespace UltramanGame.Runtime
             Burst(position,20,.95f,true);
             FlashAt(position,1.65f,.24f,new Color(1,.68f,.20f,.82f),true);
             atmosphere.GroundBurst(position,Vector3.back,true);
+        }
+        public void GroundBurst(Vector3 position,Vector3 direction,bool heavy=true)
+        {
+            atmosphere.GroundBurst(position,direction,heavy);
         }
         public void Clear()
         {

@@ -6,7 +6,7 @@ namespace UltramanGame.Core
     public enum GamePhase { Waiting, Transforming, Battle, Paused, Victory }
     public enum EnemyPhase { Rest, Windup, Attack, Recover }
     public enum HeroAction { None, LeftPunch, RightPunch, Beam, Hurt }
-    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack }
+    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack, HeroLanded }
 
     // Unity-free deterministic rules. The renderer observes state; it never awards damage.
     public sealed class Battle
@@ -132,7 +132,10 @@ namespace UltramanGame.Core
             }
             if(Action!=HeroAction.None)
             {
+                float previousActionAge=ActionAge;
                 ActionAge+=dt;
+                if(Action==HeroAction.Hurt&&previousActionAge<KnockdownMotion.LandingSeconds&&ActionAge>=KnockdownMotion.LandingSeconds)
+                    Cue(GameCue.HeroLanded);
                 float hitTime=Action==HeroAction.Beam?.45f:PunchHitSeconds;
                 if(!hitApplied && Action!=HeroAction.Hurt && ActionAge>=hitTime)
                 {
@@ -141,7 +144,7 @@ namespace UltramanGame.Core
                     else { EnemyHealth=Math.Max(0,EnemyHealth-1); Punches++; AddEnergy(1); }
                     if(EnemyHealth<=0) { Phase=GamePhase.Victory; Shield=false; Cue(GameCue.Victory); return; }
                 }
-                float duration=Action==HeroAction.Beam?1.5f:Action==HeroAction.Hurt?.55f:PunchSeconds;
+                float duration=Action==HeroAction.Beam?1.5f:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
                 if(ActionAge>=duration) Action=HeroAction.None;
             }
             // Special move provides an obvious window of protection.

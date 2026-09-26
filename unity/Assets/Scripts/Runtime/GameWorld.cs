@@ -36,7 +36,7 @@ namespace UltramanGame.Runtime
         float impact,impactAge=10,transformAge,celebrateAt,clock;
         readonly ImpactTiming hitTiming=new ImpactTiming();
         float framingFieldOfView=35;
-        bool beamWasVisible;
+        bool beamWasVisible,landingPending;
         GamePhase previous;
         public GameWorld()
         {
@@ -91,7 +91,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=false;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=false;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -128,7 +128,13 @@ namespace UltramanGame.Runtime
                     contact+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(enemy.EnemyStrikeOrigin(state)-ShieldCenter,BattleAxis),.65f);
                 effects.Impact(contact,false,true);monsterEffects.Impact(true);Kick(.04f);
             }
-            if(cue==GameCue.Hurt){effects.Impact(HeroHome+Vector3.up*2,false,false,true);monsterEffects.Impact(false);Kick(.055f);}
+            if(cue==GameCue.Hurt)
+            {
+                Vector3 impact=HeroHome+Vector3.up*2;
+                effects.Impact(impact,false,false,true);
+                monsterEffects.Impact(false);Kick(.055f);
+            }
+            if(cue==GameCue.HeroLanded)landingPending=true;
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
             if(cue==GameCue.Victory){effects.Impact(EnemyHome+Vector3.up*1.7f,true);Burst(EnemyHome+Vector3.up*2.2f,48,1.3f);}
             if(cue==GameCue.Beam)
@@ -141,6 +147,17 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,float dt,float time)
         {
+            // Cues arrive before actor sampling. Emit the ground hit here,
+            // using the pelvis from the actual landing pose, once per contact.
+            if(landingPending)
+            {
+                if(state.Phase==GamePhase.Battle&&state.Action==HeroAction.Hurt)
+                {
+                    effects.GroundBurst(hero!=null?hero.GroundContactPosition:HeroHome,-BattleAxis,true);
+                    impact=.025f;impactAge=0;
+                }
+                landingPending=false;
+            }
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting)cinematic.Clear();else cinematic.Tick(dt);
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
@@ -198,7 +215,8 @@ namespace UltramanGame.Runtime
             Vector3 target=lookAt;
             if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active)
             {
-                float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+                float hurt=state.Action==HeroAction.Hurt?KnockdownMotion.Weight(state.ActionAge):0;
+                float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI)*(1-hurt):0;
                 // The attack needs a visible forward camera travel, like an
                 // arcade cabinet's short dolly, so the monster does not appear
                 // to merely change pose in place.
@@ -230,10 +248,14 @@ namespace UltramanGame.Runtime
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
-                    float hurt=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.62f)*Mathf.PI);
-                    Camera.transform.position+=Camera.transform.right*(.30f*hurt)+BattleAxis*(.22f*hurt);
-                    target+=Camera.transform.right*(.13f*hurt)+Vector3.up*(.10f*hurt);
-                    dynamicZoom+=1.65f*hurt;
+                    // Keep the falling hero inside the 16:9 frame. The old
+                    // positive lateral kick pushed the silhouette into the
+                    // lower-left corner while the HUD was still visible.
+                    Camera.transform.position+=Camera.transform.right*(-.10f*hurt)+BattleAxis*(.10f*hurt);
+                    target+=Camera.transform.right*(-.34f*hurt)+Vector3.up*(-.16f*hurt);
+                    // Open the lens for the fall so the full body, dust and
+                    // the monster's reaction share one readable cabinet shot.
+                    dynamicZoom-=3.8f*hurt;
                 }
             }
             if(!Showcase&&state.Phase==GamePhase.Transforming)

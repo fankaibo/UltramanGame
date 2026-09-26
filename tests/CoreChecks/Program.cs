@@ -76,6 +76,7 @@ static class Program
             MotionChecks.Run(Check);
             BattleBalanceChecks.Run(Check);
             EnemyAttackChecks.Run(Check);
+            KnockdownChecks.Run(Check);
             InstructionChecks.Run(Check);
             bool offline=Array.IndexOf(args,"--offline")>=0;
             RecoveryChecks.Run(Check,!offline);

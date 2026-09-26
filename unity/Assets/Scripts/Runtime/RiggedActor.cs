@@ -35,7 +35,10 @@ namespace UltramanGame.Runtime
         GamePhase previous;
         bool heavyHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
-        Transform head,upperSpine;
+        Transform head,upperSpine,pelvis;
+        Transform leftThigh,rightThigh,leftShin,rightShin;
+        Quaternion leftFootRest,rightFootRest;
+        float leftFootClearance,rightFootClearance;
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
         float contactSide;
@@ -52,6 +55,7 @@ namespace UltramanGame.Runtime
         public Vector3 EnemyStrikeOrigin(int attackCount) => attackCount%2==0&&leftHand?leftHand.position:HandPosition;
         public Vector3 BeamOrigin => hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
+        public Vector3 GroundContactPosition => pelvis?pelvis.position:Root.position;
 
         public static RiggedActor CreateIfAvailable(string name,Vector3 position,Vector3 opponent,bool monster)
         {
@@ -144,12 +148,17 @@ namespace UltramanGame.Runtime
                 if(joint.name=="HandBase_R"||joint.name=="bip_hand_R")hand=joint;
                 if(joint.name=="ForearmBase_R"||joint.name=="bip_lowerArm_R")forearm=joint;
                 if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
-                if((monster&&joint.name=="bip_upperArm_L")||(!monster&&joint.name=="armBase_L"))leftUpperArm=joint;
-                if((monster&&joint.name=="bip_upperArm_R")||(!monster&&joint.name=="armBase_R"))upperArm=joint;
-                if((monster&&joint.name=="bip_lowerArm_L")||(!monster&&joint.name=="ForearmBase_L"))leftForearm=joint;
-                if((monster&&joint.name=="bip_lowerArm_R")||(!monster&&joint.name=="ForearmBase_R"))forearm=joint;
+                if(joint.name=="bip_upperArm_L"||joint.name=="armBase_L")leftUpperArm=joint;
+                if(joint.name=="bip_upperArm_R"||joint.name=="armBase_R")upperArm=joint;
+                if(joint.name=="bip_lowerArm_L"||joint.name=="ForearmBase_L")leftForearm=joint;
+                if(joint.name=="bip_lowerArm_R"||joint.name=="ForearmBase_R")forearm=joint;
                 if(joint.name=="Foot_L"||joint.name=="bip_foot_L")leftFoot=joint;
                 if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
+                if(joint.name=="hip"||joint.name=="bip_pelvis")pelvis=joint;
+                if(joint.name=="ThighBase_L"||joint.name=="bip_hip_L")leftThigh=joint;
+                if(joint.name=="ThighBase_R"||joint.name=="bip_hip_R")rightThigh=joint;
+                if(joint.name=="Shin_L"||joint.name=="bip_knee_L")leftShin=joint;
+                if(joint.name=="Shin_R"||joint.name=="bip_knee_R")rightShin=joint;
                 if(monster&&joint.name=="bip_head")head=joint;
                 if(monster&&joint.name=="bip_spine_2")upperSpine=joint;
                 if(!monster&&(joint.name=="head"||joint.name=="bip_head"))head=joint;
@@ -180,6 +189,10 @@ namespace UltramanGame.Runtime
             }
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
+            if(leftFoot)leftFootRest=Quaternion.Inverse(Root.rotation)*leftFoot.rotation;
+            if(rightFoot)rightFootRest=Quaternion.Inverse(Root.rotation)*rightFoot.rotation;
+            leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
+            rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2}");
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
@@ -312,12 +325,9 @@ namespace UltramanGame.Runtime
                 else if(state.Action==HeroAction.Beam) {next="Beam";sample=Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
                 else if(state.Action==HeroAction.Hurt)
                 {
-                    next="Hurt";sample=state.ActionAge;Frame=5;
-                    float p=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.55f)*Mathf.PI);
-                    fallTilt=-28f*p;fallDrop=.32f*p;
-                    // Roll toward the camera-facing side so the fall reads in the
-                    // fixed 45-degree battle composition instead of looking like a lean.
-                    fallSide=54f*p;
+                    next="Hurt";sample=KnockdownMotion.ClipSeconds(state.ActionAge);Frame=5;
+                    float p=KnockdownMotion.Weight(state.ActionAge);
+                    fallTilt=-62f*p;fallSide=20f*p;
                 }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
             }
@@ -350,6 +360,8 @@ namespace UltramanGame.Runtime
             {joints[i].localPosition=Vector3.Lerp(positions[i],joints[i].localPosition,mix);joints[i].localRotation=Quaternion.Slerp(rotations[i],joints[i].localRotation,mix);joints[i].localScale=Vector3.Lerp(scales[i],joints[i].localScale,mix);}
             Root.position=home+forward*travel+Vector3.down*fallDrop;
             Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
+                PoseKnockdown(KnockdownMotion.Weight(state.ActionAge));
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
             {
                 // The source Hurt clip supplies the chest recoil, but its root
@@ -553,6 +565,39 @@ namespace UltramanGame.Runtime
                 mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
+        }
+        void PoseKnockdown(float weight)
+        {
+            if(!pelvis||weight<=0)return;
+            var side=Vector3.Cross(Vector3.up,forward);
+            Vector3 seated=home-forward*.35f+Vector3.up*.43f;
+            Root.position+=Vector3.Lerp(pelvis.position,seated,weight)-pelvis.position;
+            Vector3 feet=seated+forward*1.12f;feet.y=home.y+.16f;
+            PoseLimb(leftThigh,leftShin,leftFoot,feet-side*.32f,weight,Vector3.up,leftFootClearance);
+            PoseLimb(rightThigh,rightShin,rightFoot,feet+side*.30f-forward*.20f,weight,Vector3.up,rightFootClearance);
+            if(leftFoot)leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,Quaternion.LookRotation(forward)*leftFootRest,weight);
+            if(rightFoot)rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,Quaternion.LookRotation(forward)*rightFootRest,weight);
+            // One hand braces beside the hip; the other retains its authored
+            // recoil. Unequal limbs read as a fall instead of a rotated statue.
+            Vector3 support=seated-side*.68f-forward*.32f;support.y=home.y+.20f;
+            Quaternion palm=leftHand?leftHand.rotation:Quaternion.identity;
+            PoseLimb(leftUpperArm,leftForearm,leftHand,support,weight,-side,.20f);
+            if(leftHand)leftHand.rotation=palm;
+        }
+        void PoseLimb(Transform thigh,Transform shin,Transform foot,Vector3 target,float weight,Vector3 pole,float clearance)
+        {
+            if(!thigh||!shin||!foot)return;
+            // Interpolate the endpoint, then solve the full chain. Blending
+            // rotations independently sweeps a foot/hand through the ground.
+            target=Vector3.Lerp(foot.position,target,weight);target.y=Mathf.Max(home.y+clearance,target.y);
+            Vector3 start=thigh.position,to=target-start;
+            float a=Vector3.Distance(start,shin.position),b=Vector3.Distance(shin.position,foot.position);
+            float d=Mathf.Clamp(to.magnitude,Mathf.Abs(a-b)+.001f,a+b-.001f);
+            Vector3 axis=to.normalized,bend=Vector3.ProjectOnPlane(pole,axis).normalized;
+            float along=(a*a-b*b+d*d)/(2*d);
+            Vector3 knee=start+axis*along+bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+            thigh.rotation=Quaternion.FromToRotation(shin.position-start,knee-start)*thigh.rotation;
+            shin.rotation=Quaternion.FromToRotation(foot.position-shin.position,start+axis*d-shin.position)*shin.rotation;
         }
         void CorrectRestingArms(Battle state)
         {
