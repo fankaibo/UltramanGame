@@ -48,7 +48,9 @@ Shader "Training/HeroSurface" {
    // Separate bright neutral armor from colored suit panels using the
    // original texture. Color borders are not invented as surface normals.
    float silver=(1-smoothstep(.12,.35,saturation))*smoothstep(.15,.65,brightest)*_TextureArmor;
-   o.Albedo=c.rgb;o.Metallic=lerp(_Metallic,.68,silver);o.Smoothness=lerp(_Glossiness,.57,silver);
+   // The silver panels are painted costume/armor, not polished chrome.
+   // Broader reflections leave the suit's curves legible between spot lights.
+   o.Albedo=c.rgb;o.Metallic=lerp(_Metallic,.42,silver);o.Smoothness=lerp(_Glossiness,.43,silver);
    float3 toward=_GuardPoint.xyz-i.worldPos;
    float distanceToLight=length(toward)/max(.01,_GuardPoint.w);
    float facing=smoothstep(-.15,.65,dot(normalize(i.worldNormal),normalize(toward+float3(0,.00001,0))));

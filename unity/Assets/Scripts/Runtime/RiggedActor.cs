@@ -251,14 +251,14 @@ namespace UltramanGame.Runtime
             bool heroSurface=character!="Golza"&&!emitter;
             var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):
                 heroSurface?new Material(Resources.Load<Shader>("HeroSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
-            mat.color=new Color(.72f,.77f,.85f);mat.SetFloat("_Metallic",.65f);mat.SetFloat("_Glossiness",.55f);
+            mat.color=new Color(.72f,.77f,.85f);mat.SetFloat("_Metallic",heroSurface?.48f:.65f);mat.SetFloat("_Glossiness",heroSurface?.46f:.55f);
             if(name.StartsWith("Golza",StringComparison.Ordinal))
             {
                 bool eye=name.Contains("Eyes");mat.mainTexture=eye?eyes:texture;mat.color=Color.white;
                 mat.SetFloat("_Metallic",.03f);mat.SetFloat("_Glossiness",.22f);
                 if(eye){mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",eyes);mat.SetColor("_EmissionColor",new Color(.55f,.35f,.15f));}
             }
-            else if(name.Contains("Suit")) {mat.mainTexture=texture;mat.color=Color.white;mat.SetFloat("_Metallic",.12f);mat.SetFloat("_Glossiness",.32f);}
+            else if(name.Contains("Suit")) {mat.mainTexture=texture;mat.color=Color.white;mat.SetFloat("_Metallic",.03f);mat.SetFloat("_Glossiness",.28f);}
             else if(name.Contains("Gold")) {mat.color=new Color(.78f,.55f,.18f);mat.SetFloat("_Metallic",.7f);}
             else if(name.Contains("EyeRim")) {mat.color=new Color(.03f,.04f,.05f);mat.SetFloat("_Metallic",.3f);}
             else if(name.Contains("EyesGlow")||name.Contains("Timer")||name.Contains("Crystal"))
@@ -269,7 +269,7 @@ namespace UltramanGame.Runtime
             var rosterTexture=Resources.Load<Texture2D>("Characters/"+character+"/Textures/"+name);
             if(rosterTexture)
             {
-                mat.mainTexture=rosterTexture;mat.color=Color.white;mat.SetFloat("_Metallic",.2f);mat.SetFloat("_Glossiness",.42f);
+                mat.mainTexture=rosterTexture;mat.color=Color.white;mat.SetFloat("_Metallic",heroSurface?.06f:.2f);mat.SetFloat("_Glossiness",heroSurface?.30f:.42f);
                 if(name.ToLowerInvariant().Contains("eye")||name.ToLowerInvariant().Contains("timer"))
                 {mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",rosterTexture);mat.SetColor("_EmissionColor",Color.white*.5f);}
             }

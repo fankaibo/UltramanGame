@@ -39,6 +39,7 @@ namespace UltramanGame.Runtime
         }
         void Build()
         {
+            VolcanoEnvironment.Create(transform);
             ground=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
             ground.SetColor("_Color",new Color(.17f,.18f,.19f));
             var rock=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));

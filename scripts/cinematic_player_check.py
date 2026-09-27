@@ -56,6 +56,8 @@ def main():
         raise RuntimeError(f'Runtime exception in {log}')
     if '[PresentationWarmup] complete' not in output:
         raise RuntimeError('Presentation was not prewarmed')
+    if output.count('[VolcanoEnvironment] captured=True faces=6 size=128 mipmaps=True') != 1:
+        raise RuntimeError('Expected one successful arena reflection capture at startup')
     if f'[FullGameReviewHero] id={args.hero}' not in output:
         raise RuntimeError('Requested hero was not instantiated')
     if '[BeamSurface] torso-anchor=True vertices=3' not in output or 'chest-bone fallback' in output:

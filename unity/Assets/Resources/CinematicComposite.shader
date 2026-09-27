@@ -22,6 +22,10 @@ Shader "Training/CinematicComposite" {
   float ring=exp(-pow((distanceFromCenter-_ShockRadius)/.022,2))*_ShockStrength*.24*_PulseCenter.w;
   c+=_ShockColor.rgb*ring;
   float2 p=i.uv*2-1;c*=1-dot(p,p)*.035;
+  // A soft shoulder leaves the night scene unchanged. Bright color channels
+  // approach white gradually instead of clipping to a flat white patch.
+  float3 excess=max(0,c-.78);
+  c=min(c,.78)+.22*excess/(.22+excess);
   return half4(c,1);
  }
  ENDCG

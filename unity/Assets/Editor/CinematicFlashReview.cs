@@ -11,6 +11,32 @@ namespace UltramanGame.Editor
 {
     public static class CinematicFlashReview
     {
+        public static void HighlightShoulder()
+        {
+            var material=new Material(Resources.Load<Shader>("CinematicComposite"));
+            material.SetTexture("_Bloom",Texture2D.blackTexture);material.SetFloat("_Strength",0);material.SetVector("_PulseCenter",Vector4.zero);
+            var source=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);
+            var target=new RenderTexture(16,16,0,RenderTextureFormat.ARGBFloat);target.Create();
+            var readback=new Texture2D(16,16,TextureFormat.RGBAFloat,false,true);var previous=RenderTexture.active;
+            var report=new StringBuilder();float previousPeak=0;
+            try
+            {
+                foreach(float strength in new[]{.1f,.5f,1f,2f,4f,8f})
+                {
+                    var input=new Color(.55f,.75f,1)*strength;var values=new Color[256];for(int i=0;i<values.Length;i++)values[i]=input;
+                    source.SetPixels(values);source.Apply();Graphics.Blit(source,target,material,2);RenderTexture.active=target;
+                    readback.ReadPixels(new Rect(0,0,16,16),0,0);readback.Apply();var output=readback.GetPixel(8,8);
+                    if(output.b>=1||output.r>=output.g||output.g>=output.b||output.b<=previousPeak)
+                        throw new Exception("HDR shoulder clipped, reversed hue channels, or lost intensity ordering");
+                    if(strength<=.5f&&Mathf.Max(Mathf.Abs(output.r-input.r),Mathf.Abs(output.g-input.g),Mathf.Abs(output.b-input.b))>.003f)
+                        throw new Exception("Highlight shoulder changed the dark/mid scene");
+                    previousPeak=output.b;report.AppendLine($"inputPeak={strength:F1} output={output}");
+                }
+                string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/hero-environment/inspection"));Directory.CreateDirectory(folder);
+                File.WriteAllText(folder+"/highlights.txt",report.ToString());Debug.Log("[HighlightShoulder] HDR range 0.1..8, no hard clipping, dark/mid unchanged, channel ordering passed\n"+report);
+            }
+            finally{RenderTexture.active=previous;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(source);UnityEngine.Object.DestroyImmediate(readback);UnityEngine.Object.DestroyImmediate(material);}
+        }
         [MenuItem("UltramanGame/Verify rendered impact flash decay")]
         public static void Run()
         {
