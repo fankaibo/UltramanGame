@@ -10,10 +10,8 @@ namespace UltramanGame.Runtime
         readonly List<Transform> embers=new List<Transform>();
         readonly List<Vector3> emberVelocity=new List<Vector3>();
         readonly List<float> emberAge=new List<float>();
-        readonly LineRenderer[] lavaStreams=new LineRenderer[3];
-        readonly LineRenderer[] lavaCores=new LineRenderer[3];
-        readonly Transform[] eruptionClouds=new Transform[32],lavaBombs=new Transform[64];
-        readonly Material[] cloudMaterials=new Material[32];
+        readonly Transform[] lavaBombs=new Transform[64];
+        readonly Material[] cloudMaterials=new Material[2];
         const int AshCount=42;
         Mesh ashMesh;
         readonly Vector3[] ashVertices=new Vector3[AshCount*4];
@@ -24,11 +22,20 @@ namespace UltramanGame.Runtime
         Light foregroundLavaLight;
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
-        Material ground,glow;
+        Material ground,lava,pool;
         public static VolcanoStage Create(Transform parent)
         {
             var stage=new GameObject("Basalt foothills").AddComponent<VolcanoStage>();
             stage.transform.SetParent(parent,false);stage.Build();return stage;
+        }
+        public static Texture3D CreatePlumeNoise()
+        {
+            // One small lattice shared by both vents. Hardware interpolation
+            // replaces hundreds of per-pixel noise hashes along each ray.
+            var data=new byte[32*32*32];new System.Random(929).NextBytes(data);
+            var texture=new Texture3D(32,32,32,TextureFormat.R8,false)
+            {name="Volcanic density lattice",wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Bilinear};
+            texture.SetPixelData(data,0);texture.Apply(false,true);return texture;
         }
         float Range(float min,float max)=>(float)random.NextDouble()*(max-min)+min;
         static float Height(float x,float z)
@@ -45,7 +52,6 @@ namespace UltramanGame.Runtime
             var rock=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
             rock.SetColor("_Color",new Color(.15f,.16f,.17f));
             rock.SetFloat("_BackdropBlend",0);
-            glow=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             var emberMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=new Color(1,.32f,.065f,.8f)});
             BuildTerrain();
             for(int i=0;i<64;i++)
@@ -61,17 +67,13 @@ namespace UltramanGame.Runtime
             // Low broken silhouettes frame the fight without hiding the characters.
             Rock(new Vector3(-5.8f,Height(-5.8f,5.8f),5.8f),new Vector3(1.35f,.86f,.95f),rock);
             Rock(new Vector3(6.4f,Height(6.4f,7.4f),7.4f),new Vector3(1.65f,.95f,1.1f),rock);
-            for(int i=0;i<lavaStreams.Length;i++)
+            lava=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicLava")));
+            pool=RuntimeResources.Own(transform,new Material(lava));pool.SetFloat("_Pool",1);
+            for(int i=0;i<vents.Length;i++)
             {
-                var line=lavaStreams[i]=Line("Cooling lava seam",42,.052f);line.enabled=true;
-                var core=lavaCores[i]=Line("Molten lava core",42,.014f);core.enabled=true;
-                float sx=i==0?-5.3f:i==1?5.3f:8,sz=i<2?16:23;
-                for(int j=0;j<42;j++)
-                {
-                    float z=sz-j*.17f,x=sx+(Mathf.PerlinNoise(j*.21f,3+i*2)-.5f)*.72f;
-                    var point=new Vector3(x,Height(x,z)+.014f,z);
-                    line.SetPosition(j,point);core.SetPosition(j,point+Vector3.up*.004f);
-                }
+                Crater(vents[i],rock);
+                LavaChannel(vents[i]+new Vector3(0,0,-.35f),6.8f,.42f,i,0);
+                LavaChannel(vents[i]+new Vector3(.12f,0,-3.1f),2.7f,.26f,i+3,i==0?1.35f:-1.35f);
             }
             // Two staggered lava fountains share the deterministic stage clock
             // with their ash plumes, molten rocks and local light.
@@ -88,11 +90,17 @@ namespace UltramanGame.Runtime
             foregroundLavaLight=glowObject.AddComponent<Light>();foregroundLavaLight.type=LightType.Point;
             foregroundLavaLight.color=new Color(1,.18f,.045f);foregroundLavaLight.range=8.5f;foregroundLavaLight.shadows=LightShadows.None;
             foregroundLavaLight.transform.position=new Vector3(-1.9f,1.0f,4.4f);
-            for(int i=0;i<eruptionClouds.Length;i++)
+            if(Camera.main)Camera.main.depthTextureMode|=DepthTextureMode.Depth;
+            var densityNoise=RuntimeResources.Own(transform,CreatePlumeNoise());
+            for(int i=0;i<cloudMaterials.Length;i++)
             {
                 var material=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicPlume")));
                 material.SetFloat("_Seed",i*3.71f);cloudMaterials[i]=material;
-                eruptionClouds[i]=GameWorld.Primitive("Billowing volcanic ash",PrimitiveType.Quad,transform,Vector3.zero,Vector3.one,material);
+                material.SetTexture("_Noise",densityNoise);
+                var origin=vents[i];origin.y=Height(origin.x,origin.z);
+                var volume=GameWorld.Primitive("Volumetric volcanic ash",PrimitiveType.Cube,transform,
+                    origin+new Vector3(.46f,2.83f,0),new Vector3(3.8f,5.6f,3.2f),material);
+                var renderer=volume.GetComponent<Renderer>();renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;renderer.receiveShadows=false;
             }
             var molten=RuntimeResources.Own(transform,new Material(Resources.Load<Material>("PrototypeSurface")));
             molten.color=new Color(.42f,.08f,.012f);molten.EnableKeyword("_EMISSION");molten.SetColor("_EmissionColor",new Color(3.4f,.72f,.05f));
@@ -138,6 +146,48 @@ namespace UltramanGame.Runtime
             }
             MeshObject("Uneven ash field",vertices,indices,uv,ground);
         }
+        void Crater(Vector3 center,Material rock)
+        {
+            const int sides=64,rings=5;var vertices=new Vector3[sides*rings];var uv=new Vector2[vertices.Length];var indices=new List<int>();
+            float[] radii={.17f,.38f,.59f,.82f,1.12f},heights={.045f,.12f,.30f,.17f,-.008f};
+            for(int ring=0;ring<rings;ring++)for(int side=0;side<sides;side++)
+            {
+                float angle=side*Mathf.PI*2/sides;
+                float uneven=Mathf.Sin(angle*7+center.x)*.065f+Mathf.Sin(angle*13)*.035f;
+                float r=radii[ring]*(1+uneven);
+                float x=center.x+Mathf.Cos(angle)*r,z=center.z+Mathf.Sin(angle)*r;
+                int v=ring*sides+side;vertices[v]=new Vector3(x,Height(x,z)+heights[ring]+uneven*heights[ring],z);uv[v]=new Vector2(x,z);
+                if(ring==rings-1)continue;
+                int next=ring*sides+(side+1)%sides;
+                indices.AddRange(new[]{v,next,v+sides,next,next+sides,v+sides});
+            }
+            MeshObject("Cooled basalt vent rim",vertices,indices.ToArray(),uv,rock);
+            vertices=new Vector3[sides+1];uv=new Vector2[sides+1];indices.Clear();
+            vertices[0]=new Vector3(center.x,Height(center.x,center.z)+.04f,center.z);uv[0]=Vector2.one*.5f;
+            for(int i=0;i<sides;i++)
+            {float a=i*Mathf.PI*2/sides;var p=new Vector2(Mathf.Cos(a),Mathf.Sin(a));vertices[i+1]=vertices[0]+new Vector3(p.x*.42f,0,p.y*.42f);uv[i+1]=Vector2.one*.5f+p*.5f;indices.AddRange(new[]{0,(i+1)%sides+1,i+1});}
+            MeshObject("Incandescent vent throat",vertices,indices.ToArray(),uv,pool);
+        }
+        void LavaChannel(Vector3 start,float length,float halfWidth,int seed,float branch)
+        {
+            const int rows=64,columns=8;var vertices=new Vector3[(rows+1)*(columns+1)];var uv=new Vector2[vertices.Length];var indices=new List<int>();
+            for(int row=0;row<=rows;row++)
+            {
+                float progress=row/(float)rows,z=start.z-progress*length;
+                float x=start.x+(Mathf.PerlinNoise(progress*3.6f,seed*3+4)-.5f)*.74f+branch*progress;
+                float width=halfWidth*Mathf.Lerp(.8f,1.25f,Mathf.PerlinNoise(progress*13,seed+17))*(1-.7f*Mathf.Pow(progress,5));
+                for(int column=0;column<=columns;column++)
+                {
+                    float cross=column/(float)columns*2-1,px=x+cross*width;
+                    int at=row*(columns+1)+column;
+                    float bank=Mathf.Pow(Mathf.Abs(cross),1.7f)*.055f;
+                    vertices[at]=new Vector3(px,Height(px,z)+.025f+bank,z);uv[at]=new Vector2(column/(float)columns,progress*length);
+                    if(row==rows||column==columns)continue;int next=at+columns+1;
+                    indices.AddRange(new[]{at,at+1,next,at+1,next+1,next});
+                }
+            }
+            MeshObject("Crusted flowing lava channel",vertices,indices.ToArray(),uv,lava);
+        }
         void Rock(Vector3 p,Vector3 size,Material material)
         {
             const int sides=9;var vertices=new Vector3[sides*3+2];vertices[0]=Vector3.zero;vertices[vertices.Length-1]=new Vector3(.04f,.95f,.03f);
@@ -169,24 +219,13 @@ namespace UltramanGame.Runtime
             var obj=new GameObject(name,typeof(MeshFilter),typeof(MeshRenderer));obj.transform.SetParent(transform,false);
             obj.GetComponent<MeshFilter>().sharedMesh=mesh;obj.GetComponent<MeshRenderer>().sharedMaterial=material;return obj.transform;
         }
-        LineRenderer Line(string name,int points,float width)
-        {var r=new GameObject(name).AddComponent<LineRenderer>();r.transform.SetParent(transform,false);r.sharedMaterial=glow;r.useWorldSpace=true;r.positionCount=points;r.widthMultiplier=width;r.numCapVertices=3;r.enabled=false;return r;}
         public void SetBackdrop(Texture texture,Matrix4x4 worldToLocal,float clock)
         {
             ground.SetTexture("_BackdropTex",texture);ground.SetMatrix("_BackdropWorldToLocal",worldToLocal);ground.SetFloat("_Clock",clock);
         }
-        static void ColorLine(LineRenderer line,Color color,float alpha)
-        {color.a=alpha;line.startColor=color;line.endColor=color;}
         public void Tick(float time)
         {
-            for(int i=0;i<lavaStreams.Length;i++)
-            {
-                float lavaPulse=.5f+.5f*Mathf.Sin(time*1.35f+i*1.7f);
-                var glowColor=new Color(1,.16f,.025f,.10f+.08f*lavaPulse);
-                var coreColor=new Color(1,.68f,.18f,.28f+.28f*lavaPulse);
-                lavaStreams[i].startColor=lavaStreams[i].endColor=glowColor;
-                lavaCores[i].startColor=lavaCores[i].endColor=coreColor;
-            }
+            lava.SetFloat("_Clock",time);pool.SetFloat("_Clock",time);
             for(int vent=0;vent<vents.Length;vent++)
             {
                 var origin=vents[vent];origin.y=Height(origin.x,origin.z)+.05f;
@@ -194,21 +233,12 @@ namespace UltramanGame.Runtime
                 float envelope=Mathf.Sin(cycle*Mathf.PI);
                 ventLights[vent].transform.position=origin+Vector3.up*.35f;
                 ventLights[vent].intensity=envelope*2.4f;
+                cloudMaterials[vent].SetFloat("_Clock",time);cloudMaterials[vent].SetFloat("_Surge",envelope);
             }
             float pulse=.5f+.5f*Mathf.Sin(time*2.15f+.7f);
             float eruption=Mathf.Sin(Mathf.Repeat(time*.82f,2.8f)/2.8f*Mathf.PI);
             foregroundLavaLight.intensity=.16f+.12f*pulse+.26f*eruption;
             var lens=Camera.main;
-            for(int i=0;i<eruptionClouds.Length;i++)
-            {
-                int vent=i%2;float life=5.6f,age=Mathf.Repeat(time+i*.397f,life),p=age/life;
-                Vector3 origin=vents[vent];origin.y=Height(origin.x,origin.z);
-                var cloud=eruptionClouds[i];float side=Mathf.Sin(i*9.17f);
-                cloud.position=origin+new Vector3(side*(.10f+p*.85f)+p*.72f,.15f+age*.75f,Mathf.Cos(i*5.3f)*.3f);
-                if(lens)cloud.rotation=lens.transform.rotation*Quaternion.Euler(0,0,side*25+age*9);
-                float size=.48f+p*2.1f;cloud.localScale=new Vector3(size,size*1.15f,1);
-                cloudMaterials[i].SetFloat("_Age",p);cloudMaterials[i].SetFloat("_Clock",age);
-            }
             for(int i=0;i<lavaBombs.Length;i++)
             {
                 float age=Mathf.Repeat(time+i*.073f,2.5f),phase=i*2.399f;
