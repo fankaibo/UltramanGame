@@ -25,6 +25,10 @@ namespace UltramanGame.Runtime
         readonly Renderer[] surfaces;
         readonly Vector3[] positions, scales;
         readonly Quaternion[] rotations;
+        readonly Quaternion[] comboExitStart,comboExitBase;
+        readonly bool[] comboExitMask;
+        bool comboWasActive,comboExitApplied;
+        float comboExitAge=1;
         readonly List<Material> materials=new List<Material>();
         readonly List<Material> eyeMaterials=new List<Material>();
         readonly List<Material> coreMaterials=new List<Material>();
@@ -36,7 +40,7 @@ namespace UltramanGame.Runtime
         HeroAction observedAction=HeroAction.None;
         int lastPunchSide;
         GamePhase previous;
-        bool heavyHit;
+        bool heavyHit,accentHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
         Transform head,upperSpine,pelvis;
         Vector3 beamContactLocal;
@@ -230,6 +234,8 @@ namespace UltramanGame.Runtime
                 if(tailJoints.Length>0){tailHeight=Root.InverseTransformPoint(tailJoints[0].position).y;tailRootRotation=Quaternion.Inverse(Root.rotation)*tailJoints[0].rotation;}
             }
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
+            comboExitStart=new Quaternion[joints.Length];comboExitBase=new Quaternion[joints.Length];comboExitMask=new bool[joints.Length];
+            if(!monster&&upperSpine)for(int i=0;i<joints.Length;i++)comboExitMask[i]=joints[i]==upperSpine||joints[i].IsChildOf(upperSpine);
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
             // A point on the front of the resting chest, carried by its sampled
             // bone through recoil. Root/home coordinates drift off the skin.
@@ -293,6 +299,16 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            bool comboStrike=!monster&&preview<0&&ComboStrikeMotion.Active(state);
+            if(comboWasActive&&!comboStrike&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Battle&&state.Shield)
+            {
+                // Shield rules take over immediately; fold the visible upper
+                // body out of the hook, not from the hidden straight-punch clip.
+                comboExitAge=0;for(int i=0;i<joints.Length;i++)if(comboExitMask[i])comboExitStart[i]=joints[i].localRotation;
+            }
+            else if(comboStrike||preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle)comboExitAge=1;
+            if(comboExitApplied)for(int i=0;i<joints.Length;i++)if(comboExitMask[i])joints[i].localRotation=comboExitBase[i];
+            comboExitApplied=false;comboWasActive=comboStrike;
             bool retargetArms=retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&!state.Shield));
@@ -343,7 +359,7 @@ namespace UltramanGame.Runtime
             // once per round so a held shield, pause or photo restart cannot
             // replay the recoil. The layer affects only the torso above the hips.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;}
             if(state.Phase!=GamePhase.Battle){guardAge=10;guardContactPending=false;}
             else if(state.Blocks>observedBlocks)
             {
@@ -366,6 +382,7 @@ namespace UltramanGame.Runtime
                 recoilStart=carryPose?Vector3.ProjectOnPlane(Root.position-home,Vector3.up):Vector3.zero;
                 recoilStartYaw=carryPose?Vector3.SignedAngle(forward,Root.forward,Vector3.up):0;
                 hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;
+                accentHit=!heavyHit&&ComboStrikeMotion.Active(state);
                 surfaceContactLocal=beamContactLocal;
             }
             lastHealth=state.EnemyHealth;
@@ -403,7 +420,7 @@ namespace UltramanGame.Runtime
             else if(state.Phase==GamePhase.Battle)
             {
                 if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
-                {next=state.Action==HeroAction.LeftPunch?"LeftPunch":"RightPunch";sample=state.ActionAge;Frame=sample<.07f?1:2;travel=AnimatedActor.Strike(sample)*StrikeAdvance;}
+                {next=state.Action==HeroAction.LeftPunch?"LeftPunch":"RightPunch";sample=state.ActionAge;Frame=sample<.07f?1:2;travel=AnimatedActor.Strike(sample)*PunchTravel(state);}
                 else if(state.Action==HeroAction.Beam) {next="Beam";sample=Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
                 else if(state.Action==HeroAction.Hurt)
                 {
@@ -459,9 +476,9 @@ namespace UltramanGame.Runtime
                 // times; the next punch keeps the remaining root momentum.
                 float recoil=heavyHit?ContactPulse(hitAge,0,.10f,.78f):MonsterRecoilMotion.Weight(hitAge);
                 float carry=MonsterRecoilMotion.Carry(hitAge);
-                Root.position+=recoilStart*carry-forward*(heavyHit?.14f:.23f)*recoil;
-                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:.065f)*recoil);
-                Root.rotation*=Quaternion.AngleAxis(recoilStartYaw*carry+contactSide*(heavyHit?4.5f:4f)*recoil,Vector3.up);
+                Root.position+=recoilStart*carry-forward*(heavyHit?.14f:accentHit?.34f:.23f)*recoil;
+                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:accentHit?.11f:.065f)*recoil);
+                Root.rotation*=Quaternion.AngleAxis(recoilStartYaw*carry+contactSide*(heavyHit?4.5f:accentHit?10:4f)*recoil,Vector3.up);
             }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&heroRecoveryAge<.26f)
             {
@@ -522,7 +539,7 @@ namespace UltramanGame.Runtime
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
-                    upperSpine.rotation=Quaternion.AngleAxis(side*7*punch,Vector3.up)
+                    upperSpine.rotation=Quaternion.AngleAxis(side*(comboStrike?-24:7)*punch,Vector3.up)
                         *Quaternion.AngleAxis(-6*punch,right)*upperSpine.rotation;
                 }
                 if(head)
@@ -606,14 +623,14 @@ namespace UltramanGame.Runtime
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
-                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:13)*chest,right)
-                        *Quaternion.AngleAxis(contactSide*18*chest,Vector3.up)
+                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:accentHit?22:13)*chest,right)
+                        *Quaternion.AngleAxis(contactSide*(accentHit?30:18)*chest,Vector3.up)
                         *Quaternion.AngleAxis(contactSide*4*chest,forward)*upperSpine.rotation;
                 }
                 if(head)
                 {
                     headBase=head.localRotation;
-                    head.rotation=Quaternion.AngleAxis(-(heavyHit?13:7)*follow,right)
+                    head.rotation=Quaternion.AngleAxis(-(heavyHit?13:accentHit?12:7)*follow,right)
                         *Quaternion.AngleAxis(contactSide*7*follow,Vector3.up)*head.rotation;
                 }
                 contactLayerApplied=true;
@@ -626,6 +643,14 @@ namespace UltramanGame.Runtime
                  (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
                 PoseRetargetedFootwork(state);
             if(retargetArms)PoseRetargetedArms(state);
+            if(comboStrike)PoseComboStrike(state);
+            if(comboExitAge<.14f)
+            {
+                comboExitAge+=dt;float weight=1-Mathf.SmoothStep(0,1,comboExitAge/.14f);
+                for(int i=0;i<joints.Length;i++)if(comboExitMask[i])
+                {comboExitBase[i]=joints[i].localRotation;joints[i].localRotation=Quaternion.Slerp(comboExitBase[i],comboExitStart[i],weight);}
+                comboExitApplied=true;
+            }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
@@ -775,12 +800,13 @@ namespace UltramanGame.Runtime
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.20f,rightFootLocal.y);
             leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
         }
+        float PunchTravel(Battle state)=>StrikeAdvance+(retargetedPunch&&ComboStrikeMotion.Active(state)?.35f:0);
         void PoseRetargetedFootwork(Battle state)
         {
             if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
             var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
             Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
-            float lift=0,advance=0,weight=1;
+            float lift=0,advance=0,weight=1,stride=PunchTravel(state);
             if(state.Action==HeroAction.None)weight=1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
             else
             {
@@ -788,13 +814,13 @@ namespace UltramanGame.Runtime
                 if(age<Battle.PunchHitSeconds)
                 {
                     float t=Mathf.Clamp01(age/Battle.PunchHitSeconds);
-                    advance=StrikeAdvance*Mathf.SmoothStep(0,1,t);lift=.12f*Mathf.Sin(t*Mathf.PI);
+                    advance=stride*Mathf.SmoothStep(0,1,t);lift=.12f*Mathf.Sin(t*Mathf.PI);
                 }
-                else if(age<.18f)advance=StrikeAdvance;
+                else if(age<.18f)advance=stride;
                 else
                 {
                     float t=Mathf.Clamp01((age-.18f)/(Battle.PunchSeconds-.18f));
-                    advance=StrikeAdvance*(1-Mathf.SmoothStep(0,1,t));lift=.09f*Mathf.Sin(t*Mathf.PI);
+                    advance=stride*(1-Mathf.SmoothStep(0,1,t));lift=.09f*Mathf.Sin(t*Mathf.PI);
                 }
                 Vector3 step=forward*advance+Vector3.up*lift;
                 if(state.Action==HeroAction.LeftPunch)left+=step;else right+=step;
@@ -847,6 +873,37 @@ namespace UltramanGame.Runtime
                 }
                 var palm=wrist.rotation;var previousForearm=wrist.position-lower.position;
                 PoseLimb(upper,lower,wrist,target,blend,side*(sign*.45f)+Vector3.down,.30f);
+                wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
+            }
+        }
+        void PoseComboStrike(Battle state)
+        {
+            if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
+            // The lead fist sweeps in from outside the shoulder, then folds
+            // back to guard. The other hand stays in; feet retain their baked
+            // or retargeted support positions and the hit still occurs at .12 s.
+            if(!stepArmsApplied)
+            {
+                stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
+                stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
+            }
+            float reach=ComboStrikeMotion.Reach(state.ActionAge),blend=ComboStrikeMotion.Blend(state.ActionAge);
+            var side=Vector3.Cross(Vector3.up,forward);
+            Vector3 contact=opponent!=null?opponent.BeamSurfaceContact:opponentHome-forward*.33f+Vector3.up*2.48f;
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0,active=left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
+                var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                Vector3 guard=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+                Vector3 target=guard;
+                if(active)
+                {
+                    target=Vector3.Lerp(guard,contact-forward*.10f+side*(sign*.06f),reach);
+                    float arc=state.ActionAge<Battle.PunchHitSeconds?.55f:.24f;
+                    target+=side*(sign*arc*Mathf.Sin(reach*Mathf.PI));
+                }
+                var palm=wrist.rotation;var previousForearm=wrist.position-lower.position;
+                PoseLimb(upper,lower,wrist,target,blend,side*(sign*(active?.9f:.45f))+Vector3.down*(active?.2f:1),.30f);
                 wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
             }
         }

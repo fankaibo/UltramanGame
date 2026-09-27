@@ -47,6 +47,9 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Phase==GamePhase.Transforming)
                 key=world.EntranceAge<.26f?"Transforming":world.EntranceAge<1?"transform-front":
                     world.EntranceAge<1.66f?"transform-radiance":"transform-return";
+            if(!photo.Active&&battle.Enemy!=EnemyPhase.Attack&&ComboStrikeMotion.Active(battle)&&
+                battle.ActionAge>=Battle.PunchHitSeconds&&battle.ActionAge<.22f)
+                key=battle.Action==HeroAction.LeftPunch?"combo-left":"combo-right";
             if(captureClaw)key=clawKey;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
