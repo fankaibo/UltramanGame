@@ -133,13 +133,13 @@ namespace UltramanGame.Runtime
                 Vector3 contact=ShieldCenter;
                 if(enemy!=null&&state!=null)
                     contact+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(enemy.EnemyStrikeOrigin(state)-ShieldCenter,BattleAxis),.65f);
-                effects.Impact(contact,false,true);monsterEffects.Impact(true);Kick(.04f);
+                effects.Impact(contact,false,true);monsterEffects.Impact(true,contact,state?.EnemyAttackCount??-1);Kick(.04f);
             }
             if(cue==GameCue.Hurt)
             {
                 Vector3 impact=HeroHome+Vector3.up*2;
                 effects.Impact(impact,false,false,true);
-                monsterEffects.Impact(false);Kick(.055f);
+                monsterEffects.Impact(false,impact,state?.EnemyAttackCount??-1);Kick(.055f);
             }
             if(cue==GameCue.HeroLanded)landingPending=true;
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
