@@ -276,6 +276,9 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            bool retargetArms=retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
+                 (state.Action==HeroAction.None&&!state.Shield));
             // The leg reach correction is a presentation layer; remove it
             // before arm targeting and clip blending on the following frame.
             Root.position+=Vector3.up*stepDrop;stepDrop=0;
@@ -286,8 +289,15 @@ namespace UltramanGame.Runtime
             }
             if(stepArmsApplied)
             {
-                leftUpperArm.localRotation=stepArmRotations[0];leftForearm.localRotation=stepArmRotations[1];leftHand.localRotation=stepArmRotations[2];
-                upperArm.localRotation=stepArmRotations[3];forearm.localRotation=stepArmRotations[4];hand.localRotation=stepArmRotations[5];stepArmsApplied=false;
+                // When leaving a retargeted pose, let the destination clip
+                // blend from the hands the player actually saw. Restoring the
+                // source clip first would pop the guard outward for one frame.
+                if(!retargetedPunch||retargetArms)
+                {
+                    leftUpperArm.localRotation=stepArmRotations[0];leftForearm.localRotation=stepArmRotations[1];leftHand.localRotation=stepArmRotations[2];
+                    upperArm.localRotation=stepArmRotations[3];forearm.localRotation=stepArmRotations[4];hand.localRotation=stepArmRotations[5];
+                }
+                stepArmsApplied=false;
             }
             // Blends start from the sampled clip, never from last frame's
             // additive impact. Otherwise the same impulse feeds back into itself.
@@ -591,9 +601,7 @@ namespace UltramanGame.Runtime
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
                 PoseRetargetedFootwork(state);
-            if(retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
-                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch))
-                AimRetargetedPunch(state);
+            if(retargetArms)PoseRetargetedArms(state);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
@@ -774,27 +782,43 @@ namespace UltramanGame.Runtime
             leftFoot.rotation=Quaternion.Slerp(l,facing*leftFootRest,weight);
             rightFoot.rotation=Quaternion.Slerp(r,facing*rightFootRest,weight);
         }
-        void AimRetargetedPunch(Battle state)
+        void PoseRetargetedArms(Battle state)
         {
             if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
-            float age=state.ActionAge;
-            float weight=Mathf.SmoothStep(0,1,age/.10f)*(1-Mathf.SmoothStep(0,1,(age-.16f)/.22f));
-            if(weight<=0)return;
-            // Imported heroes have different arm lengths and shoulder axes.
-            // Transfer the chest forward over the authored feet, then guide
-            // only the striking fist while the other arm retains its guard.
+            bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+            float age=state.ActionAge,reach=0;
+            if(punch)
+                reach=age<Battle.PunchHitSeconds?Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds):
+                    1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
+            // The same guard is the start and end of both punches. The source
+            // clips stretch the other arm out too, obscuring which fist struck.
+            // Keep that hand tucked while the striking shoulder transfers weight.
             var side=Vector3.Cross(Vector3.up,forward);
-            if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(16*weight,side)*upperSpine.rotation;
-            if(head)head.rotation=Quaternion.AngleAxis(-8*weight,side)*head.rotation;
+            if(upperSpine&&punch)upperSpine.rotation=Quaternion.AngleAxis(16*reach,side)*upperSpine.rotation;
+            if(head&&punch)head.rotation=Quaternion.AngleAxis(-8*reach,side)*head.rotation;
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
-            bool left=state.Action==HeroAction.LeftPunch;
-            var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
             Vector3 contact=opponent!=null?opponent.BeamContact:opponentHome-forward*.33f+Vector3.up*2.48f;
-            Vector3 target=contact-forward*.12f+side*(left?-.10f:.10f);
-            var palm=wrist.rotation;var previousForearm=wrist.position-lower.position;
-            PoseLimb(upper,lower,wrist,target,weight,side*(left?-1:1)+Vector3.down*.25f,.30f);
-            wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
+            float blend=punch||heroRecoveryAge<.26f?1:Mathf.SmoothStep(0,1,clipAge/.16f);
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0,active=punch&&(left==(state.Action==HeroAction.LeftPunch));
+                var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                float sign=left?-1:1;
+                Vector3 guard=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+                Vector3 target=guard;
+                if(active)
+                {
+                    Vector3 finish=contact-forward*.12f+side*(sign*.10f);
+                    target=Vector3.Lerp(guard,finish,reach);
+                    // A small outward arc separates the two silhouettes. It
+                    // disappears at contact and on return to the shared guard.
+                    target+=side*(sign*.10f*Mathf.Sin(reach*Mathf.PI));
+                }
+                var palm=wrist.rotation;var previousForearm=wrist.position-lower.position;
+                PoseLimb(upper,lower,wrist,target,blend,side*(sign*.45f)+Vector3.down,.30f);
+                wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
+            }
         }
         static float LegDrop(Transform hip,Transform knee,Transform ankle,Vector3 target)
         {
