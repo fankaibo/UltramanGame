@@ -71,10 +71,12 @@ namespace UltramanGame.Editor
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(928);
             var world=new GameWorld();var state=Ready();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/threat-camera",version,id));Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
+            var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--threat-output");
+            string output=outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/threat-camera");
+            string folder=Path.GetFullPath(Path.Combine(output,version,id));Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/GameWorld.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/CinematicCamera.cs","Scripts/Core/Battle.cs","Editor/ThreatCameraReview.cs"})
-                    sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,file)))).Replace("-","").ToLowerInvariant());
+                foreach(string file in new[]{"Scripts/Runtime/GameWorld.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/CinematicCamera.cs","Scripts/Core/Battle.cs","Scripts/Core/MonsterWindupMotion.cs","Resources/Characters/Golza/Golza.fbx","Editor/ThreatCameraReview.cs"})
+                    if(File.Exists(Path.Combine(Application.dataPath,file)))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,file)))).Replace("-","").ToLowerInvariant());
             File.WriteAllText(folder+"/sources.txt",sources.ToString());
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;

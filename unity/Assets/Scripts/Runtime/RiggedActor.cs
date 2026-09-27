@@ -37,6 +37,7 @@ namespace UltramanGame.Runtime
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         float heroRecoveryAge=10;
+        float windupSample=float.NaN;
         HeroAction observedAction=HeroAction.None;
         int lastPunchSide;
         GamePhase previous;
@@ -359,7 +360,7 @@ namespace UltramanGame.Runtime
             // once per round so a held shield, pause or photo restart cannot
             // replay the recoil. The layer affects only the torso above the hips.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;}
             if(state.Phase!=GamePhase.Battle){guardAge=10;guardContactPending=false;}
             else if(state.Blocks>observedBlocks)
             {
@@ -408,10 +409,12 @@ namespace UltramanGame.Runtime
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {
                     next=(state.EnemyAttackCount+1)%2==0?"WindupAlt":"Windup";
-                    // Hold a readable warning pose while the child listens; complete the
-                    // anticipation during the last second instead of stretching every key.
-                    sample=state.EnemyAge<.4f?state.EnemyAge:Mathf.Lerp(.4f,clips[next].length,
-                        Mathf.Clamp01((state.EnemyAge-state.WarningDuration+1)/1));
+                    float desired=MonsterWindupMotion.Clip(state.EnemyAge,state.WarningDuration,clips[next].length);
+                    // A queued guide can extend even the final warning second.
+                    // Return to the listening hold smoothly instead of jumping
+                    // backwards through the authored shoulder/jaw animation.
+                    windupSample=playing==next&&!float.IsNaN(windupSample)?Mathf.MoveTowards(windupSample,desired,dt*3.5f):desired;
+                    sample=windupSample;
                     Frame=3;travel=AnimatedActor.MonsterAdvance(state);
                 }
             }
@@ -523,6 +526,26 @@ namespace UltramanGame.Runtime
                     headBase=head.localRotation;
                     head.rotation=Quaternion.AngleAxis(side*8*reach,Vector3.up)
                         *Quaternion.AngleAxis(-3*reach-6*guardRecoil,right)*head.rotation;
+                }
+                contactLayerApplied=true;
+            }
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&(next=="Windup"||next=="WindupAlt"))
+            {
+                float coil=MonsterWindupMotion.Coil(state.EnemyAge);
+                float breath=MonsterWindupMotion.Breath(state.EnemyAge,state.WarningDuration);
+                float side=(state.EnemyAttackCount+1)%2==0?-1:1;
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(upperSpine)
+                {
+                    spineBase=upperSpine.localRotation;
+                    upperSpine.rotation=Quaternion.AngleAxis(-side*11*coil,Vector3.up)
+                        *Quaternion.AngleAxis(-1.8f*breath,right)*upperSpine.rotation;
+                }
+                if(head)
+                {
+                    headBase=head.localRotation;
+                    head.rotation=Quaternion.AngleAxis(side*7*coil,Vector3.up)
+                        *Quaternion.AngleAxis(1.2f*breath,right)*head.rotation;
                 }
                 contactLayerApplied=true;
             }
@@ -1069,7 +1092,7 @@ namespace UltramanGame.Runtime
                 else if(state.Enemy==EnemyPhase.Windup)
                 {
                     float wind=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
-                    curl=.04f+.13f*wind;
+                    curl=.04f+.13f*wind+.10f*MonsterWindupMotion.Coil(state.EnemyAge);
                 }
                 else if(state.Enemy==EnemyPhase.Rest)curl=.14f+Mathf.Sin(time*2.05f+.8f)*.025f;
                 else if(state.Enemy==EnemyPhase.Recover)curl=.17f;
