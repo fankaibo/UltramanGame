@@ -25,6 +25,10 @@ def main():
     log = root / 'logs/cinematic-player.log'
     assembly = app / 'Contents/Resources/Data/Managed/Assembly-CSharp.dll'
     assembly_sha = hashlib.sha256(assembly.read_bytes()).hexdigest()
+    # Shader/texture-only fixes can leave the managed assembly unchanged.
+    # Tie visual proof to the Resources payload loaded by this player as well.
+    resources = app / 'Contents/Resources/Data/resources.assets'
+    resources_sha = hashlib.sha256(resources.read_bytes()).hexdigest()
     start = time.monotonic()
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
@@ -43,6 +47,8 @@ def main():
                     player.wait()
     output = log.read_text(errors='replace')
     (evidence / 'player.log').write_text(output)
+    if hashlib.sha256(resources.read_bytes()).hexdigest() != resources_sha:
+        raise RuntimeError('Player resources changed during the review')
     match = re.search(r'\[FullGameReview\] pass=True[^\n]+', output)
     if code != 0 or not match:
         raise RuntimeError(f'Full player review failed, exit={code}; inspect {log}')
@@ -74,6 +80,7 @@ def main():
     result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height],
               'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
+              'resources_sha256': resources_sha,
               'evidence_directory': str(evidence),
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))

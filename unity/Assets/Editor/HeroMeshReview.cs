@@ -20,7 +20,8 @@ namespace UltramanGame.Editor
         {After();RosterPunchReview.Release();RosterReview.Render();}
         static void Render(string version)
         {
-            string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/hero-mesh-review"));
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--mesh-review-output");
+            string output=Path.GetFullPath(at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/hero-mesh-review"));
             string folder=Path.Combine(output,version);Directory.CreateDirectory(folder);
             File.Delete(Path.Combine(folder,"validation.txt"));var report=new StringBuilder();
             foreach(string id in new[]{"Grigio","Geed"})

@@ -28,6 +28,7 @@ namespace UltramanGame.Runtime
         readonly List<Material> materials=new List<Material>();
         readonly List<Material> eyeMaterials=new List<Material>();
         readonly List<Material> coreMaterials=new List<Material>();
+        readonly List<Material> atlasLightMaterials=new List<Material>();
         readonly List<Material> impactMaterials=new List<Material>();
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
@@ -155,7 +156,10 @@ namespace UltramanGame.Runtime
                 {
                     string key=mapped[i]?mapped[i].name:"Surface";
                     if(!materialCache.TryGetValue(key,out var mat))
-                    {mat=RuntimeResources.Own(Root,Surface(key,texture,eyes,name));materialCache[key]=mat;materials.Add(mat);}
+                    {
+                        mat=RuntimeResources.Own(Root,Surface(key,texture,eyes,name));materialCache[key]=mat;materials.Add(mat);
+                        if(HeroAtlasLights.Configure(mat,name))atlasLightMaterials.Add(mat);
+                    }
                     if(key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0&&key.IndexOf("EyeRim",StringComparison.OrdinalIgnoreCase)<0)
                         if(!eyeMaterials.Contains(mat))eyeMaterials.Add(mat);
                     if(key.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)>=0)
@@ -670,6 +674,7 @@ namespace UltramanGame.Runtime
                 Color c=new Color(.10f,.68f,1);
                 mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
+            foreach(var mat in atlasLightMaterials)HeroAtlasLights.SetCharge(mat,coreGlow);
             poseOpacity=opacity;SetPresentationOpacity(1);
         }
         void UpdateGuardLight()
