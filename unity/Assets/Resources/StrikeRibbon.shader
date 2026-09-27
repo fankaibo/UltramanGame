@@ -14,15 +14,16 @@ Shader "Training/StrikeRibbon" {
     Output o;
     // Place the air wake just outside the skin surface. Depth testing remains
     // enabled, so an arm on the far side cannot shine through the whole torso.
-    float3 view=UnityObjectToViewPos(v.vertex);view.z+=.18;
+    float3 view=UnityObjectToViewPos(v.vertex);view.z+=.06;
     o.vertex=mul(UNITY_MATRIX_P,float4(view,1));o.uv=v.uv;o.color=v.color;return o;
    }
    fixed4 frag(Output i):SV_Target {
     float edge=saturate(1-abs(i.uv.y*2-1));
-    float core=pow(edge,10);
-    float wisps=.7+.3*sin(i.uv.y*37+i.uv.x*13);
-    float alpha=(edge*edge*.48*wisps+core*.55)*i.color.a*_Color.a;
-    return fixed4(lerp(_Color.rgb,float3(1,.98,.86),core*.55),alpha);
+    float core=pow(edge,14);
+    float wisps=.8+.2*sin(i.uv.y*43+i.uv.x*17);
+    float ends=smoothstep(0,.16,i.uv.x)*(1-smoothstep(.82,1,i.uv.x));
+    float alpha=(edge*edge*edge*.16*wisps+core*.58)*ends*i.color.a*_Color.a;
+    return fixed4(lerp(_Color.rgb,float3(1,.98,.86),core*.7),alpha);
    }
   ENDCG }
  }

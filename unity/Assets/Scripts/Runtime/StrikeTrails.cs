@@ -11,13 +11,15 @@ namespace UltramanGame.Runtime
         sealed class Ribbon
         {
             const int Capacity=24;
+            const int Subdivisions=3,SampleCapacity=(Capacity-1)*Subdivisions+1;
             readonly Mesh mesh;
             readonly MeshRenderer renderer;
-            readonly Vector3[] points=new Vector3[Capacity],vertices=new Vector3[Capacity*2];
+            readonly Vector3[] points=new Vector3[Capacity],samples=new Vector3[SampleCapacity],vertices=new Vector3[SampleCapacity*2];
             readonly float[] times=new float[Capacity];
-            readonly Color[] colors=new Color[Capacity*2];
-            readonly Vector2[] uv=new Vector2[Capacity*2];
-            readonly int[] triangles=new int[(Capacity-1)*6];
+            readonly float[] sampleTimes=new float[SampleCapacity],distances=new float[SampleCapacity];
+            readonly Color[] colors=new Color[SampleCapacity*2];
+            readonly Vector2[] uv=new Vector2[SampleCapacity*2];
+            readonly int[] triangles=new int[(SampleCapacity-1)*6];
             readonly float width,lifetime;
             int count;
             public bool Visible => renderer.enabled;
@@ -30,7 +32,7 @@ namespace UltramanGame.Runtime
                 renderer=go.AddComponent<MeshRenderer>();renderer.enabled=false;
                 renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;
                 renderer.sharedMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("StrikeRibbon")){color=color});
-                for(int i=0;i<Capacity-1;i++)
+                for(int i=0;i<SampleCapacity-1;i++)
                 {int v=i*2,t=i*6;triangles[t]=v;triangles[t+1]=v+1;triangles[t+2]=v+2;triangles[t+3]=v+1;triangles[t+4]=v+3;triangles[t+5]=v+2;}
             }
             public void Clear(){count=0;renderer.enabled=false;}
@@ -49,21 +51,48 @@ namespace UltramanGame.Runtime
                 }
                 renderer.enabled=count>1;
                 if(!renderer.enabled)return;
-                for(int i=0;i<count;i++)
+                // Interpolate only recorded motion, never predict the next hand
+                // position. Bounded tangents keep a turn from overshooting the fist.
+                int sampleCount=(count-1)*Subdivisions+1;
+                for(int i=0;i<count-1;i++)
                 {
-                    var direction=points[Mathf.Min(count-1,i+1)]-points[Mathf.Max(0,i-1)];
+                    float length=Vector3.Distance(points[i],points[i+1]);
+                    var start=Vector3.ClampMagnitude((points[i+1]-points[Mathf.Max(0,i-1)])*.5f,length);
+                    var end=Vector3.ClampMagnitude((points[Mathf.Min(count-1,i+2)]-points[i])*.5f,length);
+                    for(int j=0;j<Subdivisions;j++)
+                    {
+                        float t=j/(float)Subdivisions,t2=t*t,t3=t2*t;int index=i*Subdivisions+j;
+                        samples[index]=(2*t3-3*t2+1)*points[i]+(t3-2*t2+t)*start
+                            +(-2*t3+3*t2)*points[i+1]+(t3-t2)*end;
+                        sampleTimes[index]=Mathf.Lerp(times[i],times[i+1],t);
+                    }
+                }
+                samples[sampleCount-1]=points[count-1];sampleTimes[sampleCount-1]=times[count-1];
+                distances[0]=0;
+                for(int i=1;i<sampleCount;i++)distances[i]=distances[i-1]+Vector3.Distance(samples[i-1],samples[i]);
+                float trailLength=distances[sampleCount-1];
+                var previousAcross=Vector3.zero;
+                for(int i=0;i<sampleCount;i++)
+                {
+                    var direction=samples[Mathf.Min(sampleCount-1,i+1)]-samples[Mathf.Max(0,i-1)];
                     var across=Vector3.Cross(camera.transform.forward,direction).normalized;
-                    float freshness=Mathf.Clamp01(1-(clock-times[i])/lifetime);
-                    float end=i/(float)(count-1);
-                    float span=width*(.2f+.8f*Mathf.Sin(end*Mathf.PI))*(.5f+.5f*freshness);
-                    vertices[i*2]=points[i]-across*span;vertices[i*2+1]=points[i]+across*span;
+                    if(across.sqrMagnitude<.01f)across=previousAcross.sqrMagnitude>.01f?previousAcross:camera.transform.up;
+                    // Retraction can reverse the tangent. Keep both ribbon edges
+                    // on their own side instead of crossing into a bright triangle.
+                    if(Vector3.Dot(across,previousAcross)<0)across=-across;
+                    previousAcross=across;
+                    float freshness=Mathf.Clamp01(1-(clock-sampleTimes[i])/lifetime);
+                    float end=trailLength>.0001f?distances[i]/trailLength:0;
+                    float taper=Mathf.SmoothStep(0,1,end*4)*Mathf.SmoothStep(0,1,(1-end)*5);
+                    float span=Mathf.Min(width,trailLength*.28f)*taper*(.5f+.5f*freshness);
+                    vertices[i*2]=samples[i]-across*span;vertices[i*2+1]=samples[i]+across*span;
                     uv[i*2]=new Vector2(end,0);uv[i*2+1]=new Vector2(end,1);
                     var color=new Color(1,1,1,freshness*freshness*Mathf.SmoothStep(0,1,end*4));
                     colors[i*2]=colors[i*2+1]=color;
                 }
                 // Collapse unused segments instead of allocating a new mesh or
                 // variable-sized array on every camera frame.
-                for(int i=count;i<Capacity;i++)
+                for(int i=sampleCount;i<SampleCapacity;i++)
                 {vertices[i*2]=vertices[i*2+1]=points[count-1];colors[i*2]=colors[i*2+1]=Color.clear;}
                 mesh.vertices=vertices;mesh.colors=colors;mesh.uv=uv;mesh.triangles=triangles;mesh.RecalculateBounds();
             }
@@ -77,13 +106,13 @@ namespace UltramanGame.Runtime
         public bool MonsterVisible=>claws[0].Visible||claws[1].Visible||claws[2].Visible;
         public StrikeTrails(Transform parent)
         {
-            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,1f),.72f,.30f);
+            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,.9f),.34f,.22f);
             // One lead claw carries the readable contact streak. Two narrower,
             // shorter echoes add speed without making the attack look like three
             // identical debug lines.
-            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(1,.31f,.08f,.58f),.17f,.22f);
-            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(1,.52f,.16f,.96f),.46f,.32f);
-            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(1,.37f,.10f,.62f),.20f,.24f);
+            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(1,.31f,.08f,.58f),.09f,.20f);
+            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(1,.52f,.16f,.96f),.28f,.25f);
+            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(1,.37f,.10f,.62f),.11f,.22f);
         }
         public void Clear()
         {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
