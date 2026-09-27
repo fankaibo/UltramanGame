@@ -86,6 +86,12 @@ namespace UltramanGame.Runtime
             effects.pitch=1;effects.PlayOneShot(landingThud,.72f);
             if(Debug.isDebugBuild)Debug.Log("[VictoryStage] landing-thud playing=True");
         }
+        public void MonsterRecoveryStep()
+        {
+            if(muted||!landingThud)return;
+            effects.pitch=1;effects.PlayOneShot(landingThud,.25f);
+            if(Debug.isDebugBuild)Debug.Log("[MonsterStagger] footstep playing=True");
+        }
         public void UseLocalMusic(AudioClip clip)
         {
             battle.Stop();var previous=localMusic;localMusic=clip;

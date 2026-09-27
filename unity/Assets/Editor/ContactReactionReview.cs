@@ -90,7 +90,12 @@ namespace UltramanGame.Editor
                         contacts++;contactAge=0;contact=state.Action.ToString();markers=new bool[4];world.Hit(health-state.EnemyHealth>1,state);
                     }
                     health=state.EnemyHealth;world.Tick(state,dt,t);enemy.SetPresentationOpacity(world.EnemyOpacity);
-                    maxFootHeight=Mathf.Max(maxFootHeight,Mathf.Abs(left.position.y-lf.y),Mathf.Abs(right.position.y-rf.y));
+                    // A combo may now take a recovery step. Its support foot
+                    // remains planted; the moving foot is checked separately
+                    // by MonsterBackstepReview against its lift/landing curve.
+                    if(enemy.StaggerAge<MonsterStaggerMotion.Duration)
+                        maxFootHeight=Mathf.Max(maxFootHeight,enemy.StaggerLeft?Mathf.Abs(right.position.y-rf.y):Mathf.Abs(left.position.y-lf.y));
+                    else maxFootHeight=Mathf.Max(maxFootHeight,Mathf.Abs(left.position.y-lf.y),Mathf.Abs(right.position.y-rf.y));
                     maxHeadStep=Mathf.Max(maxHeadStep,Vector3.Distance(head.position,lastHead));lastHead=head.position;
                     csv.AppendLine(FormattableString.Invariant($"{frame},{t:F4},{health},{left.position.y:F5},{right.position.y:F5},{head.position.x:F5},{head.position.y:F5},{head.position.z:F5}"));
                     if(frame%2==0)CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{frame/2:D4}.png");
@@ -100,7 +105,7 @@ namespace UltramanGame.Editor
                 if(contacts!=3||state.Punches!=15||state.EnemyHealth!=26)throw new Exception("Expected two punches and one beam contact");
                 if(version=="after"&&maxFootHeight>.035f)throw new Exception("Recoil rotates the planted feet: "+maxFootHeight);
                 if(maxHeadStep>.45f)throw new Exception("Head motion jumps: "+maxHeadStep);
-                string result=FormattableString.Invariant($"[ContactReactionReview] {version} passed contacts={contacts} duration=7 frames=210 maxFootVerticalDrift={maxFootHeight:F4} maxHeadStep={maxHeadStep:F4}");
+                string result=FormattableString.Invariant($"[ContactReactionReview] {version} passed contacts={contacts} duration=7 frames=210 maxSupportFootVerticalDrift={maxFootHeight:F4} maxHeadStep={maxHeadStep:F4}");
                 File.WriteAllText(folder+"/motion.csv",csv.ToString());File.WriteAllText(folder+"/validation.txt",result);Debug.Log(result);
             }
             finally {world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);}

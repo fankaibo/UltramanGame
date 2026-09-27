@@ -10,6 +10,8 @@ namespace UltramanGame.Runtime
         public readonly BeamCloseup Closeup=new BeamCloseup();
         public bool BeamStarted { get; private set; }
         public bool MonsterLanded { get; private set; }
+        public bool MonsterStaggerLanded {get;private set;}
+        int staggerLandings;
         public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
         public float EntranceAge {get;private set;}
         public float ThreatFocus {get;private set;}
@@ -20,7 +22,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
@@ -99,7 +101,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -157,7 +159,18 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,float dt,float time)
         {
-            MonsterLanded=false;
+            MonsterLanded=MonsterStaggerLanded=false;
+            if(enemy!=null)
+            {
+                if(enemy.StaggerLandings>staggerLandings&&!Showcase&&state.Phase==GamePhase.Battle)
+                {
+                    MonsterStaggerLanded=true;
+                    effects.GroundBurst(enemy.FootPosition(enemy.StaggerLeft),BattleAxis,true);
+                    impact=Mathf.Max(impact*Mathf.Exp(-impactAge*14),.022f);impactAge=0;
+                    if(Debug.isDebugBuild)Debug.Log($"[MonsterStagger] landed side={(enemy.StaggerLeft?"left":"right")} age={enemy.StaggerAge:F3}");
+                }
+                staggerLandings=enemy.StaggerLandings;
+            }
             // Cues arrive before actor sampling. Emit the ground hit here,
             // using the pelvis from the actual landing pose, once per contact.
             if(landingPending)

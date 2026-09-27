@@ -10,6 +10,8 @@ namespace UltramanGame.Editor
 {
     public static class ComboStrikeReview
     {
+        static string Output
+        {get{var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--combo-output");return Path.GetFullPath(at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/combo-strike"));}}
         public static void Before()=>Run("before");
         public static void After()=>Run("after");
         static Transform Bone(Transform root,params string[] names)
@@ -19,7 +21,7 @@ namespace UltramanGame.Editor
         public static void Release(){After();Validate();Interruptions();StaggerReview.CheckRecovery();SurfaceImpactReview.CheckPunchRecovery();}
         public static void Interruptions()
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combo-strike/validation"));Directory.CreateDirectory(folder);File.Delete(folder+"/interruptions.txt");
+            string folder=Path.Combine(Output,"validation");Directory.CreateDirectory(folder);File.Delete(folder+"/interruptions.txt");
             var report=new StringBuilder();
             foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(bool shield in new[]{true,false})
             {
@@ -52,7 +54,7 @@ namespace UltramanGame.Editor
         }
         public static void Validate()
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combo-strike/validation"));Directory.CreateDirectory(folder);
+            string folder=Path.Combine(Output,"validation");Directory.CreateDirectory(folder);
             File.Delete(folder+"/validation.txt");
             var report=new StringBuilder();
             foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int rate in id=="Tiga"?new[]{15,30,60}:new[]{60})
@@ -128,9 +130,9 @@ namespace UltramanGame.Editor
         }
         static void Run(string version)
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combo-strike",version));Directory.CreateDirectory(folder+"/frames");
+            string folder=Path.Combine(Output,version);Directory.CreateDirectory(folder+"/frames");
             var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Core/Battle.cs","Scripts/Core/ComboStrikeMotion.cs","Editor/ComboStrikeReview.cs"})
+                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Scripts/Core/Battle.cs","Scripts/Core/ComboStrikeMotion.cs","Scripts/Core/MonsterStaggerMotion.cs","Resources/Characters/Golza/Golza.fbx","Resources/Characters/Tiga/Tiga.fbx","Editor/ComboStrikeReview.cs","Editor/MonsterBackstepReview.cs"})
                 {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/sources.txt",sources.ToString());
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(928);

@@ -55,6 +55,12 @@ namespace UltramanGame.Runtime
                 if(world.ThreatFocus>.99f&&battle.EnemyAge>1.2f)key="monster-threat";
                 else if(battle.EnemyAge>=3.5f&&battle.EnemyAge<4)key="monster-threat-return";
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Enemy!=EnemyPhase.Attack&&battle.Action!=HeroAction.Beam&&enemy.StaggerAge<MonsterStaggerMotion.Duration)
+            {
+                if(enemy.StaggerAge>=.10f&&enemy.StaggerAge<MonsterStaggerMotion.Landing)key="monster-stagger-lift";
+                else if(enemy.StaggerAge>=MonsterStaggerMotion.Landing&&enemy.StaggerAge<MonsterStaggerMotion.Return)key="monster-stagger-land";
+                else if(enemy.StaggerAge>=MonsterStaggerMotion.Return+.1f)key="monster-stagger-return";
+            }
             if(captureClaw)key=clawKey;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;

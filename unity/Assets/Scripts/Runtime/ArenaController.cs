@@ -221,6 +221,7 @@ namespace UltramanGame.Runtime
             if(damage)world.Hit(specialDamage,battle);
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             if(world.MonsterLanded)sound.MonsterLanding();
+            if(world.MonsterStaggerLanded)sound.MonsterRecoveryStep();
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
             enemy.SetPresentationOpacity(world.EnemyOpacity);
