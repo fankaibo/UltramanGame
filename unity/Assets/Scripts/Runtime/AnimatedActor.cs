@@ -18,6 +18,7 @@ namespace UltramanGame.Runtime
         public Vector3 FootPosition(bool left) => rigged!=null?rigged.FootPosition(left):Root.position;
         public Vector3 GroundContactPosition => rigged!=null?rigged.GroundContactPosition:Root.position;
         public void BindSurfaceImpact(Vector3 position){rigged?.BindSurfaceImpact(position);}
+        public void BindGuardImpact(Vector3 position){rigged?.BindGuardImpact(position);}
         public void SetOpponent(AnimatedActor actor){rigged?.SetOpponent(actor);}
         public const float PunchAdvance=.75f, EnemyAdvance=.75f;
         readonly Transform picture;

@@ -133,6 +133,7 @@ namespace UltramanGame.Runtime
                 Vector3 contact=ShieldCenter;
                 if(enemy!=null&&state!=null)
                     contact+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(enemy.EnemyStrikeOrigin(state)-ShieldCenter,BattleAxis),.65f);
+                hero?.BindGuardImpact(contact);
                 effects.Impact(contact,false,true);monsterEffects.Impact(true,contact,state?.EnemyAttackCount??-1);Kick(.04f);
             }
             if(cue==GameCue.Hurt)

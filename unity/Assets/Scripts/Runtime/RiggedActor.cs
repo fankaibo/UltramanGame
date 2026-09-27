@@ -52,6 +52,8 @@ namespace UltramanGame.Runtime
         Battle observedBattle;
         int observedBlocks;
         float guardAge=10;
+        Vector3 guardContact;
+        bool guardContactPending;
         float stepDrop;
         bool stepArmsApplied;
         readonly Quaternion[] stepArmRotations=new Quaternion[6];
@@ -71,6 +73,8 @@ namespace UltramanGame.Runtime
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
         public Vector3 GroundContactPosition => pelvis?pelvis.position:Root.position;
         public void SetOpponent(AnimatedActor actor){opponent=actor;}
+        public void BindGuardImpact(Vector3 worldPosition)
+        {if(!monster){guardContact=worldPosition;guardContactPending=true;}}
         public void BindSurfaceImpact(Vector3 worldPosition)
         {
             if(!monster||!upperSpine)return;
@@ -151,12 +155,12 @@ namespace UltramanGame.Runtime
                     string key=mapped[i]?mapped[i].name:"Surface";
                     if(!materialCache.TryGetValue(key,out var mat))
                     {mat=RuntimeResources.Own(Root,Surface(key,texture,eyes,name));materialCache[key]=mat;materials.Add(mat);}
-                    if(key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0)
+                    if(key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0&&key.IndexOf("EyeRim",StringComparison.OrdinalIgnoreCase)<0)
                         if(!eyeMaterials.Contains(mat))eyeMaterials.Add(mat);
                     if(key.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)>=0)
                         if(!coreMaterials.Contains(mat))coreMaterials.Add(mat);
                     if((monster&&key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)<0&&key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)<0)||
-                       (!monster&&(key.IndexOf("Suit",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Gold",StringComparison.OrdinalIgnoreCase)>=0)))
+                       (!monster&&mat.HasProperty("_GuardPoint")))
                     {
                         if(mat.HasProperty("_EmissionColor")){mat.EnableKeyword("_EMISSION");if(!impactMaterials.Contains(mat))impactMaterials.Add(mat);}
                     }
@@ -234,7 +238,11 @@ namespace UltramanGame.Runtime
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
         {
             bool kaiju=name.StartsWith("Golza",StringComparison.Ordinal)&&!name.Contains("Eyes");
-            var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
+            bool emitter=(name.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0&&name.IndexOf("EyeRim",StringComparison.OrdinalIgnoreCase)<0)
+                ||name.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||name.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0;
+            bool heroSurface=character!="Golza"&&!emitter;
+            var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):
+                heroSurface?new Material(Resources.Load<Shader>("HeroSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
             mat.color=new Color(.72f,.77f,.85f);mat.SetFloat("_Metallic",.65f);mat.SetFloat("_Glossiness",.55f);
             if(name.StartsWith("Golza",StringComparison.Ordinal))
             {
@@ -257,6 +265,7 @@ namespace UltramanGame.Runtime
                 if(name.ToLowerInvariant().Contains("eye")||name.ToLowerInvariant().Contains("timer"))
                 {mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",rosterTexture);mat.SetColor("_EmissionColor",Color.white*.5f);}
             }
+            if(heroSurface&&mat.mainTexture)mat.SetFloat("_TextureArmor",1);
             return mat;
         }
         public void SetPresentationOpacity(float opacity)
@@ -326,9 +335,16 @@ namespace UltramanGame.Runtime
             // once per round so a held shield, pause or photo restart cannot
             // replay the recoil. The layer affects only the torso above the hips.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;recoilStart=Vector3.zero;recoilStartYaw=0;}
-            if(state.Phase!=GamePhase.Battle)guardAge=10;
-            else if(state.Blocks>observedBlocks)guardAge=0;
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;}
+            if(state.Phase!=GamePhase.Battle){guardAge=10;guardContactPending=false;}
+            else if(state.Blocks>observedBlocks)
+            {
+                guardAge=0;
+                // Actual play supplies the shield contact; older pose previews
+                // can still use the midpoint of the braced hands.
+                if(!guardContactPending)guardContact=(HandPosition+StrikeOrigin(HeroAction.LeftPunch))*.5f;
+                guardContactPending=false;
+            }
             else guardAge+=dt;
             observedBlocks=state.Blocks;
             float guardRecoil=ContactPulse(guardAge,0,.09f,.54f);
@@ -645,19 +661,24 @@ namespace UltramanGame.Runtime
             float coreGlow=!monster&&state.Action==HeroAction.Beam
                 ?.55f+.95f*Mathf.Sin(Mathf.Clamp01(state.ActionAge/1.9f)*Mathf.PI):
                 !monster&&state.Phase==GamePhase.Transforming?.55f+.35f*Mathf.Sin(phaseAge*8):.08f;
-            float impactGlow=monster
-                ?ContactPulse(hitAge,0,heavyHit?.10f:.055f,heavyHit?.72f:.38f)
-                :ContactPulse(guardAge,0,.075f,.42f);
-            Color impactColor=monster?(heavyHit?new Color(.055f,.18f,.36f):new Color(1,.16f,.035f)):new Color(.14f,.62f,1);
             foreach(var mat in impactMaterials)
-                mat.SetColor("_EmissionColor",monster?Color.black:impactColor*(impactGlow*.85f));
-            if(monster)UpdateSurfaceImpact();
+                mat.SetColor("_EmissionColor",Color.black);
+            if(monster)UpdateSurfaceImpact();else UpdateGuardLight();
             foreach(var mat in coreMaterials)
             {
                 Color c=new Color(.10f,.68f,1);
                 mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
             poseOpacity=opacity;SetPresentationOpacity(1);
+        }
+        void UpdateGuardLight()
+        {
+            float strength=ContactPulse(guardAge,0,.075f,.42f);
+            foreach(var mat in impactMaterials)
+            {
+                mat.SetVector("_GuardPoint",new Vector4(guardContact.x,guardContact.y,guardContact.z,1.12f));
+                mat.SetColor("_GuardColor",new Color(.18f,.58f,1,strength*.62f));
+            }
         }
         void UpdateSurfaceImpact()
         {
