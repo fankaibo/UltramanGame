@@ -76,7 +76,7 @@ def main():
                 'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'Paused', 'Victory',
                 'victory-collapse', 'victory-turn', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
-                'combo-left', 'combo-right')
+                'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:

@@ -50,6 +50,11 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Enemy!=EnemyPhase.Attack&&ComboStrikeMotion.Active(battle)&&
                 battle.ActionAge>=Battle.PunchHitSeconds&&battle.ActionAge<.22f)
                 key=battle.Action==HeroAction.LeftPunch?"combo-left":"combo-right";
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Windup)
+            {
+                if(world.ThreatFocus>.99f&&battle.EnemyAge>1.2f)key="monster-threat";
+                else if(battle.EnemyAge>=3.5f&&battle.EnemyAge<4)key="monster-threat-return";
+            }
             if(captureClaw)key=clawKey;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;

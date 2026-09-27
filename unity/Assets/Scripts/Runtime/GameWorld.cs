@@ -12,6 +12,7 @@ namespace UltramanGame.Runtime
         public bool MonsterLanded { get; private set; }
         public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
         public float EntranceAge {get;private set;}
+        public float ThreatFocus {get;private set;}
         public bool TransformationCloseup {get;private set;}
         float lastEntranceAge;
         public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
@@ -43,6 +44,7 @@ namespace UltramanGame.Runtime
         readonly ImpactTiming hitTiming=new ImpactTiming();
         float framingFieldOfView=35;
         bool beamWasVisible,landingPending;
+        Battle threatBattle;
         GamePhase previous;
         public GameWorld()
         {
@@ -97,7 +99,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=TransformationCloseup=false;EntranceAge=lastEntranceAge=0;}
+        {Closeup.Cancel();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -224,6 +226,11 @@ namespace UltramanGame.Runtime
             float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27:25):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
+            if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
+            if(Showcase||!combat||Closeup.Active||state.Action==HeroAction.Beam)ThreatFocus=0;
+            else if(state.Enemy==EnemyPhase.Windup)
+                ThreatFocus=Mathf.SmoothStep(0,1,state.EnemyAge/.9f)*(1-Mathf.SmoothStep(0,1,(state.EnemyAge-2.1f)/1.3f));
+            else ThreatFocus=Mathf.MoveTowards(ThreatFocus,0,dt*3.4f);
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView,14,focus);
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
             var texture=backdropMaterial.mainTexture;
@@ -233,6 +240,7 @@ namespace UltramanGame.Runtime
             float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
                 ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
             float scale=Mathf.Max(1,Camera.aspect/aspect)*(TransformationCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
+            scale*=Mathf.Lerp(1,1.32f,ThreatFocus);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
@@ -246,6 +254,13 @@ namespace UltramanGame.Runtime
             // One damped recoil, with a restrained camera displacement for a young player.
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
             Vector3 target=lookAt;
+            // One low approach at the start of the warning, then return with
+            // two seconds left for the child to read the guard and incoming claw.
+            // Follow the enemy clock; an instruction cancellation gets a short
+            // return, while a beam cut-in, pause or new round clears the shot.
+            Camera.transform.position+=new Vector3(-.9f,-.55f,2.35f)*ThreatFocus;
+            target+=new Vector3(.22f,.84f,0)*ThreatFocus;
+            dynamicZoom+=1.2f*ThreatFocus;
             if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active)
             {
                 float hurt=state.Action==HeroAction.Hurt?KnockdownMotion.Weight(state.ActionAge):0;
