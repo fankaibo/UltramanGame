@@ -588,6 +588,10 @@ namespace UltramanGame.Runtime
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest)
                 AnchorMonsterFeet();
             if(retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
+                 (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
+                PoseRetargetedFootwork(state);
+            if(retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch))
                 AimRetargetedPunch(state);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&
@@ -732,6 +736,43 @@ namespace UltramanGame.Runtime
             PoseLimb(leftThigh,leftShin,leftFoot,left,1,forward-side*.20f,leftFootLocal.y);
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.20f,rightFootLocal.y);
             leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
+        }
+        void PoseRetargetedFootwork(Battle state)
+        {
+            if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
+            Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
+            float lift=0,advance=0,weight=1;
+            if(state.Action==HeroAction.None)weight=1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
+            else
+            {
+                float age=state.ActionAge;
+                if(age<Battle.PunchHitSeconds)
+                {
+                    float t=Mathf.Clamp01(age/Battle.PunchHitSeconds);
+                    advance=StrikeAdvance*Mathf.SmoothStep(0,1,t);lift=.12f*Mathf.Sin(t*Mathf.PI);
+                }
+                else if(age<.18f)advance=StrikeAdvance;
+                else
+                {
+                    float t=Mathf.Clamp01((age-.18f)/(Battle.PunchSeconds-.18f));
+                    advance=StrikeAdvance*(1-Mathf.SmoothStep(0,1,t));lift=.09f*Mathf.Sin(t*Mathf.PI);
+                }
+                Vector3 step=forward*advance+Vector3.up*lift;
+                if(state.Action==HeroAction.LeftPunch)left+=step;else right+=step;
+            }
+            // These imported clips lift both feet with the pelvis. Keep the
+            // rear sole planted, land the leading foot before impact, and let
+            // the knees take the travel instead of sliding the entire model.
+            stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+            stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            Quaternion l=leftFoot.rotation,r=rightFoot.rotation;
+            stepDrop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right))*weight;
+            Root.position-=Vector3.up*stepDrop;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,weight,forward-side*.15f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,weight,forward+side*.15f,rightFootLocal.y);
+            leftFoot.rotation=Quaternion.Slerp(l,facing*leftFootRest,weight);
+            rightFoot.rotation=Quaternion.Slerp(r,facing*rightFootRest,weight);
         }
         void AimRetargetedPunch(Battle state)
         {

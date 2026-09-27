@@ -34,9 +34,11 @@ namespace UltramanGame.Editor
                         // then ensure sampling without time cannot compound IK.
                         hero.Update(state,world.Camera,0,t);
                         hands[0]=hero.StrikeOrigin(HeroAction.LeftPunch);hands[1]=hero.HandPosition;
+                        Vector3 leftFoot=hero.FootPosition(true),rightFoot=hero.FootPosition(false),root=hero.Root.position;
                         for(int i=0;i<5;i++)hero.Update(state,world.Camera,0,t);
                         if(Vector3.Distance(hands[0],hero.StrikeOrigin(HeroAction.LeftPunch))>.001f||
-                            Vector3.Distance(hands[1],hero.HandPosition)>.001f)
+                            Vector3.Distance(hands[1],hero.HandPosition)>.001f||
+                            Vector3.Distance(leftFoot,hero.FootPosition(true))>.001f||Vector3.Distance(rightFoot,hero.FootPosition(false))>.001f||Vector3.Distance(root,hero.Root.position)>.001f)
                             throw new Exception($"Retargeted punch accumulates: {id}/{fps}");
                         samples++;
                     }
@@ -49,7 +51,7 @@ namespace UltramanGame.Editor
                 state=new Battle();var fresh=new AnimatedActor(id,world.HeroHome,world.EnemyHome);fresh.SetOpponent(enemy);
                 for(int f=0;f<fps;f++){hero.Update(state,world.Camera,dt,t);fresh.Update(state,world.Camera,dt,t);t+=dt;}
                 if(Vector3.Distance(hero.StrikeOrigin(HeroAction.LeftPunch),fresh.StrikeOrigin(HeroAction.LeftPunch))>.001f||
-                    Vector3.Distance(hero.HandPosition,fresh.HandPosition)>.001f)
+                    Vector3.Distance(hero.HandPosition,fresh.HandPosition)>.001f||Vector3.Distance(hero.FootPosition(true),fresh.FootPosition(true))>.001f||Vector3.Distance(hero.FootPosition(false),fresh.FootPosition(false))>.001f)
                     throw new Exception($"Punch correction remained after restart: {id}/{fps}");
                 Debug.Log($"[RosterPunchRecovery] {id}/{fps}Hz repeatedSamples={samples} rapidCombo=passed pauseResume=passed newRound=passed");
             }

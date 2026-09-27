@@ -71,6 +71,17 @@ namespace UltramanGame.Runtime
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
             photo=new VictoryPhoto(LocalPort("--photo-port",8767),sound);
             heroIndex=HeroRoster.Index(PlayerPrefs.GetString("hero.selected","Tiga"));if(review!=null||!HeroAvailable(heroIndex))heroIndex=0;
+            if(review!=null)
+            {
+                var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--review-hero");
+                if(at>=0)
+                {
+                    if(at+1>=args.Length)throw new ArgumentException("Missing review hero");
+                    heroIndex=HeroRoster.Index(args[at+1]);
+                    if(SelectedHero.Id!=args[at+1]||!HeroAvailable(heroIndex))throw new ArgumentException("Unavailable review hero");
+                }
+                Debug.Log($"[FullGameReviewHero] id={SelectedHero.Id}");
+            }
             photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;
             hero=new AnimatedActor(SelectedHero.Id,world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             world.BindActors(hero,enemy);

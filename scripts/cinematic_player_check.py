@@ -12,6 +12,7 @@ from pathlib import Path
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--width',type=int,default=1920);parser.add_argument('--height',type=int,default=1080)
+    parser.add_argument('--hero', choices=('Tiga','Mebius','Zero','Geed','Grigio'), default='Tiga')
     args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     started = datetime.now(timezone.utc)
@@ -26,7 +27,7 @@ def main():
     assembly_sha = hashlib.sha256(assembly.read_bytes()).hexdigest()
     start = time.monotonic()
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
-        player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--guided-proof',
+        player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
                                    '--proof-output', str(native), '-screen-fullscreen', '0',
                                    '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)],
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
@@ -49,8 +50,11 @@ def main():
         raise RuntimeError(f'Runtime exception in {log}')
     if '[PresentationWarmup] complete' not in output:
         raise RuntimeError('Presentation was not prewarmed')
-    if output.count('[Voice] key=beam_original playing=True') != 2:
-        raise RuntimeError('Expected two original battle cries')
+    if f'[FullGameReviewHero] id={args.hero}' not in output:
+        raise RuntimeError('Requested hero was not instantiated')
+    beam_voice = 'beam_original' if args.hero == 'Tiga' else 'beam'
+    if output.count(f'[Voice] key={beam_voice} playing=True') != 2:
+        raise RuntimeError(f'Expected two {beam_voice} battle cries for {args.hero}')
     if output.count('[VictoryStage] landing-thud playing=True') != 1:
         raise RuntimeError('Expected exactly one landing sound for the defeated monster')
     if 'reaction=3.0' not in output:
@@ -67,7 +71,7 @@ def main():
         if not path.is_file() or f'file={path}' not in output:
             raise RuntimeError(f'Missing current-player visual evidence: {name}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height],
               'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'evidence_directory': str(evidence),
