@@ -145,9 +145,10 @@ namespace UltramanGame.Runtime
             var texture=Resources.Load<Texture2D>("Characters/"+name+"/"+name+"Body");
             var eyes=Resources.Load<Texture2D>("Characters/"+name+"/"+name+"Eyes");
             var materialCache=new Dictionary<string,Material>();
+            int modelVertices=0;
             foreach(var renderer in renderers)
             {
-                if(renderer is SkinnedMeshRenderer skin) {skin.updateWhenOffscreen=true;BoneCount=Mathf.Max(BoneCount,skin.bones.Length);}
+                if(renderer is SkinnedMeshRenderer skin) {skin.updateWhenOffscreen=true;BoneCount=Mathf.Max(BoneCount,skin.bones.Length);modelVertices+=skin.sharedMesh.vertexCount;}
                 renderer.shadowCastingMode=ShadowCastingMode.On;renderer.receiveShadows=true;
                 var mapped=renderer.sharedMaterials;
                 for(int i=0;i<mapped.Length;i++)
@@ -233,7 +234,7 @@ namespace UltramanGame.Runtime
             if(rightFoot)rightFootLocal=Root.InverseTransformPoint(rightFoot.position);
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
             rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
-            Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2}");
+            Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2} vertices={modelVertices}");
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
         {

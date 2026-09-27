@@ -10,5 +10,12 @@
     "RightPunch",
     "Transform",
     "Victory"
-  ]
+  ],
+  "mesh_processing": "Connected subdivision before skinning; removed importer EdgeSplit to prevent shrink cracks.",
+  "rest_mesh": {
+    "verts": 16647,
+    "polys": 16596,
+    "components": 3,
+    "boundary_edges": 120
+  }
 }

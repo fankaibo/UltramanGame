@@ -97,7 +97,7 @@ def import_gta(name,source,output):
     texture_dir=output/'Textures';texture_dir.mkdir(parents=True,exist_ok=True)
     for o in meshes:
         for p in o.data.polygons:p.use_smooth=True
-        sub=o.modifiers.new('Silhouette smoothing','SUBSURF');sub.levels=sub.render_levels=1
+        smooth_gta_mesh(o)
         for slot in o.material_slots:
             mat=slot.material
             tex=next(n.image for n in mat.node_tree.nodes if n.type=='TEX_IMAGE' and n.image)
@@ -105,6 +105,19 @@ def import_gta(name,source,output):
             mat.name=key
             sh=next(n for n in mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED');sh.inputs['Metallic'].default_value=.2;sh.inputs['Roughness'].default_value=.43
     return rig,meshes
+
+
+def smooth_gta_mesh(obj):
+    # DragonFF adds EdgeSplit for the original game normals. Subdividing those
+    # disconnected faces shrinks each patch separately, opening cracks in the
+    # mask and armor. Keep the original connected topology instead. Evaluate
+    # smoothing before skinning so Blender previews and exported FBX agree.
+    for modifier in list(obj.modifiers):
+        if modifier.type=='EDGE_SPLIT':obj.modifiers.remove(modifier)
+    sub=next((m for m in obj.modifiers if m.type=='SUBSURF'),None)
+    if sub is None:sub=obj.modifiers.new('Silhouette smoothing','SUBSURF')
+    sub.levels=sub.render_levels=1
+    obj.modifiers.move(obj.modifiers.find(sub.name),0)
 
 
 def retarget(rig):

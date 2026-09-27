@@ -12,6 +12,10 @@ Adapted 2026-09-15:
 - Rendered a transparent victory portrait for the selected character's photo stage.
 - GTA archive installer EXE files were never run; extracted only DFF/TXD payload data.
 - Zero uses the standard body, without the optional Ultimate armor.
+Updated 2026-09-27:
+- Removed DragonFF EdgeSplit before subdivision to prevent disconnected patches shrinking into visible cracks.
+- Subdivision now precedes skinning; original UVs, texture and eight combat clips are retained.
+- Regenerated the photo portrait from the repaired connected mesh.
 Rebuild: scripts/prepare_roster.py; GTA extraction: scripts/extract_gta_skin.py
 SourceIO: https://github.com/REDxEYE/SourceIO
 DragonFF: https://github.com/Parik27/DragonFF
