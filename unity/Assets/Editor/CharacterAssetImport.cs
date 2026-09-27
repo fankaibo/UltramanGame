@@ -11,7 +11,10 @@ namespace UltramanGame.Editor
             var importer=(ModelImporter)assetImporter;
             importer.animationType=ModelImporterAnimationType.Legacy;
             importer.importAnimation=true;importer.importCameras=false;importer.importLights=false;
-            importer.addCollider=false;importer.isReadable=false;
+            importer.addCollider=false;
+            // The monster's beam contact skins three source vertices at runtime.
+            // Keep its mesh readable in players as well as in the Editor.
+            importer.isReadable=assetPath.EndsWith("/Golza/Golza.fbx",System.StringComparison.Ordinal);
             importer.animationCompression=ModelImporterAnimationCompression.Off;
             importer.importBlendShapes=false;
         }

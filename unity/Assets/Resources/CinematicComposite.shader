@@ -4,6 +4,7 @@ Shader "Training/CinematicComposite" {
  CGINCLUDE
  #include "UnityCG.cginc"
  sampler2D _MainTex,_Bloom;float4 _MainTex_TexelSize;float2 _Direction;float _Strength;float4 _FlashColor;float4 _ShockColor;float _ShockRadius;float _ShockStrength;
+ float4 _PulseCenter;float _Aspect;
  half4 extract(v2f_img i):SV_Target {half3 c=tex2D(_MainTex,i.uv).rgb;float b=max(c.r,max(c.g,c.b));return half4(c*saturate((b-.85)/max(b,.001)),1);}
  half4 blur(v2f_img i):SV_Target {
   float2 d=_MainTex_TexelSize.xy*_Direction;
@@ -11,9 +12,14 @@ Shader "Training/CinematicComposite" {
  }
  half4 compose(v2f_img i):SV_Target {
   half3 c=tex2D(_MainTex,i.uv).rgb+tex2D(_Bloom,i.uv).rgb*_Strength;
-  c+=_FlashColor.rgb*_FlashColor.a;
-  float distanceFromCenter=distance(i.uv,float2(.5,.49));
-  float ring=exp(-pow((distanceFromCenter-_ShockRadius)/.032,2))*_ShockStrength;
+  float2 delta=(i.uv-_PulseCenter.xy)*float2(_Aspect,1);
+  float distanceFromCenter=length(delta);
+  // Keep the dark stage and costume colors through a hit. A local exposure
+  // bloom and a faint circular wave carry the impact instead of a flat tint.
+  float localFlash=exp(-dot(delta,delta)/.020)*.46+exp(-dot(delta,delta)/.13)*.075;
+  float exposure=lerp(.16,localFlash,_PulseCenter.z)*_PulseCenter.w;
+  c+=_FlashColor.rgb*_FlashColor.a*exposure;
+  float ring=exp(-pow((distanceFromCenter-_ShockRadius)/.022,2))*_ShockStrength*.24*_PulseCenter.w;
   c+=_ShockColor.rgb*ring;
   float2 p=i.uv*2-1;c*=1-dot(p,p)*.035;
   return half4(c,1);

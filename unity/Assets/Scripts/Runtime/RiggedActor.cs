@@ -40,6 +40,7 @@ namespace UltramanGame.Runtime
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
         Transform head,upperSpine,pelvis;
         Vector3 beamContactLocal;
+        readonly SkinnedSurfaceAnchor beamSurface;
         Vector3 surfaceContactLocal;
         Transform leftThigh,rightThigh,leftShin,rightShin;
         Quaternion leftFootRest,rightFootRest;
@@ -71,6 +72,7 @@ namespace UltramanGame.Runtime
         public Vector3 EnemyStrikeOrigin(int attackCount) => attackCount%2==0&&leftHand?leftHand.position:HandPosition;
         public Vector3 BeamOrigin => hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
         public Vector3 BeamContact => upperSpine?upperSpine.TransformPoint(beamContactLocal):Root.position+Vector3.up*2.48f;
+        public Vector3 BeamSurfaceContact => beamSurface!=null?beamSurface.Position:BeamContact;
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
         public Vector3 GroundContactPosition => pelvis?pelvis.position:Root.position;
         public void SetOpponent(AnimatedActor actor){opponent=actor;}
@@ -232,6 +234,7 @@ namespace UltramanGame.Runtime
             // A point on the front of the resting chest, carried by its sampled
             // bone through recoil. Root/home coordinates drift off the skin.
             if(upperSpine)beamContactLocal=upperSpine.InverseTransformPoint(home+Vector3.up*2.48f+forward*.33f);
+            if(monster)beamSurface=SkinnedSurfaceAnchor.Torso(surfaces,new Ray(home+Vector3.up*2.48f+forward*3,-forward));
             if(leftFoot)leftFootRest=Quaternion.Inverse(Root.rotation)*leftFoot.rotation;
             if(rightFoot)rightFootRest=Quaternion.Inverse(Root.rotation)*rightFoot.rotation;
             if(leftFoot)leftFootLocal=Root.InverseTransformPoint(leftFoot.position);

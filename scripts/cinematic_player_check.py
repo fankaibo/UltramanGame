@@ -58,6 +58,8 @@ def main():
         raise RuntimeError('Presentation was not prewarmed')
     if f'[FullGameReviewHero] id={args.hero}' not in output:
         raise RuntimeError('Requested hero was not instantiated')
+    if '[BeamSurface] torso-anchor=True vertices=3' not in output or 'chest-bone fallback' in output:
+        raise RuntimeError('Built player did not bind the beam to the readable monster torso')
     beam_voice = 'beam_original' if args.hero == 'Tiga' else 'beam'
     if output.count(f'[Voice] key={beam_voice} playing=True') != 2:
         raise RuntimeError(f'Expected two {beam_voice} battle cries for {args.hero}')

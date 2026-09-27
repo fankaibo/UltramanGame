@@ -89,7 +89,8 @@ namespace UltramanGame.Editor
             // Full-scene captures above retain the actual game shadows.
             foreach(var light in UnityEngine.Object.FindObjectsByType<Light>(FindObjectsSortMode.None))light.shadows=LightShadows.None;
             var target=new RenderTexture(384,384,24);target.Create();camera.targetTexture=target;
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/surface-impact/emission"));Directory.CreateDirectory(folder);
+            var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--surface-impact-output");
+            string folder=Path.GetFullPath(outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/surface-impact/emission"));Directory.CreateDirectory(folder);
             string name=id+"-"+(kind==0?"left":kind==1?"right":"beam")+(interrupt?"-interrupted":"");File.Delete(folder+"/"+name+".txt");
             float health=state.EnemyHealth,age=-1,bindingError=0;Vector3 local=default;bool peak=false,decayed=false;int changed=0;float lowerFraction=0;
             try
@@ -102,7 +103,7 @@ namespace UltramanGame.Editor
                     if(state.EnemyHealth<health)
                     {
                         world.Hit(kind==2,state);age=0;var point=(Vector3)mat.GetVector("_ImpactPoint");local=chest.InverseTransformPoint(point);
-                        Vector3 contact=kind==2?enemy.BeamContact:hero.StrikeOrigin(state.Action);
+                        Vector3 contact=kind==2?world.BeamTarget:hero.StrikeOrigin(state.Action);
                         if(Vector3.Distance(point,contact)>.001f)throw new Exception("Skin light missed actual contact");
                     }
                     health=state.EnemyHealth;world.Tick(state,dt,t);

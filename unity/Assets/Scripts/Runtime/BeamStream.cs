@@ -21,8 +21,8 @@ namespace UltramanGame.Runtime
         {
             material=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("BeamStream")));
             ribbon=new GameObject("Zeperion traveling stream").AddComponent<LineRenderer>();ribbon.transform.SetParent(parent,false);
-            ribbon.sharedMaterial=material;ribbon.positionCount=2;ribbon.numCapVertices=0;ribbon.widthMultiplier=.52f;
-            ribbon.widthCurve=new AnimationCurve(new Keyframe(0,.65f),new Keyframe(.28f,1),new Keyframe(1,.8f));
+            ribbon.sharedMaterial=material;ribbon.positionCount=2;ribbon.numCapVertices=0;ribbon.widthMultiplier=.74f;
+            ribbon.widthCurve=new AnimationCurve(new Keyframe(0,.72f),new Keyframe(1,1));
             ribbon.startColor=ribbon.endColor=Color.white;
             headMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyFlare")));
             head=GameWorld.Primitive("Zeperion contact glow",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,headMaterial);
@@ -35,7 +35,7 @@ namespace UltramanGame.Runtime
             Power=Envelope(age);float travel=Travel(age);
             Tip=Vector3.Lerp(origin,target,travel);ribbon.enabled=true;
             ribbon.SetPosition(0,origin);ribbon.SetPosition(1,Tip);
-            ribbon.widthMultiplier=.52f*Mathf.Lerp(.55f,1,Power);
+            ribbon.widthMultiplier=.74f*Mathf.Lerp(.55f,1,Power);
             material.SetFloat("_Clock",clock);material.SetFloat("_Length",Vector3.Distance(origin,Tip));material.SetFloat("_Power",Power);
             head.gameObject.SetActive(true);head.position=Tip-camera.transform.forward*.025f;head.rotation=camera.transform.rotation;
             float pulse=1+.06f*Mathf.Sin(clock*21);

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,60 +14,80 @@ namespace UltramanGame.Editor
         [MenuItem("UltramanGame/Verify rendered impact flash decay")]
         public static void Run()
         {
-            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-            var world=new GameWorld();var battle=new Battle();
-            battle.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<30;i++)battle.Tick(.1f,new PlayerInput{Tracking=true});
-            if(battle.Phase!=GamePhase.Battle)throw new Exception("Flash review did not reach battle");
-            world.Tick(battle,1,0);
-            // Isolate the actual compositor from moving geometry and point lights.
-            // Render a fixed scene color so a persistent screen tint cannot hide
-            // behind a passing game-state or animation check.
-            var camera=world.Camera;camera.cullingMask=0;camera.backgroundColor=new Color(.05f,.06f,.09f);
-            var target=new RenderTexture(96,54,24,RenderTextureFormat.ARGB32);target.Create();camera.targetTexture=target;
-            var pixels=new Texture2D(96,54,TextureFormat.RGB24,false);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/flash-decay-review"));Directory.CreateDirectory(folder);
-            var oldTarget=RenderTexture.active;
-            Color Read(string name=null)
+            var shader=Resources.Load<Shader>("CinematicComposite");
+            if(!shader||ShaderUtil.ShaderHasError(shader))throw new Exception("Compositor shader failed");
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/contact-light"));
+            Directory.CreateDirectory(folder);File.Delete(folder+"/validation.txt");var report=new StringBuilder();
+            foreach(int width in new[]{256,192})
             {
-                camera.Render();RenderTexture.active=target;
-                pixels.ReadPixels(new Rect(0,0,96,54),0,0);pixels.Apply();
-                if(name!=null)File.WriteAllBytes(Path.Combine(folder,name+".png"),pixels.EncodeToPNG());
-                return pixels.GetPixel(48,27);
-            }
-            float Difference(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Max(Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b)));
-            try
-            {
-                Color baseline=Read("baseline");
-                foreach(int fps in new[]{15,30,60})
-                foreach(bool special in new[]{false,true})
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+                var world=new GameWorld();var camera=world.Camera;var compositor=camera.GetComponent<CinematicCamera>();
+                // A flat dark field isolates the actual GPU compositor from
+                // geometry, local lights, smoke and changes in animation.
+                camera.cullingMask=0;camera.backgroundColor=new Color(.05f,.06f,.09f);
+                camera.transform.SetPositionAndRotation(new Vector3(0,0,-10),Quaternion.identity);
+                camera.aspect=width/144f;
+                var target=new RenderTexture(width,144,24,RenderTextureFormat.ARGBHalf);target.Create();camera.targetTexture=target;
+                var pixels=new Texture2D(width,144,TextureFormat.RGBAFloat,false,true);
+                var oldTarget=RenderTexture.active;
+                Color[] Read(string name=null)
                 {
-                    world.ResetPresentation();world.Hit(special,battle);
-                    Color peak=Read();
-                    if(Difference(peak,baseline)<.05f)throw new Exception("Impact flash failed to appear in rendered pixels");
-                    world.Tick(battle,0,0);
-                    if(Difference(Read(),peak)>.005f)throw new Exception("Zero presentation time advanced the flash");
-                    // Rendering twice must not consume the pulse; only explicit
-                    // presentation time advances it, in batch and in the player.
-                    if(Difference(Read(),peak)>.005f)throw new Exception("Camera render consumed the flash");
-                    world.Tick(battle,1f/fps,0);
-                    if(Difference(Read(),peak)>.005f)throw new Exception($"Contact-frame flash disappeared at {fps} fps");
-                    for(int frame=1;frame<Mathf.CeilToInt(fps*.2f);frame++)world.Tick(battle,1f/fps,frame/(float)fps);
-                    float difference=Difference(Read($"recovered-{fps}-{(special?"beam":"punch")}"),baseline);
-                    if(difference>.005f)throw new Exception($"Impact flash remained in rendered pixels after 0.2s: fps={fps} special={special} difference={difference:F4}");
-                    Debug.Log($"[FlashDecayReview] fps={fps} special={special} recoveredPixelDifference={difference:F4}");
+                    camera.Render();RenderTexture.active=target;
+                    pixels.ReadPixels(new Rect(0,0,width,144),0,0);pixels.Apply();
+                    if(name!=null)File.WriteAllBytes(Path.Combine(folder,name+".png"),pixels.EncodeToPNG());
+                    return pixels.GetPixels();
                 }
-                world.Hit(true,battle);world.ResetPresentation();
-                if(Difference(Read("reset"),baseline)>.005f)throw new Exception("Restart retained a screen flash");
-                world.Hit(true,battle);battle.Pause();world.Tick(battle,0,0);
-                if(Difference(Read("paused"),baseline)>.005f)throw new Exception("Pause retained a screen flash");
-                Debug.Log("[FlashDecayReview] PASS rendered pulse, explicit clock, 15/30/60 fps recovery, restart and pause");
+                Color At(Color[] image,Vector2 uv)=>image[Mathf.Clamp((int)(uv.y*144),0,143)*width+Mathf.Clamp((int)(uv.x*width),0,width-1)];
+                float Delta(Color a,Color b)=>Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Max(Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b)));
+                float MaxDelta(Color[] a,Color[] b){float value=0;for(int i=0;i<a.Length;i++)value=Mathf.Max(value,Delta(a[i],b[i]));return value;}
+                try
+                {
+                    var baseline=Read();var uv=new Vector2(.28f,.62f);var far=new Vector2(.94f,.08f);
+                    var contact=camera.ViewportToWorldPoint(new Vector3(uv.x,uv.y,5));
+                    foreach(int fps in new[]{15,30,60})foreach(bool special in new[]{false,true})
+                    {
+                        compositor.Clear();compositor.PulseAt(contact,special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
+                        var peak=Read($"{width}-{fps}-{(special?"beam":"punch")}-peak");
+                        float nearDelta=Delta(At(peak,uv),At(baseline,uv)),farDelta=Delta(At(peak,far),At(baseline,far));
+                        if(nearDelta<.10f||farDelta>.015f)throw new Exception($"Hit is not localized near={nearDelta:F4} far={farDelta:F4}");
+                        compositor.Tick(0);
+                        if(MaxDelta(Read(),peak)>.002f||MaxDelta(Read(),peak)>.002f)throw new Exception("Rendering or zero-time changed the flash");
+                        compositor.Tick(1f/fps);
+                        if(MaxDelta(Read(),peak)>.002f)throw new Exception("Contact flash was not displayed for one step");
+                        for(int frame=1;frame<Mathf.CeilToInt(fps*.25f);frame++)compositor.Tick(1f/fps);
+                        if(MaxDelta(Read(),baseline)>.002f)throw new Exception("Contact light failed to recover");
+                        report.AppendLine($"{width}x144 rate={fps} special={special} near={nearDelta:F4} far={farDelta:F4} zeroTime=passed decay=passed");
+                    }
+                    // A contact away from the screen center must remain pinned
+                    // to its world point after camera recoil, including Y.
+                    compositor.PulseAt(contact,Color.white,.82f);camera.transform.position+=Vector3.right*1.1f+Vector3.up*.4f;
+                    var projected=(Vector2)camera.WorldToViewportPoint(contact);var moved=Read();
+                    if(Delta(At(moved,projected),At(baseline,projected))<.30f)throw new Exception("Flash did not follow camera projection");
+                    camera.transform.position=new Vector3(0,0,-10);compositor.Clear();
+                    compositor.PulseAt(contact,Color.white,.82f);compositor.Tick(.001f);compositor.Tick(.064f);
+                    var wave=Read();float r=Mathf.Lerp(.035f,.52f,.064f/.22f);
+                    // Equal pixel distances horizontally and vertically must
+                    // carry the same wave; wide-screen circles cannot stretch.
+                    Vector2 h=uv+new Vector2(r/camera.aspect,0),v=uv+new Vector2(0,-r);
+                    float dh=Delta(At(wave,h),At(baseline,h)),dv=Delta(At(wave,v),At(baseline,v));
+                    if(Mathf.Abs(dh-dv)>.025f||Mathf.Min(dh,dv)<.02f)throw new Exception($"Impact wave aspect mismatch {dh:F4} {dv:F4}");
+                    compositor.Clear();compositor.PulseAt(camera.transform.position-Vector3.forward,Color.white,.82f);
+                    if(MaxDelta(Read(),baseline)>.002f)throw new Exception("Behind-camera impact illuminated the screen");
+                    compositor.Clear();compositor.Pulse(new Color(.2f,.68f,1),.42f);
+                    var global=Read();float globalDelta=Delta(At(global,new Vector2(.1f,.1f)),At(baseline,new Vector2(.1f,.1f)));
+                    if(globalDelta<.02f||globalDelta>.09f)throw new Exception("Transition exposure lost or excessive");
+                    compositor.Clear();if(MaxDelta(Read(),baseline)>.002f)throw new Exception("Reset retained flash");
+                    // Exercise the real world reset/pause routes as well.
+                    var battle=new Battle();compositor.PulseAt(contact,Color.white,.82f);world.ResetPresentation();
+                    if(MaxDelta(Read(),baseline)>.002f)throw new Exception("World restart retained flash");
+                    battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int f=0;f<120;f++)battle.Tick(.02f,new PlayerInput{Tracking=true});
+                    compositor.PulseAt(contact,Color.white,.82f);battle.Pause();world.Tick(battle,0,0);
+                    if(MaxDelta(Read(),baseline)>.002f)throw new Exception("World pause retained flash");
+                    report.AppendLine($"{width}x144 projection=passed circle=passed behindCamera=passed transition={globalDelta:F4} worldPause=passed reset=passed");
+                }
+                finally {camera.targetTexture=null;RenderTexture.active=oldTarget;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(pixels);}
             }
-            finally
-            {
-                camera.targetTexture=null;RenderTexture.active=oldTarget;target.Release();
-                UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(pixels);
-            }
+            File.WriteAllText(folder+"/validation.txt",report.ToString());Debug.Log("[FlashDecayReview] PASS\n"+report);
         }
     }
 }

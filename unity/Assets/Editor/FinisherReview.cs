@@ -12,6 +12,13 @@ namespace UltramanGame.Editor
     {
         public static void Before()=>Render("before");
         public static void After(){Render("after");ValidateFlow();}
+        public static void Release(){After();CinematicFlashReview.Run();BeamContactReview.After();}
+        static string Output(string version)
+        {
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--finisher-output");
+            string root=at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/finisher");
+            return Path.GetFullPath(Path.Combine(root,version));
+        }
         static void ValidateFlow()
         {
             var reports=new StringBuilder();
@@ -20,7 +27,7 @@ namespace UltramanGame.Editor
             // Interrupt flight, sustained contact and fade, then clear the
             // presentation exactly as the live pause/restart path does.
             foreach(float interrupt in new[]{.33f,.68f,1.36f})ValidateSequence("Tiga",60,interrupt,reports);
-            File.WriteAllText(Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/finisher/after/flow-validation.txt")),reports.ToString());
+            File.WriteAllText(Path.Combine(Output("after"),"flow-validation.txt"),reports.ToString());
         }
         static void ValidateSequence(string heroId,int fps,float interrupt,StringBuilder reports)
         {
@@ -87,11 +94,11 @@ namespace UltramanGame.Editor
             }
             state.GiveInstructionTime(10);while(state.TryCue(out _)){}
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/finisher",version));
-            Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
+            string folder=Output(version);
+            Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");File.Delete(folder+"/impact-peak.png");
             var source=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/BeamStream.cs","Resources/BeamStream.shader","Editor/FinisherReview.cs"})
+                foreach(string file in new[]{"Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/SkinnedSurfaceAnchor.cs","Scripts/Runtime/BeamStream.cs","Resources/BeamStream.shader","Scripts/Runtime/CinematicCamera.cs","Resources/CinematicComposite.shader","Resources/Characters/Golza/Golza.fbx.meta","Editor/CharacterAssetImport.cs","Editor/FinisherReview.cs"})
                 {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))source.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/render-source.txt",source.ToString());
             var rt=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;
@@ -108,6 +115,7 @@ namespace UltramanGame.Editor
                     hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);
                     if(state.EnemyHealth<health){contacts++;world.Hit(true,state);}
                     health=state.EnemyHealth;world.Tick(state,dt,time);enemy.SetPresentationOpacity(world.EnemyOpacity);
+                    if(contacts==1&&!File.Exists(folder+"/impact-peak.png"))CharacterReview.Save(world.Camera,rt,folder+"/impact-peak.png");
                     if(world.BeamStarted)releases++;
                     var origin=world.BeamOrigin;
                     csv.AppendLine(FormattableString.Invariant($"{frame},{time:F4},{state.ActionAge:F4},{world.Closeup.Active},{world.BeamVisible},{health},{origin.x:F4},{origin.y:F4},{origin.z:F4}"));

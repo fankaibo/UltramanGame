@@ -21,7 +21,7 @@ namespace UltramanGame.Runtime
         AnimatedActor hero,enemy;
         public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
-        public Vector3 BeamTarget => enemy!=null?enemy.BeamContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
+        public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop;
         readonly Material backdropMaterial;
@@ -107,15 +107,15 @@ namespace UltramanGame.Runtime
             // a long shake. The stronger envelope is still short enough for a
             // four-year-old to keep the action legible.
             Kick(special?.12f:.065f,special);
-            cinematic.Pulse(special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             // Use the monster's position at this contact, including its own forward step.
             var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
+            cinematic.PulseAt(position,special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             enemy?.BindSurfaceImpact(position);
             effects.Impact(position,special);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {
                 Kick(.09f);
-                cinematic.Pulse(new Color(1,.68f,.20f),.42f);
+                cinematic.PulseAt(position,new Color(1,.68f,.20f),.42f);
                 effects.Combo(position);
             }
         }
@@ -126,7 +126,7 @@ namespace UltramanGame.Runtime
                 // The rush begins with a readable visual beat.  It is a presentation
                 // pulse only; damage is still resolved at EnemyHitSeconds.
                 Burst(EnemyHome+Vector3.up*.16f,22,.62f,true);
-                cinematic.Pulse(new Color(1,.28f,.08f),.18f);
+                cinematic.PulseAt(EnemyHome+Vector3.up*2,new Color(1,.28f,.08f),.18f);
             }
             if(cue==GameCue.Block)
             {
