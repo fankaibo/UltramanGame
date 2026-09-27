@@ -43,8 +43,10 @@ namespace UltramanGame.Runtime
                 float scorePulse=time<hitUntil?Mathf.Clamp01((hitUntil-time)*1.4f):0;
                 if(battle.Action!=HeroAction.Beam&&!opening)
                 {
-                    hud.Rounded(new Rect(518,101,244,27),new Color(.01f,.04f,.08f,.86f),6);
-                    hud.Text(new Rect(524,101,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
+                    // The monster leans through the centre in both rush and
+                    // recoil. Keep the score below the hero plate, off its face.
+                    hud.Rounded(new Rect(36,110,244,27),new Color(.01f,.04f,.08f,.86f),6);
+                    hud.Text(new Rect(42,110,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
                 }
                 if(battle.Punches>0)
                 {
@@ -86,7 +88,10 @@ namespace UltramanGame.Runtime
                     float opacity=battle.Shield?.7f:.3f+Mathf.Sin(time*4)*.1f;
                     hud.Box(new Rect(0,130,4,420),new Color(1,.51f,.22f,opacity));
                     hud.Box(new Rect(1276,130,4,420),new Color(1,.51f,.22f,opacity));
-                    hud.Text(new Rect(855,139,335,36),battle.Shield?"防御成功准备":"怪兽正在蓄力",20,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
+                    string warningText=battle.Enemy==EnemyPhase.Attack?
+                        (battle.Shield?"挡住它 · 保持护盾！":"怪兽冲过来了！"):
+                        (battle.Shield?"护盾准备好了":"怪兽正在蓄力");
+                    hud.Text(new Rect(855,139,335,36),warningText,20,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
                 }
             }
             if(waiting)
@@ -94,7 +99,7 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(345,53,590,67),"光之英雄 · 火山大决战",37,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 hud.Text(new Rect(415,120,450,32),"这一次，由你守护火山基地",20,cyan,TextAnchor.MiddleCenter);
                 DrawHeroSelection();
-                Guide(keyboard?"按空格，和"+SelectedHero.Name+"一起出发":"双手举高，和"+SelectedHero.Name+"一起出发","transform",cyan,recognizer.TransformProgress);
+                Guide(keyboard?"按空格，和"+SelectedHero.Name+"一起出发":"双手举高，和"+SelectedHero.Name+"一起出发","transform",cyan,keyboard?0:recognizer.TransformProgress);
             }
             else if(transforming)
             {
@@ -114,21 +119,48 @@ namespace UltramanGame.Runtime
                 if(age>3)
                 {
                     hud.Rounded(new Rect(32,264,292,76),new Color(.007f,.025f,.053f,.82f),8);
-                    hud.Text(new Rect(46,272,266,60),"谢谢你！\n接下来，和"+SelectedHero.Name+"合照",18,HudPainter.Ink,TextAnchor.MiddleLeft,true);
+                    string next=keyboard?(photoAvailable?"按 F7 合照，或按 R 再玩一次":"按 R，再守护一次火山基地"):
+                        "接下来，和"+SelectedHero.Name+"合照";
+                    hud.Text(new Rect(46,272,266,60),"谢谢你！\n"+next,18,HudPainter.Ink,TextAnchor.MiddleLeft,true);
                 }
             }
             else if(battle.Phase==GamePhase.Paused)
-                Guide(paused?"休息一下 · 家长按 Esc 继续":"站进镜头，我们接着守护火山基地","transform",cyan,battle.ResumeProgress/1.2f);
-            else if(battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
-            else if(warning)
-                Guide(battle.Shield?"护盾已展开 · 保持住！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,recognizer.ShieldProgress);
-            else if(ready)
-                Guide(recognizer.BeamProgress>0?"看见动作了 · 保持，释放光线！":"摆 L 形，或双手向前推，停一下","beam",gold,recognizer.BeamProgress);
-            else if(time<captionUntil||battle.Punches<3)
-                Guide(time<captionUntil?caption:"收回拳头，再向前挥出去","punch",cyan,0);
+            {
+                bool interrupted=!keyboard&&!PoseQuality.Fresh(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                string text=paused?"休息一下 · 按 Esc 继续":keyboard?"准备好了，马上继续战斗":
+                    interrupted?"相机连接中断 · 进度已保留":"站进镜头，我们接着守护火山基地";
+                Guide(text,"transform",cyan,battle.ResumeProgress/1.2f);
+            }
+            else if(battle.Action!=HeroAction.Hurt)
+            {
+                // The fall and recovery need the full lower part of the shot;
+                // resume the normal instructions only after the hero stands.
+                if(battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
+                else if(warning)
+                    Guide(battle.Shield?(keyboard?"护盾已展开 · 继续按住 S":"护盾已展开 · 保持住！"):
+                        keyboard?"按住 S，展开护盾！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,keyboard?(battle.Shield?1:0):recognizer.ShieldProgress);
+                else if(ready)
+                    Guide(keyboard?"能量已满 · 按 J 释放光线":recognizer.BeamProgress>0?"看见动作了 · 保持，释放光线！":"摆 L 形，或双手向前推，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);
+                else if(time<captionUntil||battle.Punches<3)
+                    Guide(keyboard?"交替按 A / D，挥拳出击！":time<captionUntil?caption:"收回拳头，再向前挥出去","punch",cyan,0);
+            }
             DrawBattleStartCue();
             DrawArcadePreview();
+            if(keyboard)hud.Text(new Rect(20,649,332,20),"按键练习 · A/D 挥拳 · S 防御 · J 光线",11,HudPainter.Muted);
             if(pose?.source=="synthetic")hud.Text(new Rect(20,695,400,20),"合成动作测试 · 非真人输入",11,HudPainter.Gold);
+        }
+
+        void DrawKeyboardActions()
+        {
+            if(!keyboard||world.Closeup.Active||battle.Phase==GamePhase.Waiting||battle.Phase==GamePhase.Transforming)return;
+            // Parent controls stay at the edge. Switching input modes must not
+            // bring back the old panels over the fighters and their footwork.
+            if(battle.Phase==GamePhase.Victory)
+            {
+                if(photoAvailable&&hud.Button(new Rect(930,674,158,30),"合照 · F7",HudPainter.Cyan,13))photo.Open();
+            }
+            else if(hud.Button(new Rect(930,674,158,30),paused?"继续 · Esc":"暂停 · Esc",HudPainter.Muted,13))paused=!paused;
+            if(hud.Button(new Rect(1100,674,156,30),"再来一局 · R",HudPainter.Muted,13))Restart();
         }
 
         void DrawBeamReleaseTitle()
@@ -185,9 +217,12 @@ namespace UltramanGame.Runtime
         void DrawArcadePreview()
         {
             if(keyboard)return;
+            if(!showPreview)
+            {if(hud.Button(new Rect(1100,653,156,30),"显示取景 · F3",HudPainter.Cyan,12))showPreview=true;return;}
             var r=new Rect(1100,566,156,117);
             hud.Rounded(new Rect(r.x-4,r.y-18,r.width+8,r.height+40),new Color(.01f,.025f,.05f,.84f),6);
-            hud.Text(new Rect(r.x,r.y-18,r.width,17),"镜像取景",10,HudPainter.Cyan);
+            hud.Text(new Rect(r.x,r.y-18,r.width-48,17),"镜像取景",10,HudPainter.Cyan);
+            if(hud.Button(new Rect(r.xMax-43,r.y-18,43,17),"收起",HudPainter.Muted,10))showPreview=false;
             if(previewTexture&&previewFrame!=null&&previewFrame.Fresh(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))GUI.DrawTexture(r,previewTexture,ScaleMode.ScaleToFit);
             else hud.Text(r,"镜头准备中",12,HudPainter.Gold,TextAnchor.MiddleCenter);
             hud.Text(new Rect(r.x,r.yMax+1,r.width,18),Time.unscaledTime<gestureFeedbackUntil?gestureFeedback:PoseQuality.Present(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())?"看见你了":"请站进镜头",10,HudPainter.Cyan,TextAnchor.MiddleCenter);

@@ -14,7 +14,14 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
-            if(review!=null&&battle.Action==HeroAction.Hurt&&battle.ActionAge<.18f)return;
+            string clawKey=battle.EnemyAttackCount%2==0?"monster-rush-left":"monster-rush-right";
+            // A frame can cross the claw contact and start Hurt together. Save
+            // the attacking claw first, then the later fall stages; otherwise
+            // the Hurt priority can erase an entire side's contact evidence.
+            bool captureClaw=!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Attack&&
+                battle.EnemyAge>=Battle.EnemyHitSeconds-.02f&&battle.EnemyAge<Battle.EnemyHitSeconds+.15f&&
+                !proofFrames.Contains(clawKey+(photo.Captures>0?"-after-photo":""));
+            if(review!=null&&battle.Action==HeroAction.Hurt&&battle.ActionAge<.18f&&!captureClaw)return;
             // Capture the reaching claw at contact, not the first windup-like
             // frame of an attack. Keep left and right evidence independently.
             if(battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Attack&&battle.EnemyAge<Battle.EnemyHitSeconds-.02f)return;
@@ -40,6 +47,7 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Phase==GamePhase.Transforming)
                 key=world.EntranceAge<.26f?"Transforming":world.EntranceAge<1?"transform-front":
                     world.EntranceAge<1.66f?"transform-radiance":"transform-return";
+            if(captureClaw)key=clawKey;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));

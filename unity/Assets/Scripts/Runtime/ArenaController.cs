@@ -346,39 +346,6 @@ namespace UltramanGame.Runtime
             if(previewFrame==null||!previewFrame.Fresh(now))
             {previewFrame=null;if(previewTexture){Destroy(previewTexture);previewTexture=null;}}
         }
-        void DrawPreview(bool compact=false)
-        {
-            if(keyboard)return;
-            if(!showPreview)
-            {if(hud.Button(compact?new Rect(1108,639,152,31):new Rect(1083,606,169,34),"显示取景 · F3",size:compact?12:16))showPreview=true;return;}
-            var panel=compact?new Rect(1056,480,204,195):new Rect(992,389,260,253);
-            var picture=compact?new Rect(1063,508,190,142.5f):new Rect(1000,430,244,183);
-            var feedbackRect=compact?new Rect(1065,651,190,20):new Rect(1005,615,240,22);
-            hud.Panel(panel,HudPainter.Cyan);
-            hud.Dot(new Vector2(panel.x+12,panel.y+17),compact?4:6,previewFrame!=null?HudPainter.Cyan:HudPainter.Gold);
-            hud.Text(new Rect(panel.x+23,panel.y+5,panel.width-65,25),previewFrame?.Synthetic==true||pose?.source=="synthetic"?"合成测试 · 非摄像头":"镜像取景",compact?11:14);
-            if(hud.Button(new Rect(panel.xMax-43,panel.y+7,36,22),"收起",size:compact?11:14))showPreview=false;
-            hud.Box(picture,Color.black);
-            if(previewFrame!=null&&previewFrame.Fresh(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())&&previewTexture)
-            {
-                GUI.DrawTexture(picture,previewTexture,ScaleMode.ScaleToFit);
-                int quality=previewFrame.Quality;
-                bool feedback=Time.unscaledTime<gestureFeedbackUntil;
-                hud.Text(feedbackRect,feedback?gestureFeedback:quality==2?(compact?"双臂清晰 · 准备就绪":"双臂已看清 · 动作准备就绪"):quality==1?(compact?"手腕可前推 · 肘部可遮挡":"看清手腕可前推 · 肘部可遮挡"):"请让双肩进入画面",compact?11:13,feedback||quality==2?HudPainter.Cyan:HudPainter.Gold);
-            }
-            else
-            {
-                hud.Text(new Rect(picture.x+8,picture.y+picture.height*.3f,picture.width-16,70),"画面暂未更新\n"+previewClient.Status,compact?12:15,HudPainter.Muted,TextAnchor.MiddleCenter);
-                hud.Text(feedbackRect,"仅本机处理 · 不录制",compact?11:13,HudPainter.Muted);
-            }
-        }
-        void ActionCard(float x,string title,string hint,string gesture,Color accent,bool active)
-        {
-            var r=new Rect(x,529,298,110);hud.Panel(r,accent,active);
-            hud.Figure(new Rect(x+13,544,64,78),gesture,Time.unscaledTime,accent);
-            hud.Text(new Rect(x+91,543,192,32),title,23,active?accent:HudPainter.Ink,bold:true);
-            hud.Text(new Rect(x+92,584,191,35),hint,15,HudPainter.Muted);
-        }
         void OnGUI()
         {
             if(hud==null)return;
@@ -391,8 +358,6 @@ namespace UltramanGame.Runtime
                 GUI.matrix=Matrix4x4.TRS(new Vector3((Screen.width-1280*scale)/2,(Screen.height-720*scale)/2,0),Quaternion.identity,new Vector3(scale,scale,1));
                 photo.Draw(hud);DrawSettingsEntry();return;
             }
-            // Give modal controls a stable event path; do not submit background buttons while it is open.
-            if(settings) {DrawSettings();return;}
             if(showcase)
             {
                 hud.Box(new Rect(0,0,1280,94),new Color(.012f,.025f,.06f,.92f));
@@ -408,80 +373,7 @@ namespace UltramanGame.Runtime
                 return;
             }
             if(world.Closeup.Active) {DrawBeamCloseup();DrawSettingsEntry();return;}
-            if(!keyboard||battle.Phase==GamePhase.Waiting||battle.Phase==GamePhase.Transforming) {DrawArcadeHud();DrawSettingsEntry();return;}
-            if(battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused||battle.Phase==GamePhase.Victory)
-            {DrawBattleHud();return;}
-            long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float time=Time.unscaledTime;
-            hud.Box(new Rect(0,0,1280,103),new Color(.012f,.025f,.06f,.91f));hud.Box(new Rect(28,101,1224,1),new Color(.25f,.53f,.8f,.25f));
-            hud.Dot(new Vector2(47,47),33,new Color(.18f,.4f,.62f));hud.Dot(new Vector2(47,47),13,HudPainter.Cyan);
-            hud.Text(new Rect(78,23,410,41),SelectedHero.Name+" · 熔岩训练场",29,HudPainter.Ink,bold:true);
-            hud.Text(new Rect(80,66,390,22),"VOLCANIC RUINS  /  守护火山基地",12,HudPainter.Muted);
-            string stage=battle.Phase==GamePhase.Waiting?"准备出发":battle.Phase==GamePhase.Transforming?"光之变身":battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"火山守护";
-            hud.Rounded(new Rect(526,30,166,35),new Color(.14f,.37f,.46f,.48f));hud.Text(new Rect(526,30,166,35),stage,17,HudPainter.Cyan,TextAnchor.MiddleCenter);
-            hud.Text(new Rect(801,20,250,26),"哥尔赞 · 训练对手",17,HudPainter.Ink);
-            hud.Text(new Rect(1077,20,171,26),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",15,HudPainter.Muted,TextAnchor.MiddleRight);
-            hud.Bar(new Rect(803,56,445,9),battle.EnemyHealth/battle.MaxHealth,new Color(.93f,.49f,.34f));
-            hud.Text(new Rect(803,72,440,20),keyboard?"键盘练习":pose?.source=="synthetic"?"合成动作测试 · 不使用摄像头":"摄像头体感 · 家庭训练",12,HudPainter.Muted,TextAnchor.MiddleRight);
-            hud.Panel(new Rect(28,122,263,65),HudPainter.Gold,battle.Energy>=Battle.MaxEnergy);
-            hud.Text(new Rect(42,130,235,20),battle.Energy>=Battle.MaxEnergy?"光线已就绪！":$"光线能量  {battle.Energy:0} / {Battle.MaxEnergy}",14,battle.Energy>=Battle.MaxEnergy?HudPainter.Gold:HudPainter.Muted);
-            for(int i=0;i<Battle.MaxEnergy;i++)hud.Rounded(new Rect(43+i*15,160,11,8),i<battle.Energy?HudPainter.Gold:new Color(.14f,.22f,.32f),4);
-            if(battle.Phase==GamePhase.Waiting||battle.Phase==GamePhase.Transforming)
-            {
-                bool waiting=battle.Phase==GamePhase.Waiting;
-                hud.Panel(new Rect(28,209,330,289),HudPainter.Cyan,true);
-                hud.Text(new Rect(48,225,290,24),waiting?"01  /  唤醒光的力量":"光的力量，正在苏醒",14,HudPainter.Cyan);
-                hud.Text(new Rect(48,259,290,43),waiting?(keyboard?"按空格，变身！":"双手举高，变身！"):SelectedHero.Name+"，出发！",27,HudPainter.Ink,bold:true);
-                hud.Figure(new Rect(52,321,108,110),"transform",time,HudPainter.Gold);
-                hud.Text(new Rect(180,323,157,100),keyboard?"空格开始\nA / D 挥拳":waiting?"像左边一样\n把双手举高\n保持一小会儿":"你就是\n守护火山基地的英雄",17,HudPainter.Muted);
-                float progress=waiting?(keyboard?0:recognizer.TransformProgress):Mathf.Clamp01((time-phaseStarted)/2.2f);
-                hud.Bar(new Rect(49,453,289,7),progress,HudPainter.Cyan);
-                hud.Text(new Rect(49,466,289,22),waiting?(PoseQuality.Present(pose,now)||keyboard?"站稳，慢慢来就可以":"先让肩膀和双手进入画面"):"光之能量充能中",12,HudPainter.Muted);
-            }
-            bool compactBattle=battle.Phase==GamePhase.Battle||battle.Phase==GamePhase.Paused;
-            if(compactBattle&&battle.Action!=HeroAction.Hurt)
-            {
-                // Once the round starts, keep the playfield dominant like the
-                // reference cabinet. The large cards remain useful during the
-                // waiting/transform handoff, then collapse into a small rail so
-                // the actors, sparks and camera moves are not hidden by UI.
-                BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
-                BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
-                BattleAction(468,"必杀光线",keyboard?"满能量后按 J":battle.Energy>=Battle.MaxEnergy?"L 形 / 双手前推":$"普攻 {battle.Energy}/{Battle.MaxEnergy}","beam",HudPainter.Gold,battle.Energy>=Battle.MaxEnergy||battle.Action==HeroAction.Beam);
-            }
-            else if(!compactBattle&&battle.Phase!=GamePhase.Victory)
-            {
-                ActionCard(28,"挥拳出击",keyboard?"A / D · 左右交替":$"收手，再挥出去  ·  命中 {battle.Punches}","punch",HudPainter.Cyan,false);
-                ActionCard(348,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,false);
-                ActionCard(668,"必杀光线",keyboard?"能量满后按 J":battle.Energy>=Battle.MaxEnergy?"摆 L 形 / 双手前推":$"普攻命中 {Battle.MaxEnergy} 次蓄满","beam",HudPainter.Gold,false);
-            }
-            if(!keyboard&&battle.Energy>=Battle.MaxEnergy)hud.Bar(new Rect(764,623,180,4),recognizer.BeamProgress,HudPainter.Gold);
-            DrawPreview();
-            DrawFooter(false);
-        }
-        void DrawFooter(bool compact)
-        {
-            long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            float y=compact?689:673,height=compact?26:34;
-            int fontSize=compact?12:16;
-            hud.Box(new Rect(0,compact?683:661,1280,compact?37:59),new Color(.014f,.027f,.055f,.92f));
-            string status=keyboard?"空格变身 · A/D挥拳 · S防御 · J光线":PoseQuality.Present(pose,now)?
-                (PoseQuality.Valid(pose,now)?"已经看见你 · 尽情挥动双手":"你还在画面中 · 可把手臂移进镜头"):
-                PoseQuality.Fresh(pose,now)?"让肩膀进入画面 · "+client.Status:
-                "暂未收到摄像头画面 · 可稍等或切换键盘练习";
-            hud.Dot(new Vector2(28,y+height/2),compact?5:7,keyboard||PoseQuality.Present(pose,now)?HudPainter.Cyan:HudPainter.Gold);
-            hud.Text(new Rect(40,y,570,height),status,compact?11:14,HudPainter.Muted);
-            if(hud.Button(new Rect(640,y,116,height),"角色 · F5",size:fontSize))showcase=true;
-            DrawModeSwitch(new Rect(765,y,137,height),fontSize);
-            if(hud.Button(new Rect(912,y,108,height),"游戏设置",size:fontSize))OpenSettings();
-            if(hud.Button(new Rect(1032,y,100,height),paused?"继续":"暂停",size:fontSize))paused=!paused;
-            if(hud.Button(new Rect(1144,y,108,height),"重新开始",size:fontSize))Restart();
-        }
-        void BattleAction(float x,string title,string hint,string gesture,Color accent,bool active)
-        {
-            hud.Panel(new Rect(x,620,212,57),accent,active);
-            hud.Figure(new Rect(x+10,627,36,44),gesture,Time.unscaledTime,accent);
-            hud.Text(new Rect(x+55,625,150,21),title,15,active?accent:HudPainter.Ink,bold:true);
-            hud.Text(new Rect(x+55,648,150,23),hint,11,HudPainter.Muted);
+            DrawArcadeHud();DrawSettingsEntry();DrawKeyboardActions();
         }
         void DrawBeamCloseup()
         {
@@ -500,70 +392,6 @@ namespace UltramanGame.Runtime
                 hud.Line(new Vector2(1165+offset,y-12),new Vector2(1320+offset,y),color,2);
             }
             hud.Text(new Rect(140,720-band,1000,band),SelectedHero.Beam+"！",32,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
-        }
-        void DrawBattleHud()
-        {
-            float time=Time.unscaledTime;
-            bool ready=battle.Energy>=Battle.MaxEnergy;
-            hud.Box(new Rect(0,0,1280,62),new Color(.012f,.025f,.06f,.82f));
-            hud.Dot(new Vector2(29,29),18,new Color(.18f,.4f,.62f));hud.Dot(new Vector2(29,29),7,HudPainter.Cyan);
-            hud.Text(new Rect(47,8,310,26),SelectedHero.Name+" · 熔岩训练场",18,HudPainter.Ink,bold:true);
-            hud.Text(new Rect(48,34,320,18),keyboard?"键盘练习":pose?.source=="synthetic"?"合成动作测试 · 非摄像头":"摄像头体感",11,HudPainter.Muted);
-            string stage=battle.Phase==GamePhase.Victory?"守护成功":battle.Phase==GamePhase.Paused?"休息一下":"火山守护";
-            hud.Rounded(new Rect(552,15,136,27),new Color(.14f,.37f,.46f,.38f));
-            hud.Text(new Rect(552,15,136,27),stage,13,HudPainter.Cyan,TextAnchor.MiddleCenter);
-            hud.Text(new Rect(850,9,245,20),"哥尔赞",14,HudPainter.Ink);
-            hud.Text(new Rect(1090,9,162,20),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",13,HudPainter.Muted,TextAnchor.MiddleRight);
-            hud.Bar(new Rect(850,37,402,6),enemyHealthDisplay/battle.MaxHealth,new Color(1,.78f,.28f,.60f));
-            hud.Bar(new Rect(850,37,402,6),battle.EnemyHealth/battle.MaxHealth,new Color(.93f,.49f,.34f));
-            hud.Panel(new Rect(20,78,204,49),HudPainter.Gold,ready);
-            hud.Text(new Rect(32,83,181,19),ready?"光线就绪":$"光线能量  {battle.Energy:0} / {Battle.MaxEnergy}",12,ready?HudPainter.Gold:HudPainter.Muted);
-            for(int i=0;i<Battle.MaxEnergy;i++)hud.Rounded(new Rect(32+i*12,109,9,5),i<battle.Energy?HudPainter.Gold:new Color(.14f,.22f,.32f),2);
-            bool rushing=battle.Enemy==EnemyPhase.Attack&&battle.EnemyAge<Battle.EnemyHitSeconds;
-            if(battle.Phase==GamePhase.Battle&&(battle.Enemy==EnemyPhase.Windup||rushing))
-            {
-                hud.Panel(new Rect(20,143,230,66),HudPainter.Gold,true);
-                hud.Figure(new Rect(28,150,34,45),"shield",time,HudPainter.Gold);
-                hud.Text(new Rect(73,149,166,42),rushing?"怪兽冲过来了\n双手护住胸前":"怪兽蓄力\n双手护住胸前",16,HudPainter.Gold);
-                hud.Bar(new Rect(32,200,206,3),1-battle.EnemyAge/(rushing?Battle.EnemyHitSeconds:battle.WarningDuration),HudPainter.Gold);
-            }
-            else if(time<hitUntil&&battle.Phase==GamePhase.Battle)
-                hud.Text(new Rect(20,143,230,34),battle.Action==HeroAction.Beam?"光线命中！":"漂亮一击！",20,HudPainter.Gold,TextAnchor.MiddleCenter,true);
-            if(battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
-            else if(time<captionUntil&&battle.Phase==GamePhase.Battle)
-            {hud.Panel(new Rect(465,78,350,29),HudPainter.Cyan);hud.Text(new Rect(475,81,330,23),caption,13,HudPainter.Ink,TextAnchor.MiddleCenter);}
-            if(battle.Phase!=GamePhase.Victory&&battle.Action!=HeroAction.Hurt&&battle.Action!=HeroAction.Beam)
-            {
-                BattleAction(20,"挥拳出击",keyboard?"A / D 挥拳":$"收手再挥 · 命中 {battle.Punches}","punch",HudPainter.Cyan,battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch);
-                BattleAction(244,"光之护盾",keyboard?"按住 S 防御":"双手护住胸前","shield",HudPainter.Violet,battle.Shield);
-                BattleAction(468,"必杀光线",keyboard?"满能量后按 J":ready?"L 形 / 双手前推":$"普攻 {battle.Energy:0}/{Battle.MaxEnergy}","beam",HudPainter.Gold,ready||battle.Action==HeroAction.Beam);
-                if(!keyboard&&ready)hud.Bar(new Rect(524,673,145,2),recognizer.BeamProgress,HudPainter.Gold);
-            }
-            DrawBattleStartCue();
-            DrawPreview(true);
-            if(battle.Phase==GamePhase.Victory)
-            {
-                hud.Panel(new Rect(20,145,252,252),HudPainter.Gold,true);
-                hud.Text(new Rect(38,160,218,36),"火山守护成功！",21,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(38,209,218,60),$"挥拳命中 {battle.Punches} 次\n成功防御 {battle.Blocks} 次\n得分 {ArcadeScore():000000}",14,HudPainter.Muted);
-                GUI.enabled=photoAvailable;
-                if(hud.Button(new Rect(38,267,216,42),"      合照 · F7",HudPainter.Cyan,16))photo.Open();
-                hud.Rounded(new Rect(79,283,21,14),photoAvailable?HudPainter.Cyan:HudPainter.Muted,3);
-                hud.Box(new Rect(84,279,10,4),HudPainter.Cyan);hud.Dot(new Vector2(89.5f,290),8,new Color(.03f,.07f,.12f));
-                GUI.enabled=true;
-                hud.Text(new Rect(38,311,216,23),photoAvailable?"先摆姿势 · 拍完看预览":"体感模式启动游戏后可合照",11,HudPainter.Muted,TextAnchor.MiddleCenter);
-                if(hud.Button(new Rect(38,347,216,32),"再守护一次",HudPainter.Gold,13))Restart();
-            }
-            if(battle.Phase==GamePhase.Paused)
-            {
-                bool interrupted=!keyboard&&!PoseQuality.Fresh(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                hud.Panel(new Rect(462,244,356,142),HudPainter.Cyan);
-                hud.Text(new Rect(478,254,324,32),paused?"休息一下吧":interrupted?"相机连接中断，进度已保留":"等你回来，一起继续",20,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                hud.Text(new Rect(478,294,324,29),paused?"准备好了，再继续守护火山基地":interrupted?"请稍等，也可以切换到键盘练习":"让肩膀回到取景画面，站稳片刻",13,HudPainter.Muted,TextAnchor.MiddleCenter);
-                if(paused&&hud.Button(new Rect(552,339,176,31),"继续战斗",size:13))paused=false;
-                if(!paused)hud.Bar(new Rect(500,351,280,5),battle.ResumeProgress/1.2f,HudPainter.Cyan);
-            }
-            DrawFooter(true);
         }
         void DrawSettings()
         {
