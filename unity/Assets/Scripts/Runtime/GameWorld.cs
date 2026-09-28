@@ -15,6 +15,8 @@ namespace UltramanGame.Runtime
         public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
         public float EntranceAge {get;private set;}
         public float ThreatFocus {get;private set;}
+        readonly EnemyExchangeMotion exchangeCamera=new EnemyExchangeMotion();
+        public float ExchangeFocus=>exchangeCamera.Focus;
         readonly ComboCameraMotion comboCamera=new ComboCameraMotion();
         public float ComboFocus=>comboCamera.Focus;
         public float ComboCameraAge=>comboCamera.Age;
@@ -110,7 +112,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -218,6 +220,7 @@ namespace UltramanGame.Runtime
             float focus=Closeup.Focus;
             int oldShots=comboCamera.Shots;
             comboCamera.Tick(state,dt,Showcase||Closeup.Active);
+            exchangeCamera.Tick(state,dt,Showcase||Closeup.Active);
             if(comboCamera.Shots>oldShots&&Debug.isDebugBuild)Debug.Log($"[ComboCamera] begin side={comboCamera.Side} punches={state.Punches}");
             bool combat=state.Phase==GamePhase.Battle;
             float punchPulse=combat&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
@@ -248,7 +251,7 @@ namespace UltramanGame.Runtime
             // the room.  The close-up still owns the special-move hero shot; this
             // tighter battle baseline gives ordinary exchanges the same arcade
             // presence without changing gameplay timing or cropping the feet.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27:25):37;
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27:state.Shield?28.5f:25):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
@@ -290,16 +293,12 @@ namespace UltramanGame.Runtime
             // return, while a beam cut-in, pause or new round clears the shot.
             Camera.transform.position+=new Vector3(-.9f,-.55f,2.35f)*ThreatFocus;
             target+=new Vector3(.22f,.84f,0)*ThreatFocus;
-            dynamicZoom+=1.2f*ThreatFocus;
+            // The warning close-up owns its lens even when the child raises
+            // a shield; the wider defence framing resumes before the lunge.
+            dynamicZoom+=(1.2f+Mathf.Max(0,framingFieldOfView-25))*ThreatFocus;
             if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active)
             {
                 float hurt=state.Action==HeroAction.Hurt?KnockdownMotion.Weight(state.ActionAge):0;
-                float rush=state.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI)*(1-hurt):0;
-                // The attack needs a visible forward camera travel, like an
-                // arcade cabinet's short dolly, so the monster does not appear
-                // to merely change pose in place.
-                Camera.transform.position+=new Vector3(-.28f*rush,-.16f*rush,.36f*rush);
-                target+=new Vector3(-.13f*rush,0,0);
 
                 // A short arcade lens move makes each exchange readable on a TV.
                 // It is intentionally small and uses the same deterministic battle clock
@@ -312,17 +311,6 @@ namespace UltramanGame.Runtime
                     Camera.transform.position+=BattleAxis*(.40f*strike)+viewRight*(side*.18f*strike);
                     target+=BattleAxis*(.23f*strike)+Vector3.up*(.075f*strike);
                     dynamicZoom+=1.45f*strike;
-                }
-                if(rush>.01f)
-                {
-                    Camera.transform.position+=BattleAxis*(.30f*rush);
-                    target+=BattleAxis*(.20f*rush);
-                    // Alternate the lens toward the lead claw so successive rushes
-                    // do not collapse into one centered, repeated silhouette.
-                    float attackSide=state.EnemyAttackCount%2==0?-1:1;
-                    Camera.transform.position+=viewRight*(attackSide*.15f*rush);
-                    target+=viewRight*(attackSide*.08f*rush);
-                    dynamicZoom+=1.20f*rush;
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
@@ -346,8 +334,8 @@ namespace UltramanGame.Runtime
                 target=Vector3.Lerp(lookAt,(hero!=null?hero.Root.position:HeroHome)+Vector3.up*2.04f,victory*.92f);
                 dynamicZoom+=victory*1.5f;
             }
-            // Briefly tighten the lens during a strike or rush, then ease back
-            // to the child-friendly wide framing instead of holding a zoom.
+            // Apply the ordinary strike lens before the dedicated combo and
+            // enemy-exchange compositions below take ownership of the camera.
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
             if(ComboFocus>0)
             {
@@ -355,6 +343,16 @@ namespace UltramanGame.Runtime
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,closePosition,ComboFocus);
                 target=Vector3.Lerp(target,lookAt+Vector3.up*.50f+BattleAxis*.06f,ComboFocus);
                 Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,23.7f,ComboFocus);
+            }
+            if(ExchangeFocus>0)
+            {
+                float side=exchangeCamera.Side,travel=exchangeCamera.Travel;
+                float hurt=state.Action==HeroAction.Hurt?KnockdownMotion.Weight(state.ActionAge):0;
+                Vector3 position=cameraHome+viewRight*(side*Mathf.Lerp(.18f,.58f,travel))-viewForward*.08f;
+                Vector3 exchangeTarget=lookAt+viewRight*(side*.06f-.20f*hurt)+Vector3.up*(-.035f-.10f*hurt);
+                Camera.transform.position=Vector3.Lerp(Camera.transform.position,position,ExchangeFocus);
+                target=Vector3.Lerp(target,exchangeTarget,ExchangeFocus);
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,28.5f+1.7f*hurt,ExchangeFocus);
             }
             Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)
