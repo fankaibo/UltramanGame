@@ -132,7 +132,7 @@ namespace UltramanGame.Editor
         {
             string folder=Path.Combine(Output,version);Directory.CreateDirectory(folder+"/frames");
             var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Scripts/Core/Battle.cs","Scripts/Core/ComboStrikeMotion.cs","Scripts/Core/MonsterStaggerMotion.cs","Resources/Characters/Golza/Golza.fbx","Resources/Characters/Tiga/Tiga.fbx","Editor/ComboStrikeReview.cs","Editor/MonsterBackstepReview.cs"})
+                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/StrikeContactBurst.cs","Resources/StrikeContact.shader","Scripts/Core/Battle.cs","Scripts/Core/ComboStrikeMotion.cs","Scripts/Core/MonsterStaggerMotion.cs","Resources/Characters/Golza/Golza.fbx","Resources/Characters/Tiga/Tiga.fbx","Editor/ComboStrikeReview.cs","Editor/MonsterBackstepReview.cs","Editor/StrikeContactReview.cs"})
                 {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/sources.txt",sources.ToString());
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(928);

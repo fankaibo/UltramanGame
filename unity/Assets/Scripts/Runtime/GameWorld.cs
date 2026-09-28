@@ -39,6 +39,7 @@ namespace UltramanGame.Runtime
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
+        public int ActiveContactCount=>effects.ActiveContactCount;
         public bool HeroTrailVisible => strikeTrails.HeroVisible;
         public bool MonsterTrailVisible => strikeTrails.MonsterVisible;
         readonly Vector3 cameraHome=new Vector3(-.25f,2.9f,-10.5f),lookAt=new Vector3(0,1.65f,.4f);
@@ -115,7 +116,7 @@ namespace UltramanGame.Runtime
             var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
             cinematic.PulseAt(position,special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             enemy?.BindSurfaceImpact(position);
-            effects.Impact(position,special);
+            effects.Impact(position,special,combo:!special&&state!=null&&ComboStrikeMotion.Active(state),direction:BattleAxis);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {
                 Kick(.09f);

@@ -61,6 +61,12 @@ namespace UltramanGame.Runtime
                 else if(enemy.StaggerAge>=MonsterStaggerMotion.Landing&&enemy.StaggerAge<MonsterStaggerMotion.Return)key="monster-stagger-land";
                 else if(enemy.StaggerAge>=MonsterStaggerMotion.Return+.1f)key="monster-stagger-return";
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&world.ActiveContactCount>0&&!ComboStrikeMotion.Active(battle)&&
+                (battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch)&&battle.ActionAge>=Battle.PunchHitSeconds&&battle.ActionAge<=.24f)
+            {
+                string contactKey=battle.Action==HeroAction.LeftPunch?"punch-impact-left":"punch-impact-right";
+                if(!proofFrames.Contains(contactKey+(photo.Captures>0?"-after-photo":"")))key=contactKey;
+            }
             if(captureClaw)key=clawKey;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;

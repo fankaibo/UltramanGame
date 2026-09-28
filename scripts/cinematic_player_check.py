@@ -80,7 +80,7 @@ def main():
                 'victory-collapse', 'victory-turn', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
                 'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return',
-                'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return')
+                'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:

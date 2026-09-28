@@ -13,7 +13,7 @@ def main():
     parser.add_argument('--player', type=Path, action='append', default=[])
     parser.add_argument('--folder', type=Path)
     parser.add_argument('--baseline', default='621c4f153f9aed255f53d1dda6b2a630f76a6e17')
-    parser.add_argument('--subject', choices=('combo', 'backstep'), default='combo')
+    parser.add_argument('--subject', choices=('combo', 'backstep', 'impact'), default='combo')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     folder = args.folder.resolve() if args.folder else root/'artifacts/combo-strike'
@@ -43,6 +43,12 @@ def main():
             if not report.strip():
                 raise RuntimeError('Missing backstep validation')
             proof[name] = report
+    if args.subject == 'impact':
+        for name in ('validation.txt', 'roster-validation.txt'):
+            report = (folder/name).read_text()
+            if not report.strip():
+                raise RuntimeError('Missing contact validation')
+            proof[name] = report
     if (folder/'before/sequence.csv').read_bytes() != (folder/'after/sequence.csv').read_bytes():
         raise RuntimeError('Battle inputs or timing differ')
     subprocess.run(['/opt/homebrew/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
@@ -63,6 +69,8 @@ def main():
         proof['players'].append(record)
         (folder/'native').mkdir(exist_ok=True)
         moments = ('monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return') if args.subject == 'backstep' else ('combo-left', 'combo-right')
+        if args.subject == 'impact':
+            moments = ('punch-impact-left', 'punch-impact-right', 'combo-left', 'combo-right')
         for moment in moments:
             name = record['hero']+'-'+moment+'.png'
             shutil.copy2(directory/'native'/(moment+'.png'), folder/'native'/name)
@@ -85,6 +93,16 @@ def main():
         page = page.replace('-60-contact-', '-60-landing-')
         page = page.replace('validation/validation.txt', 'step-validation.txt').replace('胸部接触与支撑脚检查', '落脚与胸部接触检查')
         page = page.replace('validation/interruptions.txt', 'step-interruptions.txt').replace('防御、暂停与新局检查', '连续出拳与中断衔接检查')
+    elif args.subject == 'impact':
+        page = page.replace('连击转肩与怪兽受力', '普通拳命中爆闪')
+        page = page.replace('每第 5 次普攻加入外侧挥入、转肩和收手，怪兽随左右拳侧转后仰。五位英雄共用原来的识别与伤害规则：十拳仍扣 10 点、充能 10 次。',
+                            '普通拳的细圆环改为随出拳方向展开的白橙色爆闪；长短不一的尖芒向外散开，连击时增强。命中表面亮光、飞散火花与受击动作继续配合。')
+        page = page.replace('五英雄左右连击接触', '五英雄普通拳命中')
+        page = page.replace('左手 · 第 5 拳', '左手命中').replace('右手 · 第 10 拳', '右手命中')
+        page = page.replace("'validation/'+hero.value+'-60-contact-5.png'", "'roster/'+hero.value+'-0.png'")
+        page = page.replace("'validation/'+hero.value+'-60-contact-10.png'", "'roster/'+hero.value+'-1.png'")
+        page = page.replace('validation/validation.txt', 'validation.txt').replace('胸部接触与支撑脚检查', '遮挡、消退与暂停清理检查')
+        page = page.replace('validation/interruptions.txt', 'roster-validation.txt').replace('防御、暂停与新局检查', '五英雄真实命中检查')
     (folder/'index.html').write_text(page)
     print(folder/'index.html')
 

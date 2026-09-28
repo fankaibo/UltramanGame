@@ -20,6 +20,8 @@ namespace UltramanGame.Runtime
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
+        readonly StrikeContactBurst strikeContact;
+        public int ActiveContactCount=>strikeContact.ActiveCount;
         int sparkIndex,flashIndex,hitRayIndex;
         float hitLightAge=10,shieldHitAge=10,clock,beamBurstAge;
         float previousEnemyAge;
@@ -31,6 +33,7 @@ namespace UltramanGame.Runtime
         public CombatVfx(Transform parent)
         {
             atmosphere=new ImpactAtmosphere(parent);
+            strikeContact=new StrikeContactBurst(parent);
             lineMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             for(int i=0;i<sparks.Length;i++)sparks[i]=new Streak {Line=Line(parent,"Impact streak",2,.03f)};
             for(int i=0;i<flashes.Length;i++)
@@ -76,7 +79,7 @@ namespace UltramanGame.Runtime
             f.Quad.position=position;f.Quad.localScale=Vector3.one*size*.55f;
             f.Material.SetFloat("_Ring",ring?1:0);f.Material.color=color;f.Quad.gameObject.SetActive(true);
         }
-        public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false)
+        public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false,bool combo=false,Vector3 direction=default)
         {
             if(blocked)
             {
@@ -86,9 +89,11 @@ namespace UltramanGame.Runtime
             atmosphere.Hit(position,special,blocked);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
             Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
-            FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
-            if(!blocked)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=special?14:blocked?9:7;
+            bool punch=!special&&!blocked&&!hurt;
+            if(punch)strikeContact.Hit(position,direction==Vector3.zero?Vector3.right:direction,combo);
+            else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
+            if(!blocked&&!punch)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
+            int rayCount=punch?0:special?14:blocked?9:7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
@@ -114,10 +119,9 @@ namespace UltramanGame.Runtime
         public void Combo(Vector3 position)
         {
             // A combo milestone is still one ordinary hit in Battle; this is a
-            // presentation layer only. The warm ring and ground dust give the
+            // presentation layer only. Extra sparks and ground dust give the
             // cabinet a visible cadence without hiding the next pose.
             Burst(position,20,.95f,true);
-            FlashAt(position,1.65f,.24f,new Color(1,.68f,.20f,.82f),true);
             atmosphere.GroundBurst(position,Vector3.back,true);
         }
         public void GroundBurst(Vector3 position,Vector3 direction,bool heavy=true)
@@ -127,6 +131,7 @@ namespace UltramanGame.Runtime
         public void Clear()
         {
             atmosphere.Clear();
+            strikeContact.Clear();
             ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;hitRayIndex=0;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
@@ -173,6 +178,7 @@ namespace UltramanGame.Runtime
             clock+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
             atmosphere.Tick(camera,dt);
+            strikeContact.Tick(camera,dt);
             ActiveSparkCount=0;
             foreach(var s in sparks)
             {
