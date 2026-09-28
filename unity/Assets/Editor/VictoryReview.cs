@@ -10,6 +10,14 @@ namespace UltramanGame.Editor
 {
     public static class VictoryReview
     {
+        static string OutputRoot
+        {
+            get
+            {
+                var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--victory-output");
+                return at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/victory-staging"));
+            }
+        }
         public static void Before()=>Render("before");
         public static void After(){Render("after");ValidateRoster();}
         public static void Diagnose()=>Render("diagnostics",false);
@@ -30,7 +38,7 @@ namespace UltramanGame.Editor
         }
         static void ValidateRoster()
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/victory-staging/after"));
+            string folder=Path.Combine(OutputRoot,"after");
             var report=new StringBuilder();
             for(int id=0;id<HeroRoster.Count;id++)
             {
@@ -87,11 +95,11 @@ namespace UltramanGame.Editor
             {state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<22;i++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             state.GiveInstructionTime(15);while(state.TryCue(out _)){}
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/victory-staging",version));
+            string folder=Path.Combine(OutputRoot,version);
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var source=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Core/VictoryMotion.cs","Editor/VictoryReview.cs"})
+                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Core/VictoryMotion.cs","Resources/KaijuSurface.shader","Resources/KaijuDissolve.cginc","Resources/DissolveMotes.shader","Resources/ShadowSilhouette.shader","Scripts/Runtime/MonsterDissolve.cs","Editor/VictoryReview.cs"})
                 {string p=Path.Combine(Application.dataPath,file);if(File.Exists(p))source.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(p))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/render-source.txt",source.ToString());
             var rt=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;

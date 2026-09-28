@@ -223,6 +223,7 @@ namespace UltramanGame.Runtime
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam");
             if(world.MonsterLanded)sound.MonsterLanding();
+            if(world.MonsterDissolving)sound.MonsterDeparture();
             if(world.MonsterStaggerLanded)sound.MonsterRecoveryStep();
             if(world.BeamStarted){reviewBeams++;}
             if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);

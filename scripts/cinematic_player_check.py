@@ -76,6 +76,8 @@ def main():
         raise RuntimeError(f'Expected two {beam_voice} battle cries for {args.hero}')
     if output.count('[VictoryStage] landing-thud playing=True') != 1:
         raise RuntimeError('Expected exactly one landing sound for the defeated monster')
+    if output.count('[MonsterDissolve] begin samples=384') != 1 or output.count('[MonsterDissolve] shimmer playing=True') != 1:
+        raise RuntimeError('Expected one surface departure and its sound before the photo')
     stagger_landings = len(re.findall(r'\[MonsterStagger\] landed side=', output))
     if stagger_landings < 2 or output.count('[MonsterStagger] footstep playing=True') != stagger_landings:
         raise RuntimeError('Recovery-step landing and sound did not match')
@@ -102,7 +104,7 @@ def main():
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
                 'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'beam-braced', 'beam-pressure', 'beam-recovery', 'Paused', 'Victory',
-                'victory-collapse', 'victory-turn', 'victory-hero',
+                'victory-collapse', 'victory-turn', 'victory-dissolve', 'victory-motes', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
                 'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return',
                 'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right',

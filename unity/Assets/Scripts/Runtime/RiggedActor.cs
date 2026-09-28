@@ -99,6 +99,9 @@ namespace UltramanGame.Runtime
         readonly Vector3[] slamPositions;
         readonly Quaternion[] slamExitRotations;
         readonly Vector3[] slamExitPositions;
+        readonly MonsterDissolve dissolve;
+        public int DissolveStarts=>dissolve?.Starts??0;
+        public int DissolveMotes=>dissolve?.ActiveMotes??0;
         readonly Vector3[] palmForwardLocal=new Vector3[2],palmUpLocal=new Vector3[2];
         static readonly string[] ClawFingerNames={"index","middle","ring","pinky"};
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
@@ -281,11 +284,12 @@ namespace UltramanGame.Runtime
             if(rightFoot)rightFootLocal=Root.InverseTransformPoint(rightFoot.position);
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
             rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
+            if(monster)dissolve=new MonsterDissolve(Root,surfaces);
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2} vertices={modelVertices}");
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
         {
-            bool kaiju=name.StartsWith("Golza",StringComparison.Ordinal)&&!name.Contains("Eyes");
+            bool kaiju=name.StartsWith("Golza",StringComparison.Ordinal);
             bool emitter=(name.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0&&name.IndexOf("EyeRim",StringComparison.OrdinalIgnoreCase)<0)
                 ||name.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||name.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0;
             bool heroSurface=character!="Golza"&&!emitter;
@@ -295,6 +299,7 @@ namespace UltramanGame.Runtime
             if(name.StartsWith("Golza",StringComparison.Ordinal))
             {
                 bool eye=name.Contains("Eyes");mat.mainTexture=eye?eyes:texture;mat.color=Color.white;
+                mat.SetFloat("_SkinDetail",eye?0:1);
                 mat.SetFloat("_Metallic",.03f);mat.SetFloat("_Glossiness",.22f);
                 if(!eye)
                 {
@@ -855,7 +860,10 @@ namespace UltramanGame.Runtime
                 mat.SetColor("_EmissionColor",c*(.35f+coreGlow*1.6f));
             }
             foreach(var mat in atlasLightMaterials)HeroAtlasLights.SetCharge(mat,coreGlow);
-            poseOpacity=opacity;SetPresentationOpacity(1);
+            dissolve?.Tick(state.Phase==GamePhase.Victory&&preview<0?phaseAge:-1);
+            // Departure removes actual surface fragments, retaining opaque
+            // depth and matching shadows until each fragment disappears.
+            poseOpacity=monster&&state.Phase==GamePhase.Victory&&preview<0?(opacity>0?1:0):opacity;SetPresentationOpacity(1);
         }
         void UpdateGuardLight()
         {

@@ -2,6 +2,9 @@ Shader "Training/KaijuSurface" {
  Properties {
   _MainTex("Original skin",2D)="white"{} _Color("Tint",Color)=(1,1,1,1)
   _EmissionColor("Arcade impact emission",Color)=(0,0,0,0)
+  _SkinDetail("Skin relief",Range(0,1))=1
+  _DissolveAmount("Departure progress",Range(0,1))=0
+  _DissolveBounds("Departure height",Vector)=(0,3.6,0,0)
   _ImpactPoint("Contact and radius",Vector)=(0,0,0,1)
   _ImpactDirection("Contact facing",Vector)=(0,0,1,0)
   _ImpactColor("Local impact light",Color)=(0,0,0,0)
@@ -14,8 +17,10 @@ Shader "Training/KaijuSurface" {
   CGPROGRAM
   #pragma surface surf Standard fullforwardshadows addshadow keepalpha finalcolor:FadeAdditive
   #pragma target 3.0
+  #include "KaijuDissolve.cginc"
   sampler2D _MainTex;float4 _MainTex_TexelSize,_ImpactPoint,_ImpactDirection;fixed4 _Color,_EmissionColor;half4 _ImpactColor;half _Metallic,_Glossiness,_EmissionAudit;
   struct Input {float2 uv_MainTex;float3 worldPos;float3 worldNormal;INTERNAL_DATA};
+  float _DissolveAmount,_SkinDetail;float4 _DissolveBounds;
   float hash(float2 p) {return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453);}
   float cell(float2 p) {
    float2 ip=floor(p),f=frac(p);float d=1;
@@ -48,6 +53,7 @@ Shader "Training/KaijuSurface" {
   }
   void surf(Input i,inout SurfaceOutputStandard o) {
    fixed4 c=tex2D(_MainTex,i.uv_MainTex)*_Color;
+   float edge=KaijuDissolveEdge(i.worldPos,_DissolveBounds.xy,_DissolveAmount);
    float2 p=i.uv_MainTex*float2(35,140);
    float n=relief(p),dx=relief(p+float2(.08,0))-n,dy=relief(p+float2(0,.08))-n;
    // The source texture contains the finger and chest scale detail. Reuse its
@@ -56,15 +62,15 @@ Shader "Training/KaijuSurface" {
    float2 texel=max(_MainTex_TexelSize.xy*2.0,float2(.0005,.0005));
    float texDx=skinHeight(i.uv_MainTex+float2(texel.x,0))-skinHeight(i.uv_MainTex-float2(texel.x,0));
    float texDy=skinHeight(i.uv_MainTex+float2(0,texel.y))-skinHeight(i.uv_MainTex-float2(0,texel.y));
-   o.Albedo=c.rgb*lerp(.88,1.05,n);o.Normal=normalize(float3(dx*.42+texDx*1.8,dy*.42+texDy*1.8,1));
-   o.Metallic=_Metallic;o.Smoothness=_Glossiness*lerp(.65,1.15,n);o.Occlusion=lerp(.86,1,n);
+   o.Albedo=c.rgb*lerp(1,lerp(.88,1.05,n),_SkinDetail);o.Normal=normalize(float3((dx*.42+texDx*1.8)*_SkinDetail,(dy*.42+texDy*1.8)*_SkinDetail,1));
+   o.Metallic=_Metallic;o.Smoothness=_Glossiness*lerp(1,lerp(.65,1.15,n),_SkinDetail);o.Occlusion=lerp(1,lerp(.86,1,n),_SkinDetail);
    // The contact follows a chest bone through recoil. Light a bounded patch
    // on the facing skin, keeping the legs, tail, texture and normal relief.
    float distanceToHit=length(i.worldPos-_ImpactPoint.xyz)/max(.01,_ImpactPoint.w);
    float facing=smoothstep(0,.45,dot(normalize(WorldNormalVector(i,o.Normal)),normalize(_ImpactDirection.xyz)));
    float patch=(1-smoothstep(.15,1,distanceToHit))*facing;
    float detail=.30+.70*dot(c.rgb,float3(.30,.59,.11));
-   o.Emission=_EmissionColor.rgb+_ImpactColor.rgb*(_ImpactColor.a*patch*detail);o.Alpha=c.a;
+   o.Emission=_EmissionColor.rgb+_ImpactColor.rgb*(_ImpactColor.a*patch*detail)+float3(2.6,1.1,.16)*edge;o.Alpha=c.a;
   }
   ENDCG
  }

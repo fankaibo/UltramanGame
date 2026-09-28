@@ -8,7 +8,7 @@ namespace UltramanGame.Runtime
     {
         readonly AudioSource calm,battle,voice,effects,debris;
         AudioClip localMusic;
-        readonly AudioClip battleStinger,landingThud,groundCrunch;
+        readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -35,6 +35,7 @@ namespace UltramanGame.Runtime
             battleStinger=CreateBattleStinger();
             landingThud=CreateLandingThud();
             groundCrunch=RuntimeResources.Own(owner.transform,CreateGroundCrunch());
+            dissolveShimmer=RuntimeResources.Own(owner.transform,CreateDissolveShimmer());
             // Load once at startup so a first punch/voice line does not perform resource I/O mid-fight.
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
@@ -86,6 +87,26 @@ namespace UltramanGame.Runtime
             if(muted||!landingThud)return;
             effects.pitch=1;effects.PlayOneShot(landingThud,.72f);
             if(Debug.isDebugBuild)Debug.Log("[VictoryStage] landing-thud playing=True");
+        }
+        public static AudioClip CreateDissolveShimmer()
+        {
+            const int rate=22050;var samples=new float[(int)(rate*1.5f)];
+            var random=new System.Random(260929);float air=0;
+            for(int i=0;i<samples.Length;i++)
+            {
+                float t=i/(float)rate;
+                air=Mathf.Lerp(air,(float)random.NextDouble()*2-1,.08f);
+                float envelope=Mathf.SmoothStep(0,1,t/.14f)*(1-Mathf.SmoothStep(0,1,(t-.35f)/1.15f));
+                float tone=Mathf.Sin(2*Mathf.PI*(620*t+120*t*t))*.11f+Mathf.Sin(2*Mathf.PI*(930*t+180*t*t))*.045f;
+                samples[i]=(air*.20f+tone)*envelope;
+            }
+            var clip=AudioClip.Create("MonsterDepartureShimmer",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
+        }
+        public void MonsterDeparture()
+        {
+            if(muted||!dissolveShimmer)return;
+            effects.pitch=1;effects.PlayOneShot(dissolveShimmer,.48f);
+            if(Debug.isDebugBuild)Debug.Log("[MonsterDissolve] shimmer playing=True");
         }
         public static AudioClip CreateGroundCrunch()
         {
