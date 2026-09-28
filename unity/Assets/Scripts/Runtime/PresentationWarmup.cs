@@ -35,7 +35,7 @@ namespace UltramanGame.Runtime
                 {state.Tick(.01f,new PlayerInput{Tracking=true,LeftPunch=true});for(int j=0;j<5;j++)state.Tick(.1f,new PlayerInput{Tracking=true});}
                 state.Tick(.01f,new PlayerInput{Tracking=true,Beam=true});world.Cue(GameCue.Beam);Draw(.04f);Draw(.05f);
                 for(int i=0;i<12;i++)Draw(.1f);
-                for(int i=0;i<3;i++)state.Tick(.1f,new PlayerInput{Tracking=true});world.Hit(true,state);Draw(.02f);
+                for(int i=0;i<3;i++)state.Tick(.1f,new PlayerInput{Tracking=true});world.Hit(true,state);Draw(.12f);
                 world.Cue(GameCue.EnemyAttack);world.Cue(GameCue.Hurt);Draw(.02f);
             }
             finally

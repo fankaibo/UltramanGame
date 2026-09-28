@@ -20,10 +20,10 @@ namespace UltramanGame.Runtime
             for(int i=0;i<chips.Length;i++)
             {chips[i]=new Chip{Root=GameWorld.Primitive("Small impact fragment",PrimitiveType.Cube,parent,Vector3.zero,new Vector3(.032f,.023f,.042f),stone)};chips[i].Root.gameObject.SetActive(false);}
         }
-        public void Hit(Vector3 position,bool special,bool blocked)
+        public void Hit(Vector3 position,bool special,bool blocked,bool billboards=true)
         {
             if(blocked)return;
-            int count=special?9:4;
+            int count=billboards?(special?9:4):0;
             for(int i=0;i<count;i++)
             {
                 var p=puffs[index++%puffs.Length];p.Age=0;p.Life=special?1.25f:.65f;p.Size=special?.65f:.3f;

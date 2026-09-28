@@ -22,6 +22,10 @@ namespace UltramanGame.Runtime
         readonly ImpactAtmosphere atmosphere;
         readonly StrikeContactBurst strikeContact;
         readonly GroundImpact groundImpact;
+        readonly BeamImpactVolume beamImpact;
+        public bool BeamImpactVisible=>beamImpact.Visible;
+        public float BeamImpactAge=>beamImpact.Age;
+        public int BeamImpactCount=>beamImpact.Bursts;
         public int ActiveContactCount=>strikeContact.ActiveCount;
         public int ActiveGroundStones=>groundImpact.ActiveStones;
         public int ActiveGroundDust=>groundImpact.ActiveClouds;
@@ -41,6 +45,7 @@ namespace UltramanGame.Runtime
             atmosphere=new ImpactAtmosphere(parent);
             strikeContact=new StrikeContactBurst(parent);
             groundImpact=new GroundImpact(parent);
+            beamImpact=new BeamImpactVolume(parent);
             lineMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             for(int i=0;i<sparks.Length;i++)sparks[i]=new Streak {Line=Line(parent,"Impact streak",2,.03f)};
             for(int i=0;i<flashes.Length;i++)
@@ -86,21 +91,21 @@ namespace UltramanGame.Runtime
             f.Quad.position=position;f.Quad.localScale=Vector3.one*size*.55f;
             f.Material.SetFloat("_Ring",ring?1:0);f.Material.color=color;f.Quad.gameObject.SetActive(true);
         }
-        public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false,bool combo=false,Vector3 direction=default)
+        public void Impact(Vector3 position,bool special,bool blocked=false,bool hurt=false,bool combo=false,Vector3 direction=default,bool volumetric=false)
         {
             if(blocked)
             {
                 shieldHitAge=0;
                 shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(position));
             }
-            atmosphere.Hit(position,special,blocked);
+            atmosphere.Hit(position,special,blocked,!volumetric);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
-            Burst(position,special?32:16,special?1.4f:.8f,hurt||!blocked);
+            Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special));
             bool punch=!special&&!blocked&&!hurt;
             if(punch)strikeContact.Hit(position,direction==Vector3.zero?Vector3.right:direction,combo);
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
-            if(!blocked&&!punch)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=punch?0:special?14:blocked?9:7;
+            if(!blocked&&!punch&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
+            int rayCount=punch?0:special?(volumetric?6:14):blocked?9:7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
@@ -120,7 +125,7 @@ namespace UltramanGame.Runtime
             }
             // Ordinary punches also need a small contact-to-ground cue on a TV;
             // blocks stay clean so the blue shield remains the readable answer.
-            if(!blocked&&!hurt)atmosphere.GroundBurst(position,Vector3.back,special);
+            if(!blocked&&!hurt&&!volumetric)atmosphere.GroundBurst(position,Vector3.back,special);
             hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
         }
         public void Combo(Vector3 position)
@@ -131,6 +136,7 @@ namespace UltramanGame.Runtime
             Burst(position,20,.95f,true);
             atmosphere.GroundBurst(position,Vector3.back,true);
         }
+        public void BeamHit(Vector3 position,Vector3 direction)=>beamImpact.Hit(position,direction);
         public void GroundBurst(Vector3 position,Vector3 direction,bool heavy=true,string cause="contact")
         {
             if(heavy)groundImpact.Burst(position,direction,cause);
@@ -141,6 +147,7 @@ namespace UltramanGame.Runtime
             atmosphere.Clear();
             strikeContact.Clear();
             groundImpact.Clear();
+            beamImpact.Clear();
             ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;hitRayIndex=0;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
@@ -189,6 +196,7 @@ namespace UltramanGame.Runtime
             atmosphere.Tick(camera,dt);
             strikeContact.Tick(camera,dt);
             groundImpact.Tick(camera,dt);
+            beamImpact.Tick(dt);
             ActiveSparkCount=0;
             foreach(var s in sparks)
             {

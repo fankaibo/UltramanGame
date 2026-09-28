@@ -56,6 +56,10 @@ def main():
         raise RuntimeError(f'Runtime exception in {log}')
     if '[PresentationWarmup] complete' not in output:
         raise RuntimeError('Presentation was not prewarmed')
+    live_output = output.split('[PresentationWarmup] complete', 1)[1]
+    beam_impacts = live_output.count('[BeamImpactVolume] begin')
+    if beam_impacts != 2:
+        raise RuntimeError(f'Expected one volume burst per real beam hit, got {beam_impacts}')
     if output.count('[VolcanoEnvironment] captured=True faces=6 size=128 mipmaps=True') != 1:
         raise RuntimeError('Expected one successful arena reflection capture at startup')
     if f'[FullGameReviewHero] id={args.hero}' not in output:
@@ -103,7 +107,7 @@ def main():
     result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
-              'resources_sha256': resources_sha,
+              'resources_sha256': resources_sha, 'beam_volume_impacts': beam_impacts,
               'evidence_directory': str(evidence),
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))
