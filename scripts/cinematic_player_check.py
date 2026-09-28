@@ -73,6 +73,12 @@ def main():
     combo_shots = output.count('[ComboCamera] begin side=')
     if combo_shots < 2:
         raise RuntimeError('Full round did not exercise multiple combo camera shots')
+    ground_contacts = re.findall(r'\[GroundImpact\] cause=([^ ]+) ', output)
+    if (ground_contacts.count('rush') != output.count('[Game] cue=EnemyAttack ')
+            or ground_contacts.count('hero-land') != 1 or ground_contacts.count('defeat') != 1
+            or ground_contacts.count('stagger') != stagger_landings
+            or len(ground_contacts) != output.count('[GroundImpact] sound=True')):
+        raise RuntimeError('Ground contact event and audio were missing or duplicated')
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
     # These images come from this player run, not the independent Editor render
@@ -84,14 +90,14 @@ def main():
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
                 'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return',
                 'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right',
-                'combo-camera-peak', 'combo-camera-return')
+                'combo-camera-peak', 'combo-camera-return', 'ground-rush', 'ground-hero-land', 'ground-stagger', 'ground-defeat')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
             raise RuntimeError(f'Missing current-player visual evidence: {name}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
     result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
-              'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots,
+              'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha,
               'evidence_directory': str(evidence),

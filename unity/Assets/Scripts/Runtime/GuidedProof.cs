@@ -77,6 +77,12 @@ namespace UltramanGame.Runtime
                 else if(world.ComboCameraAge>.55f&&world.ComboFocus>.01f&&world.ComboFocus<.30f)key="combo-camera-return";
             }
             if(captureClaw)key=clawKey;
+            if(!captureClaw&&!photo.Active&&world.ActiveGroundStones>0&&world.GroundImpactAge>=.18f&&world.GroundImpactAge<.36f&&
+                proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
+            {
+                string groundKey="ground-"+world.GroundContactCause;
+                if(!proofFrames.Contains(groundKey+(photo.Captures>0?"-after-photo":"")))key=groundKey;
+            }
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));

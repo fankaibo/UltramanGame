@@ -6,9 +6,9 @@ namespace UltramanGame.Runtime
 {
     public sealed class GameAudio
     {
-        readonly AudioSource calm,battle,voice,effects;
+        readonly AudioSource calm,battle,voice,effects,debris;
         AudioClip localMusic;
-        readonly AudioClip battleStinger,landingThud;
+        readonly AudioClip battleStinger,landingThud,groundCrunch;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -31,9 +31,10 @@ namespace UltramanGame.Runtime
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
         public GameAudio(GameObject owner)
         {
-            calm=Source(owner);battle=Source(owner);voice=Source(owner);effects=Source(owner);
+            calm=Source(owner);battle=Source(owner);voice=Source(owner);effects=Source(owner);debris=Source(owner);
             battleStinger=CreateBattleStinger();
             landingThud=CreateLandingThud();
+            groundCrunch=RuntimeResources.Own(owner.transform,CreateGroundCrunch());
             // Load once at startup so a first punch/voice line does not perform resource I/O mid-fight.
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
@@ -85,6 +86,32 @@ namespace UltramanGame.Runtime
             if(muted||!landingThud)return;
             effects.pitch=1;effects.PlayOneShot(landingThud,.72f);
             if(Debug.isDebugBuild)Debug.Log("[VictoryStage] landing-thud playing=True");
+        }
+        public static AudioClip CreateGroundCrunch()
+        {
+            const int rate=22050;var samples=new float[(int)(rate*.9f)];var random=new System.Random(260928);
+            var starts=new float[18];var pitches=new float[18];
+            for(int i=0;i<starts.Length;i++){starts[i]=.32f+(float)random.NextDouble()*.48f;pitches[i]=250+(float)random.NextDouble()*800;}
+            float grit=0;
+            for(int i=0;i<samples.Length;i++)
+            {
+                float t=i/(float)rate;grit=Mathf.Lerp(grit,(float)random.NextDouble()*2-1,.58f);
+                float value=grit*Mathf.Exp(-16*t)*.54f;
+                for(int chip=0;chip<starts.Length;chip++)
+                {
+                    float age=t-starts[chip];if(age<0||age>.08f)continue;
+                    value+=(grit*.30f+Mathf.Sin(age*pitches[chip]*Mathf.PI*2)*.08f)*Mathf.Exp(-85*age)*Mathf.Min(1,age/.002f);
+                }
+                samples[i]=Mathf.Clamp(value*Mathf.Min(1,t/.004f),-.85f,.85f);
+            }
+            var clip=AudioClip.Create("GroundFragments",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
+        }
+        public void GroundContact(bool rush)
+        {
+            if(muted||!groundCrunch)return;
+            debris.PlayOneShot(groundCrunch,.48f);
+            if(rush)debris.PlayOneShot(landingThud,.34f);
+            if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] sound=True rush={rush}");
         }
         public void MonsterRecoveryStep()
         {
@@ -167,7 +194,7 @@ namespace UltramanGame.Runtime
             if(!muted && !voice.isPlaying && pending.Count>0)
             { var line=pending[0];pending.RemoveAt(0);Speak(line.Key,line.Priority,state); }
             float master=muted?0:Mathf.Clamp01(Volume);
-            voice.volume=master;effects.volume=master*.75f;
+            voice.volume=master;effects.volume=master*.75f;debris.volume=master*.60f;
             bool active=localMusic || state==GamePhase.Battle || state==GamePhase.Transforming;
             float music=MusicEnabled?master*Mathf.Clamp01(MusicVolume)*(voice.isPlaying?.23f:.65f):0;
             if(state==GamePhase.Paused)music*=.35f;
@@ -178,7 +205,7 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild&&!phaseReported&&phaseAge>1)
             {phaseReported=true;Debug.Log($"[AudioState] phase={state} {Diagnostics}");}
         }
-        public void Reset() { voice.Stop();effects.Stop();effects.pitch=1;pending.Clear();priority=0;beamVoice=false; }
+        public void Reset() { voice.Stop();effects.Stop();debris.Stop();effects.pitch=1;pending.Clear();priority=0;beamVoice=false; }
         public void Save()
         {
             PlayerPrefs.SetFloat("sound.master",Volume);PlayerPrefs.SetFloat("sound.music",MusicVolume);

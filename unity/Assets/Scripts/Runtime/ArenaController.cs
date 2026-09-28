@@ -219,7 +219,9 @@ namespace UltramanGame.Runtime
             hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             if(damage)world.Hit(specialDamage,battle);
+            int groundContacts=world.GroundContactCount;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush");
             if(world.MonsterLanded)sound.MonsterLanding();
             if(world.MonsterStaggerLanded)sound.MonsterRecoveryStep();
             if(world.BeamStarted){reviewBeams++;}

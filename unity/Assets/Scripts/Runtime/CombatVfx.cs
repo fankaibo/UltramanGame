@@ -21,7 +21,13 @@ namespace UltramanGame.Runtime
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
         readonly StrikeContactBurst strikeContact;
+        readonly GroundImpact groundImpact;
         public int ActiveContactCount=>strikeContact.ActiveCount;
+        public int ActiveGroundStones=>groundImpact.ActiveStones;
+        public int ActiveGroundDust=>groundImpact.ActiveClouds;
+        public float GroundImpactAge=>groundImpact.LastAge;
+        public int GroundContactCount=>groundImpact.Bursts;
+        public string GroundContactCause=>groundImpact.LastCause;
         int sparkIndex,flashIndex,hitRayIndex;
         float hitLightAge=10,shieldHitAge=10,clock,beamBurstAge;
         float previousEnemyAge;
@@ -34,6 +40,7 @@ namespace UltramanGame.Runtime
         {
             atmosphere=new ImpactAtmosphere(parent);
             strikeContact=new StrikeContactBurst(parent);
+            groundImpact=new GroundImpact(parent);
             lineMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             for(int i=0;i<sparks.Length;i++)sparks[i]=new Streak {Line=Line(parent,"Impact streak",2,.03f)};
             for(int i=0;i<flashes.Length;i++)
@@ -124,14 +131,16 @@ namespace UltramanGame.Runtime
             Burst(position,20,.95f,true);
             atmosphere.GroundBurst(position,Vector3.back,true);
         }
-        public void GroundBurst(Vector3 position,Vector3 direction,bool heavy=true)
+        public void GroundBurst(Vector3 position,Vector3 direction,bool heavy=true,string cause="contact")
         {
-            atmosphere.GroundBurst(position,direction,heavy);
+            if(heavy)groundImpact.Burst(position,direction,cause);
+            else atmosphere.GroundBurst(position,direction,false);
         }
         public void Clear()
         {
             atmosphere.Clear();
             strikeContact.Clear();
+            groundImpact.Clear();
             ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;hitRayIndex=0;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
@@ -167,7 +176,7 @@ namespace UltramanGame.Runtime
                 if(previousEnemyAge<.08f&&state.EnemyAge>=.08f)
                     atmosphere.GroundBurst(enemy.FootPosition(!left),axis,true);
                 if(previousEnemyAge<MonsterStepMotion.LandingSeconds&&state.EnemyAge>=MonsterStepMotion.LandingSeconds)
-                    atmosphere.GroundBurst(enemy.FootPosition(left),axis,true);
+                    GroundBurst(enemy.FootPosition(left),axis,true,"rush");
                 if(previousEnemyAge<MonsterStepMotion.ReturnLandingSeconds&&state.EnemyAge>=MonsterStepMotion.ReturnLandingSeconds)
                     atmosphere.GroundBurst(enemy.FootPosition(left),-axis,false);
             }
@@ -179,6 +188,7 @@ namespace UltramanGame.Runtime
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
             atmosphere.Tick(camera,dt);
             strikeContact.Tick(camera,dt);
+            groundImpact.Tick(camera,dt);
             ActiveSparkCount=0;
             foreach(var s in sparks)
             {

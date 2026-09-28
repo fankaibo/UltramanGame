@@ -43,6 +43,11 @@ namespace UltramanGame.Runtime
         public bool BeamVisible => effects.BeamVisible;
         public int ActiveSparkCount => effects.ActiveSparkCount;
         public int ActiveContactCount=>effects.ActiveContactCount;
+        public int ActiveGroundStones=>effects.ActiveGroundStones;
+        public int ActiveGroundDust=>effects.ActiveGroundDust;
+        public float GroundImpactAge=>effects.GroundImpactAge;
+        public int GroundContactCount=>effects.GroundContactCount;
+        public string GroundContactCause=>effects.GroundContactCause;
         public bool HeroTrailVisible => strikeTrails.HeroVisible;
         public bool MonsterTrailVisible => strikeTrails.MonsterVisible;
         readonly Vector3 cameraHome=new Vector3(-.25f,2.9f,-10.5f),lookAt=new Vector3(0,1.65f,.4f);
@@ -169,7 +174,7 @@ namespace UltramanGame.Runtime
                 if(enemy.StaggerLandings>staggerLandings&&!Showcase&&state.Phase==GamePhase.Battle)
                 {
                     MonsterStaggerLanded=true;
-                    effects.GroundBurst(enemy.FootPosition(enemy.StaggerLeft),BattleAxis,true);
+                    effects.GroundBurst(enemy.FootPosition(enemy.StaggerLeft),BattleAxis,true,"stagger");
                     impact=Mathf.Max(impact*Mathf.Exp(-impactAge*14),.022f);impactAge=0;
                     if(Debug.isDebugBuild)Debug.Log($"[MonsterStagger] landed side={(enemy.StaggerLeft?"left":"right")} age={enemy.StaggerAge:F3}");
                 }
@@ -181,7 +186,7 @@ namespace UltramanGame.Runtime
             {
                 if(state.Phase==GamePhase.Battle&&state.Action==HeroAction.Hurt)
                 {
-                    effects.GroundBurst(hero!=null?hero.GroundContactPosition:HeroHome,-BattleAxis,true);
+                    effects.GroundBurst(hero!=null?hero.GroundContactPosition:HeroHome,-BattleAxis,true,"hero-land");
                     impact=.025f;impactAge=0;
                 }
                 landingPending=false;
@@ -203,7 +208,7 @@ namespace UltramanGame.Runtime
             if(!Showcase&&state.Phase==GamePhase.Victory&&priorVictoryAge<VictoryMotion.LandingSeconds&&arcade.PhaseAge>=VictoryMotion.LandingSeconds)
             {
                 MonsterLanded=true;
-                effects.GroundBurst(enemy!=null?enemy.FootPosition(true):EnemyHome,-BattleAxis,true);
+                effects.GroundBurst(enemy!=null?enemy.FootPosition(true):EnemyHome,-BattleAxis,true,"defeat");
                 effects.GroundBurst(enemy!=null?enemy.FootPosition(false):EnemyHome,BattleAxis,false);
                 impact=.032f;impactAge=0;
                 if(Debug.isDebugBuild)Debug.Log("[VictoryStage] monster-landed age="+arcade.PhaseAge.ToString("F2"));
