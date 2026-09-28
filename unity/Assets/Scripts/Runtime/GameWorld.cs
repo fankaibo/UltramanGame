@@ -150,7 +150,8 @@ namespace UltramanGame.Runtime
             if(cue==GameCue.Block)
             {
                 Vector3 contact=ShieldCenter;
-                if(enemy!=null&&state!=null)
+                if(state!=null&&MonsterSlamMotion.Variant(state.EnemyAttackCount))contact-=Vector3.up*.45f;
+                else if(enemy!=null&&state!=null)
                     contact+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(enemy.EnemyStrikeOrigin(state)-ShieldCenter,BattleAxis),.65f);
                 hero?.BindGuardImpact(contact);
                 effects.Impact(contact,false,true);monsterEffects.Impact(true,contact,state?.EnemyAttackCount??-1);Kick(.04f);
@@ -417,7 +418,12 @@ namespace UltramanGame.Runtime
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
             effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget);
             strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active);
-            if(!Closeup.Active&&dt>0)effects.MotionDust(state,hero,enemy,BattleAxis);
+            if(!Closeup.Active&&dt>0)
+            {
+                int before=effects.GroundContactCount;effects.MotionDust(state,hero,enemy,BattleAxis);
+                if(effects.GroundContactCount>before&&effects.GroundContactCause=="slam")
+                {impact=.085f;impactAge=0;cinematic.PulseAt(enemy.Root.position,new Color(1,.65f,.32f),.22f);}
+            }
             if(state.Phase!=previous){transformAge=0;previous=state.Phase;}
             transformAge+=dt;
             if(state.Phase==GamePhase.Transforming&&clock>celebrateAt)

@@ -14,6 +14,7 @@ from PIL import Image
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--width',type=int,default=1920);parser.add_argument('--height',type=int,default=1080)
     parser.add_argument('--hero', choices=('Tiga','Mebius','Zero','Geed','Grigio'), default='Tiga')
+    parser.add_argument('--slam', action='store_true', help='Wait for the third, ground-slam attack before counterattacking')
     args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     started = datetime.now(timezone.utc)
@@ -34,7 +35,7 @@ def main():
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
                                    '--proof-output', str(native), '-screen-fullscreen', '0',
-                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)],
+                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else []),
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         try:
             code = player.wait(timeout=180)
@@ -87,11 +88,13 @@ def main():
     launch_landings = output.count('[MonsterLaunch] landed age=')
     if launch_landings < 1 or ground_contacts.count('uppercut-land') != launch_landings:
         raise RuntimeError('Missing uppercut launch/landing feedback')
-    if (ground_contacts.count('rush') != output.count('[Game] cue=EnemyAttack ')
+    if (ground_contacts.count('rush')+ground_contacts.count('slam') != output.count('[Game] cue=EnemyAttack ')
             or ground_contacts.count('hero-land') != 1 or ground_contacts.count('defeat') != 1
             or ground_contacts.count('stagger') != stagger_landings or ground_contacts.count('beam-brace') != beam_braces
             or len(ground_contacts) != live_output.count('[GroundImpact] sound=True')):
         raise RuntimeError('Ground contact event and audio were missing or duplicated')
+    if args.slam and ground_contacts.count('slam') != 1:
+        raise RuntimeError('Expected exactly one third-attack ground slam')
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
     # These images come from this player run, not the independent Editor render
@@ -105,6 +108,8 @@ def main():
                 'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right',
                 'combo-camera-peak', 'combo-camera-return', 'ground-rush', 'ground-hero-land', 'ground-stagger', 'ground-defeat',
                 'uppercut-airborne', 'uppercut-land', 'uppercut-recover')
+    if args.slam:
+        required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
@@ -116,7 +121,7 @@ def main():
         if max(abs(a-b) for a,b in zip(pixel,(255,161,59)))>2:
             raise RuntimeError(f'HUD color was encoded incorrectly: {pixel}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,

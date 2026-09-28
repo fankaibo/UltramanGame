@@ -125,14 +125,15 @@ namespace UltramanGame.Runtime
             if(punch&&(state.Action!=lastAction||state.ActionAge<lastHeroAge))hero.Clear();
             if(state.EnemyAttackCount!=lastEnemyAttack)foreach(var claw in claws)claw.Clear();
             bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.34f;
-            bool emitMonster=state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.12f&&state.EnemyAge<.66f;
+            bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
+            bool emitMonster=state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
             hero.Tick(camera,clock,emitHero,heroActor.StrikeOrigin(state.Action));
             var hand=enemyActor.EnemyStrikeOrigin(state);
             for(int i=0;i<claws.Length;i++)
             {
                 float side=i-1;
                 claws[i].Tick(camera,clock,emitMonster,
-                    hand+camera.transform.right*side*(i==1?.025f:.065f)
+                    (slam?(i==0?enemyActor.StrikeOrigin(HeroAction.LeftPunch):enemyActor.HandPosition):hand)+camera.transform.right*side*(i==1?.025f:.065f)
                         +camera.transform.up*side*(i==1?.012f:.025f));
             }
             lastAction=state.Action;lastHeroAge=state.ActionAge;lastEnemyAttack=state.EnemyAttackCount;

@@ -95,6 +95,7 @@ namespace UltramanGame.Runtime
                 return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/state.WarningDuration);
             if(state.Enemy!=EnemyPhase.Attack)return 0;
             float age=state.EnemyAge;
+            if(MonsterSlamMotion.Variant(state.EnemyAttackCount))return MonsterSlamMotion.Travel(age);
             if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
             if(age<Battle.EnemyHitSeconds+.12f)return EnemyAdvance;
             return EnemyAdvance*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));

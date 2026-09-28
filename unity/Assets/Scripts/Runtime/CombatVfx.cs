@@ -180,11 +180,18 @@ namespace UltramanGame.Runtime
             if(state.Enemy==EnemyPhase.Attack)
             {
                 bool left=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
-                if(previousEnemyAge<.08f&&state.EnemyAge>=.08f)
+                bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
+                if(slam&&previousEnemyAge<MonsterSlamMotion.GroundSeconds&&state.EnemyAge>=MonsterSlamMotion.GroundSeconds)
+                {
+                    var start=(enemy.StrikeOrigin(HeroAction.LeftPunch)+enemy.HandPosition)*.5f;start.y=0;
+                    var finish=hero.Root.position+axis*.55f;finish.y=0;
+                    groundImpact.Burst(start,finish-start,"slam",Vector3.Distance(start,finish));
+                }
+                if(!slam&&previousEnemyAge<.08f&&state.EnemyAge>=.08f)
                     atmosphere.GroundBurst(enemy.FootPosition(!left),axis,true);
-                if(previousEnemyAge<MonsterStepMotion.LandingSeconds&&state.EnemyAge>=MonsterStepMotion.LandingSeconds)
+                if(!slam&&previousEnemyAge<MonsterStepMotion.LandingSeconds&&state.EnemyAge>=MonsterStepMotion.LandingSeconds)
                     GroundBurst(enemy.FootPosition(left),axis,true,"rush");
-                if(previousEnemyAge<MonsterStepMotion.ReturnLandingSeconds&&state.EnemyAge>=MonsterStepMotion.ReturnLandingSeconds)
+                if(!slam&&previousEnemyAge<MonsterStepMotion.ReturnLandingSeconds&&state.EnemyAge>=MonsterStepMotion.ReturnLandingSeconds)
                     atmosphere.GroundBurst(enemy.FootPosition(left),-axis,false);
             }
             previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;

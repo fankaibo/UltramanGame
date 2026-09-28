@@ -127,7 +127,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
-                claw.Visible=attack&&age>=.30f&&age<.64f;
+                claw.Visible=attack&&!MonsterSlamMotion.Variant(state.EnemyAttackCount)&&age>=.30f&&age<.64f;
                 if(claw.Visible)
                 {
                     float growth=Mathf.SmoothStep(0,1,Mathf.Clamp01((age-.30f)/.10f));

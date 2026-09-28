@@ -14,6 +14,15 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            if(!photo.Active&&MonsterSlamMotion.Active(battle))
+            {
+                string slamKey=battle.Enemy==EnemyPhase.Windup&&battle.WarningDuration-battle.EnemyAge<.2f?"slam-prepare":
+                    battle.Enemy==EnemyPhase.Attack?(battle.EnemyAge>=.13f&&battle.EnemyAge<.25f?"slam-swing":
+                    battle.EnemyAge>=.28f&&battle.EnemyAge<.36f?"slam-ground":
+                    battle.EnemyAge>=.44f&&battle.EnemyAge<.62f?"slam-wave":
+                    battle.EnemyAge>=.78f&&battle.EnemyAge<.98f?"slam-rise":null):null;
+                if(slamKey!=null&&proofFrames.Add(slamKey)){StartCoroutine(SaveGuidedProof(slamKey));return;}
+            }
             string clawKey=battle.EnemyAttackCount%2==0?"monster-rush-left":"monster-rush-right";
             // A frame can cross the claw contact and start Hurt together. Save
             // the attacking claw first, then the later fall stages; otherwise

@@ -63,31 +63,36 @@ namespace UltramanGame.Runtime
             for(int i=0;i<v.Length;i++){v[i]=p[faces[i]];indices[i]=i;}
             var mesh=new Mesh{name="Fractured basalt "+seed,vertices=v,triangles=indices};mesh.RecalculateNormals();mesh.RecalculateBounds();return mesh;
         }
-        public void Burst(Vector3 origin,Vector3 direction,string cause)
+        public void Burst(Vector3 origin,Vector3 direction,string cause,float waveLength=0)
         {
             origin.y=Floor;LastOrigin=origin;LastAge=0;LastCause=cause;Bursts++;
             Vector3 axis=Vector3.ProjectOnPlane(direction,Vector3.up).normalized;if(axis==Vector3.zero)axis=Vector3.forward;
             Vector3 side=Vector3.Cross(Vector3.up,axis);
-            for(int i=0;i<18;i++)
+            bool slam=waveLength>0;int stoneCount=slam?48:18,cloudCount=slam?24:12;
+            for(int i=0;i<stoneCount;i++)
             {
                 var s=stones[stoneIndex++%stones.Length];float a=Range(-Mathf.PI,Mathf.PI);
                 Vector3 spread=axis*Mathf.Cos(a)+side*Mathf.Sin(a);
-                s.Age=0;s.Life=Range(1.25f,1.70f);s.Origin=origin+spread*Range(.08f,.23f);
+                float lane=slam?(i/8)/5f:0;
+                s.Age=-lane*.12f;s.Life=Range(1.25f,1.70f);s.Origin=origin+spread*Range(.08f,slam?.60f:.23f)+axis*(waveLength*lane);
                 s.Velocity=spread*Range(.8f,1.75f)+axis*.35f+Vector3.up*Range(1.9f,3.3f);
+                if(slam)s.Velocity=side*Range(-1.1f,1.1f)+axis*Range(.25f,.65f)+Vector3.up*Range(2.4f,4.3f);
                 float size=Range(.045f,.095f)*(i%6==0?1.4f:1);
+                if(slam)size*=1.7f;
                 s.Scale=new Vector3(size*Range(1.0f,1.7f),size*Range(.55f,.9f),size);
                 s.Spin=new Vector3(Range(-270,270),Range(-270,270),Range(-270,270));s.Rotation=Quaternion.Euler(Range(0,180),Range(0,180),Range(0,180));
-                s.Root.gameObject.SetActive(true);Pose(s);
+                s.Root.gameObject.SetActive(s.Age>=0);if(s.Age>=0)Pose(s);
             }
-            for(int i=0;i<12;i++)
+            for(int i=0;i<cloudCount;i++)
             {
                 var c=clouds[cloudIndex++%clouds.Length];float angle=i*Mathf.PI*2/12+Range(-.12f,.12f);
                 Vector3 spread=axis*Mathf.Cos(angle)+side*Mathf.Sin(angle);
-                c.Age=0;c.Life=Range(.85f,1.4f);c.Width=Range(.68f,1.10f);c.Height=Range(.42f,.64f);c.Spin=Range(-18,18);
-                c.Origin=origin+spread*.13f+Vector3.up*.11f;c.Velocity=spread*Range(.6f,1.35f)+axis*.22f+Vector3.up*Range(.10f,.26f);
-                c.Root.gameObject.SetActive(true);c.Material.SetFloat("_Age",0);
+                float lane=slam?(i/4)/5f:0;
+                c.Age=-lane*.12f;c.Life=Range(.85f,1.4f);c.Width=Range(.68f,1.10f);c.Height=Range(.42f,.64f)*(slam?1.35f:1);c.Spin=Range(-18,18);
+                c.Origin=origin+spread*.13f+Vector3.up*.11f+axis*(waveLength*lane);c.Velocity=spread*Range(.6f,1.35f)+axis*.22f+Vector3.up*Range(.10f,.26f);
+                c.Root.gameObject.SetActive(c.Age>=0);c.Material.SetFloat("_Age",0);
             }
-            if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] cause={cause} origin={origin.ToString("F3")} stones=18 dust=12");
+            if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] cause={cause} origin={origin.ToString("F3")} stones={stoneCount} dust={cloudCount}");
         }
         static void Pose(Stone s)
         {
@@ -112,12 +117,13 @@ namespace UltramanGame.Runtime
             dt=Mathf.Max(0,dt);LastAge+=dt;ActiveStones=ActiveClouds=0;
             foreach(var s in stones)
             {
-                s.Age+=dt;if(s.Age>=s.Life){s.Root.gameObject.SetActive(false);continue;}
-                Pose(s);ActiveStones++;
+                s.Age+=dt;if(s.Age>=s.Life||s.Age<0){s.Root.gameObject.SetActive(false);continue;}
+                s.Root.gameObject.SetActive(true);Pose(s);ActiveStones++;
             }
             foreach(var c in clouds)
             {
-                c.Age+=dt;if(c.Age>=c.Life){c.Root.gameObject.SetActive(false);continue;}
+                c.Age+=dt;if(c.Age>=c.Life||c.Age<0){c.Root.gameObject.SetActive(false);continue;}
+                c.Root.gameObject.SetActive(true);
                 float t=c.Age/c.Life;
                 c.Root.position=c.Origin+c.Velocity*(1-Mathf.Exp(-c.Age*1.8f))/.90f;
                 c.Root.rotation=camera.transform.rotation*Quaternion.Euler(0,0,c.Spin*t);
