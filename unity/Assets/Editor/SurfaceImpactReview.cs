@@ -14,7 +14,7 @@ namespace UltramanGame.Editor
         public static void Release(){RosterPunchReview.After();CheckPunchRecovery();Validate();ContactReactionReview.After();CinematicFlashReview.Run();StaggerReview.CheckRecovery();RiggedReview.ValidateMotion();}
         public static void CheckPunchRecovery()
         {
-            for(int h=1;h<HeroRoster.Count;h++)foreach(int fps in new[]{15,30,60})
+            for(int h=0;h<HeroRoster.Count;h++)foreach(int fps in new[]{15,30,60})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 string id=HeroRoster.At(h).Id;var world=new GameWorld();var state=Ready(false);

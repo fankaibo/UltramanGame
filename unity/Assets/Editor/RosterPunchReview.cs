@@ -15,7 +15,7 @@ namespace UltramanGame.Editor
         public static void Release(){After();SurfaceImpactReview.CheckPunchRecovery();CheckGuardTransitions();}
         public static void CheckGuardTransitions()
         {
-            for(int h=1;h<HeroRoster.Count;h++)
+            for(int h=0;h<HeroRoster.Count;h++)
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 string id=HeroRoster.At(h).Id;var world=new GameWorld();var state=new Battle();

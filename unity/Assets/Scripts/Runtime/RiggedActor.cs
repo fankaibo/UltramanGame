@@ -316,7 +316,7 @@ namespace UltramanGame.Runtime
             else if(comboStrike||preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle)comboExitAge=1;
             if(comboExitApplied)for(int i=0;i<joints.Length;i++)if(comboExitMask[i])joints[i].localRotation=comboExitBase[i];
             comboExitApplied=false;comboWasActive=comboStrike;
-            bool retargetArms=retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
+            bool retargetArms=!monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&!state.Shield));
             // The leg reach correction is a presentation layer; remove it
@@ -332,7 +332,7 @@ namespace UltramanGame.Runtime
                 // When leaving a retargeted pose, let the destination clip
                 // blend from the hands the player actually saw. Restoring the
                 // source clip first would pop the guard outward for one frame.
-                if(!retargetedPunch||retargetArms)
+                if(monster||retargetArms)
                 {
                     leftUpperArm.localRotation=stepArmRotations[0];leftForearm.localRotation=stepArmRotations[1];leftHand.localRotation=stepArmRotations[2];
                     upperArm.localRotation=stepArmRotations[3];forearm.localRotation=stepArmRotations[4];hand.localRotation=stepArmRotations[5];
@@ -684,9 +684,11 @@ namespace UltramanGame.Runtime
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
                 PoseRetargetedFootwork(state);
-            if(retargetArms)PoseRetargetedArms(state);
-            if(!monster&&!retargetedPunch&&!comboStrike&&preview<0&&state.Phase==GamePhase.Battle&&
-                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch))PoseTigaContact(state);
+            if(retargetArms)
+            {
+                if(retargetedPunch)PoseRetargetedArms(state);
+                else PoseTigaArms(state,comboStrike);
+            }
             if(comboStrike)PoseComboStrike(state);
             if(comboExitAge<.14f)
             {
@@ -943,23 +945,37 @@ namespace UltramanGame.Runtime
                 wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
             }
         }
-        void PoseTigaContact(Battle state)
+        void PoseTigaArms(Battle state,bool combo)
         {
-            if(opponent==null||!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
-            // Preserve the authored wind-up, off-hand and recoil. Near contact,
-            // steer just the active fist onto the moving chest surface instead
-            // of leaving a visible gap at the outer edge of the source clip.
-            float weight=Mathf.SmoothStep(0,1,(state.ActionAge-.025f)/.075f)*(1-Mathf.SmoothStep(0,1,(state.ActionAge-.17f)/.17f));
-            if(weight<=0)return;
+            if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
+            // Keep the authored stepping and striking-hand path, but enter and
+            // return through a shared chest guard. The other hand never follows
+            // the source clip above the head during an ordinary punch.
+            bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+            float age=state.ActionAge;
+            float contact=Mathf.SmoothStep(0,1,(age-.025f)/.075f)*(1-Mathf.SmoothStep(0,1,(age-.17f)/.17f));
+            float motion=punch&&!combo?Mathf.SmoothStep(0,1,age/.085f)*(1-Mathf.SmoothStep(0,1,(age-.22f)/(Battle.PunchSeconds-.22f))):0;
+            float blend=punch||heroRecoveryAge<.26f?1:Mathf.SmoothStep(0,1,clipAge/.16f);
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
-            bool left=state.Action==HeroAction.LeftPunch;float sign=left?-1:1;var side=Vector3.Cross(Vector3.up,forward);
-            var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-            Vector3 target=opponent.BeamSurfaceContact-forward*.10f+side*(sign*.06f);
-            target=wrist.position+Vector3.ClampMagnitude(target-wrist.position,.50f)*weight;
-            var palm=wrist.rotation;var span=wrist.position-lower.position;
-            PoseLimb(upper,lower,wrist,target,1,side*(sign*.65f)+Vector3.down*.5f,.30f);
-            wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+            var side=Vector3.Cross(Vector3.up,forward);
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0,active=punch&&!combo&&left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
+                var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                Vector3 guard=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+                Vector3 target=guard;
+                if(active)
+                {
+                    Vector3 strike=wrist.position;
+                    if(opponent!=null)strike+=Vector3.ClampMagnitude(opponent.BeamSurfaceContact-forward*.10f+side*(sign*.06f)-strike,.50f)*contact;
+                    target=Vector3.Lerp(guard,strike,motion);
+                }
+                var palm=wrist.rotation;var span=wrist.position-lower.position;
+                Vector3 pole=Vector3.Lerp(side*(sign*.45f)+Vector3.down,side*(sign*.65f)+Vector3.down*.5f,active?motion:0);
+                PoseLimb(upper,lower,wrist,target,blend,pole,.30f);
+                wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+            }
         }
         void PoseComboStrike(Battle state)
         {
