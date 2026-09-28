@@ -70,6 +70,9 @@ def main():
     stagger_landings = len(re.findall(r'\[MonsterStagger\] landed side=', output))
     if stagger_landings < 2 or output.count('[MonsterStagger] footstep playing=True') != stagger_landings:
         raise RuntimeError('Recovery-step landing and sound did not match')
+    combo_shots = output.count('[ComboCamera] begin side=')
+    if combo_shots < 2:
+        raise RuntimeError('Full round did not exercise multiple combo camera shots')
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
     # These images come from this player run, not the independent Editor render
@@ -80,14 +83,15 @@ def main():
                 'victory-collapse', 'victory-turn', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
                 'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return',
-                'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right')
+                'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right',
+                'combo-camera-peak', 'combo-camera-return')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
             raise RuntimeError(f'Missing current-player visual evidence: {name}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
     result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
-              'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings,
+              'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots,
               'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha,
               'evidence_directory': str(evidence),

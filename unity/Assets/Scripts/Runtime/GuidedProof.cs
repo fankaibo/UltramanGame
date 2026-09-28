@@ -67,6 +67,15 @@ namespace UltramanGame.Runtime
                 string contactKey=battle.Action==HeroAction.LeftPunch?"punch-impact-left":"punch-impact-right";
                 if(!proofFrames.Contains(contactKey+(photo.Captures>0?"-after-photo":"")))key=contactKey;
             }
+            // Preserve the contact/landing evidence first, then capture the
+            // sustained close framing and its return on following frames.
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&!battle.Shield&&
+                (battle.Enemy==EnemyPhase.Rest||battle.Enemy==EnemyPhase.Recover)&&
+                proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
+            {
+                if(world.ComboFocus>.95f&&world.ComboCameraAge>=.24f)key="combo-camera-peak";
+                else if(world.ComboCameraAge>.55f&&world.ComboFocus>.01f&&world.ComboFocus<.30f)key="combo-camera-return";
+            }
             if(captureClaw)key=clawKey;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;

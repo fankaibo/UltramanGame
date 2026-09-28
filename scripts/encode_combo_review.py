@@ -13,7 +13,7 @@ def main():
     parser.add_argument('--player', type=Path, action='append', default=[])
     parser.add_argument('--folder', type=Path)
     parser.add_argument('--baseline', default='621c4f153f9aed255f53d1dda6b2a630f76a6e17')
-    parser.add_argument('--subject', choices=('combo', 'backstep', 'impact', 'tiga-guard'), default='combo')
+    parser.add_argument('--subject', choices=('combo', 'backstep', 'impact', 'tiga-guard', 'combo-camera'), default='combo')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     folder = args.folder.resolve() if args.folder else root/'artifacts/combo-strike'
@@ -55,6 +55,12 @@ def main():
             if not report.strip():
                 raise RuntimeError('Missing Tiga guard validation')
             proof[name] = report
+    if args.subject == 'combo-camera':
+        for name in ('camera-validation.txt', 'flow-validation.txt'):
+            report = (folder/name).read_text()
+            if not report.strip():
+                raise RuntimeError('Missing combo camera validation')
+            proof[name] = report
     if (folder/'before/sequence.csv').read_bytes() != (folder/'after/sequence.csv').read_bytes():
         raise RuntimeError('Battle inputs or timing differ')
     subprocess.run(['/opt/homebrew/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
@@ -79,6 +85,8 @@ def main():
             moments = ('punch-impact-left', 'punch-impact-right', 'combo-left', 'combo-right')
         elif args.subject == 'tiga-guard':
             moments = ('punch-impact-left', 'punch-impact-right', 'left-punch-recoil', 'right-punch-recoil', 'guard-impact')
+        elif args.subject == 'combo-camera':
+            moments = ('combo-camera-peak', 'combo-camera-return', 'combo-left', 'combo-right', 'guard-impact')
         for moment in moments:
             name = record['hero']+'-'+moment+'.png'
             shutil.copy2(directory/'native'/(moment+'.png'), folder/'native'/name)
@@ -117,6 +125,14 @@ def main():
                             '迪迦普通拳改为从胸前准备、单手出拳、另一只手收拢，再回到胸前。保留原有踏步、接触落点和连击节奏，减少另一只手抬过头顶的双手出招观感。')
         page = page.replace('<h2>五英雄左右连击接触</h2>',
                             '<h2>迪迦准备与普通拳</h2><img loading="lazy" src="poses/idle-60.png"><div class="pair"><img loading="lazy" src="poses/60-contact-1.png"><img loading="lazy" src="poses/60-contact-2.png"></div><p><a href="guard-validation.txt">护手高度与普通拳胸部接触检查</a></p><h2>五英雄连击回归</h2>')
+    elif args.subject == 'combo-camera':
+        page = page.replace('连击转肩与怪兽受力', '连击近景与镜头回位')
+        page = page.replace('每第 5 次普攻加入外侧挥入、转肩和收手，怪兽随左右拳侧转后仰。五位英雄共用原来的识别与伤害规则：十拳仍扣 10 点、充能 10 次。',
+                            '每第 5 次普攻用短暂的侧向推进放大接触与怪兽后仰，再随收招退回对战机位。防御提示、大招和倒地优先接管镜头，出招规则和时机保持原样。')
+        page = page.replace('五英雄左右连击接触', '五英雄左右连击构图')
+        page = page.replace("'validation/'+hero.value+'-60-contact-", "'poses/'+hero.value+'-60-peak-")
+        page = page.replace('validation/validation.txt', 'camera-validation.txt').replace('胸部接触与支撑脚检查', '构图、背景覆盖与连续镜头检查')
+        page = page.replace('validation/interruptions.txt', 'flow-validation.txt').replace('防御、暂停与新局检查', '防御、大招、连续出拳与新局检查')
     (folder/'index.html').write_text(page)
     print(folder/'index.html')
 

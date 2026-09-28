@@ -72,16 +72,17 @@ namespace UltramanGame.Runtime
                 }
                 if(time<hitUntil&&battle.Action!=HeroAction.Beam)
                 {
-                    float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*32;
-                    hud.Text(new Rect(800,213-lift,295,62),battle.Action==HeroAction.Beam?"光线爆发！":battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?35:29,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleCenter,true);
+                    // Keep praise beside the combo counter: the monster's
+                    // face and contact area must stay clear in the closer lens.
+                    float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*12;
+                    hud.Text(new Rect(42,388-lift,244,40),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?25:22,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
                 }
                 if(lastDamage>0&&time-damagePopAt<.9f)
                 {
-                    float age=Mathf.Clamp01((time-damagePopAt)/.9f),lift=Mathf.SmoothStep(0,1,age)*68;
+                    float age=Mathf.Clamp01((time-damagePopAt)/.9f),lift=Mathf.SmoothStep(0,1,age)*6;
                     float alpha=1-Mathf.SmoothStep(0,1,age);
                     bool special=lastDamage>1;
-                    hud.Text(new Rect(924,228-lift,260,56),"−"+lastDamage.ToString("00"),42+(int)((1-age)*8),new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleCenter,true);
-                    if(special)hud.Text(new Rect(924,276-lift,260,25),"CRITICAL",15,new Color(1,.78f,.28f,alpha),TextAnchor.MiddleCenter,true);
+                    hud.Text(new Rect(1020,107-lift,144,31),"−"+lastDamage.ToString("00"),special?28:24,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
                 }
                 if(warning)
                 {
