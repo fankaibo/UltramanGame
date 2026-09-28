@@ -103,7 +103,10 @@ namespace UltramanGame.Runtime
         }
         IEnumerator SaveGuidedProof(string key)
         {
-            proofBusy=true;yield return new WaitForEndOfFrame();
+            proofBusy=true;
+            // Read the settled review image, not the temporary shutter flash.
+            if(key=="photo-Review")yield return new WaitForSecondsRealtime(.35f);
+            yield return new WaitForEndOfFrame();
             var args=System.Environment.GetCommandLineArgs();int at=System.Array.IndexOf(args,"--proof-output");
             string folder=at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.Combine(System.Environment.CurrentDirectory,"artifacts/guided-arcade/native");Directory.CreateDirectory(folder);
             var texture=new Texture2D(Screen.width,Screen.height,TextureFormat.RGB24,false);

@@ -13,6 +13,8 @@ import re
 import subprocess
 import sys
 import time
+import numpy as np
+from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -144,10 +146,18 @@ def main():
                 data=path.read_bytes()
                 if data[:8]!=b'\x89PNG\r\n\x1a\n':raise RuntimeError('Invalid saved PNG')
                 destination=folder/path.name;path.replace(destination);photos.append(str(destination))
+            with Image.open(photos[0]) as saved,Image.open(folder/'native/photo-Review.png') as screen:
+                if saved.size!=screen.size:raise RuntimeError('Photo preview/export resolution mismatch')
+                # Exclude the title and footer controls. The settled central
+                # review should display exactly the image saved to Downloads.
+                region=(int(saved.width*.05),int(saved.height*.15),int(saved.width*.91),int(saved.height*.83))
+                difference=np.abs(np.asarray(saved.convert('RGB').crop(region),dtype=np.int16)-np.asarray(screen.convert('RGB').crop(region),dtype=np.int16))
+                preview_error=float(np.percentile(difference,99))
+                if preview_error>2:raise RuntimeError(f'Photo preview differs from exported PNG: p99={preview_error}')
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
-                'replay_battle_started':True,'photos':photos}
+                'replay_battle_started':True,'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)

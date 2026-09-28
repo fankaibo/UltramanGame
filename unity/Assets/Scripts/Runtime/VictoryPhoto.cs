@@ -154,13 +154,13 @@ namespace UltramanGame.Runtime
         {
             bool review=session.Stage==PhotoStage.Review,counting=session.Stage==PhotoStage.Countdown;
             hud.Box(new Rect(0,0,1280,720),new Color(.012f,.025f,.05f));
-            GUI.DrawTexture(new Rect(0,0,1280,720),review&&saved?(Texture)saved:composition.Preview,ScaleMode.ScaleToFit,false);
+            hud.Image(new Rect(0,0,1280,720),review&&saved?(Texture)saved:composition.Preview,ScaleMode.ScaleToFit);
             if(!review&&!freshPerson&&cameraPreview)
             {
                 // Visible, honest fallback while native cutout initializes/reconnects.
                 // This camera layer is HUD only and can never enter the saved composition.
                 hud.Rounded(new Rect(720,112,465,456),new Color(.015f,.04f,.075f,.86f));
-                GUI.DrawTexture(new Rect(735,128,435,402),cameraPreview,ScaleMode.ScaleToFit,false);
+                hud.Image(new Rect(735,128,435,402),cameraPreview,ScaleMode.ScaleToFit);
                 hud.Text(new Rect(735,529,435,30),"实时镜头 · 正在准备镂空人像",16,HudPainter.Gold,TextAnchor.MiddleCenter);
             }
             hud.Box(new Rect(0,0,1280,64),new Color(.008f,.025f,.06f,.76f));
@@ -188,7 +188,7 @@ namespace UltramanGame.Runtime
                     // the old top-right window covered the person's face and raised arm.
                     var reference=new Rect(1100,636,152,76);
                     hud.Text(new Rect(1094,616,164,19),"姿势参考 · 实时镜头",10,HudPainter.Cyan,TextAnchor.MiddleCenter,true);
-                    GUI.DrawTexture(reference,cameraPreview,ScaleMode.ScaleToFit,false);
+                    hud.Image(reference,cameraPreview,ScaleMode.ScaleToFit);
                 }
                 if(counting)
                 {

@@ -9,19 +9,41 @@ namespace UltramanGame.Runtime
         readonly Font font;
         readonly Texture2D circle;
         readonly Texture2D fade;
+        readonly Material imageMaterial;
         readonly Dictionary<string,Texture2D> portraits=new Dictionary<string,Texture2D>();
         readonly Dictionary<int,GUIStyle> styles=new Dictionary<int,GUIStyle>();
         public HudPainter(Font font)
         {
+            imageMaterial=new Material(Resources.Load<Shader>("HudImage"));
             this.font=font;circle=new Texture2D(64,64,TextureFormat.RGBA32,false);var pixels=new Color[4096];
             for(int y=0;y<64;y++)for(int x=0;x<64;x++) pixels[y*64+x]=new Color(1,1,1,Mathf.Clamp01(32-Vector2.Distance(new Vector2(x+.5f,y+.5f),new Vector2(32,32))));
             circle.SetPixels(pixels);circle.Apply();
             fade=new Texture2D(1,64,TextureFormat.RGBA32,false){wrapMode=TextureWrapMode.Clamp};var gradient=new Color[64];
             for(int y=0;y<64;y++)gradient[y]=new Color(1,1,1,y/63f);fade.SetPixels(gradient);fade.Apply();
         }
-        public void Dispose() { Object.Destroy(circle);Object.Destroy(fade);foreach(var p in portraits.Values)Object.Destroy(p); }
+        public void Dispose() { Object.Destroy(circle);Object.Destroy(fade);Object.Destroy(imageMaterial);foreach(var p in portraits.Values)Object.Destroy(p); }
+        void DrawImage(Rect r,Texture texture,Rect uv,Color color)
+        {
+            if(Event.current.type!=EventType.Repaint||!texture)return;
+            // Built-in IMGUI texture blits do not linearize authored tints.
+            // An explicit material also samples photo/camera sRGB textures
+            // correctly, instead of displaying their values as linear light.
+            imageMaterial.SetVector("_Tint",QualitySettings.activeColorSpace==ColorSpace.Linear?color.linear:color);
+            Graphics.DrawTexture(r,texture,uv,0,0,0,0,Color.white,imageMaterial);
+        }
+        public void Image(Rect r,Texture texture,ScaleMode mode=ScaleMode.StretchToFill)
+        {
+            if(!texture)return;
+            if(mode==ScaleMode.ScaleToFit)
+            {
+                float scale=Mathf.Min(r.width/texture.width,r.height/texture.height);
+                var size=new Vector2(texture.width*scale,texture.height*scale);
+                r=new Rect(r.center-size/2,size);
+            }
+            DrawImage(r,texture,new Rect(0,0,1,1),GUI.color);
+        }
         public void Fade(Rect r,Color color)
-        {var before=GUI.color;GUI.color=color;GUI.DrawTexture(r,fade);GUI.color=before;}
+        {DrawImage(r,fade,new Rect(0,0,1,1),color);}
         public void Portrait(Rect r,bool monster)
         {
             string name=monster?"GolzaActions":"TigaPhotoActions";
@@ -41,30 +63,28 @@ namespace UltramanGame.Runtime
                 }
                 portrait.SetPixels(dst);portrait.Apply();portraits[name]=portrait;
             }
-            GUI.DrawTexture(r,portrait,ScaleMode.ScaleToFit);
+            Image(r,portrait,ScaleMode.ScaleToFit);
         }
         public void HeroPortrait(Rect r,string hero)
         {
             var image=Resources.Load<Texture2D>("Characters/"+hero+"/Photo");
             if(!image){Portrait(r,false);return;}
-            GUI.DrawTexture(r,image,ScaleMode.ScaleToFit);
+            Image(r,image,ScaleMode.ScaleToFit);
         }
         public void Box(Rect rect,Color color)
-        { var before=GUI.color;GUI.color=color;GUI.DrawTexture(rect,Texture2D.whiteTexture);GUI.color=before; }
+        {DrawImage(rect,Texture2D.whiteTexture,new Rect(0,0,1,1),color);}
         public void Dot(Vector2 center,float size,Color color)
-        { var before=GUI.color;GUI.color=color;GUI.DrawTexture(new Rect(center.x-size/2,center.y-size/2,size,size),circle);GUI.color=before; }
+        {DrawImage(new Rect(center.x-size/2,center.y-size/2,size,size),circle,new Rect(0,0,1,1),color);}
         public void Rounded(Rect r,Color color,float radius=12)
         {
             radius=Mathf.Min(radius,r.height/2,r.width/2);
             Box(new Rect(r.x+radius,r.y,r.width-2*radius,r.height),color);
             Box(new Rect(r.x,r.y+radius,radius,r.height-2*radius),color);
             Box(new Rect(r.xMax-radius,r.y+radius,radius,r.height-2*radius),color);
-            var before=GUI.color;GUI.color=color;
-            GUI.DrawTextureWithTexCoords(new Rect(r.x,r.y,radius,radius),circle,new Rect(0,.5f,.5f,.5f));
-            GUI.DrawTextureWithTexCoords(new Rect(r.xMax-radius,r.y,radius,radius),circle,new Rect(.5f,.5f,.5f,.5f));
-            GUI.DrawTextureWithTexCoords(new Rect(r.x,r.yMax-radius,radius,radius),circle,new Rect(0,0,.5f,.5f));
-            GUI.DrawTextureWithTexCoords(new Rect(r.xMax-radius,r.yMax-radius,radius,radius),circle,new Rect(.5f,0,.5f,.5f));
-            GUI.color=before;
+            DrawImage(new Rect(r.x,r.y,radius,radius),circle,new Rect(0,.5f,.5f,.5f),color);
+            DrawImage(new Rect(r.xMax-radius,r.y,radius,radius),circle,new Rect(.5f,.5f,.5f,.5f),color);
+            DrawImage(new Rect(r.x,r.yMax-radius,radius,radius),circle,new Rect(0,0,.5f,.5f),color);
+            DrawImage(new Rect(r.xMax-radius,r.yMax-radius,radius,radius),circle,new Rect(.5f,0,.5f,.5f),color);
         }
         public void Panel(Rect r,Color accent,bool active=false)
         {

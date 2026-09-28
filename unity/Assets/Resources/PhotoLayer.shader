@@ -19,7 +19,16 @@ Shader "Training/PhotoLayer" {
             v2f vert(appdata_base v) {v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.uv=_Frame.xy+v.texcoord.xy*_Frame.zw;return o;}
             fixed4 frag(v2f i):SV_Target {
                 fixed4 c=tex2D(_MainTex,i.uv);
-                if(_KeyGreen>.5) {c.a*=1-smoothstep(.12,.48,c.g-max(c.r,c.b));c.g=min(c.g,max(c.r,c.b)+.06);}
+                if(_KeyGreen>.5) {
+                    // The key thresholds describe the source PNG's sRGB values.
+                    #ifndef UNITY_COLORSPACE_GAMMA
+                     c.rgb=LinearToGammaSpace(c.rgb);
+                    #endif
+                    c.a*=1-smoothstep(.12,.48,c.g-max(c.r,c.b));c.g=min(c.g,max(c.r,c.b)+.06);
+                    #ifndef UNITY_COLORSPACE_GAMMA
+                     c.rgb=GammaToLinearSpace(c.rgb);
+                    #endif
+                }
                 if(_MaskOnly>.5)c.rgb=1;
                 return c;
             }

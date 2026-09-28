@@ -192,7 +192,7 @@ namespace UltramanGame.Runtime
                     }
                     if(key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0&&key.IndexOf("EyeRim",StringComparison.OrdinalIgnoreCase)<0)
                         if(!eyeMaterials.Contains(mat))eyeMaterials.Add(mat);
-                    if(key.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)>=0)
+                    if(key.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0||key.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0)
                         if(!coreMaterials.Contains(mat))coreMaterials.Add(mat);
                     if((monster&&key.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)<0&&key.IndexOf("EyesGlow",StringComparison.OrdinalIgnoreCase)<0)||
                        (!monster&&mat.HasProperty("_GuardPoint")))
@@ -807,8 +807,10 @@ namespace UltramanGame.Runtime
             float eyeGlow=Mathf.Clamp01(.18f+warningGlow+attackGlow+victoryGlow);
             foreach(var mat in eyeMaterials)
             {
-                Color c=monster?new Color(1,.24f,.055f):new Color(.72f,.92f,1);
-                mat.SetColor("_EmissionColor",c*(.25f+eyeGlow*1.7f));
+                // Preserve the source lens color. Tiga's eyes must not also
+                // receive the blue timer pulse through the core collection.
+                Color c=monster?new Color(1,.24f,.055f):mat.GetColor("_Color");
+                mat.SetColor("_EmissionColor",c*(monster?.25f+eyeGlow*1.7f:1.05f));
             }
             float coreGlow=!monster&&state.Action==HeroAction.Beam
                 ?.55f+.95f*Mathf.Sin(Mathf.Clamp01(state.ActionAge/1.9f)*Mathf.PI):

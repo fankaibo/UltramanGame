@@ -50,6 +50,10 @@ Shader "Training/VolcanicPlume" {
       float lightDensity=density(p+float3(-.055,.045,-.055));
       float lighting=saturate(.48+(d-lightDensity)*1.8);
       float3 color=lerp(float3(.043,.047,.056),float3(.25,.28,.32),lighting);
+      // Ash swatches are display colors; heat below is emitted radiance.
+      #ifndef UNITY_COLORSPACE_GAMMA
+       color=GammaToLinearSpace(color);
+      #endif
       // Incandescent gas is confined to the throat. The cool upper billows
       // stay opaque and directional instead of becoming orange fire sprites.
       float heat=pow(saturate(1-h*4.3),2)*(.65+_Surge*.5);

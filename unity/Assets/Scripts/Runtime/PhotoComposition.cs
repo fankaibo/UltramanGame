@@ -164,20 +164,33 @@ namespace UltramanGame.Runtime
         public byte[] PersonMatte()
         {
             var color=camera.backgroundColor;
+            var previousTarget=camera.targetTexture;
+            // Alpha is data, not a display color. An sRGB target would encode
+            // a 50% edge as 73.5%, widening the AI integration mask.
+            var matte=RenderTexture.GetTemporary(Preview.width,Preview.height,16,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
             try
             {
                 backgroundQuad.gameObject.SetActive(false);heroQuad.gameObject.SetActive(false);camera.backgroundColor=Color.black;person.SetFloat("_MaskOnly",1);
-                var picture=Snapshot();try{return picture.EncodeToPNG();}finally{Release(picture);}
+                camera.targetTexture=matte;camera.Render();
+                var picture=Readback(matte,true);try{return picture.EncodeToPNG();}finally{Release(picture);}
             }
-            finally{backgroundQuad.gameObject.SetActive(true);heroQuad.gameObject.SetActive(true);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);dirty=true;}
+            finally
+            {
+                camera.targetTexture=previousTarget;RenderTexture.ReleaseTemporary(matte);
+                backgroundQuad.gameObject.SetActive(true);heroQuad.gameObject.SetActive(true);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);dirty=true;
+            }
         }
         public Texture2D Snapshot()
         {
-            Render(true);var old=RenderTexture.active;
+            Render(true);return Readback(Preview,false);
+        }
+        static Texture2D Readback(RenderTexture target,bool linear)
+        {
+            var old=RenderTexture.active;
             try
             {
-                RenderTexture.active=Preview;var texture=new Texture2D(Preview.width,Preview.height,TextureFormat.RGB24,false);
-                texture.ReadPixels(new Rect(0,0,Preview.width,Preview.height),0,0);texture.Apply();return texture;
+                RenderTexture.active=target;var texture=new Texture2D(target.width,target.height,TextureFormat.RGB24,false,linear);
+                texture.ReadPixels(new Rect(0,0,target.width,target.height),0,0);texture.Apply();return texture;
             }
             finally {RenderTexture.active=old;}
         }

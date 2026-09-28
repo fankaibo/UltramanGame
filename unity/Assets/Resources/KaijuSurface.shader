@@ -26,6 +26,9 @@ Shader "Training/KaijuSurface" {
   float relief(float2 p) {return smoothstep(.03,.6,cell(p));}
   float skinHeight(float2 uv) {
    fixed3 c=tex2D(_MainTex,uv).rgb;
+   #ifndef UNITY_COLORSPACE_GAMMA
+    c=LinearToGammaSpace(c);
+   #endif
    return dot(c,float3(.30,.59,.11));
   }
   void FadeAdditive(Input i,SurfaceOutputStandard o,inout fixed4 color) {

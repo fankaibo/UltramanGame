@@ -43,7 +43,13 @@ Shader "Training/HeroSurface" {
   }
   void surf(Input i,inout SurfaceOutputStandard o) {
    fixed4 c=tex2D(_MainTex,i.uv_MainTex)*_Color;
-   float brightest=max(c.r,max(c.g,c.b)),darkest=min(c.r,min(c.g,c.b));
+   // Panel/lens masks were measured from the original display-space atlas.
+   // Only classification uses that space; lighting retains linear albedo.
+   float3 maskColor=c.rgb;
+   #ifndef UNITY_COLORSPACE_GAMMA
+    maskColor=LinearToGammaSpace(maskColor);
+   #endif
+   float brightest=max(maskColor.r,max(maskColor.g,maskColor.b)),darkest=min(maskColor.r,min(maskColor.g,maskColor.b));
    float saturation=(brightest-darkest)/max(.03,brightest);
    // Separate bright neutral armor from colored suit panels using the
    // original texture. Color borders are not invented as surface normals.
@@ -59,11 +65,11 @@ Shader "Training/HeroSurface" {
    // the back do not turn into the same luminous blue as the shield.
    // UV bounds isolate the original lens islands; color rejection keeps their
    // dark borders and neighboring silver/orange suit pixels non-emissive.
-   float blue=smoothstep(.02,.18,c.b-c.r)*smoothstep(.22,.55,c.b);
-   float warm=smoothstep(.36,.58,min(c.r,c.g))*smoothstep(-.08,.03,c.r-c.b);
+   float blue=smoothstep(.02,.18,maskColor.b-maskColor.r)*smoothstep(.22,.55,maskColor.b);
+   float warm=smoothstep(.36,.58,min(maskColor.r,maskColor.g))*smoothstep(-.08,.03,maskColor.r-maskColor.b);
    // The cyan lenses contain near-white baked highlights. Chroma alone
    // excludes those highlights and produces dark islands inside a bright eye.
-   float coolEye=max(blue,smoothstep(.55,.75,min(c.r,min(c.g,c.b))));
+   float coolEye=max(blue,smoothstep(.55,.75,min(maskColor.r,min(maskColor.g,maskColor.b))));
    float eyes=AtlasRegion(i.uv_MainTex,_EyeRegion)*lerp(coolEye,warm,_WarmEyes);
    float core=AtlasRegion(i.uv_MainTex,_CoreRegion)*blue;
    o.Emission=_EmissionColor.rgb+_GuardColor.rgb*(_GuardColor.a*patch)*(.18+c.rgb*.55)

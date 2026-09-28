@@ -8,6 +8,7 @@ import argparse
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
+from PIL import Image
 
 
 def main():
@@ -108,11 +109,17 @@ def main():
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
             raise RuntimeError(f'Missing current-player visual evidence: {name}')
+    with Image.open(native / 'battle-entry.png') as frame:
+        # The opaque health swatch must retain its authored display color
+        # when the scene's lighting or postprocessing color space changes.
+        pixel=frame.convert('RGB').getpixel((round(frame.width*900/1280),round(frame.height*60.7/720)))
+        if max(abs(a-b) for a,b in zip(pixel,(255,161,59)))>2:
+            raise RuntimeError(f'HUD color was encoded incorrectly: {pixel}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
     result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
-              'resources_sha256': resources_sha, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,
+              'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,
               'evidence_directory': str(evidence),
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))

@@ -50,7 +50,10 @@ Shader "Training/BeamImpactVolume" {
       float lighting=saturate(.40+(d-lightDensity)*1.6);
       float3 color=lerp(float3(.07,.095,.125),float3(.46,.54,.62),lighting);
       if(_Ground>.5)color=lerp(float3(.11,.105,.095),float3(.40,.38,.34),lighting);
-      else{
+      #ifndef UNITY_COLORSPACE_GAMMA
+       color=GammaToLinearSpace(color);
+      #endif
+      if(_Ground<.5){
        float core=pow(saturate(1-length(p)*2.65),2)*(1-smoothstep(.08,.62,_Age));
        color+=float3(1.2,2.8,4.5)*core;
       }

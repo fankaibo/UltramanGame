@@ -79,12 +79,12 @@ namespace UltramanGame.Runtime
             var backMat=backdropMaterial;
             backdrop=Primitive("Realistic Mount Fuji night backdrop",PrimitiveType.Quad,root,Vector3.zero,Vector3.one,backMat);
             backdrop.rotation=Camera.transform.rotation;
-            var key=Directional(root,"Volcanic moon key",new Color(.80f,.86f,1),.72f,new Vector3(38,-38,0));
+            var key=Directional(root,"Volcanic moon key",new Color(.80f,.86f,1),.95f,new Vector3(38,-38,0));
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
             Directional(root,"Ash sky fill",new Color(.18f,.24f,.52f),.28f,new Vector3(25,130,0));
             Directional(root,"Lava rim",new Color(1,.28f,.10f),.32f,new Vector3(18,155,0));
             var arcadeFill=Point(root,"Arcade character fill",new Color(.65f,.74f,.92f),9);
-            arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=1.05f;
+            arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=1.4f;
             arcadeFill.shadows=LightShadows.None;
             // A cabinet uses colored edge light to keep the fighters readable
             // against a dark stage. These two small, shadowless sources breathe
