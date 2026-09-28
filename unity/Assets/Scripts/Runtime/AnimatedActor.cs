@@ -13,6 +13,9 @@ namespace UltramanGame.Runtime
         public float StaggerAge=>rigged!=null?rigged.StaggerAge:10;
         public bool StaggerLeft=>rigged!=null&&rigged.StaggerLeft;
         public int StaggerLandings=>rigged!=null?rigged.StaggerLandings:0;
+        public float LaunchAge=>rigged!=null?rigged.LaunchAge:10;
+        public int LaunchLandings=>rigged!=null?rigged.LaunchLandings:0;
+        public float LaunchCamera=>rigged!=null?rigged.LaunchCamera:0;
         public Vector3 StrikeOrigin(HeroAction action) => rigged!=null?rigged.StrikeOrigin(action):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(Battle state) => rigged!=null?rigged.EnemyStrikeOrigin(state.EnemyAttackCount):Root.position+forwardAxis*.6f+Vector3.up*2.4f;

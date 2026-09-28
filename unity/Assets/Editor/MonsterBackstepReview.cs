@@ -28,7 +28,7 @@ namespace UltramanGame.Editor
                 var world=new GameWorld();var state=Ready();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
                 hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
                 Vector3 homeL=enemy.FootPosition(true),homeR=enemy.FootPosition(false),oldL=homeL,oldR=homeR,planted=Vector3.zero;
-                float support=0,lift=0,back=0,slide=0,minY=10,maxStep=0,gap=0;int contacts=0,landings=0;float health=state.EnemyHealth,dt=1f/rate,time=0;bool landing=false;
+                float support=0,lift=0,back=0,slide=0,minY=10,maxStep=0,launchStep=0,gap=0;int contacts=0,landings=0;float health=state.EnemyHealth,dt=1f/rate,time=0;bool landing=false;
                 var mesh=new Mesh();var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
                 try
                 {
@@ -38,7 +38,8 @@ namespace UltramanGame.Editor
                         hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);world.Tick(state,dt,time);time+=dt;
                         if(world.MonsterStaggerLanded)landings++;
                         var l=enemy.FootPosition(true);var r=enemy.FootPosition(false);
-                        maxStep=Mathf.Max(maxStep,Vector3.Distance(l,oldL),Vector3.Distance(r,oldR));oldL=l;oldR=r;
+                        if(enemy.LaunchAge<MonsterLaunchMotion.Duration)launchStep=Mathf.Max(launchStep,Vector3.Distance(l,oldL),Vector3.Distance(r,oldR));
+                        else maxStep=Mathf.Max(maxStep,Vector3.Distance(l,oldL),Vector3.Distance(r,oldR));oldL=l;oldR=r;
                         if(enemy.StaggerAge<MonsterStaggerMotion.Duration)
                         {
                             var moving=enemy.StaggerLeft?l:r;var rest=enemy.StaggerLeft?homeL:homeR;
@@ -76,9 +77,10 @@ namespace UltramanGame.Editor
                         }
                         health=state.EnemyHealth;
                     }
-                    string result=$"{id}/{rate}Hz contacts={contacts} landings={landings} support={support:F4} lift={lift:F4} back={back:F4} plantedSlide={slide:F4} minGround={minY:F4} footStep={maxStep:F4} contactGap={gap:F4}";
+                    string result=$"{id}/{rate}Hz contacts={contacts} landings={landings} support={support:F4} lift={lift:F4} back={back:F4} plantedSlide={slide:F4} minGround={minY:F4} footStep={maxStep:F4} launchFootSpeed={launchStep/dt:F4} contactGap={gap:F4}";
                     Debug.Log("[BackstepValidation] "+result);report.AppendLine(result);
-                    if(contacts!=10||landings!=2||state.EnemyHealth!=40||state.Energy!=10||support>.035f||lift<.12f||back<.45f||slide>.035f||minY<-.035f||maxStep>dt*5||gap>.36f)
+                    // The tenth hit now launches; only the fifth uses the recovery step.
+                    if(contacts!=10||landings!=1||enemy.LaunchLandings!=1||state.EnemyHealth!=40||state.Energy!=10||support>.035f||lift<.12f||back<.45f||slide>.035f||minY<-.035f||maxStep>dt*5||launchStep>dt*6||gap>.36f)
                         throw new Exception("Backstep support/contact failed: "+result);
                 }
                 finally {world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(mesh);}

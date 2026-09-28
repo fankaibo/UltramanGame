@@ -37,8 +37,16 @@ namespace UltramanGame.Runtime
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         float heroRecoveryAge=10;
+        float chaseAdvance,observedPunchAge;
         float windupSample=float.NaN;
         readonly MonsterStaggerMotion stagger=new MonsterStaggerMotion();
+        readonly MonsterLaunchMotion launch=new MonsterLaunchMotion();
+        bool launchPoseApplied;
+        Vector3 launchRootBase;
+        Quaternion launchRotationBase;
+        public float LaunchAge=>launch.Active?launch.Age:10;
+        public int LaunchLandings=>launch.Landings;
+        public float LaunchCamera=>launch.Camera;
         Vector3 staggerTravel;
         public float StaggerAge=>stagger.Active?stagger.Age:10;
         public bool StaggerLeft=>stagger.Left;
@@ -336,6 +344,7 @@ namespace UltramanGame.Runtime
                  (state.Action==HeroAction.None&&!state.Shield));
             // The leg reach correction is a presentation layer; remove it
             // before arm targeting and clip blending on the following frame.
+            if(launchPoseApplied){Root.position=launchRootBase;Root.rotation=launchRotationBase;launchPoseApplied=false;}
             Root.position+=Vector3.up*stepDrop;stepDrop=0;
             Root.position-=guardTravel;guardTravel=Vector3.zero;
             if(stepLegsApplied)
@@ -367,12 +376,17 @@ namespace UltramanGame.Runtime
             if(!monster)
             {
                 if(state.Phase!=GamePhase.Battle)
-                {heroRecoveryAge=10;observedAction=state.Action;}
+                {heroRecoveryAge=10;observedAction=state.Action;chaseAdvance=observedPunchAge=0;}
                 else
                 {
                     bool wasPunch=observedAction==HeroAction.LeftPunch||observedAction==HeroAction.RightPunch;
                     if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
+                    {
+                        if(observedAction!=state.Action||state.ActionAge<observedPunchAge)
+                            chaseAdvance=opponent!=null&&opponent.LaunchAge<MonsterLaunchMotion.Landing?.72f:0;
                         lastPunchSide=state.Action==HeroAction.LeftPunch?-1:1;
+                        observedPunchAge=state.ActionAge;
+                    }
                     if(state.Action==HeroAction.None&&wasPunch)heroRecoveryAge=0;
                     else heroRecoveryAge+=dt;
                     observedAction=state.Action;
@@ -383,9 +397,11 @@ namespace UltramanGame.Runtime
             // replay the recoil. Chest yields first; planted knees take the
             // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;stagger.Clear();staggerTravel=Vector3.zero;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;stagger.Clear();launch.Clear();staggerTravel=Vector3.zero;}
             if(monster)
             {
+                if(preview>=0||state.Phase!=GamePhase.Battle||state.Action==HeroAction.Beam||state.Enemy==EnemyPhase.Attack)launch.Clear();
+                else launch.Tick(dt);
                 if(preview>=0||state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Transforming||state.Phase==GamePhase.Paused)stagger.Clear();
                 else stagger.Tick(dt,state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Attack&&state.Action!=HeroAction.Beam);
             }
@@ -416,7 +432,12 @@ namespace UltramanGame.Runtime
                 // The step never delays an enemy hit or the child's next input.
                 if(monster&&accentHit&&state.Enemy!=EnemyPhase.Attack&&
                     (state.Enemy!=EnemyPhase.Windup||state.WarningDuration-state.EnemyAge>1.1f))
-                    stagger.Begin(contactSide<0);
+                {
+                    if(MonsterLaunchMotion.Uppercut(state)&&
+                        (state.Enemy!=EnemyPhase.Windup||state.WarningDuration-state.EnemyAge>1.6f))
+                    {stagger.Clear();launch.Begin(contactSide<0);}
+                    else if(!launch.Active)stagger.Begin(contactSide<0);
+                }
                 surfaceContactLocal=beamContactLocal;
             }
             lastHealth=state.EnemyHealth;
@@ -508,7 +529,7 @@ namespace UltramanGame.Runtime
             }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
                 PoseKnockdown(KnockdownMotion.Weight(state.ActionAge));
-            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt"&&!launch.Active)
             {
                 // Hips yield over anchored feet instead of sliding the entire
                 // actor backwards. Chest, head and knees settle at different
@@ -598,8 +619,9 @@ namespace UltramanGame.Runtime
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
-                    upperSpine.rotation=Quaternion.AngleAxis(side*(comboStrike?-24:7)*punch,Vector3.up)
-                        *Quaternion.AngleAxis(-6*punch,right)*upperSpine.rotation;
+                    bool uppercut=MonsterLaunchMotion.Uppercut(state);
+                    upperSpine.rotation=Quaternion.AngleAxis(side*(comboStrike?(uppercut?-10:-24):7)*punch,Vector3.up)
+                        *Quaternion.AngleAxis((uppercut?7:-6)*punch,right)*upperSpine.rotation;
                 }
                 if(head)
                 {
@@ -693,11 +715,11 @@ namespace UltramanGame.Runtime
                         *Quaternion.AngleAxis(contactSide*7*follow,Vector3.up)*head.rotation;
                 }
                 contactLayerApplied=true;
-                AnchorMonsterFeet();
+                if(!launch.Active)AnchorMonsterFeet();
             }
-            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest)
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest&&!launch.Active)
                 AnchorMonsterFeet();
-            if(retargetedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
+            if((retargetedPunch||chaseAdvance>0)&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
                 PoseRetargetedFootwork(state);
@@ -721,6 +743,7 @@ namespace UltramanGame.Runtime
                 PoseMonsterStep(state);
             staggerTravel=Vector3.zero;
             if(monster&&preview<0&&stagger.Active)PoseStaggerStep();
+            if(monster&&preview<0&&launch.Active)PoseMonsterLaunch();
             // Keep the tail planted while the torso recoils. It follows heading
             // and travel, but not the pelvis or whole-actor backward hit pitch.
             if(tailJoints!=null&&tailJoints.Length>0)
@@ -729,7 +752,7 @@ namespace UltramanGame.Runtime
                 {tailJoints[i].localRotation=tailRest[i];tailJoints[i].localPosition=tailPositions[i];}
                 tailJoints[0].rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(Mathf.Sin(time*1.8f)*5,Vector3.up)*tailRootRotation;
                 var anchor=tailJoints[0].position;
-                if(state.Phase!=GamePhase.Victory||preview>=0)anchor.y=home.y+tailHeight;
+                if(state.Phase!=GamePhase.Victory||preview>=0)anchor.y=home.y+tailHeight+launch.Lift;
                 else anchor.y=Mathf.Max(home.y+.70f,anchor.y);
                 tailJoints[0].position=anchor;
                 if(state.Phase==GamePhase.Victory&&preview<0&&tailJoints.Length>1)
@@ -811,6 +834,32 @@ namespace UltramanGame.Runtime
             PoseLimb(leftUpperArm,leftForearm,leftHand,contact-side*.64f,hands,-side,.30f);
             PoseLimb(upperArm,forearm,hand,contact+side*.64f-forward*.12f,hands,side,.30f);
             AlignClawWrists();
+        }
+        void PoseMonsterLaunch()
+        {
+            if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
+            float air=launch.Air,sign=launch.Left?-1:1;
+            Vector3 travel=-forward*(.18f*launch.Travel);
+            launchRootBase=Root.position;launchRotationBase=Root.rotation;launchPoseApplied=true;
+            Root.position=home+travel+Vector3.up*(launch.Lift-.14f*launch.Compression);
+            Root.rotation=Quaternion.AngleAxis(-14*air,side)*Quaternion.AngleAxis(sign*8*air,Vector3.up)*facing;
+            if(!stepLegsApplied)
+            {
+                stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+                stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            }
+            // Unequal folded knees and a lifted tail make the whole creature
+            // airborne. On landing the soles stay still while the hips compress.
+            Vector3 left=home+facing*leftFootLocal-forward*(.18f*launch.FootTravel(true))+Vector3.up*(launch.Lift+.17f*air+launch.FootLift(true))-forward*.12f*air;
+            Vector3 right=home+facing*rightFootLocal-forward*(.18f*launch.FootTravel(false))+Vector3.up*(launch.Lift+.08f*air+launch.FootLift(false))+forward*.10f*air;
+            float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));
+            // launchRootBase restores this drop together with the launch pose.
+            Root.position-=Vector3.up*drop;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,1,forward-side*.20f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.20f,rightFootLocal.y);
+            leftFoot.rotation=Quaternion.AngleAxis(-16*air,side)*facing*leftFootRest;
+            rightFoot.rotation=Quaternion.AngleAxis(-25*air,side)*facing*rightFootRest;
         }
         void PoseGuardBrace(float weight)
         {
@@ -910,7 +959,7 @@ namespace UltramanGame.Runtime
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.20f,rightFootLocal.y);
             leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
         }
-        float PunchTravel(Battle state)=>StrikeAdvance;
+        float PunchTravel(Battle state)=>StrikeAdvance+chaseAdvance;
         void PoseRetargetedFootwork(Battle state)
         {
             if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
@@ -934,6 +983,14 @@ namespace UltramanGame.Runtime
                 }
                 Vector3 step=forward*advance+Vector3.up*lift;
                 if(state.Action==HeroAction.LeftPunch)left+=step;else right+=step;
+                if(chaseAdvance>0)
+                {
+                    // A pursuit is a short travelling step: the rear heel
+                    // releases too, instead of stretching a planted rear leg.
+                    Vector3 follow=forward*(chaseAdvance*.55f*AnimatedActor.Strike(age))+
+                        Vector3.up*(.075f*Mathf.Sin(Mathf.Clamp01(age/Battle.PunchSeconds)*Mathf.PI));
+                    if(state.Action==HeroAction.LeftPunch)right+=follow;else left+=follow;
+                }
             }
             // These imported clips lift both feet with the pelvis. Keep the
             // rear sole planted, land the leading foot before impact, and let
@@ -948,6 +1005,8 @@ namespace UltramanGame.Runtime
             leftFoot.rotation=Quaternion.Slerp(l,facing*leftFootRest,weight);
             rightFoot.rotation=Quaternion.Slerp(r,facing*rightFootRest,weight);
         }
+        Vector3 PunchContact=>opponent!=null?opponent.BeamSurfaceContact-
+            Vector3.up*(opponent.LaunchAge<MonsterLaunchMotion.Landing?.36f:0):opponentHome-forward*.33f+Vector3.up*2.48f;
         void PoseRetargetedArms(Battle state)
         {
             if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
@@ -964,7 +1023,7 @@ namespace UltramanGame.Runtime
             if(head&&punch)head.rotation=Quaternion.AngleAxis(-8*reach,side)*head.rotation;
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
-            Vector3 contact=opponent!=null?opponent.BeamSurfaceContact:opponentHome-forward*.33f+Vector3.up*2.48f;
+            Vector3 contact=PunchContact;
             float blend=punch||heroRecoveryAge<.26f?1:Mathf.SmoothStep(0,1,clipAge/.16f);
             for(int i=0;i<2;i++)
             {
@@ -1009,7 +1068,14 @@ namespace UltramanGame.Runtime
                 if(active)
                 {
                     Vector3 strike=wrist.position;
-                    if(opponent!=null)strike+=Vector3.ClampMagnitude(opponent.BeamSurfaceContact-forward*.10f+side*(sign*.06f)-strike,.50f)*contact;
+                    if(opponent!=null)
+                    {
+                        Vector3 correction=PunchContact-forward*.10f+side*(sign*.06f)-strike;
+                        // A moving airborne target needs a full reach toward
+                        // its lower chest; the ordinary baked punch keeps its
+                        // small correction and the limb solver limits length.
+                        strike+=(opponent.LaunchAge<MonsterLaunchMotion.Landing?correction:Vector3.ClampMagnitude(correction,.50f))*contact;
+                    }
                     target=Vector3.Lerp(guard,strike,motion);
                 }
                 var palm=wrist.rotation;var span=wrist.position-lower.position;
@@ -1030,8 +1096,9 @@ namespace UltramanGame.Runtime
                 stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
             }
             float reach=ComboStrikeMotion.Reach(state.ActionAge),blend=ComboStrikeMotion.Blend(state.ActionAge);
+            bool uppercut=MonsterLaunchMotion.Uppercut(state);
             var side=Vector3.Cross(Vector3.up,forward);
-            Vector3 contact=opponent!=null?opponent.BeamSurfaceContact:opponentHome-forward*.33f+Vector3.up*2.48f;
+            Vector3 contact=PunchContact;
             for(int i=0;i<2;i++)
             {
                 bool left=i==0,active=left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
@@ -1042,7 +1109,12 @@ namespace UltramanGame.Runtime
                 {
                     target=Vector3.Lerp(guard,contact-forward*.10f+side*(sign*.06f),reach);
                     float arc=state.ActionAge<Battle.PunchHitSeconds?.55f:.24f;
-                    target+=side*(sign*arc*Mathf.Sin(reach*Mathf.PI));
+                    if(uppercut)
+                    {
+                        target+=side*(sign*.15f*Mathf.Sin(reach*Mathf.PI));
+                        target+=Vector3.up*(state.ActionAge<Battle.PunchHitSeconds?-.25f*(1-reach):.52f*Mathf.Sin(reach*Mathf.PI));
+                    }
+                    else target+=side*(sign*arc*Mathf.Sin(reach*Mathf.PI));
                 }
                 var palm=wrist.rotation;var previousForearm=wrist.position-lower.position;
                 PoseLimb(upper,lower,wrist,target,blend,side*(sign*(active?.9f:.45f))+Vector3.down*(active?.2f:1),.30f);

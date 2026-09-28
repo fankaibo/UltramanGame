@@ -11,7 +11,7 @@ namespace UltramanGame.Runtime
         public bool BeamStarted { get; private set; }
         public bool MonsterLanded { get; private set; }
         public bool MonsterStaggerLanded {get;private set;}
-        int staggerLandings;
+        int staggerLandings,launchLandings;
         public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
         public float EntranceAge {get;private set;}
         public float ThreatFocus {get;private set;}
@@ -27,7 +27,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
@@ -112,7 +112,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -181,6 +181,13 @@ namespace UltramanGame.Runtime
                     if(Debug.isDebugBuild)Debug.Log($"[MonsterStagger] landed side={(enemy.StaggerLeft?"left":"right")} age={enemy.StaggerAge:F3}");
                 }
                 staggerLandings=enemy.StaggerLandings;
+                if(enemy.LaunchLandings>launchLandings&&!Showcase&&state.Phase==GamePhase.Battle)
+                {
+                    effects.GroundBurst((enemy.FootPosition(true)+enemy.FootPosition(false))*.5f,BattleAxis,true,"uppercut-land");
+                    impact=Mathf.Max(impact*Mathf.Exp(-impactAge*14),.045f);impactAge=0;
+                    if(Debug.isDebugBuild)Debug.Log($"[MonsterLaunch] landed age={enemy.LaunchAge:F3}");
+                }
+                launchLandings=enemy.LaunchLandings;
             }
             // Cues arrive before actor sampling. Emit the ground hit here,
             // using the pelvis from the actual landing pose, once per contact.
@@ -353,6 +360,17 @@ namespace UltramanGame.Runtime
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,position,ExchangeFocus);
                 target=Vector3.Lerp(target,exchangeTarget,ExchangeFocus);
                 Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,28.5f+1.7f*hurt,ExchangeFocus);
+            }
+            float launchFocus=enemy?.LaunchCamera??0;
+            if(MonsterLaunchMotion.Uppercut(state)&&state.ActionAge<Battle.PunchHitSeconds&&state.Enemy!=EnemyPhase.Attack&&
+                (state.Enemy!=EnemyPhase.Windup||state.WarningDuration-state.EnemyAge>1.6f))
+                launchFocus=Mathf.Max(launchFocus,Mathf.SmoothStep(0,1,state.ActionAge/Battle.PunchHitSeconds));
+            if(!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active&&launchFocus>0)
+            {
+                float weight=launchFocus;
+                Camera.transform.position=Vector3.Lerp(Camera.transform.position,cameraHome+viewRight*.36f+Vector3.up*.16f,weight);
+                target=Vector3.Lerp(target,lookAt+Vector3.up*.40f+BattleAxis*.10f,weight);
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,30.8f,weight);
             }
             Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)

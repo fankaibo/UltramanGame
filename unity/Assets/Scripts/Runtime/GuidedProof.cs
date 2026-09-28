@@ -61,6 +61,12 @@ namespace UltramanGame.Runtime
                 else if(enemy.StaggerAge>=MonsterStaggerMotion.Landing&&enemy.StaggerAge<MonsterStaggerMotion.Return)key="monster-stagger-land";
                 else if(enemy.StaggerAge>=MonsterStaggerMotion.Return+.1f)key="monster-stagger-return";
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.LaunchAge<MonsterLaunchMotion.Duration)
+            {
+                if(enemy.LaunchAge>=.22f&&enemy.LaunchAge<.46f)key="uppercut-airborne";
+                else if(enemy.LaunchAge>=MonsterLaunchMotion.Landing&&enemy.LaunchAge<MonsterLaunchMotion.Recovery)key="uppercut-land";
+                else if(enemy.LaunchAge>=MonsterLaunchMotion.Recovery+.12f)key="uppercut-recover";
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&world.ActiveContactCount>0&&!ComboStrikeMotion.Active(battle)&&
                 (battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch)&&battle.ActionAge>=Battle.PunchHitSeconds&&battle.ActionAge<=.24f)
             {
