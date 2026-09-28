@@ -254,11 +254,9 @@ namespace UltramanGame.Runtime
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
             // Give the two fighters the visual priority of an arcade cabinet while
             // retaining enough margin for the feet, effects and camera preview.
-            // Keep the fighters large enough to read on a television from across
-            // the room.  The close-up still owns the special-move hero shot; this
-            // tighter battle baseline gives ordinary exchanges the same arcade
-            // presence without changing gameplay timing or cropping the feet.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27:state.Shield?28.5f:25):37;
+            // Leave space above the helmets and below the planted feet for the
+            // edge HUD, including the return from a special-move close-up.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?29.2f:state.Shield?28.5f:29.2f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
@@ -317,7 +315,7 @@ namespace UltramanGame.Runtime
                     float side=state.Action==HeroAction.LeftPunch?-1:1;
                     Camera.transform.position+=BattleAxis*(.40f*strike)+viewRight*(side*.18f*strike);
                     target+=BattleAxis*(.23f*strike)+Vector3.up*(.075f*strike);
-                    dynamicZoom+=1.45f*strike;
+                    dynamicZoom+=.55f*strike;
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
@@ -346,10 +344,10 @@ namespace UltramanGame.Runtime
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
             if(ComboFocus>0)
             {
-                Vector3 closePosition=cameraHome+viewRight*(comboCamera.Side*.65f)+Vector3.down*.28f+viewForward*1.20f;
+                Vector3 closePosition=cameraHome+viewRight*(comboCamera.Side*.65f)+Vector3.down*.14f+viewForward*.70f;
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,closePosition,ComboFocus);
-                target=Vector3.Lerp(target,lookAt+Vector3.up*.50f+BattleAxis*.06f,ComboFocus);
-                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,23.7f,ComboFocus);
+                target=Vector3.Lerp(target,lookAt+Vector3.down*.04f+BattleAxis*.06f,ComboFocus);
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,29.2f,ComboFocus);
             }
             if(ExchangeFocus>0)
             {
@@ -369,8 +367,8 @@ namespace UltramanGame.Runtime
             {
                 float weight=launchFocus;
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,cameraHome+viewRight*.36f+Vector3.up*.16f,weight);
-                target=Vector3.Lerp(target,lookAt+Vector3.up*.40f+BattleAxis*.10f,weight);
-                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,30.8f,weight);
+                target=Vector3.Lerp(target,lookAt+Vector3.up*.35f+BattleAxis*.10f,weight);
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,31.5f,weight);
             }
             Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)

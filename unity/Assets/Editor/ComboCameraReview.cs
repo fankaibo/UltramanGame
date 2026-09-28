@@ -35,7 +35,7 @@ namespace UltramanGame.Editor
                 float dt=1f/rate,time=0;void Step(PlayerInput input){float health=state.EnemyHealth;state.Tick(world.BattleDelta(dt,state),input);while(state.TryCue(out var cue))world.Cue(cue,state);hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);if(state.EnemyHealth<health)world.Hit(false,state);world.Tick(state,dt,time);time+=dt;}
                 for(int n=0;n<rate;n++)Step(new PlayerInput{Tracking=true});
                 Vector3 center=world.EnemyHome+Vector3.up*2.5f;float Size()=>Mathf.Abs(world.Camera.WorldToViewportPoint(center+Vector3.up*.2f).y-world.Camera.WorldToViewportPoint(center).y);
-                float baseSize=Size(),magnification=0,minX=1,maxX=0,top=0,edge=0,maxSpeed=0,handLow=1,handHigh=0;int shots=0;bool peak=false;
+                float baseSize=Size(),magnification=0,minX=1,maxX=0,top=0,edge=0,maxSpeed=0,handLow=1,handHigh=0;int shots=0,headerOverlap=0;bool peak=false;
                 var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;var mesh=new Mesh();
                 try
                 {
@@ -48,7 +48,7 @@ namespace UltramanGame.Editor
                             if(!peak){shots++;peak=true;CharacterReview.Save(world.Camera,target,$"{Folder}/poses/{id}-{rate}-peak-{n}.png");}
                             magnification=Mathf.Max(magnification,Size()/baseSize);
                             foreach(var actor in new[]{hero,enemy})foreach(var skin in actor.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
-                            {skin.BakeMesh(mesh,true);foreach(var vertex in mesh.vertices){Vector3 p=skin.transform.TransformPoint(vertex);if(p.y<actor.Root.position.y+1.8f)continue;var v=world.Camera.WorldToViewportPoint(p);minX=Mathf.Min(minX,v.x);maxX=Mathf.Max(maxX,v.x);top=Mathf.Max(top,v.y);}}
+                            {skin.BakeMesh(mesh,true);foreach(var vertex in mesh.vertices){Vector3 p=skin.transform.TransformPoint(vertex);if(p.y<actor.Root.position.y+1.8f)continue;var v=world.Camera.WorldToViewportPoint(p);minX=Mathf.Min(minX,v.x);maxX=Mathf.Max(maxX,v.x);top=Mathf.Max(top,v.y);float x=v.x*1280,y=(1-v.y)*720;if(y<100&&(x>=24&&x<=448||x>=832&&x<=1256))headerOverlap++;}}
                             foreach(var hand in new[]{hero.HandPosition,hero.StrikeOrigin(HeroAction.LeftPunch),enemy.HandPosition,enemy.StrikeOrigin(HeroAction.LeftPunch)})
                             {var p=world.Camera.WorldToViewportPoint(hand);handLow=Mathf.Min(handLow,p.y);handHigh=Mathf.Max(handHigh,p.y);}
                         }
@@ -58,8 +58,11 @@ namespace UltramanGame.Editor
                         if(Vector3.Distance(position,world.Camera.transform.position)>.0001f||Quaternion.Angle(rotation,world.Camera.transform.rotation)>.05f||Mathf.Abs(fov-world.Camera.fieldOfView)>.001f)
                             throw new Exception($"Camera feeds back on repeated rendering {id}/{rate} focus={world.ComboFocus} age={state.ActionAge}");
                     }
-                    string line=$"{id}/{rate}Hz peaks={shots} upperBodyX={minX:F3}..{maxX:F3} top={top:F3} handsY={handLow:F3}..{handHigh:F3} backdropEdge={edge:F3} magnification={magnification:F3} maxCameraSpeed={maxSpeed:F3}";Debug.Log("[ComboCameraFraming] "+line);report.AppendLine(line);
-                    if(shots!=2||state.EnemyHealth!=40||state.Energy!=10||world.ComboFocus>.001f||minX<.08f||maxX>.92f||top>.86f||handLow<.12f||handHigh>.87f||edge>.49f||magnification<1.08f||maxSpeed>14)
+                    string line=$"{id}/{rate}Hz peaks={shots} upperBodyX={minX:F3}..{maxX:F3} top={top:F3} headerOverlap={headerOverlap} handsY={handLow:F3}..{handHigh:F3} backdropEdge={edge:F3} magnification={magnification:F3} maxCameraSpeed={maxSpeed:F3}";Debug.Log("[ComboCameraFraming] "+line);report.AppendLine(line);
+                    // Full-body shots use a subtler push-in. Check the actual
+                    // side plates rather than forbidding the empty top centre.
+                    // PlayfieldReview also checks every vertex down to the feet.
+                    if(shots!=2||state.EnemyHealth!=40||state.Energy!=10||world.ComboFocus>.001f||minX<.08f||maxX>.92f||headerOverlap>0||top>1||handLow<.12f||handHigh>.87f||edge>.49f||magnification<1.05f||maxSpeed>14)
                         throw new Exception("Combo camera framing/motion failed: "+line);
                 }
                 finally{world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(mesh);}
