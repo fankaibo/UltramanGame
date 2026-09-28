@@ -11,13 +11,22 @@ namespace UltramanGame.Editor
 {
     public static class VolcanoStageReview
     {
+        static string OutputRoot
+        {
+            get
+            {
+                var args=Environment.GetCommandLineArgs();
+                int at=Array.IndexOf(args,"--volcano-output");
+                return at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/volcano-volume"));
+            }
+        }
         public static void Before()=>Render("before");
         public static void After()=>Render("after");
         public static void Release(){After();VolumeChecks();}
         public static void VolumeChecks()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/volcano-volume"));Directory.CreateDirectory(folder+"/inspection");File.Delete(folder+"/volume-validation.txt");
+            string folder=OutputRoot;Directory.CreateDirectory(folder+"/inspection");File.Delete(folder+"/volume-validation.txt");
             var camera=new GameObject("Volume inspection camera").AddComponent<Camera>();camera.enabled=false;
             camera.depthTextureMode=DepthTextureMode.Depth;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.08f,.10f,.14f);
             camera.transform.position=new Vector3(0,2.8f,-7);camera.transform.LookAt(new Vector3(0,2.8f,0));camera.fieldOfView=45;camera.aspect=1;
@@ -49,10 +58,18 @@ namespace UltramanGame.Editor
         static void Render(string version)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(929);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/volcano-volume",version));Directory.CreateDirectory(folder+"/frames");
+            string folder=Path.Combine(OutputRoot,version);Directory.CreateDirectory(folder+"/frames");
             File.Delete(folder+"/validation.txt");
             foreach(string name in new[]{"VolcanoGround","VolcanicPlume","VolcanicLava"})
-            {var shader=Resources.Load<Shader>(name);if(shader&&(!shader.isSupported||ShaderUtil.ShaderHasError(shader)))throw new Exception("Invalid stage shader "+name);}
+            {var shader=Resources.Load<Shader>(name);if(!shader||!shader.isSupported||ShaderUtil.ShaderHasError(shader))throw new Exception("Invalid stage shader "+name);}
+            foreach(string file in Directory.GetFiles(Path.Combine(Application.dataPath,"Resources/Art/Basalt"),"*.jpg"))
+            {
+                string path="Assets"+file.Substring(Application.dataPath.Length);
+                var texture=AssetDatabase.LoadAssetAtPath<Texture2D>(path);var importer=(TextureImporter)AssetImporter.GetAtPath(path);
+                bool normal=file.Contains("_nor_gl_"),data=normal||file.Contains("_arm_");
+                if(!texture||texture.width!=2048||texture.height!=2048||importer.sRGBTexture==data||!importer.mipmapEnabled||importer.wrapMode!=TextureWrapMode.Repeat||normal&&importer.textureType!=TextureImporterType.NormalMap)
+                    throw new Exception("Invalid scanned surface import "+path);
+            }
             var world=new GameWorld();var state=new Battle();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
@@ -84,8 +101,10 @@ namespace UltramanGame.Editor
                 CharacterReview.Save(world.Camera,target,folder+"/repeat-a.png");stage.Tick(7.1f);CharacterReview.Save(world.Camera,target,folder+"/repeat-b.png");
                 if(!Equal(File.ReadAllBytes(folder+"/repeat-a.png"),File.ReadAllBytes(folder+"/repeat-b.png")))throw new Exception("Frozen stage changes without time");
                 if(state.EnemyHealth!=50||state.HitsTaken!=0||state.Blocks!=1)throw new Exception("Stage capture changed battle result");
+                var files=new System.Collections.Generic.List<string>{"Scripts/Runtime/VolcanoStage.cs","Scripts/Runtime/GameWorld.cs","Resources/VolcanoGround.shader","Resources/VolcanicPlume.shader","Resources/VolcanicLava.shader","Editor/VolcanoStageReview.cs","Editor/BasaltTextureImport.cs"};
+                foreach(string file in Directory.GetFiles(Path.Combine(Application.dataPath,"Resources/Art/Basalt")))files.Add(file.Substring(Application.dataPath.Length+1));
                 var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
-                    foreach(string file in new[]{"Scripts/Runtime/VolcanoStage.cs","Scripts/Runtime/GameWorld.cs","Resources/VolcanoGround.shader","Resources/VolcanicPlume.shader","Resources/VolcanicLava.shader","Editor/VolcanoStageReview.cs"})
+                    foreach(string file in files)
                     {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
                 File.WriteAllText(folder+"/sources.txt",sources.ToString());
                 string report=$"{version}: frames=240 samples=480 ventViews=3 repeat=passed health={state.EnemyHealth} blocks={state.Blocks} hurt={state.HitsTaken}";

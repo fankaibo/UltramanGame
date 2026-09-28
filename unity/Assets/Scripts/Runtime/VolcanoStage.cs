@@ -22,7 +22,7 @@ namespace UltramanGame.Runtime
         Light foregroundLavaLight;
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
-        Material ground,lava,pool;
+        Material ground,rock,lava,pool;
         public static VolcanoStage Create(Transform parent)
         {
             var stage=new GameObject("Basalt foothills").AddComponent<VolcanoStage>();
@@ -42,15 +42,15 @@ namespace UltramanGame.Runtime
         {
             // The actors retain a flat floor; relief grows outside their footwork area.
             float edge=Mathf.SmoothStep(0,1,(new Vector2(x,z-.4f).magnitude-3.4f)/4);
-            return edge*(Mathf.PerlinNoise(x*.34f+37,z*.28f+19)*.32f+Mathf.PerlinNoise(x*.9f+8,z*.8f+6)*.09f)-.012f;
+            return edge*(Mathf.PerlinNoise(x*.34f+37,z*.28f+19)*.50f+Mathf.PerlinNoise(x*.9f+8,z*.8f+6)*.13f)-.012f;
         }
         void Build()
         {
             VolcanoEnvironment.Create(transform);
             ground=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
-            ground.SetColor("_Color",new Color(.17f,.18f,.19f));
-            var rock=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
-            rock.SetColor("_Color",new Color(.15f,.16f,.17f));
+            Surface(ground,"rocks_ground_02","col",new Color(.63f,.67f,.72f),.30f,false);
+            rock=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
+            Surface(rock,"rock_face_03","diff",new Color(.46f,.50f,.56f),.37f,true);
             rock.SetFloat("_BackdropBlend",0);
             var emberMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=new Color(1,.32f,.065f,.8f)});
             BuildTerrain();
@@ -67,6 +67,7 @@ namespace UltramanGame.Runtime
             // Low broken silhouettes frame the fight without hiding the characters.
             Rock(new Vector3(-5.8f,Height(-5.8f,5.8f),5.8f),new Vector3(1.35f,.86f,.95f),rock);
             Rock(new Vector3(6.4f,Height(6.4f,7.4f),7.4f),new Vector3(1.65f,.95f,1.1f),rock);
+            BuildScree();
             lava=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicLava")));
             pool=RuntimeResources.Own(transform,new Material(lava));pool.SetFloat("_Pool",1);
             for(int i=0;i<vents.Length;i++)
@@ -132,6 +133,33 @@ namespace UltramanGame.Runtime
             ashObject.GetComponent<MeshFilter>().sharedMesh=ashMesh;var ashRenderer=ashObject.GetComponent<MeshRenderer>();ashRenderer.sharedMaterial=ashMaterial;
             ashRenderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;ashRenderer.receiveShadows=false;
         }
+        static void Surface(Material material,string asset,string colorMap,Color tint,float scale,bool face)
+        {
+            string path="Art/Basalt/"+asset+"_";
+            material.SetTexture("_Albedo",Resources.Load<Texture2D>(path+colorMap+"_2k"));
+            material.SetTexture("_Normal",Resources.Load<Texture2D>(path+"nor_gl_2k"));
+            material.SetTexture("_ARM",Resources.Load<Texture2D>(path+"arm_2k"));
+            material.SetColor("_Color",tint);material.SetFloat("_TextureScale",scale);
+            material.SetFloat("_RockFace",face?1:0);material.SetFloat("_NormalStrength",face?.85f:.75f);
+        }
+        void BuildScree()
+        {
+            // Broken outcrops and their smaller fallen fragments belong together.
+            // All centers are outside the actors' footwork and fall-recovery area.
+            var debris=new System.Random(739);
+            float Pick(float a,float b)=>(float)debris.NextDouble()*(b-a)+a;
+            foreach(var center in new[]{new Vector3(-5.2f,0,5.3f),new Vector3(6.0f,0,6.5f),new Vector3(-4.1f,0,8.4f),new Vector3(3.9f,0,9.2f)})
+            {
+                for(int i=0;i<22;i++)
+                {
+                    float angle=Pick(0,Mathf.PI*2),distance=Pick(.45f,2.0f);
+                    float x=center.x+Mathf.Cos(angle)*distance,z=center.z+Mathf.Sin(angle)*distance;
+                    if(Mathf.Abs(x)<3.3f&&z<5.3f)continue;
+                    float size=i<3?Pick(.5f,.9f):Pick(.055f,.26f);
+                    Rock(new Vector3(x,Height(x,z)-.025f,z),new Vector3(size, size*Pick(.35f,.65f),size*Pick(.6f,1.25f)),rock);
+                }
+            }
+        }
         void BuildTerrain()
         {
             const int columns=100,rows=90;var vertices=new Vector3[(columns+1)*(rows+1)];var uv=new Vector2[vertices.Length];
@@ -187,26 +215,61 @@ namespace UltramanGame.Runtime
                 }
             }
             MeshObject("Crusted flowing lava channel",vertices,indices.ToArray(),uv,lava);
+            // Low rubble banks meet the hot channel at the same elevation. The
+            // former bright ribbon sat on top of an unrelated flat ground plane.
+            foreach(int side in new[]{-1,1})
+            {
+                const int bankColumns=5;var banks=new Vector3[(rows+1)*(bankColumns+1)];var bankUv=new Vector2[banks.Length];var bankIndices=new List<int>();
+                for(int row=0;row<=rows;row++)
+                {
+                    float progress=row/(float)rows,z=start.z-progress*length;
+                    float x=start.x+(Mathf.PerlinNoise(progress*3.6f,seed*3+4)-.5f)*.74f+branch*progress;
+                    float width=halfWidth*Mathf.Lerp(.8f,1.25f,Mathf.PerlinNoise(progress*13,seed+17))*(1-.7f*Mathf.Pow(progress,5));
+                    for(int column=0;column<=bankColumns;column++)
+                    {
+                        float across=column/(float)bankColumns;
+                        float px=x+side*(width+across*(.28f+Mathf.PerlinNoise(z*3,seed+11)*.26f));
+                        float ridge=Mathf.Sin(across*Mathf.PI)*(.065f+Mathf.PerlinNoise(z*4,seed+3)*.08f);
+                        int at=row*(bankColumns+1)+column;
+                        banks[at]=new Vector3(px,Height(px,z)+Mathf.Lerp(.080f,-.01f,across)+ridge,z);bankUv[at]=new Vector2(px,z);
+                        if(row==rows||column==bankColumns)continue;int next=at+bankColumns+1;
+                        if(side>0)bankIndices.AddRange(new[]{at,at+1,next,at+1,next+1,next});
+                        else bankIndices.AddRange(new[]{at,next,at+1,at+1,next,next+1});
+                    }
+                }
+                MeshObject("Cooled rubble channel bank",banks,bankIndices.ToArray(),bankUv,rock);
+            }
         }
         void Rock(Vector3 p,Vector3 size,Material material)
         {
-            const int sides=9;var vertices=new Vector3[sides*3+2];vertices[0]=Vector3.zero;vertices[vertices.Length-1]=new Vector3(.04f,.95f,.03f);
-            for(int ring=0;ring<3;ring++)for(int i=0;i<sides;i++)
+            // A fractured block with broad planar cuts, irregular shelves and
+            // chipped edges. Subdivision changes the silhouette, not just shading.
+            const int sides=24,rings=7;var vertices=new Vector3[sides*rings+2];vertices[0]=Vector3.down*.04f;
+            float seed=p.x*1.73f+p.z*2.39f;
+            vertices[vertices.Length-1]=Vector3.Scale(new Vector3(.04f,.94f,.03f),size);
+            for(int ring=0;ring<rings;ring++)for(int i=0;i<sides;i++)
             {
-                float a=i*Mathf.PI*2/sides,r=Range(.77f,1.15f)*(ring==0?.65f:ring==1?1:.65f);
-                vertices[1+ring*sides+i]=Vector3.Scale(new Vector3(Mathf.Cos(a)*r,(ring==0?.035f:ring==1?.4f:.79f)+Range(-.10f,.10f),Mathf.Sin(a)*r),size);
+                float v=ring/(float)(rings-1),a=i*Mathf.PI*2/sides;
+                float profile=Mathf.Lerp(.88f,.64f,v)+Mathf.Sin(v*Mathf.PI)*.20f;
+                float r=profile*(.88f+.13f*Mathf.Sin(a*3+seed)+.07f*Mathf.Sin(a*7-seed));
+                r+=(Mathf.PerlinNoise(Mathf.Cos(a)*3+seed+31,v*5+Mathf.Sin(a)*2+17)-.5f)*.16f;
+                var point=new Vector3(Mathf.Cos(a)*r,v*.91f+Mathf.Sin(a*4+seed)*.035f,Mathf.Sin(a)*r);
+                // Two nonparallel fracture planes remove the rounded pebble look.
+                point.x=Mathf.Min(point.x,.66f+point.y*.14f);
+                point.z=Mathf.Max(point.z,-.69f+point.x*.16f);
+                point.y=Mathf.Min(point.y,.86f+point.x*.13f-point.z*.09f);
+                vertices[1+ring*sides+i]=Vector3.Scale(point,size);
             }
-            vertices[vertices.Length-1]=Vector3.Scale(vertices[vertices.Length-1],size);
             var triangles=new List<int>();
             for(int i=0;i<sides;i++)
             {
                 int next=(i+1)%sides;triangles.AddRange(new[]{0,1+i,1+next});
-                for(int ring=0;ring<2;ring++)
+                for(int ring=0;ring<rings-1;ring++)
                 {
                     int a=1+ring*sides+i,b=1+ring*sides+next,c=a+sides,d=b+sides;
                     triangles.AddRange(new[]{a,c,b,b,c,d});
                 }
-                triangles.AddRange(new[]{1+2*sides+i,vertices.Length-1,1+2*sides+next});
+                triangles.AddRange(new[]{1+(rings-1)*sides+i,vertices.Length-1,1+(rings-1)*sides+next});
             }
             var uv=new Vector2[vertices.Length];for(int i=0;i<uv.Length;i++)uv[i]=new Vector2(vertices[i].x,vertices[i].z);
             var t=MeshObject("Weathered basalt",vertices,triangles.ToArray(),uv,material);
