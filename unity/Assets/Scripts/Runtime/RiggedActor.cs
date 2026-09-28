@@ -65,6 +65,7 @@ namespace UltramanGame.Runtime
         int observedBlocks;
         float guardAge=10;
         Vector3 guardContact;
+        Vector3 guardTravel;
         bool guardContactPending;
         float stepDrop;
         bool stepArmsApplied;
@@ -336,6 +337,7 @@ namespace UltramanGame.Runtime
             // The leg reach correction is a presentation layer; remove it
             // before arm targeting and clip blending on the following frame.
             Root.position+=Vector3.up*stepDrop;stepDrop=0;
+            Root.position-=guardTravel;guardTravel=Vector3.zero;
             if(stepLegsApplied)
             {
                 leftThigh.localRotation=stepLegRotations[0];leftShin.localRotation=stepLegRotations[1];leftFoot.localRotation=stepLegRotations[2];
@@ -378,7 +380,8 @@ namespace UltramanGame.Runtime
             }
             // A block is a contact event, not the held guard input. Observe it
             // once per round so a held shield, pause or photo restart cannot
-            // replay the recoil. The layer affects only the torso above the hips.
+            // replay the recoil. Chest yields first; planted knees take the
+            // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
             {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;stagger.Clear();staggerTravel=Vector3.zero;}
             if(monster)
@@ -698,6 +701,8 @@ namespace UltramanGame.Runtime
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
                 PoseRetargetedFootwork(state);
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt)
+                PoseGuardBrace(ContactPulse(guardAge,0,.14f,.64f));
             if(retargetArms)
             {
                 if(retargetedPunch)PoseRetargetedArms(state);
@@ -806,6 +811,28 @@ namespace UltramanGame.Runtime
             PoseLimb(leftUpperArm,leftForearm,leftHand,contact-side*.64f,hands,-side,.30f);
             PoseLimb(upperArm,forearm,hand,contact+side*.64f-forward*.12f,hands,side,.30f);
             AlignClawWrists();
+        }
+        void PoseGuardBrace(float weight)
+        {
+            if(weight<=0||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            // Preserve the current clip's foot placement, including a new
+            // counterpunch step. A block may bend the knees but cannot drag
+            // either sole or delay a punch/beam until the recoil has finished.
+            Vector3 left=leftFoot.position,right=rightFoot.position;
+            Quaternion l=leftFoot.rotation,r=rightFoot.rotation;
+            Vector3 leftPole=Vector3.ProjectOnPlane(leftShin.position-leftThigh.position,left-leftThigh.position).normalized;
+            Vector3 rightPole=Vector3.ProjectOnPlane(rightShin.position-rightThigh.position,right-rightThigh.position).normalized;
+            if(leftPole.sqrMagnitude<.01f)leftPole=forward;
+            if(rightPole.sqrMagnitude<.01f)rightPole=forward;
+            if(!stepLegsApplied)
+            {
+                stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+                stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            }
+            guardTravel=(-forward*.15f+Vector3.down*.14f)*weight;Root.position+=guardTravel;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,1,leftPole,left.y-home.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,1,rightPole,right.y-home.y);
+            leftFoot.rotation=l;rightFoot.rotation=r;
         }
         void PoseMonsterStep(Battle state)
         {
