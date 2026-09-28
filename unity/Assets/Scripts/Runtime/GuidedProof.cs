@@ -83,6 +83,14 @@ namespace UltramanGame.Runtime
                 else if(world.ComboCameraAge>.55f&&world.ComboFocus>.01f&&world.ComboFocus<.30f)key="combo-camera-return";
             }
             if(captureClaw)key=clawKey;
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.BeamRecoilAge<MonsterBeamMotion.Duration&&
+                proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
+            {
+                float age=enemy.BeamRecoilAge;
+                if(age>.39f&&age<.65f)key="beam-braced";
+                else if(age>.82f&&age<1.02f)key="beam-pressure";
+                else if(age>1.35f&&age<1.62f)key="beam-recovery";
+            }
             if(!captureClaw&&!photo.Active&&world.ActiveGroundStones>0&&world.GroundImpactAge>=.18f&&world.GroundImpactAge<.36f&&
                 proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
             {

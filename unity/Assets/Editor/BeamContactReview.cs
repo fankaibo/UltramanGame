@@ -12,6 +12,7 @@ namespace UltramanGame.Editor
     {
         public static void Before()=>Run("before",false);
         public static void After()=>Run("after",true);
+        public static void MonsterRecoil()=>Run("monster-recoil",true);
         static void Run(string version,bool enforce)
         {
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/beam-volume",version));Directory.CreateDirectory(folder);

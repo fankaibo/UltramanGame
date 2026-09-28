@@ -11,7 +11,7 @@ namespace UltramanGame.Runtime
         public bool BeamStarted { get; private set; }
         public bool MonsterLanded { get; private set; }
         public bool MonsterStaggerLanded {get;private set;}
-        int staggerLandings,launchLandings;
+        int staggerLandings,launchLandings,beamLandings;
         public float VictoryAge => previous==GamePhase.Victory?arcade.PhaseAge:0;
         public float EntranceAge {get;private set;}
         public float ThreatFocus {get;private set;}
@@ -27,7 +27,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
@@ -115,7 +115,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -177,6 +177,12 @@ namespace UltramanGame.Runtime
             MonsterLanded=MonsterStaggerLanded=false;
             if(enemy!=null)
             {
+                if(enemy.BeamLandings>beamLandings&&!Showcase&&state.Phase==GamePhase.Battle)
+                {
+                    effects.GroundBurst(enemy.FootPosition(enemy.BeamRecoilLeft),BattleAxis,true,"beam-brace");
+                    if(Debug.isDebugBuild)Debug.Log($"[MonsterBeam] brace side={(enemy.BeamRecoilLeft?"left":"right")} age={enemy.BeamRecoilAge:F3}");
+                }
+                beamLandings=enemy.BeamLandings;
                 if(enemy.StaggerLandings>staggerLandings&&!Showcase&&state.Phase==GamePhase.Battle)
                 {
                     MonsterStaggerLanded=true;

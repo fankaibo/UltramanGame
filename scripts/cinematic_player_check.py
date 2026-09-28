@@ -60,6 +60,9 @@ def main():
     beam_impacts = live_output.count('[BeamImpactVolume] begin')
     if beam_impacts != 2:
         raise RuntimeError(f'Expected one volume burst per real beam hit, got {beam_impacts}')
+    beam_braces = live_output.count('[MonsterBeam] brace ')
+    if beam_braces != 2:
+        raise RuntimeError(f'Expected two beam recovery-foot landings, got {beam_braces}')
     if output.count('[VolcanoEnvironment] captured=True faces=6 size=128 mipmaps=True') != 1:
         raise RuntimeError('Expected one successful arena reflection capture at startup')
     if f'[FullGameReviewHero] id={args.hero}' not in output:
@@ -77,14 +80,16 @@ def main():
     combo_shots = output.count('[ComboCamera] begin side=')
     if combo_shots < 2:
         raise RuntimeError('Full round did not exercise multiple combo camera shots')
-    ground_contacts = re.findall(r'\[GroundImpact\] cause=([^ ]+) ', output)
+    # Startup renders a silent beam brace to warm the same contact materials.
+    # Only gameplay contacts should have a matching gameplay sound event.
+    ground_contacts = re.findall(r'\[GroundImpact\] cause=([^ ]+) ', live_output)
     launch_landings = output.count('[MonsterLaunch] landed age=')
     if launch_landings < 1 or ground_contacts.count('uppercut-land') != launch_landings:
         raise RuntimeError('Missing uppercut launch/landing feedback')
     if (ground_contacts.count('rush') != output.count('[Game] cue=EnemyAttack ')
             or ground_contacts.count('hero-land') != 1 or ground_contacts.count('defeat') != 1
-            or ground_contacts.count('stagger') != stagger_landings
-            or len(ground_contacts) != output.count('[GroundImpact] sound=True')):
+            or ground_contacts.count('stagger') != stagger_landings or ground_contacts.count('beam-brace') != beam_braces
+            or len(ground_contacts) != live_output.count('[GroundImpact] sound=True')):
         raise RuntimeError('Ground contact event and audio were missing or duplicated')
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
@@ -92,7 +97,7 @@ def main():
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
-                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'Paused', 'Victory',
+                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'beam-braced', 'beam-pressure', 'beam-recovery', 'Paused', 'Victory',
                 'victory-collapse', 'victory-turn', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
                 'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return',
@@ -107,7 +112,7 @@ def main():
     result = {'result': 'passed', 'hero': args.hero, 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
-              'resources_sha256': resources_sha, 'beam_volume_impacts': beam_impacts,
+              'resources_sha256': resources_sha, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,
               'evidence_directory': str(evidence),
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))
