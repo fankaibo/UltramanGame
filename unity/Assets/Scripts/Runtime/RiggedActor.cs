@@ -1024,14 +1024,14 @@ namespace UltramanGame.Runtime
         }
         Vector3 PunchContact=>opponent!=null?opponent.BeamSurfaceContact-
             Vector3.up*(opponent.LaunchAge<MonsterLaunchMotion.Landing?.36f:0):opponentHome-forward*.33f+Vector3.up*2.48f;
+        static float PunchReach(float age)=>age<Battle.PunchHitSeconds?Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds):
+            1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
         void PoseRetargetedArms(Battle state)
         {
             if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
             bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
             float age=state.ActionAge,reach=0;
-            if(punch)
-                reach=age<Battle.PunchHitSeconds?Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds):
-                    1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
+            if(punch)reach=PunchReach(age);
             // The same guard is the start and end of both punches. The source
             // clips stretch the other arm out too, obscuring which fist struck.
             // Keep that hand tucked while the striking shoulder transfers weight.
@@ -1065,13 +1065,12 @@ namespace UltramanGame.Runtime
         void PoseTigaArms(Battle state,bool combo)
         {
             if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
-            // Keep the authored stepping and striking-hand path, but enter and
-            // return through a shared chest guard. The other hand never follows
-            // the source clip above the head during an ordinary punch.
+            // The clip owns the torso and stepping. Use one timed fist path:
+            // easing toward an already-moving baked hand compounded its early
+            // acceleration, especially on the foreground right punch.
             bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
             float age=state.ActionAge;
-            float contact=Mathf.SmoothStep(0,1,(age-.025f)/.075f)*(1-Mathf.SmoothStep(0,1,(age-.17f)/.17f));
-            float motion=punch&&!combo?Mathf.SmoothStep(0,1,age/.085f)*(1-Mathf.SmoothStep(0,1,(age-.22f)/(Battle.PunchSeconds-.22f))):0;
+            float motion=punch&&!combo?PunchReach(age):0;
             float blend=punch||heroRecoveryAge<.26f?1:Mathf.SmoothStep(0,1,clipAge/.16f);
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
@@ -1084,16 +1083,8 @@ namespace UltramanGame.Runtime
                 Vector3 target=guard;
                 if(active)
                 {
-                    Vector3 strike=wrist.position;
-                    if(opponent!=null)
-                    {
-                        Vector3 correction=PunchContact-forward*.10f+side*(sign*.06f)-strike;
-                        // A moving airborne target needs a full reach toward
-                        // its lower chest; the ordinary baked punch keeps its
-                        // small correction and the limb solver limits length.
-                        strike+=(opponent.LaunchAge<MonsterLaunchMotion.Landing?correction:Vector3.ClampMagnitude(correction,.50f))*contact;
-                    }
-                    target=Vector3.Lerp(guard,strike,motion);
+                    Vector3 finish=PunchContact-forward*.10f+side*(sign*.06f);
+                    target=Vector3.Lerp(guard,finish,motion)+side*(sign*.08f*Mathf.Sin(motion*Mathf.PI));
                 }
                 var palm=wrist.rotation;var span=wrist.position-lower.position;
                 Vector3 pole=Vector3.Lerp(side*(sign*.45f)+Vector3.down,side*(sign*.65f)+Vector3.down*.5f,active?motion:0);
