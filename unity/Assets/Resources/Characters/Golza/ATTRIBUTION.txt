@@ -37,3 +37,13 @@ Current FBX SHA-256: 9ff6a72255a00f9fd7da51010093619574d8d156f4ba4f2b048b514e73d
 
 2026-09-15: corrected mirrored elbow poles and palm orientation; exported unsimplified 60 Hz curves. Runtime keeps the tail planted during pelvis and whole-body recoil.
 Current FBX SHA-256: d923776ecd36cd86c56111a28da6ba8421a3ee3e2a4cc1e01949d421f911eaaf
+
+2026-09-28: AI-assisted diffuse texture restoration with the built-in image_gen editor.
+GolzaBodyHD.png derives from GolzaBody.png and is not an official HD source asset.
+Fine skin detail is generated, not recovered ground truth. Original body/eye
+textures, FBX geometry, skeleton, skin weights and animation clips are unchanged.
+The generated 724x2172 image is preserved byte-for-byte. Runtime maps the
+original atlas UVs inside its horizontal padding (scale 0.75, offset 0.125).
+Body material uses metallic 0, smoothness 0.16; eyes keep their original texture.
+Prompt and limitations: docs/格尔赞高清材质提示词.md
+GolzaBodyHD.png SHA-256: 89bd41b86e6e0b0095f1565ab688a561a562624a20c99f4165627495fab68fda

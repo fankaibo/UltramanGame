@@ -32,6 +32,7 @@
 
 - 迪迦由 Extrazhang 发布于 [BlendSwap](https://blendswap.com/blend/26877)，作者标注 CC-BY-NC。原作纹理、转换和改编动画的记录见 `unity/Assets/Resources/Characters/Tiga/ATTRIBUTION.txt`。
 - 哥尔赞由 TengenGenesic 上传至 [SFMLab](https://sfmlab.com/project/5e6c0302-9b99-4e34-819f-cd0c5fbcc041/)，源文件路径另署名 ultimo。页面 CC0 标记由上传者选择，网站明确表示未核实；不代表官方商业授权。来源、改编与哈希见 `unity/Assets/Resources/Characters/Golza/ATTRIBUTION.txt`。
+  2026-09-28 的 `GolzaBodyHD.png` 为内置 image_gen 基于原贴图制作的衍生纹理，包含生成的细节，非官方高清素材；原模型和贴图保留。[生成提示词及限制](docs/格尔赞高清材质提示词.md)。
 - 两项第三方模型均不适用本仓库的 Apache-2.0 代码许可证；角色权利仍属于原权利人。SourceIO/Blender 仅为本机转换工具，未打包进玩家应用。游戏 F5 页面及构建包保留模型署名。
 
 ## 新增可选角色（2026-09-15）

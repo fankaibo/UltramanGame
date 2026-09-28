@@ -269,6 +269,20 @@ namespace UltramanGame.Runtime
             {
                 bool eye=name.Contains("Eyes");mat.mainTexture=eye?eyes:texture;mat.color=Color.white;
                 mat.SetFloat("_Metallic",.03f);mat.SetFloat("_Glossiness",.22f);
+                if(!eye)
+                {
+                    var enhanced=Resources.Load<Texture2D>("Characters/Golza/GolzaBodyHD");
+                    if(enhanced)
+                    {
+                        // Generated restoration retains the source atlas inside
+                        // horizontal padding. Map UVs into that region; preserve
+                        // the original file and use it when the HD asset is absent.
+                        mat.mainTexture=enhanced;
+                        mat.mainTextureScale=new Vector2(.75f,1);
+                        mat.mainTextureOffset=new Vector2(.125f,0);
+                        mat.SetFloat("_Metallic",0);mat.SetFloat("_Glossiness",.16f);
+                    }
+                }
                 if(eye){mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",eyes);mat.SetColor("_EmissionColor",new Color(.55f,.35f,.15f));}
             }
             else if(name.Contains("Suit")) {mat.mainTexture=texture;mat.color=Color.white;mat.SetFloat("_Metallic",.03f);mat.SetFloat("_Glossiness",.28f);}
