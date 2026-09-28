@@ -28,6 +28,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--output',type=Path,default=ROOT/'artifacts/guided-arcade')
     parser.add_argument('--log',type=Path,default=ROOT/'logs/guided-player.log')
+    parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     options=parser.parse_args()
     app=ROOT/'unity/Builds/TigaTraining.app'
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
@@ -43,11 +44,14 @@ def main():
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0
             beam_release_until=0
+            guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=0
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
                 complete=output.rfind('\n')+1;lines=output[parsed:complete].splitlines();parsed=complete
                 for line in lines:
+                    if options.gesture_wobble and protected and '[Gesture]' in line and '挥拳' in line:
+                        unwanted_attacks+=1
                     if '[Game] cue=' in line:
                         match=re.search(r'cue=(\w+) phase=(\w+)',line)
                         cue,phase=match.groups()
@@ -59,7 +63,7 @@ def main():
                             # held pose cannot fire a second beam accidentally.
                             beam_release_until=now+.75
                         if cue in ('Beam','Victory'):beam=False;guard=False
-                        if cue=='Warning':guard=True
+                        if cue=='Warning':guard=True;guard_started=now
                         if cue in ('Block','Hurt'):guard=False
                         # Tracking loss cancels the game's unfinished warning.
                         # Do not keep holding a guard for an attack that no longer exists.
@@ -74,6 +78,7 @@ def main():
                 # again after its camera was disabled during the full-screen photo.
                 if replay_battle_at and now-replay_battle_at>2:break
                 points=landmarks_at(0)
+                protected=''
                 if stage=='review':
                     # Wait through spoken preview instructions, lower hands to rearm,
                     # then retake once and select another round with both hands.
@@ -91,6 +96,18 @@ def main():
                         points=landmarks_at(4.15)
                     else:
                         points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
+                        if options.gesture_wobble and beam:
+                            points[15].z=points[16].z=-.10
+                            hold_age=now-beam_release_until
+                            if .30<hold_age<.51:
+                                points[15].z=-.40;beam_noise_frames+=1
+                            if hold_age>.25:protected='beam'
+                        elif options.gesture_wobble and guard:
+                            points[15].z=points[16].z=-.10
+                            if now-guard_started>.7:
+                                protected='shield'
+                                if (now-guard_started)%.4<.14:
+                                    points[15].z=-.24;guard_noise_frames+=1
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
                 if stage=='review' and photos_seen==2 and now-review_at>7 and not review_loss_start:
@@ -115,6 +132,11 @@ def main():
             for marker in required:
                 if marker not in output:raise RuntimeError('Missing '+marker)
             if re.search(r'NullReferenceException|Shader error|error CS\d',output):raise RuntimeError('Unity runtime error')
+            if options.gesture_wobble:
+                if unwanted_attacks or guard_noise_frames<4 or beam_noise_frames<4:
+                    raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames}')
+                if output.count('[Game] cue=Block ')<1 or output.count('[Game] cue=Beam ')<2:
+                    raise RuntimeError('Wobbled input did not complete both defense and finishers')
             filenames=re.findall(r'\[Photo\] saved source=synthetic size=1920x1080 file=(.+)',output)
             if len(filenames)!=2 or len(set(filenames))!=2:raise RuntimeError('Expected two distinct TEST photos')
             for name in filenames:
@@ -126,6 +148,7 @@ def main():
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'photos':photos}
+            if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:stop_process(process)

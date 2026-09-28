@@ -16,6 +16,11 @@ namespace UltramanGame.Core
         public float LastScore { get; private set; }
         public void Reset()
         {count=next=candidates=0;latched=false;peakOut=peakDepth=releaseHold=candidateHold=0;firedAt=0;ForwardStrike=false;LastScore=0;}
+        // A guard can reject an ambiguous candidate before it becomes an action.
+        // Keep its trajectory so a subsequent deliberate reach can still punch;
+        // only an accepted strike should require retraction to rearm.
+        public void RejectCandidate()
+        {latched=false;candidates=0;candidateHold=releaseHold=0;firedAt=0;}
         public bool Update(PosePoint shoulder,PosePoint wrist,bool elbowVisible,float scale,float side,long stamp,float dt,int difficulty=0)
         {
             ForwardStrike=false;

@@ -51,6 +51,7 @@ static class Program
         ImpactTimingChecks.Run(Check);
         GuidedPhotoChecks.Run(Check);
         GuardBeamChecks.Run(Check);
+        GestureIntentChecks.Run(Check);
         PhotoLayoutChecks.Run(Check);
             var pose=Pose();Check(PoseQuality.Valid(pose,stamp),"complete fresh pose accepted");
             Check(!PoseQuality.Valid(pose,stamp+351),"stale capture rejected");
