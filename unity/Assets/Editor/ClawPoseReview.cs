@@ -13,8 +13,58 @@ namespace UltramanGame.Editor
     {
         public static void Before()=>Render("before");
         public static void After()=>Render("after");
+        public static void Release(){After();Stability();ExchangeReview.ClawTiming();}
         static Transform Bone(Transform root,string name)
         {foreach(var b in root.GetComponentsInChildren<Transform>())if(b.name==name)return b;throw new Exception(name);}
+        public static void Stability()
+        {
+            var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--claw-output");
+            string folder=outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/claw-alignment");
+            Directory.CreateDirectory(folder);File.Delete(Path.Combine(folder,"stability.txt"));var report=new StringBuilder();
+            foreach(int rate in new[]{15,30,60})foreach(string mode in new[]{"exchange","strikes","pause","new-round"})
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+                var world=new GameWorld();var state=new Battle(80);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
+                for(int f=0;f<140;f++)state.Tick(.02f,new PlayerInput{Tracking=true});
+                if(mode!="exchange")state.GiveInstructionTime(40);while(state.TryCue(out _)){}
+                var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
+                var tracked=new System.Collections.Generic.List<Transform>();
+                foreach(var joint in enemy.Root.GetComponentsInChildren<Transform>())
+                    if(joint.name.StartsWith("bip_")&&(joint.name.Contains("hand_")||joint.name.Contains("lowerArm_")||joint.name.Contains("index_")||joint.name.Contains("middle_")||joint.name.Contains("ring_")||joint.name.Contains("pinky_")||joint.name.Contains("thumb_")))tracked.Add(joint);
+                var before=new Vector3[tracked.Count];float error=0,bend=0,dt=1f/rate;int hits=0,beams=0;bool reset=false,pause=false,resume=false;string worst="";
+                for(int f=0;f<rate*28;f++)
+                {
+                    bool strike=mode!="exchange"&&f%Mathf.CeilToInt(rate*.60f)==0&&state.Punches<16;
+                    if(mode=="pause"&&!pause&&enemy.LaunchAge>.2f&&enemy.LaunchAge<.5f){state.Pause();pause=true;}
+                    if(mode=="pause"&&pause&&!resume&&f>rate*8){state.Tick(dt,new PlayerInput{Tracking=true});resume=true;}
+                    if(mode=="new-round"&&!reset&&enemy.LaunchAge>.2f&&enemy.LaunchAge<.5f){state=new Battle(80);world.ResetPresentation();reset=true;}
+                    float health=state.EnemyHealth;
+                    state.Tick(world.BattleDelta(dt,state),new PlayerInput{Tracking=!(pause&&!resume),LeftPunch=strike,Beam=state.Energy>=15,Shield=mode=="exchange"&&state.EnemyAttackCount<=1});
+                    while(state.TryCue(out var cue)){world.Cue(cue,state);if(cue==GameCue.Beam)beams++;}
+                    hero.Update(state,world.Camera,dt,f*dt);enemy.Update(state,world.Camera,dt,f*dt);
+                    if(state.EnemyHealth<health){hits++;world.Hit(health-state.EnemyHealth>1,state);}world.Tick(state,dt,f*dt);
+                    for(int i=0;i<tracked.Count;i++)before[i]=tracked[i].position;
+                    enemy.Update(state,world.Camera,0,f*dt);
+                    for(int i=0;i<tracked.Count;i++)
+                    {
+                        var p=tracked[i].position;if(float.IsNaN(p.sqrMagnitude)||float.IsInfinity(p.sqrMagnitude))throw new Exception("Invalid claw transform");
+                        float distance=Vector3.Distance(before[i],p);if(distance>error){error=distance;worst=tracked[i].name+"/"+state.Enemy+"/"+state.EnemyAge.ToString("F3");}
+                    }
+                    foreach(string side in new[]{"L","R"})
+                    {
+                        Vector3 center=Vector3.zero;foreach(string finger in new[]{"index","middle","ring","pinky"})center+=Bone(enemy.Root,"bip_"+finger+"_0_"+side).position;
+                        var wrist=Bone(enemy.Root,"bip_hand_"+side);var lower=Bone(enemy.Root,"bip_lowerArm_"+side);
+                        bend=Mathf.Max(bend,Vector3.Angle(center/4-wrist.position,wrist.position-lower.position));
+                    }
+                }
+                string line=$"{rate}Hz {mode} zeroTimeError={error:F6} worst={worst} wristBend={bend:F3} contacts={hits} beams={beams} blocks={state.Blocks} hurt={state.HitsTaken} pause={pause} resume={resume} reset={reset}";
+                Debug.Log("[ClawStability] "+line);
+                if(error>.0001f||bend>36||mode=="exchange"&&(state.Blocks!=1||state.HitsTaken<1)||mode=="strikes"&&(state.Punches!=16||beams!=1)||mode=="pause"&&(!pause||!resume)||mode=="new-round"&&!reset)
+                    throw new Exception("Claw flow failed: "+line);
+                report.AppendLine(line+" passed");
+            }
+            File.WriteAllText(Path.Combine(folder,"stability.txt"),report.ToString());
+        }
         static void Render(string version)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(926);
@@ -25,7 +75,9 @@ namespace UltramanGame.Editor
             Transform[] lower={Bone(enemy.Root,"bip_lowerArm_L"),Bone(enemy.Root,"bip_lowerArm_R")};
             var roots=new Transform[2,4];string[] fingers={"index","middle","ring","pinky"};
             for(int s=0;s<2;s++)for(int f=0;f<4;f++)roots[s,f]=Bone(enemy.Root,"bip_"+fingers[f]+"_0_"+(s==0?"L":"R"));
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/claw-alignment",version));
+            var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--claw-output");
+            string output=outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/claw-alignment");
+            string folder=Path.GetFullPath(Path.Combine(output,version));
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var sources=new StringBuilder("Rendered UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())

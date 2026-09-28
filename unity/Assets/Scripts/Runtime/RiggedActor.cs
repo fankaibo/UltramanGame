@@ -83,6 +83,8 @@ namespace UltramanGame.Runtime
         readonly Dictionary<string,Transform> clawBones=new Dictionary<string,Transform>();
         readonly Transform[,,] clawFingers=new Transform[4,2,2];
         readonly Transform[,] clawThumbs=new Transform[2,2];
+        readonly Quaternion[] clawRollBase=new Quaternion[4];
+        bool clawRollApplied;
         readonly Vector3[] palmForwardLocal=new Vector3[2],palmUpLocal=new Vector3[2];
         static readonly string[] ClawFingerNames={"index","middle","ring","pinky"};
         Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
@@ -329,6 +331,12 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(clawRollApplied)
+            {
+                leftForearm.localRotation=clawRollBase[0];leftHand.localRotation=clawRollBase[1];
+                forearm.localRotation=clawRollBase[2];hand.localRotation=clawRollBase[3];
+                clawRollApplied=false;
+            }
             bool comboStrike=!monster&&preview<0&&ComboStrikeMotion.Active(state);
             if(comboWasActive&&!comboStrike&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Battle&&state.Shield)
             {
@@ -506,6 +514,14 @@ namespace UltramanGame.Runtime
             }
             else clipAge+=dt;
             for(int i=0;i<joints.Length;i++) {positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
+            // Solve the claws in this frame's actor basis. Last frame's breathing
+            // yaw or recoil otherwise feeds back into the world-space arm solve,
+            // even when the caller samples the same instant again.
+            if(monster)
+            {
+                Root.position=home+forward*travel+Vector3.down*fallDrop;
+                Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
+            }
             clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
             if(monster&&preview<0)CorrectRestingArms(state);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack)
@@ -744,6 +760,7 @@ namespace UltramanGame.Runtime
             staggerTravel=Vector3.zero;
             if(monster&&preview<0&&stagger.Active)PoseStaggerStep();
             if(monster&&preview<0&&launch.Active)PoseMonsterLaunch();
+            if(monster)PoseClawRoll(state,preview);
             // Keep the tail planted while the torso recoils. It follows heading
             // and travel, but not the pelvis or whole-actor backward hit pitch.
             if(tailJoints!=null&&tailJoints.Length>0)
@@ -1264,12 +1281,12 @@ namespace UltramanGame.Runtime
         void ApplyClawPose(Battle state,int preview,float time)
         {
             if(clawBones.Count==0)return;
-            float curl=.14f,spread=.8f;
+            float curl=.23f,spread=.8f;
             bool attack=false;
             int attackSide=1;
             if(preview>=0)
             {
-                curl=preview==1||preview==3?.06f:preview==2?.30f:preview==5?.22f:preview==7?.18f:.14f;
+                curl=preview==1||preview==3?.12f:preview==2?.37f:preview==5?.27f:preview==7?.18f:.23f;
                 attack=preview==2;attackSide=1;
             }
             else if(state.Phase==GamePhase.Battle)
@@ -1278,16 +1295,16 @@ namespace UltramanGame.Runtime
                 if(state.Enemy==EnemyPhase.Attack)
                 {
                     float reach=Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI);
-                    curl=.19f+.16f*reach;
+                    curl=.25f+.16f*reach;
                 }
                 else if(state.Enemy==EnemyPhase.Windup)
                 {
                     float wind=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
-                    curl=.04f+.13f*wind+.10f*MonsterWindupMotion.Coil(state.EnemyAge);
+                    curl=.10f+.17f*wind+.08f*MonsterWindupMotion.Coil(state.EnemyAge);
                 }
-                else if(state.Enemy==EnemyPhase.Rest)curl=.14f+Mathf.Sin(time*2.05f+.8f)*.025f;
-                else if(state.Enemy==EnemyPhase.Recover)curl=.17f;
-                else if(state.Action==HeroAction.Hurt)curl=.22f;
+                else if(state.Enemy==EnemyPhase.Rest)curl=.23f+Mathf.Sin(time*2.05f+.8f)*.025f;
+                else if(state.Enemy==EnemyPhase.Recover)curl=.24f;
+                else if(state.Action==HeroAction.Hurt)curl=.27f;
             }
             // The imported mesh has two phalanges per claw finger. A small,
             // camera-readable curl makes the hands read as claws instead of
@@ -1307,19 +1324,55 @@ namespace UltramanGame.Runtime
                     var first=clawFingers[i,side,0];
                     if(first)
                     {
-                        float fan=sideSpread*(i-1.5f)*.7f;
-                        first.rotation=Quaternion.AngleAxis(fan,palmUp)*Quaternion.AngleAxis(amount*58,curlAxis)*first.rotation;
+                        float fan=sideSpread*(i-1.5f)*5f;
+                        first.rotation=Quaternion.AngleAxis(fan,palmUp)*Quaternion.AngleAxis(amount*(52+i*5),curlAxis)*first.rotation;
                     }
                     var tip=clawFingers[i,side,1];
                     if(tip)
-                        tip.rotation=Quaternion.AngleAxis(amount*78,curlAxis)*tip.rotation;
+                        tip.rotation=Quaternion.AngleAxis(amount*(68+i*7),curlAxis)*tip.rotation;
                 }
                 var thumb=clawThumbs[side,0];
-                if(thumb)
-                    thumb.rotation=Quaternion.AngleAxis(sideSpread*1.8f,palmForward)*Quaternion.AngleAxis(amount*42,curlAxis)*thumb.rotation;
                 var thumbTip=clawThumbs[side,1];
-                if(thumbTip)
-                    thumbTip.rotation=Quaternion.AngleAxis(amount*58,curlAxis)*thumbTip.rotation;
+                if(thumb&&thumbTip)
+                {
+                    // The thumb opposes the fingers; sharing their curl axis
+                    // bends its diagonal bone sideways instead of closing a claw.
+                    Vector3 palmCenter=(clawFingers[1,side,0].position+clawFingers[2,side,0].position)*.5f;
+                    Vector3 opposition=Vector3.Cross(thumbTip.position-thumb.position,palmCenter-thumb.position).normalized;
+                    if(opposition.sqrMagnitude>.5f)
+                    {
+                        thumb.rotation=Quaternion.AngleAxis(amount*42,opposition)*thumb.rotation;
+                        thumbTip.rotation=Quaternion.AngleAxis(amount*58,opposition)*thumbTip.rotation;
+                    }
+                }
+            }
+        }
+        void PoseClawRoll(Battle state,int preview)
+        {
+            // Turn the palms partly toward one another to expose the curved
+            // fingers. A palm-down pose on both sides reads as two flat paddles.
+            // Share axial roll with the forearm so the wrist skin does not take
+            // the whole twist. Rotating about elbow -> wrist preserves contact.
+            clawRollBase[0]=leftForearm.localRotation;clawRollBase[1]=leftHand.localRotation;
+            clawRollBase[2]=forearm.localRotation;clawRollBase[3]=hand.localRotation;
+            clawRollApplied=true;
+            bool attack=preview==2||preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack;
+            bool leadLeft=preview<0&&state.EnemyAttackCount%2==0;
+            float reach=attack?Mathf.Sin(Mathf.Clamp01((preview==2?.4f:state.EnemyAge)/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+            for(int side=0;side<2;side++)
+            {
+                var lower=side==0?leftForearm:forearm;var wrist=side==0?leftHand:hand;
+                Vector3 axis=(wrist.position-lower.position).normalized;
+                bool lead=attack&&(side==0)==leadLeft;
+                float outward=Mathf.Lerp(.95f,lead?.35f:.80f,reach);
+                Vector3 desired=Root.up*.30f+Root.right*((side==0?-1:1)*outward);
+                Vector3 source=Vector3.ProjectOnPlane(wrist.TransformDirection(palmUpLocal[side]),axis);
+                desired=Vector3.ProjectOnPlane(desired,axis);
+                if(source.sqrMagnitude<.001f||desired.sqrMagnitude<.001f)continue;
+                float roll=Mathf.Clamp(Vector3.SignedAngle(source,desired,axis),-55,55);
+                Quaternion palm=wrist.rotation;
+                lower.rotation=Quaternion.AngleAxis(roll*.60f,axis)*lower.rotation;
+                wrist.rotation=Quaternion.AngleAxis(roll,axis)*palm;
             }
         }
         static float ContactPulse(float age,float start,float peak,float end)
