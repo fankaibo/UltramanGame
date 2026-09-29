@@ -46,7 +46,12 @@ namespace UltramanGame.Runtime
         int sampleWindows;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
-        { if(FindFirstObjectByType<ArenaController>()==null)new GameObject("UltramanGame").AddComponent<ArenaController>(); }
+        {
+#if UNITY_EDITOR
+            if(System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--audio-version")>=0)return;
+#endif
+            if(FindFirstObjectByType<ArenaController>()==null)new GameObject("UltramanGame").AddComponent<ArenaController>();
+        }
         static int LocalPort(string option,int fallback)
         {
             var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,option);
@@ -208,8 +213,7 @@ namespace UltramanGame.Runtime
                 bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
-                sound.Effect("impact",special?1:.8f);
-                if(!special&&battle.Punches%5==0)sound.Effect("combo",.82f);
+                sound.Hit(!special&&battle.Punches%5==0,special);
             }
             lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;

@@ -106,6 +106,11 @@ def main():
         raise RuntimeError('Missing head anchor, single ray or paired sound')
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
+    contacts={kind:live_output.count(f'[CombatAudio] contact={kind}') for kind in ('fist','heavy','beam')}
+    if contacts!={'fist':26,'heavy':6,'beam':2}:
+        raise RuntimeError(f'Contact sounds did not follow the 32 punches and two finishers: {contacts}')
+    if 'effectDuck=0.42' not in live_output:
+        raise RuntimeError('No speech-priority effect mix observed during playback')
     # These images come from this player run, not the independent Editor render
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
@@ -139,7 +144,7 @@ def main():
     result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
-              'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,
+              'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,
               'evidence_directory': str(evidence), 'beam_reaction_cuts': reaction_cuts,
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))

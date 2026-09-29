@@ -6,7 +6,10 @@ namespace UltramanGame.Runtime
 {
     public sealed class GameAudio
     {
-        readonly AudioSource calm,battle,voice,effects,debris,charge,monsterRay;
+        readonly AudioSource calm,battle,voice,charge,monsterRay;
+        readonly CombatAudioVoices effects,debris;
+        readonly AudioClip[] fistContacts=new AudioClip[3];
+        readonly AudioClip heavyContact,beamContact;
         AudioClip localMusic;
         readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
@@ -17,7 +20,8 @@ namespace UltramanGame.Runtime
         GamePhase phase;
         float phaseAge;
         bool phaseReported;
-        int effectSequence;
+        int effectSequence,contactSequence;
+        float effectsDuck=1;
         public bool VoicePlaying=>voice.isPlaying;
         public bool HasVoice(string key)=>clips.TryGetValue("Voice/"+key,out var clip)&&clip;
         public float VoiceLength(string key) {var clip=Clip("Voice/"+key);return clip?clip.length:0;}
@@ -26,18 +30,22 @@ namespace UltramanGame.Runtime
         public event System.Action<string,float> InstructionStarted;
         public string HeroId="Tiga";
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
-        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.pitch:F2} muted={muted}";
+        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.LastPitch:F2} effectVoices={effects.ActiveCount}/{effects.Capacity} effectDuck={effectsDuck:F2} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
         public GameAudio(GameObject owner)
         {
-            calm=Source(owner);battle=Source(owner);voice=Source(owner);effects=Source(owner);debris=Source(owner);
+            calm=Source(owner);battle=Source(owner);voice=Source(owner);
+            effects=new CombatAudioVoices(owner,10);debris=new CombatAudioVoices(owner,4);
+            for(int i=0;i<fistContacts.Length;i++)fistContacts[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(0,i));
+            heavyContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(1));
+            beamContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(2));
             charge=Source(owner);charge.loop=true;charge.volume=0;
             charge.clip=RuntimeResources.Own(owner.transform,CreateBeamGather());
             monsterRay=Source(owner);monsterRay.loop=true;monsterRay.volume=0;
             monsterRay.clip=RuntimeResources.Own(owner.transform,CreateMonsterRay());
-            battleStinger=CreateBattleStinger();
-            landingThud=CreateLandingThud();
+            battleStinger=RuntimeResources.Own(owner.transform,CreateBattleStinger());
+            landingThud=RuntimeResources.Own(owner.transform,CreateLandingThud());
             groundCrunch=RuntimeResources.Own(owner.transform,CreateGroundCrunch());
             dissolveShimmer=RuntimeResources.Own(owner.transform,CreateDissolveShimmer());
             // Load once at startup so a first punch/voice line does not perform resource I/O mid-fight.
@@ -47,6 +55,7 @@ namespace UltramanGame.Runtime
             calm.loop=battle.loop=true;calm.volume=battle.volume=0;calm.Play();battle.Play();
             Volume=PlayerPrefs.GetFloat("sound.master",.75f);MusicVolume=PlayerPrefs.GetFloat("sound.music",.45f);
             MusicEnabled=PlayerPrefs.GetInt("sound.musicEnabled",1)==1;
+            ApplyEffectsMix();
             if(Debug.isDebugBuild) Debug.Log($"[Audio] musicReady={calm.clip!=null} musicBattle={battle.clip!=null} voice={Clip("Voice/welcome")!=null}");
         }
         AudioClip Clip(string key)
@@ -72,7 +81,7 @@ namespace UltramanGame.Runtime
         void PlayBattleStinger()
         {
             if(muted||battleStinger==null)return;
-            effects.pitch=1;effects.PlayOneShot(battleStinger,.68f);
+            effects.Play(battleStinger,.68f);
         }
         static AudioClip CreateLandingThud()
         {
@@ -89,7 +98,7 @@ namespace UltramanGame.Runtime
         public void MonsterLanding()
         {
             if(muted||!landingThud)return;
-            effects.pitch=1;effects.PlayOneShot(landingThud,.72f);
+            effects.Play(landingThud,.72f);
             if(Debug.isDebugBuild)Debug.Log("[VictoryStage] landing-thud playing=True");
         }
         public static AudioClip CreateDissolveShimmer()
@@ -109,7 +118,7 @@ namespace UltramanGame.Runtime
         public void MonsterDeparture()
         {
             if(muted||!dissolveShimmer)return;
-            effects.pitch=1;effects.PlayOneShot(dissolveShimmer,.48f);
+            effects.Play(dissolveShimmer,.48f);
             if(Debug.isDebugBuild)Debug.Log("[MonsterDissolve] shimmer playing=True");
         }
         public static AudioClip CreateGroundCrunch()
@@ -134,14 +143,14 @@ namespace UltramanGame.Runtime
         public void GroundContact(bool rush)
         {
             if(muted||!groundCrunch)return;
-            debris.PlayOneShot(groundCrunch,.48f);
-            if(rush)debris.PlayOneShot(landingThud,.34f);
+            debris.Play(groundCrunch,.48f);
+            if(rush)debris.Play(landingThud,.34f);
             if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] sound=True rush={rush}");
         }
         public void MonsterRecoveryStep()
         {
             if(muted||!landingThud)return;
-            effects.pitch=1;effects.PlayOneShot(landingThud,.25f);
+            effects.Play(landingThud,.25f,1,0);
             if(Debug.isDebugBuild)Debug.Log("[MonsterStagger] footstep playing=True");
         }
         public static AudioClip CreateBeamGather()
@@ -206,14 +215,28 @@ namespace UltramanGame.Runtime
         public void Effect(string key,float gain=1)
         {
             if(muted)return;
-            var clip=Clip("Audio/"+key);if(!clip)return;
+            var clip=key=="impact"?fistContacts[contactSequence++%fistContacts.Length]:Clip("Audio/"+key);if(!clip)return;
             // Small deterministic pitch changes keep repeated punches and hits
             // from sounding machine-perfect while preserving the authored cue.
             int n=effectSequence++;
-            effects.pitch=key=="swing"?(n%3==0?1.04f:n%3==1?.96f:1f):
+            float pitch=key=="swing"?(n%3==0?1.04f:n%3==1?.96f:1f):
                 key=="impact"?(n%2==0?1.03f:.97f):
                 key=="enemy_rush"?(n%2==0?.94f:1.02f):1f;
-            effects.PlayOneShot(clip,gain);
+            effects.Play(clip,gain,pitch,key=="beam"?3:1);
+        }
+        public void Hit(bool heavy,bool beam)
+        {
+            if(muted)return;
+            var clip=beam?beamContact:heavy?heavyContact:fistContacts[contactSequence++%fistContacts.Length];
+            effects.Play(clip,heavy?.90f:.80f,1,beam?3:heavy?2:1);
+            if(heavy&&!beam)effects.Play(Clip("Audio/combo"),.36f,1,2);
+            if(Debug.isDebugBuild)Debug.Log($"[CombatAudio] contact={(beam?"beam":heavy?"heavy":"fist")}");
+        }
+        void ApplyEffectsMix()
+        {
+            float master=muted?0:Mathf.Clamp01(Volume);
+            effects.SetVolume(master*.75f*effectsDuck);
+            debris.SetVolume(master*.60f*Mathf.Lerp(.32f,1,Mathf.InverseLerp(.42f,1,effectsDuck)));
         }
         public void Speak(string key,int importance,GamePhase expected)
         {
@@ -223,6 +246,8 @@ namespace UltramanGame.Runtime
             if(!voice.isPlaying || (!beamVoice && (importance>priority || importance>=5)))
             {
                 voice.Stop();voice.clip=clip;priority=importance;beamVoice=key=="beam"||key=="beam_original";voice.Play();
+                // Apply before this frame's impact starts, not one render frame later.
+                voice.volume=Mathf.Clamp01(Volume);effectsDuck=.42f;ApplyEffectsMix();
                 NotifyInstruction(key,clip.length);
                 if(key=="victory")Effect("victory");
                 if(Debug.isDebugBuild)Debug.Log($"[Voice] key={key} playing={voice.isPlaying} length={clip.length:F2}");
@@ -271,7 +296,9 @@ namespace UltramanGame.Runtime
             if(!muted && !voice.isPlaying && pending.Count>0)
             { var line=pending[0];pending.RemoveAt(0);Speak(line.Key,line.Priority,state); }
             float master=muted?0:Mathf.Clamp01(Volume);
-            voice.volume=master;effects.volume=master*.75f;debris.volume=master*.60f;
+            voice.volume=master;
+            effectsDuck=voice.isPlaying?.42f:Mathf.Lerp(effectsDuck,1,1-Mathf.Exp(-dt/.18f));
+            ApplyEffectsMix();
             bool active=localMusic || state==GamePhase.Battle || state==GamePhase.Transforming;
             float music=MusicEnabled?master*Mathf.Clamp01(MusicVolume)*(voice.isPlaying?.23f:.65f):0;
             if(state==GamePhase.Paused)music*=.35f;
@@ -282,7 +309,7 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild&&!phaseReported&&phaseAge>1)
             {phaseReported=true;Debug.Log($"[AudioState] phase={state} {Diagnostics}");}
         }
-        public void Reset() { voice.Stop();effects.Stop();debris.Stop();charge.Stop();monsterRay.Stop();charge.volume=monsterRay.volume=0;effects.pitch=1;pending.Clear();priority=0;beamVoice=false; }
+        public void Reset() { voice.Stop();effects.Stop();debris.Stop();charge.Stop();monsterRay.Stop();charge.volume=monsterRay.volume=0;effectsDuck=1;ApplyEffectsMix();pending.Clear();priority=0;beamVoice=false; }
         public void Save()
         {
             PlayerPrefs.SetFloat("sound.master",Volume);PlayerPrefs.SetFloat("sound.music",MusicVolume);
