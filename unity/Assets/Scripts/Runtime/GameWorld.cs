@@ -48,6 +48,9 @@ namespace UltramanGame.Runtime
         public bool BeamImpactVisible=>effects.BeamImpactVisible;
         public float BeamImpactAge=>effects.BeamImpactAge;
         public int BeamImpactCount=>effects.BeamImpactCount;
+        public bool ChargeVisible=>effects.ChargeVisible;
+        public float ChargePower=>effects.ChargePower;
+        public Vector3 ChargeCenter=>effects.ChargeCenter;
         public int ActiveSparkCount => effects.ActiveSparkCount;
         public int ActiveContactCount=>effects.ActiveContactCount;
         public int ActiveGroundStones=>effects.ActiveGroundStones;
@@ -425,7 +428,8 @@ namespace UltramanGame.Runtime
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>BeamStream.LaunchSeconds;
             BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
-            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget);
+            effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget,
+                Closeup.Age,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,hero?.HandPosition??BeamOrigin);
             strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active);
             if(!Closeup.Active&&dt>0)
             {

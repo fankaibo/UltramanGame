@@ -14,7 +14,7 @@ namespace UltramanGame.Runtime
         readonly RayFlash[] hitRays=new RayFlash[24];
         readonly Transform shield,charge;
         readonly Material shieldMaterial,chargeMaterial;
-        readonly LineRenderer[] orbits=new LineRenderer[3];
+        readonly BeamCharge beamCharge;
         readonly BeamStream beam;
         readonly LineRenderer warningRing,attackRing;
         readonly Light muzzleLight,hitLight;
@@ -26,6 +26,9 @@ namespace UltramanGame.Runtime
         public bool BeamImpactVisible=>beamImpact.Visible;
         public float BeamImpactAge=>beamImpact.Age;
         public int BeamImpactCount=>beamImpact.Bursts;
+        public bool ChargeVisible=>beamCharge.Visible;
+        public float ChargePower=>beamCharge.Power;
+        public Vector3 ChargeCenter=>beamCharge.Center;
         public int ActiveContactCount=>strikeContact.ActiveCount;
         public int ActiveGroundStones=>groundImpact.ActiveStones;
         public int ActiveGroundDust=>groundImpact.ActiveClouds;
@@ -46,6 +49,7 @@ namespace UltramanGame.Runtime
             strikeContact=new StrikeContactBurst(parent);
             groundImpact=new GroundImpact(parent);
             beamImpact=new BeamImpactVolume(parent);
+            beamCharge=new BeamCharge(parent);
             lineMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")){color=Color.white});
             for(int i=0;i<sparks.Length;i++)sparks[i]=new Streak {Line=Line(parent,"Impact streak",2,.03f)};
             for(int i=0;i<flashes.Length;i++)
@@ -60,7 +64,6 @@ namespace UltramanGame.Runtime
             chargeMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyFlare")));
             charge=GameWorld.Primitive("Beam energy focus",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,chargeMaterial);
             beam=new BeamStream(parent);
-            for(int i=0;i<orbits.Length;i++)orbits[i]=Line(parent,"Charging arc",48,.016f);
             warningRing=Line(parent,"Monster warning ground ring",64,.035f);
             attackRing=Line(parent,"Monster attack ground ring",64,.05f);
             muzzleLight=Point(parent,"Energy spill",Ice,5);hitLight=Point(parent,"Impact spill",Warm,4);
@@ -148,12 +151,12 @@ namespace UltramanGame.Runtime
             strikeContact.Clear();
             groundImpact.Clear();
             beamImpact.Clear();
+            beamCharge.Clear();
             ActiveSparkCount=0;beamBurstAge=0;previousEnemyAge=0;previousAttack=previousPunches=0;motionInitialized=false;hitRayIndex=0;
             foreach(var s in sparks)s.Line.enabled=false;
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
-            foreach(var r in orbits)r.enabled=false;
             warningRing.enabled=attackRing.enabled=false;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;muzzleLight.intensity=hitLight.intensity=0;
         }
@@ -196,7 +199,7 @@ namespace UltramanGame.Runtime
             }
             previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;
         }
-        public void Tick(Battle state,Camera camera,float dt,Vector3 origin,Vector3 end,Vector3 shieldCenter,Vector3 axis,bool closeup,float focus,bool firing,Vector3 beamTarget)
+        public void Tick(Battle state,Camera camera,float dt,Vector3 origin,Vector3 end,Vector3 shieldCenter,Vector3 axis,bool closeup,float focus,bool firing,Vector3 beamTarget,float closeupAge,Vector3 leftHand,Vector3 rightHand)
         {
             clock+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
@@ -254,17 +257,10 @@ namespace UltramanGame.Runtime
                 GroundRing(attackRing,enemyGround,.25f+Mathf.SmoothStep(0,1,p)*1.65f,new Color(1,.58f,.20f,(1-p)*.62f));
             }
             beam.Tick(camera,origin,beamTarget,state.ActionAge,firing,clock);
-            bool charging=closeup||firing;charge.gameObject.SetActive(charging);charge.position=origin-camera.transform.forward*.03f;charge.rotation=camera.transform.rotation;
-            charge.localScale=Vector3.one*(firing?.8f:.45f+focus*.85f);chargeMaterial.color=new Color(.5f,.8f,1,firing?beam.Power*.72f:.85f);
-            for(int i=0;i<orbits.Length;i++)
-            {
-                var line=orbits[i];line.enabled=closeup;
-                if(!closeup)continue;float radius=.18f+focus*.18f+i*.065f;
-                for(int j=0;j<line.positionCount;j++)
-                {float a=j/(float)(line.positionCount-1)*Mathf.PI*1.45f+clock*(i%2==0?5:-4)+i*2;
-                 line.SetPosition(j,origin+camera.transform.right*Mathf.Cos(a)*radius+camera.transform.up*Mathf.Sin(a)*radius*.55f+axis*Mathf.Sin(a)*radius*.5f);}
-                Tint(line,Ice,.55f);
-            }
+            charge.gameObject.SetActive(firing);charge.position=origin-camera.transform.forward*.03f;charge.rotation=camera.transform.rotation;
+            charge.localScale=Vector3.one*.8f;chargeMaterial.color=new Color(.5f,.8f,1,beam.Power*.72f);
+            bool gathering=active&&state.Action==HeroAction.Beam&&(closeup||state.ActionAge<BeamStream.LaunchSeconds+.1f);
+            beamCharge.Sample(gathering,closeup?closeupAge:BeamCloseup.Duration+state.ActionAge,origin,leftHand,rightHand,axis);
             bool contacting=firing&&state.ActionAge>=Battle.BeamHitSeconds;
             if(contacting&&beam.Power>.15f)
             {
@@ -276,7 +272,8 @@ namespace UltramanGame.Runtime
                 }
             }
             else beamBurstAge=0;
-            muzzleLight.transform.position=origin;muzzleLight.intensity=firing?beam.Power*1.8f:closeup?focus*.65f:0;
+            muzzleLight.transform.position=gathering?beamCharge.Center:origin;
+            muzzleLight.intensity=Mathf.Max(firing?beam.Power*1.8f:0,beamCharge.Power*.9f);
             hitLightAge+=dt;hitLight.intensity=Mathf.Max(0,1-hitLightAge/.22f)*3;
             if(contacting)
             {

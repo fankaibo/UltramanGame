@@ -221,6 +221,7 @@ namespace UltramanGame.Runtime
             if(damage)world.Hit(specialDamage,battle);
             int groundContacts=world.GroundContactCount;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            sound.SetChargePower(showcase?0:world.ChargePower);
             if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam");
             if(world.MonsterLanded)sound.MonsterLanding();
             if(world.MonsterDissolving)sound.MonsterDeparture();

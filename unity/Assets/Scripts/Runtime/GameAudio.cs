@@ -6,7 +6,7 @@ namespace UltramanGame.Runtime
 {
     public sealed class GameAudio
     {
-        readonly AudioSource calm,battle,voice,effects,debris;
+        readonly AudioSource calm,battle,voice,effects,debris,charge;
         AudioClip localMusic;
         readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
@@ -32,6 +32,8 @@ namespace UltramanGame.Runtime
         public GameAudio(GameObject owner)
         {
             calm=Source(owner);battle=Source(owner);voice=Source(owner);effects=Source(owner);debris=Source(owner);
+            charge=Source(owner);charge.loop=true;charge.volume=0;
+            charge.clip=RuntimeResources.Own(owner.transform,CreateBeamGather());
             battleStinger=CreateBattleStinger();
             landingThud=CreateLandingThud();
             groundCrunch=RuntimeResources.Own(owner.transform,CreateGroundCrunch());
@@ -140,6 +142,34 @@ namespace UltramanGame.Runtime
             effects.pitch=1;effects.PlayOneShot(landingThud,.25f);
             if(Debug.isDebugBuild)Debug.Log("[MonsterStagger] footstep playing=True");
         }
+        public static AudioClip CreateBeamGather()
+        {
+            // Every frequency completes an integer number of cycles in this
+            // half-second loop. The live charge power supplies the rise, so
+            // pauses and interrupted cinematics cannot leave a timed tail.
+            const int rate=22050;var samples=new float[rate/2];
+            for(int i=0;i<samples.Length;i++)
+            {
+                float t=i/(float)rate;
+                float hum=Mathf.Sin(2*Mathf.PI*84*t)*.18f+Mathf.Sin(2*Mathf.PI*168*t)*.065f;
+                float air=0;for(int n=1;n<=12;n++)air+=Mathf.Sin(2*Mathf.PI*(270+36*n)*t+n*1.37f)*(.095f/Mathf.Sqrt(n));
+                samples[i]=(hum+air)*(.88f+.12f*Mathf.Sin(2*Mathf.PI*10*t));
+            }
+            var clip=AudioClip.Create("BeamGatherHum",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
+        }
+        public void SetChargePower(float power)
+        {
+            power=Mathf.Clamp01(power);
+            if(muted||phase!=GamePhase.Battle||Volume<=0||power<.001f)
+            {
+                if(charge.isPlaying){charge.Stop();if(Debug.isDebugBuild)Debug.Log("[BeamChargeAudio] stopped");}
+                charge.volume=0;return;
+            }
+            // Keep the chosen original battle cry in front of the sound bed.
+            charge.volume=Mathf.Clamp01(Volume)*(voice.isPlaying?.10f:.18f)*power;
+            charge.pitch=.82f+power*.68f;
+            if(!charge.isPlaying){charge.Play();if(Debug.isDebugBuild)Debug.Log("[BeamChargeAudio] started; follows presentation power");}
+        }
         public void UseLocalMusic(AudioClip clip)
         {
             battle.Stop();var previous=localMusic;localMusic=clip;
@@ -226,7 +256,7 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild&&!phaseReported&&phaseAge>1)
             {phaseReported=true;Debug.Log($"[AudioState] phase={state} {Diagnostics}");}
         }
-        public void Reset() { voice.Stop();effects.Stop();debris.Stop();effects.pitch=1;pending.Clear();priority=0;beamVoice=false; }
+        public void Reset() { voice.Stop();effects.Stop();debris.Stop();charge.Stop();charge.volume=0;effects.pitch=1;pending.Clear();priority=0;beamVoice=false; }
         public void Save()
         {
             PlayerPrefs.SetFloat("sound.master",Volume);PlayerPrefs.SetFloat("sound.music",MusicVolume);

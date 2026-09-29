@@ -47,7 +47,7 @@ namespace UltramanGame.Editor
                 burst.Tick(camera,0);if(burst.ActiveCount!=6)throw new Exception("Contact pool grew or failed to reuse");
                 burst.Clear();if(Changed(empty,Read("cleared"))!=0)throw new Exception("Contact remains after clear");
                 var fx=new CombatVfx(root);var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<120;n++)state.Tick(.02f,new PlayerInput{Tracking=true});
-                void Tick()=>fx.Tick(state,camera,.02f,Vector3.zero,Vector3.forward,Vector3.zero,Vector3.forward,false,0,false,Vector3.forward);
+                void Tick()=>fx.Tick(state,camera,.02f,Vector3.zero,Vector3.forward,Vector3.zero,Vector3.forward,false,0,false,Vector3.forward,0,Vector3.zero,Vector3.zero);
                 for(int kind=0;kind<4;kind++)
                 {
                     fx.Clear();fx.Impact(Vector3.zero,kind==1,blocked:kind==2,hurt:kind==3,direction:Vector3.right);Tick();
