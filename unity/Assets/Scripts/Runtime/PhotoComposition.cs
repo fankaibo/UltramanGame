@@ -65,6 +65,7 @@ namespace UltramanGame.Runtime
             var bounds=Bounds(texture,false,new RectInt(0,0,texture.width,texture.height));
             bool valid=bounds.width>0&&bounds.height>0;personQuad.gameObject.SetActive(valid);
             if(!valid)return false;
+            bool cropped=bounds.yMin<=texture.height*.02f;
             float shoulder,center,crown;
             if(pose!=null&&PoseQuality.Present(pose,pose.capturedMs)&&PoseQuality.Reliable(pose.points[0],.45f))
             {
@@ -78,7 +79,9 @@ namespace UltramanGame.Runtime
                     feet&=PoseQuality.Reliable(knee,.6f)&&PoseQuality.Reliable(ankle,.6f)&&
                         ankle.x>.02f&&ankle.x<.98f&&ankle.y<.98f&&ankle.y>knee.y+.04f&&knee.y>p[11+side].y+.16f;
                 }
-                measuredFullBody=feet?(bool?)true:null;
+                // A silhouette cut by the camera's bottom is never a proven
+                // full body, even if occluded ankle landmarks were inferred.
+                measuredFullBody=cropped?(bool?)false:feet?(bool?)true:null;
                 shoulder=(1-(p[11].y+p[12].y)/2)*texture.height;
                 center=(1-p[0].x)*texture.width; // Camera pixels are mirrored once by the photo service.
                 float nose=(1-p[0].y)*texture.height;
@@ -98,10 +101,12 @@ namespace UltramanGame.Runtime
             }
             shoulder=lastShoulder;center=lastCenter;crown=lastCrown;
             var personBody=new PhotoBody(bounds.xMin,bounds.xMax,bounds.yMin,bounds.yMax,center,shoulder,crown);
-            if(!PhotoLayout.TryFit(personBody,Hero.Body,out var layout,measuredFullBody))return false;
+            // The image can arrive before its nearest pose. Never let a stale
+            // full-body measurement float a newly cropped camera frame.
+            if(!PhotoLayout.TryFit(personBody,Hero.Body,out var layout,cropped?(bool?)false:measuredFullBody))return false;
             FullBody=layout.FullBody;
             person.mainTexture=texture;
-            PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,3.7f,layout.ShoulderY);
+            PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,layout.PersonX,layout.ShoulderY);
             // Hero placement, crop and scale stay exactly as constructed, across every camera frame and retake.
             return true;
         }

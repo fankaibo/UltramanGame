@@ -11,11 +11,13 @@ static class PhotoLayoutChecks
             new PhotoBody(80,590,0,470,320,220,400)})
         {
             check(PhotoLayout.TryFit(person,hero,out var layout),"portrait, full-body and raised-arm compositions are measurable");
-            check(layout.FullBody?Math.Abs((person.Crown-person.Bottom)*layout.PersonScale-(hero.Crown-hero.Bottom)*layout.HeroScale)<.0001f:
-                Math.Abs((person.Crown-person.Shoulder)*layout.PersonScale-(hero.Crown-hero.Shoulder)*layout.HeroScale)<.0001f,
-                "portrait head/shoulder span or full-body crown/feet span matches between figures");
-            check(layout.FullBody?Math.Abs(layout.ShoulderY+(person.Bottom-person.Shoulder)*layout.PersonScale+3.9f)<.001f:
-                Math.Abs(layout.ShoulderY-layout.HeroShoulderY)<.001f,"full person aligns feet; portrait aligns shoulders without enlarging the hero");
+            check(!layout.FullBody||Math.Abs((person.Crown-person.Bottom)*layout.PersonScale-(hero.Crown-hero.Bottom)*layout.HeroScale)<.0001f,
+                "full-body crown/feet span matches the hero when horizontal space permits");
+            float bottom=layout.ShoulderY+(person.Bottom-person.Shoulder)*layout.PersonScale;
+            check(layout.FullBody?Math.Abs(bottom+3.9f)<.001f:bottom<=-4.5f&&bottom>=-4.6f,
+                "full person aligns feet; cropped torso continues beyond the photograph boundary");
+            check(layout.PersonX+(person.Left-person.Center)*layout.PersonScale>=.299f&&
+                layout.PersonX+(person.Right-person.Center)*layout.PersonScale<=7.101f,"all visible person pixels fit beside the fixed hero");
             check(layout.HeroShoulderY+(hero.Top-hero.Shoulder)*layout.HeroScale<=3.751f&&
                 layout.ShoulderY+(person.Top-person.Shoulder)*layout.PersonScale<=3.751f,"raised hands fit above the paired portraits");
             check(layout.HeroScale==fixedHero.HeroScale&&layout.HeroShoulderY==fixedHero.HeroShoulderY&&layout.HeroBottom==hero.Bottom,
@@ -29,6 +31,14 @@ static class PhotoLayoutChecks
         check(Math.Abs(childLayout.ShoulderY+(child.Bottom-child.Shoulder)*childLayout.PersonScale+3.9f)<.001f,
             "child full-body photo is grounded instead of floating at adult shoulder height");
         check(childLayout.HeroScale==fixedHero.HeroScale,"child proportion correction does not resize the hero");
+        var family=new PhotoBody(0,610,0,395,160,230,390);
+        PhotoLayout.TryFit(family,hero,out var group,false);
+        check(Math.Abs(group.PersonX+((family.Left+family.Right)/2-family.Center)*group.PersonScale-3.7f)<.001f,
+            "two-person portrait centers the group rather than the only tracked face");
+        check(group.ShoulderY+(family.Bottom-family.Shoulder)*group.PersonScale<=-4.5f,
+            "wide family portrait cannot float above the photograph edge");
+        PhotoLayout.TryFit(new PhotoBody(180,450,0,460,320,320,400),hero,out var cropped,false);
+        check(!cropped.FullBody,"camera crop overrides inferred body proportions");
         var invalid=hero;invalid.Crown=invalid.Shoulder;
         check(!PhotoLayout.TryFit(invalid,hero,out _),"zero body reference cannot create infinite photo scaling");
         invalid=hero;invalid.Center=float.NaN;

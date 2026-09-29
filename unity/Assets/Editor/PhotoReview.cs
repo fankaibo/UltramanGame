@@ -35,13 +35,14 @@ namespace UltramanGame.Editor
                     if(!composition.SetPerson(texture,pose))throw new Exception("Body framing rejected test portrait");
                     var shot=composition.Snapshot();File.WriteAllBytes(Path.Combine(folder,portrait?"half-body.png":"full-body.png"),shot.EncodeToPNG());
                     UnityEngine.Object.DestroyImmediate(shot);
-                    // In both shots the hero and person's crown-to-shoulder span should agree.
+                    // A cropped torso meets the photo edge; visible feet meet
+                    // the hero's floor. Only the camera person changes size.
                     var person=GameObject.Find("Victory photo composition/Person").transform;
                     var hero=composition.Hero.Root;
                     var personFrame=person.GetComponent<Renderer>().sharedMaterial.GetVector("_Frame");
                     float personRatio=(headY+radius-shoulder)/480f/personFrame.w*person.localScale.y;
                     float heroRatio=(composition.Hero.Body.Crown-composition.Hero.Body.Shoulder)*composition.Hero.Scale;
-                    if(portrait&&Math.Abs(personRatio-heroRatio)>.12f)throw new Exception("Head/shoulder proportion mismatch");
+                    if(portrait&&person.localPosition.y-person.localScale.y/2>-4.50f)throw new Exception("Cropped portrait floats above the frame edge");
                     if(!portrait&&Math.Abs(person.localPosition.y-person.localScale.y/2+3.9f)>.04f)
                         throw new Exception("Photo figure floats above the paired bottom edge");
                     if(hero.localScale!=fixedScale||hero.localPosition!=fixedPosition||hero.localRotation!=fixedRotation)
