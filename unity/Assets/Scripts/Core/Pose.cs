@@ -67,6 +67,9 @@ namespace UltramanGame.Core
     public struct PlayerInput
     {
         public bool Tracking, Transform, LeftPunch, RightPunch, Shield, Beam;
+        // Continuous ownership while confirming a pose, not an awarded action.
+        // The battle queue must respect this before Shield/Beam can fire.
+        public bool GuardIntent, BeamIntent;
     }
 
     // New frames only. Each gesture requires its own visible joints; missing joints never attack.
@@ -223,6 +226,8 @@ namespace UltramanGame.Core
                 if(beamWristsReady||shieldGap>.20f)shieldHold=0;
             }
             input.Shield=shieldHold>=ShieldHold;
+            input.GuardIntent=shield||input.Shield;
+            input.BeamIntent=beamReserved;
             if(input.Shield)
             {
                 // Follow an arm that is still retracting into its guard, but

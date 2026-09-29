@@ -110,16 +110,19 @@ namespace UltramanGame.Core
             InstructionRemaining=Math.Max(0,InstructionRemaining-dt);
             queuedBeamAge=Math.Max(0,queuedBeamAge-dt);
             if(input.Beam&&Energy>=MaxEnergy&&Action!=HeroAction.Beam)queuedBeamAge=.8f;
+            bool poseOwnsInput=input.Shield||input.GuardIntent||input.BeamIntent;
             if(input.Shield)
             {
                 queuedBeamAge=0;
-                // A child's guard takes over immediately, including an unfinished punch recovery.
-                if(hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
             }
+            // Recognizer ownership begins before the pose's hold completes.
+            // Drop buffered fists and finish an already-landed punch recovery;
+            // this does not grant a shield or consume beam energy early.
+            if(poseOwnsInput&&hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
             queuedAge-=dt;
-            if(queuedAge<=0 || input.Shield || queuedBeamAge>0) queuedPunch=HeroAction.None;
+            if(queuedAge<=0 || poseOwnsInput || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&
-                ActionAge>=PunchSeconds-.18f && !input.Shield && !input.Beam && (input.LeftPunch || input.RightPunch))
+                ActionAge>=PunchSeconds-.18f && !poseOwnsInput && !input.Beam && (input.LeftPunch || input.RightPunch))
             { queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=.20f; }
             Shield=input.Shield && (Action==HeroAction.None);
             if(Action==HeroAction.None)
@@ -130,7 +133,7 @@ namespace UltramanGame.Core
                     Energy=0;Begin(HeroAction.Beam);Shield=false;
                     Enemy=EnemyPhase.Rest;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.Beam);
                 }
-                else if(!Shield && (input.LeftPunch || input.RightPunch || queuedPunch!=HeroAction.None))
+                else if(!poseOwnsInput && (input.LeftPunch || input.RightPunch || queuedPunch!=HeroAction.None))
                 {
                     var next=input.LeftPunch?HeroAction.LeftPunch:input.RightPunch?HeroAction.RightPunch:queuedPunch;
                     queuedPunch=HeroAction.None;Begin(next);Cue(GameCue.Punch);
