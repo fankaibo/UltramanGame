@@ -109,15 +109,16 @@ def main():
                         if options.gesture_wobble and beam:
                             points[15].z=points[16].z=-.10
                             hold_age=now-beam_release_until
-                            if .30<hold_age<.51:
-                                points[15].z=-.40;beam_noise_frames+=1
+                            if .30<hold_age<.59:
+                                points[15].z=-.70;beam_noise_frames+=1
                             if hold_age>.25:protected='beam'
                         elif options.gesture_wobble and guard:
                             points[15].z=points[16].z=-.10
                             if now-guard_started>.7:
                                 protected='shield'
                                 if (now-guard_started)%.4<.14:
-                                    points[15].z=-.24;guard_noise_frames+=1
+                                    hand=15 if int((now-guard_started)/.4)%2==0 else 16
+                                    points[hand].z=-.44;guard_noise_frames+=1
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
                 if stage=='review' and photos_seen==2 and now-review_at>7 and not review_loss_start:

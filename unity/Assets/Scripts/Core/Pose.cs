@@ -79,7 +79,8 @@ namespace UltramanGame.Core
         readonly PosePoint[] beamPoints = new PosePoint[33];
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
-        bool beamFired, beamArmed, transformFired;
+        bool beamFired, beamArmed, transformFired, guardAnchored;
+        PosePoint guardLeft,guardRight;
         float beamHold,beamGap,beamRelease,transformHold,shieldHold,shieldGap,steady;
         public bool ForwardPunch { get; private set; }
         public int Difficulty {get;set;}
@@ -101,6 +102,7 @@ namespace UltramanGame.Core
         void ClearGestures()
         {
             leftMotion.Reset();rightMotion.Reset();beamFired=beamArmed=transformFired=ForwardPunch=false;
+            guardAnchored=false;
             BeamNeedsRelease=false;
             beamHold=beamGap=beamRelease=transformHold=shieldHold=shieldGap=steady=0;
         }
@@ -169,8 +171,14 @@ namespace UltramanGame.Core
                 (BeamArms(bl,blw,brw,bcx,bsy,bs,true)||BeamArms(br,brw,blw,bcx,bsy,bs,true)||ForwardPalms(bl,br,blw,brw,bsy,bs,true));
             bool beam=beamAvailable&&(beamShape||beamMaintained);
             float leftDepth=(bl.z-blw.z)/bs,rightDepth=(br.z-brw.z)/bs;
-            bool leftCommitted=leftDepth>.90f&&leftDepth-rightDepth>.70f;
-            bool rightCommitted=rightDepth>.90f&&rightDepth-leftDepth>.70f;
+            var leftOffset=GuardOffset(bl,blw,bs);var rightOffset=GuardOffset(br,brw,bs);
+            // Once a guard is established, inferred depth alone cannot break it.
+            // Require a visible reach relative to the shoulder as well; moving
+            // the whole body or changing distance from the camera is not a reach.
+            bool leftCommitted=leftDepth>.90f&&leftDepth-rightDepth>.70f &&
+                (!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f);
+            bool rightCommitted=rightDepth>.90f&&rightDepth-leftDepth>.70f &&
+                (!guardAnchored||PoseQuality.Distance(rightOffset,guardRight)>.16f);
             bool guardShape=beamWristsReady && !(transformAvailable&&raised) &&
                 Math.Abs(blw.x-bcx)<.95f*bs && Math.Abs(brw.x-bcx)<.95f*bs &&
                 Math.Abs(blw.x-brw.x)<1.55f*bs && Math.Abs(blw.y-brw.y)<.70f*bs &&
@@ -181,7 +189,11 @@ namespace UltramanGame.Core
             if (transformHold>=TransformHold && !transformFired) { input.Transform=true; transformFired=true; }
             // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
             if(beamWristsReady&&!beamShape&&!beamMaintained)beamRelease+=dt;else beamRelease=0;
-            if(beamRelease>=.25f) {beamFired=false;beamArmed=true;beamHold=0;}
+            // Rearming a finished beam and tolerating an unfinished hold have
+            // different time limits. A 250 ms release must not clear a charge
+            // still inside its 320 ms uncertainty grace period.
+            if(beamRelease>=.25f && (beamHold<=0||beamFired||beamGap>BeamGapSeconds))
+            {beamFired=false;beamArmed=true;beamHold=0;}
             if(!beamAvailable) {beamArmed=beamRelease>=.25f;beamHold=0;}
             if(beam&&beamArmed&&!beamFired) {beamHold+=dt;beamGap=0;} else
             {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
@@ -200,8 +212,18 @@ namespace UltramanGame.Core
                 if(beamWristsReady||shieldGap>.20f)shieldHold=0;
             }
             input.Shield=shieldHold>=ShieldHold;
+            if(input.Shield)
+            {
+                // Follow an arm that is still retracting into its guard, but
+                // do not move the anchor forward with an outgoing punch.
+                if(!guardAnchored||leftOffset.z<guardLeft.z)guardLeft=leftOffset;
+                if(!guardAnchored||rightOffset.z<guardRight.z)guardRight=rightOffset;
+                guardAnchored=true;
+            }
+            if(!guardShape&&shieldGap>.20f)guardAnchored=false;
             if (beamReserved || (raised&&transformAvailable))
             {
+                guardAnchored=false;
                 leftMotion.Reset();rightMotion.Reset();
                 return input;
             }
@@ -223,9 +245,11 @@ namespace UltramanGame.Core
                 else input.LeftPunch=false;
             }
             ForwardPunch=input.LeftPunch&&leftMotion.ForwardStrike || input.RightPunch&&rightMotion.ForwardStrike;
-            if(input.LeftPunch||input.RightPunch) {input.Shield=false;shieldHold=0;}
+            if(input.LeftPunch||input.RightPunch) {input.Shield=false;shieldHold=0;guardAnchored=false;}
             return input;
         }
+        static PosePoint GuardOffset(PosePoint shoulder,PosePoint wrist,float scale)
+            =>new PosePoint((wrist.x-shoulder.x)/scale,(wrist.y-shoulder.y)/scale){z=(shoulder.z-wrist.z)/scale};
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
