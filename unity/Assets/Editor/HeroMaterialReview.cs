@@ -14,7 +14,9 @@ namespace UltramanGame.Editor
         public static void After()=>Render("after");
         static void Render(string version)
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/hero-environment",version));Directory.CreateDirectory(folder);
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--material-output");
+            string root=at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/hero-environment");
+            string folder=Path.GetFullPath(Path.Combine(root,version));Directory.CreateDirectory(folder);
             var report=new StringBuilder();
             foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})
             {

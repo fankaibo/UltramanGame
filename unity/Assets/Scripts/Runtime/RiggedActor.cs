@@ -333,6 +333,12 @@ namespace UltramanGame.Runtime
                 {mat.EnableKeyword("_EMISSION");mat.SetTexture("_EmissionMap",rosterTexture);mat.SetColor("_EmissionColor",Color.white*.5f);}
             }
             if(heroSurface&&mat.mainTexture)mat.SetFloat("_TextureArmor",1);
+            if(character=="Tiga"&&name=="TigaSuit")
+            {
+                mat.SetFloat("_CostumeFinish",1);
+                var cavity=Resources.Load<Texture2D>("Characters/Tiga/TigaBodyOcclusion");
+                if(cavity)mat.SetTexture("_CostumeOcclusion",cavity);
+            }
             return mat;
         }
         public void SetPresentationOpacity(float opacity)

@@ -25,6 +25,9 @@ namespace UltramanGame.Editor
             importer.maxTextureSize=4096;importer.mipmapEnabled=true;
             importer.filterMode=FilterMode.Trilinear;importer.anisoLevel=4;
             importer.textureCompression=TextureImporterCompression.CompressedHQ;
+            // Occlusion is a numeric visibility factor, never display color.
+            if(assetPath.EndsWith("/TigaBodyOcclusion.png",System.StringComparison.Ordinal))
+            {importer.sRGBTexture=false;importer.maxTextureSize=2048;importer.wrapMode=TextureWrapMode.Clamp;}
         }
         bool CharacterPath() => assetPath.StartsWith("Assets/Resources/Characters/") ||
             assetPath.StartsWith("Assets/Editor/CombatSample/Characters/");
