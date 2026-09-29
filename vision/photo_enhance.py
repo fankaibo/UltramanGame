@@ -38,11 +38,12 @@ def configuration(home=None):
     return url.rstrip('/'), key
 
 
-def make_prompt(width, height):
+def make_prompt(width, height, layers=False):
     return f'''You are a film compositing colourist. Inspect this {width}x{height} family game photograph.
 The left figure is the selected Ultraman hero and the person is on the right. Infer the actual environment,
 light direction, temperature, brightness and remaining cutout edge halo from the image.
-Choose subtle corrections ONLY for the right-hand person's integration with the scene.
+{('The next images are: 1 finished composition, 2 clean scene with the fixed hero, 3 person-only alpha matte (white is the person). Use the clean scene to judge lighting and the matte to locate hair, clothing edges and visible feet.' if layers else '')}
+Choose corrections ONLY for the right-hand person's integration with the scene.
 Keep identity, face, body, pose, clothing, composition, mountain/background and the Ultraman hero unchanged.
 Do not beautify facial features, slim bodies, invent limbs, add objects or change either figure's scale.
 Return ONLY a JSON object with these fields (numbers, no code):
@@ -50,7 +51,11 @@ scene_summary: short description of observed lighting;
 exposure_ev: -0.45 to 0.15; red_gain/green_gain/blue_gain: 0.85 to 1.15;
 saturation: 0.75 to 1.05; edge_feather_px: 0.6 to 2.5 at 1080p;
 light_wrap: 0 to 0.18; shadow_strength: 0 to 0.24.
-Prefer restrained local matching and gentle edge blending. Leave skin recognisable.'''
+Exposure is photographic stops in LINEAR light, not multiplication of encoded sRGB values.
+RGB gains and saturation are also applied in linear light. Do not crush the face to match a dark sky:
+the hero is lit by a cool moon key, soft fill and warm lava rim. Match that readable subject lighting.
+The shadow field applies only to visible feet; cropped portraits do not receive a ground shadow.
+Prefer local matching and gentle edge blending. Leave skin recognisable.'''
 
 
 LIMITS = {'exposure_ev':(-.45,.15), 'red_gain':(.85,1.15), 'green_gain':(.85,1.15),
@@ -73,16 +78,18 @@ def parse_recipe(text):
     return recipe
 
 
-def ask_model(image, url, key):
+def ask_model(image, url, key, plate=None, mask=None):
     import cv2
     h,w = image.shape[:2]
-    scale = min(1,1280/w)
-    preview=cv2.resize(image,(round(w*scale),round(h*scale)))
-    ok,encoded=cv2.imencode('.jpg',preview,[cv2.IMWRITE_JPEG_QUALITY,90])
-    if not ok:raise ValueError('image_encoding_failed')
-    payload={'model':MODEL,'messages':[{'role':'user','content':[
-        {'type':'text','text':make_prompt(w,h)},
-        {'type':'image_url','image_url':{'url':'data:image/jpeg;base64,'+base64.b64encode(encoded).decode()}}]}],
+    layers=plate is not None and mask is not None
+    content=[{'type':'text','text':make_prompt(w,h,layers)}]
+    for pixels in ([image,plate,mask] if layers else [image]):
+        scale=min(1,1280/w)
+        preview=cv2.resize(pixels,(round(w*scale),round(h*scale)))
+        ok,encoded=cv2.imencode('.jpg',preview,[cv2.IMWRITE_JPEG_QUALITY,90])
+        if not ok:raise ValueError('image_encoding_failed')
+        content.append({'type':'image_url','image_url':{'url':'data:image/jpeg;base64,'+base64.b64encode(encoded).decode()}})
+    payload={'model':MODEL,'messages':[{'role':'user','content':content}],
         'max_tokens':900,'temperature':.2}
     endpoint=url+('/chat/completions' if url.endswith('/v1') else '/v1/chat/completions')
     request=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),
@@ -96,6 +103,43 @@ def ask_model(image, url, key):
     return parse_recipe(data['choices'][0]['message']['content'])
 
 
+def _linear(encoded):
+    import numpy as np
+    value=encoded.astype(np.float32)/255
+    return np.where(value<=.04045,value/12.92,((value+.055)/1.055)**2.4)
+
+
+def _encode(linear):
+    import numpy as np
+    value=np.clip(linear,0,1)
+    return np.uint8(np.rint(np.where(value<=.0031308,value*12.92,1.055*value**(1/2.4)-.055)*255))
+
+
+def _foot_shadow(alpha):
+    """Small contacts under each visible foot, never a stripe under a portrait."""
+    import cv2
+    import numpy as np
+    height,width=alpha.shape
+    shadow=np.zeros_like(alpha)
+    rows,cols=np.where(alpha>.5)
+    if not len(rows):return shadow
+    bottom=int(rows.max())
+    # A camera-truncated body has no known ground contact. PhotoLayout puts
+    # half-body portraits at the image edge and full bodies above that edge.
+    if bottom<height*.82 or bottom>=height-2:return shadow
+    band=alpha[max(0,bottom-round(height*.016)):bottom+1]
+    contacts=np.flatnonzero(np.max(band,axis=0)>.5)
+    for run in np.split(contacts,np.flatnonzero(np.diff(contacts)>1)+1):
+        if len(run)<max(2,width*.003):continue
+        center=(int((run[0]+run[-1])/2),bottom+max(1,round(height*.003)))
+        axes=(max(2,round(len(run)*.55)),max(1,round(height*.0045)))
+        cv2.ellipse(shadow,center,axes,0,0,360,1,-1)
+    shadow=cv2.GaussianBlur(shadow,(0,0),max(.7,height*.0025))
+    # The selected hero occupies the left side and must never be recoloured.
+    shadow[:,:width//2]=0
+    return shadow
+
+
 def harmonise(composite, plate, mask, recipe):
     import cv2
     import numpy as np
@@ -104,30 +148,30 @@ def harmonise(composite, plate, mask, recipe):
         raise ValueError('layer_size_mismatch')
     a=mask.astype(np.float32)/255
     if a.ndim==3:a=a[:,:,0]
-    c=composite.astype(np.float32)/255;b=plate.astype(np.float32)/255
-    person=np.clip((c-b*(1-a[:,:,None]))/np.maximum(a[:,:,None],.04),0,1)
-    corrected=person*2**recipe['exposure_ev']*np.array([recipe['blue_gain'],recipe['green_gain'],recipe['red_gain']])
-    gray=corrected.mean(axis=2,keepdims=True)
+    # PhotoComposition uses Unity linear-light blending. Inverting encoded
+    # PNG values produces dark/coloured fringes and over-darkens EV changes.
+    c=_linear(composite);b=_linear(plate)
+    person=np.clip((c-b*(1-a[:,:,None]))/np.maximum(a[:,:,None],1/255),0,1)
+    corrected=person*2**recipe['exposure_ev']*np.array([recipe['blue_gain'],recipe['green_gain'],recipe['red_gain']],np.float32)
+    gray=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
     corrected=np.clip(gray+(corrected-gray)*recipe['saturation'],0,1)
     feather=recipe['edge_feather_px']*composite.shape[0]/1080
     soft=cv2.GaussianBlur(a,(0,0),max(.5,feather))
     # Never invent body pixels outside the original matte; pull a halo inward.
     alpha=np.minimum(a,soft)
-    edge=(1-cv2.erode(a,np.ones((5,5),np.uint8)))*alpha
+    radius=max(1,round(2*composite.shape[0]/1080))
+    edge=(1-cv2.erode(a,np.ones((radius*2+1,radius*2+1),np.uint8)))*alpha
     wrap=cv2.GaussianBlur(b,(0,0),max(2,composite.shape[0]/80))
     corrected=corrected*(1-edge[:,:,None]*recipe['light_wrap'])+wrap*edge[:,:,None]*recipe['light_wrap']
-    background=b.copy()
-    rows,cols=np.where(a>.5)
-    if len(rows):
-        bottom=int(rows.max());left=int(cols.min());right=int(cols.max())
-        # Only cast a soft grounding shadow where the visible silhouette meets the floor.
-        if bottom>composite.shape[0]*.82:
-            shadow=np.zeros(a.shape,np.float32)
-            cv2.ellipse(shadow,((left+right)//2,bottom),(max(1,(right-left)//3),max(1,round(feather*3))),0,0,360,1,-1)
-            shadow=cv2.GaussianBlur(shadow,(0,0),max(2,feather*3))
-            background*=1-shadow[:,:,None]*recipe['shadow_strength']
+    shadow=_foot_shadow(a)*recipe['shadow_strength']
+    background=b*(1-shadow[:,:,None])
     result=corrected*alpha[:,:,None]+background*(1-alpha[:,:,None])
-    return np.clip(np.rint(result*255),0,255).astype(np.uint8)
+    result=_encode(result)
+    # Preserve original bytes outside the editable region, including sparse
+    # GPU rounding differences between the snapshot and its clean plate.
+    fixed=(a==0)&(shadow<.00001)
+    result[fixed]=composite[fixed]
+    return result
 
 
 def enhance(source, plate_path, mask_path):
@@ -136,7 +180,7 @@ def enhance(source, plate_path, mask_path):
     source=Path(source)
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
-    recipe=ask_model(image,url,key)
+    recipe=ask_model(image,url,key,plate=plate,mask=mask)
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     ok,png=cv2.imencode('.png',result)

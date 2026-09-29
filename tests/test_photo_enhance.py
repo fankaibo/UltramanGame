@@ -38,6 +38,53 @@ class PhotoEnhancementTests(unittest.TestCase):
         self.assertLess(result[60,165,2],image[60,165,2])
         self.assertGreater(result[60,165,2],100)
 
+    @staticmethod
+    def linear(image):
+        value=image.astype(np.float64)/255
+        return np.where(value<=.04045,value/12.92,((value+.055)/1.055)**2.4)
+
+    @staticmethod
+    def encoded(image):
+        value=np.clip(image,0,1)
+        return np.uint8(np.rint(np.where(value<=.0031308,12.92*value,1.055*value**(1/2.4)-.055)*255))
+
+    def test_exposure_and_translucent_edges_use_unity_linear_light(self):
+        # A bright person against a dark blue plate with several broad alpha
+        # bands. Compare the interior of each band with an independent physical
+        # exposure/composite, not the implementation's own reconstruction.
+        plate=np.full((120,320,3),(68,27,12),np.uint8)
+        foreground=np.full_like(plate,(205,151,108))
+        mask=np.zeros((120,320),np.uint8)
+        for start,alpha in ((160,64),(200,128),(240,192),(280,255)):
+            mask[:,start:start+40]=alpha
+        a=mask[:,:,None]/255
+        image=self.encoded(self.linear(foreground)*a+self.linear(plate)*(1-a))
+        recipe=dict(exposure_ev=-.45,red_gain=1,green_gain=1,blue_gain=1,
+                    saturation=1,edge_feather_px=.6,light_wrap=0,shadow_strength=0)
+        result=harmonise(image,plate,mask,recipe)
+        expected=self.encoded(self.linear(foreground)*2**(-.45)*a+self.linear(plate)*(1-a))
+        for x in (180,220,260,300):
+            self.assertLessEqual(np.abs(result[60,x].astype(int)-expected[60,x]).max(),1)
+        np.testing.assert_array_equal(image[:,:150],result[:,:150])
+
+    def test_ground_contact_stays_under_feet_and_skips_cropped_portrait(self):
+        recipe=dict(exposure_ev=0,red_gain=1,green_gain=1,blue_gain=1,
+                    saturation=1,edge_feather_px=.6,light_wrap=0,shadow_strength=.24)
+        plate=np.full((360,640,3),100,np.uint8)
+        mask=np.zeros((360,640),np.uint8)
+        mask[110:260,380:570]=255
+        mask[240:328,385:420]=255;mask[240:328,530:565]=255
+        image=plate.copy();image[mask>0]=170
+        result=harmonise(image,plate,mask,recipe)
+        self.assertLess(int(result[330,400,0]),100)
+        self.assertLess(int(result[330,545,0]),100)
+        self.assertEqual(100,int(result[330,475,0]),'no broad stripe bridging the legs')
+        np.testing.assert_array_equal(image[:,:320],result[:,:320])
+        # A portrait ending at the image edge has no proven visible feet.
+        mask[200:,380:570]=255;image=plate.copy();image[mask>0]=170
+        result=harmonise(image,plate,mask,recipe)
+        np.testing.assert_array_equal(image[mask==0],result[mask==0])
+
     def test_original_survives_success_or_model_failure(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'
@@ -50,3 +97,23 @@ class PhotoEnhancementTests(unittest.TestCase):
                 with patch('vision.photo_enhance.ask_model',return_value=self.recipe()):
                     output,_=enhance(source,plate,mask);self.assertTrue(output.is_file())
             self.assertEqual(original,source.read_bytes())
+
+    def test_worker_reports_safe_transport_class_without_exception_details(self):
+        import ssl
+        import urllib.error
+        from scripts.enhance_photo import main
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);status=root/'status.json'
+            args=['enhance_photo','--input',str(root/'input.png'),'--plate',str(root/'plate.png'),
+                  '--mask',str(root/'mask.png'),'--status',str(status)]
+            error=urllib.error.URLError(ssl.SSLEOFError('private request details must not appear'))
+            with patch('sys.argv',args),patch('scripts.enhance_photo.enhance',side_effect=error):
+                self.assertEqual(1,main())
+            result=json.loads(status.read_text())
+            self.assertFalse(result['ok']);self.assertEqual('SSLEOFError',result['error_type'])
+            self.assertNotIn('private request',status.read_text())
+            # urllib also accepts a string reason, with no traceback object.
+            with patch('sys.argv',args),patch('scripts.enhance_photo.enhance',side_effect=urllib.error.URLError('private text reason')):
+                self.assertEqual(1,main())
+            self.assertFalse(json.loads(status.read_text())['ok'])
+            self.assertNotIn('private text',status.read_text())

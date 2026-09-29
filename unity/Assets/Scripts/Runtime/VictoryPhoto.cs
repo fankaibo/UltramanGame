@@ -76,7 +76,7 @@ namespace UltramanGame.Runtime
                 if(enhancement!=null&&enhancement.Done)
                 {
                     if(enhancement.ResultPng!=null)
-                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng)){if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message="AI 融合版已另存到 Downloads";}else UnityEngine.Object.Destroy(edited);}
+                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng)){if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message="AI 光色版已另存到 Downloads";}else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
                     enhancement=null;
                 }
@@ -144,7 +144,7 @@ namespace UltramanGame.Runtime
                 savedPath=PhotoFiles.Save(PhotoFiles.Downloads,photoPng,frame.Synthetic);
                 message="已保存到 Downloads";
                 if(PlayerPrefs.GetInt("photo.ai",1)==1&&!frame.Synthetic)
-                {enhancement=new LocalPhotoEnhancement(savedPath,composition.CleanPlate(),composition.PersonMatte());message="原图已保存 · AI 正在调整融合效果";}
+                {enhancement=new LocalPhotoEnhancement(savedPath,composition.CleanPlate(),composition.PersonMatte());message="原图已保存 · AI 正在匹配环境光与边缘";}
                 Debug.Log($"[Photo] saved source={(frame.Synthetic?"synthetic":"camera")} size={saved.width}x{saved.height} file={Path.GetFileName(savedPath)}");
             }
             catch(Exception e) when(e is IOException||e is UnauthorizedAccessException)

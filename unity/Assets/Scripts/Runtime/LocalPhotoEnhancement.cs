@@ -13,9 +13,10 @@ namespace UltramanGame.Runtime
         static readonly SemaphoreSlim Slot=new SemaphoreSlim(1,1);
         public volatile bool Done;
         public byte[] ResultPng {get;private set;}
-        public string Status {get;private set;}="原图已保存 · AI 融合处理中";
+        public string Status {get;private set;}="原图已保存 · AI 光色优化中";
+        public string ErrorType {get;private set;}="";
         readonly string source,folder,python,script;
-        [Serializable] sealed class Result {public bool ok;public string output,status;}
+        [Serializable] sealed class Result {public bool ok;public string output,status,error_type,error_operation;public int transport_status;}
         public LocalPhotoEnhancement(string source,byte[] plate,byte[] mask)
         {
             this.source=source;
@@ -46,6 +47,9 @@ namespace UltramanGame.Runtime
                 if(File.Exists(statusPath))
                 {
                     var result=JsonUtility.FromJson<Result>(File.ReadAllText(statusPath));Status=result.status;
+                    if(!result.ok&&System.Text.RegularExpressions.Regex.IsMatch(result.error_type??"",@"\A[A-Za-z][A-Za-z0-9]{0,79}\z"))ErrorType=result.error_type;
+                    if(!result.ok&&System.Text.RegularExpressions.Regex.IsMatch(result.error_operation??"",@"\A[A-Za-z_][A-Za-z0-9_]{0,79}\z"))ErrorType+="@"+result.error_operation;
+                    if(!result.ok&&result.transport_status>=100&&result.transport_status<=599)ErrorType+="/"+result.transport_status;
                     string expected=Path.Combine(Path.GetDirectoryName(source),Path.GetFileNameWithoutExtension(source)+"_AI.png");
                     if(result.ok&&result.output==expected&&File.Exists(expected)&&new FileInfo(expected).Length<32*1024*1024)ResultPng=File.ReadAllBytes(expected);
                 }

@@ -448,7 +448,7 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(386,239,508,30),"画面分辨率 · 目标 60 FPS",21,HudPainter.Ink,bold:true);
             for(int i=0;i<3;i++)if(hud.Button(new Rect(386,280+i*46,508,36),DisplayPreferences.Label(i),draftResolution==i?HudPainter.Gold:HudPainter.Muted,18))draftResolution=i;
             hud.Text(new Rect(386,423,508,26),$"当前画面 {Screen.width} × {Screen.height} · 60 FPS 上限",14,HudPainter.Muted);
-            if(hud.Button(new Rect(386,462,508,35),draftPhotoAi?"合照 AI 融合美化：开":"合照 AI 融合美化：关",draftPhotoAi?HudPainter.Cyan:HudPainter.Muted,17))draftPhotoAi=!draftPhotoAi;
+            if(hud.Button(new Rect(386,462,508,35),draftPhotoAi?"合照 AI 光色优化：开":"合照 AI 光色优化：关",draftPhotoAi?HudPainter.Cyan:HudPainter.Muted,17))draftPhotoAi=!draftPhotoAi;
             hud.Text(new Rect(386,510,508,40),"原图先保存，AI 版本完成后另存；不耽误下一局。\n2K 对显卡要求更高，可随时切回 1080P。",14,HudPainter.Muted);
         }
         void DrawAudioSettings()

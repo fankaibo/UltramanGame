@@ -92,7 +92,7 @@ namespace UltramanGame.Editor
             }
             finally{UnityEngine.Object.DestroyImmediate(first);UnityEngine.Object.DestroyImmediate(next);}
         }
-        static Texture2D Person(string kind,out PoseFrame pose)
+        internal static Texture2D Person(string kind,out PoseFrame pose)
         {
             var pixels=new Color32[640*480];bool full=kind=="full",group=kind=="group",raised=kind=="raised";
             int cx=group?210:320,cy=full?382:330,r=full?36:65,shoulder=full?320:230;
