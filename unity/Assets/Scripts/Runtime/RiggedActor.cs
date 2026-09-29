@@ -881,6 +881,22 @@ namespace UltramanGame.Runtime
                 if(state.Phase!=GamePhase.Victory||preview>=0)anchor.y=home.y+tailHeight+launch.Lift;
                 else anchor.y=Mathf.Max(home.y+.70f,anchor.y);
                 tailJoints[0].position=anchor;
+                if(launch.Active)
+                {
+                    // The tail lags the hip turn and curls upward through its
+                    // own joints. Translating a rigid tail with both feet made
+                    // the airborne creature look like a lifted standing model.
+                    var side=Vector3.Cross(Vector3.up,forward);
+                    float follow=launch.TailFollow,sign=launch.Left?-1:1;
+                    tailJoints[0].rotation=Quaternion.AngleAxis(sign*12*follow,Vector3.up)
+                        *Quaternion.AngleAxis(9*follow,side)*tailJoints[0].rotation;
+                    for(int i=1;i<tailJoints.Length;i++)
+                    {
+                        float along=(float)i/(tailJoints.Length-1);
+                        float curl=Mathf.Sin(along*Mathf.PI)*8*follow;
+                        tailJoints[i].rotation=Quaternion.AngleAxis(curl,side)*tailJoints[i].rotation;
+                    }
+                }
                 if(state.Phase==GamePhase.Victory&&preview<0&&tailJoints.Length>1)
                 {
                     // Lowering the hips must not drag the distal tail through
@@ -990,7 +1006,15 @@ namespace UltramanGame.Runtime
             Vector3 travel=-forward*(.18f*launch.Travel);
             launchRootBase=Root.position;launchRotationBase=Root.rotation;launchPoseApplied=true;
             Root.position=home+travel+Vector3.up*(launch.Lift-.14f*launch.Compression);
-            Root.rotation=Quaternion.AngleAxis(-14*air,side)*Quaternion.AngleAxis(sign*8*air,Vector3.up)*facing;
+            // Rotate around the hips, not the feet. The chest is thrown back
+            // and sideways while the pelvis stays on the ballistic arc, so the
+            // limbs can fold instead of dragging an upright statue upwards.
+            Root.rotation=facing;
+            Vector3 pivot=pelvis?pelvis.position:Root.position+Vector3.up*1.6f;
+            float tumble=launch.Tumble;
+            Root.rotation=Quaternion.AngleAxis(-38*tumble,side)*Quaternion.AngleAxis(sign*16*tumble,Vector3.up)
+                *Quaternion.AngleAxis(sign*11*tumble,forward)*facing;
+            if(pelvis)Root.position+=pivot-pelvis.position;
             if(!stepLegsApplied)
             {
                 stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
@@ -998,8 +1022,9 @@ namespace UltramanGame.Runtime
             }
             // Unequal folded knees and a lifted tail make the whole creature
             // airborne. On landing the soles stay still while the hips compress.
-            Vector3 left=home+facing*leftFootLocal-forward*(.18f*launch.FootTravel(true))+Vector3.up*(launch.Lift+.17f*air+launch.FootLift(true))-forward*.12f*air;
-            Vector3 right=home+facing*rightFootLocal-forward*(.18f*launch.FootTravel(false))+Vector3.up*(launch.Lift+.08f*air+launch.FootLift(false))+forward*.10f*air;
+            float leftTuck=launch.Left?.38f:.16f,rightTuck=launch.Left?.16f:.38f;
+            Vector3 left=home+facing*leftFootLocal-forward*(.18f*launch.FootTravel(true))+Vector3.up*(launch.Lift+leftTuck*tumble+launch.FootLift(true))+forward*(launch.Left?-.24f:.10f)*tumble;
+            Vector3 right=home+facing*rightFootLocal-forward*(.18f*launch.FootTravel(false))+Vector3.up*(launch.Lift+rightTuck*tumble+launch.FootLift(false))+forward*(launch.Left?.10f:-.24f)*tumble;
             float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));
             // launchRootBase restores this drop together with the launch pose.
             Root.position-=Vector3.up*drop;

@@ -30,7 +30,7 @@ namespace UltramanGame.Editor
                 var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
                 var tracked=new System.Collections.Generic.List<Transform>();
                 foreach(var joint in enemy.Root.GetComponentsInChildren<Transform>())
-                    if(joint.name.StartsWith("bip_")&&(joint.name.Contains("hand_")||joint.name.Contains("lowerArm_")||joint.name.Contains("index_")||joint.name.Contains("middle_")||joint.name.Contains("ring_")||joint.name.Contains("pinky_")||joint.name.Contains("thumb_")))tracked.Add(joint);
+                    if(joint.name.StartsWith("tail_")||joint.name.StartsWith("bip_")&&(joint.name.Contains("hand_")||joint.name.Contains("lowerArm_")||joint.name.Contains("index_")||joint.name.Contains("middle_")||joint.name.Contains("ring_")||joint.name.Contains("pinky_")||joint.name.Contains("thumb_")))tracked.Add(joint);
                 var before=new Vector3[tracked.Count];float error=0,bend=0,dt=1f/rate;int hits=0,beams=0;bool reset=false,pause=false,resume=false;string worst="";
                 for(int f=0;f<rate*28;f++)
                 {

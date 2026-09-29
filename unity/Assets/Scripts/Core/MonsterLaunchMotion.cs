@@ -20,6 +20,10 @@ namespace UltramanGame.Core
             return ordinal%10==0;
         }
         public float Air=>Active&&Age<Landing?(float)Math.Sin(Math.PI*Age/Landing):0;
+        // The hips begin turning after contact, then square up before landing.
+        // Unlike the vertical arc, this has zero angular speed at both ends.
+        public float Tumble=>Active?Smooth(Age/.24f)*(1-Smooth((Age-.28f)/(Landing-.28f))):0;
+        public float TailFollow=>Active?Smooth((Age-.055f)/.24f)*(1-Smooth((Age-.30f)/(Landing-.30f))):0;
         public float Lift=>Active&&Age<Landing?.72f*4*(Age/Landing)*(1-Age/Landing):0;
         public float Travel=>Active?Smooth(Age/.30f)*(1-Smooth((Age-Recovery)/(Duration-Recovery))):0;
         public float FootTravel(bool left)=>Active?Smooth(Age/.30f)*(1-Smooth((Age-Recovery-(left==Left?0:StepSeconds))/StepSeconds)):0;

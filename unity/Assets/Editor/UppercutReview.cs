@@ -10,7 +10,14 @@ namespace UltramanGame.Editor
 {
     public static class UppercutReview
     {
-        static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/uppercut"));
+        static string Folder
+        {
+            get
+            {
+                var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--uppercut-output");
+                return Path.GetFullPath(at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/uppercut"));
+            }
+        }
         public static void Rapid(){var report=new StringBuilder();foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int rate in id=="Tiga"?new[]{15,30,60}:new[]{30})foreach(bool left in new[]{true,false})Run(id,rate,left,"rapid",report);}
         public static void Release()
         {
