@@ -7,10 +7,7 @@ namespace UltramanGame.Runtime
     // editor captures agree without touching the gesture or battle clocks.
     public sealed class VolcanoStage : MonoBehaviour
     {
-        readonly List<Transform> embers=new List<Transform>();
-        readonly List<Vector3> emberVelocity=new List<Vector3>();
-        readonly List<float> emberAge=new List<float>();
-        readonly Transform[] lavaBombs=new Transform[64];
+        VolcanicEjecta ejecta;
         readonly Material[] cloudMaterials=new Material[2];
         const int AshCount=42;
         Mesh ashMesh;
@@ -52,7 +49,6 @@ namespace UltramanGame.Runtime
             rock=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
             Surface(rock,"rock_face_03","diff",new Color(.46f,.50f,.56f),.37f,true);
             rock.SetFloat("_BackdropBlend",0);
-            var emberMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")){color=new Color(1,.32f,.065f,.8f)});
             BuildTerrain();
             for(int i=0;i<64;i++)
             {
@@ -104,16 +100,7 @@ namespace UltramanGame.Runtime
                     origin+new Vector3(.46f,2.83f,0),new Vector3(3.8f,5.6f,3.2f),material);
                 var renderer=volume.GetComponent<Renderer>();renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;renderer.receiveShadows=false;
             }
-            var molten=RuntimeResources.Own(transform,new Material(Resources.Load<Material>("PrototypeSurface")));
-            molten.color=new Color(.42f,.08f,.012f);molten.EnableKeyword("_EMISSION");molten.SetColor("_EmissionColor",new Color(3.4f,.72f,.05f));
-            for(int i=0;i<lavaBombs.Length;i++)
-                lavaBombs[i]=GameWorld.Primitive("Ballistic molten rock",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*.055f,molten);
-            for(int i=0;i<26;i++)
-            {
-                var t=GameWorld.Primitive("Vent ember",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*Range(.017f,.032f),emberMaterial);
-                embers.Add(t);emberVelocity.Add(new Vector3(Range(-.38f,.38f),Range(1.3f,2.3f),Range(-.2f,.2f)));
-                emberAge.Add(Range(0,3.8f));t.gameObject.SetActive(false);
-            }
+            ejecta=new VolcanicEjecta(transform,vents,Height);
             // A sparse foreground ash layer adds depth between the camera and the
             // actors.  The deterministic loops keep editor reviews and live play
             // identical while the very low opacity leaves the gesture silhouette
@@ -303,21 +290,7 @@ namespace UltramanGame.Runtime
             float eruption=Mathf.Sin(Mathf.Repeat(time*.82f,2.8f)/2.8f*Mathf.PI);
             foregroundLavaLight.intensity=.16f+.12f*pulse+.26f*eruption;
             var lens=Camera.main;
-            for(int i=0;i<lavaBombs.Length;i++)
-            {
-                float age=Mathf.Repeat(time+i*.073f,2.5f),phase=i*2.399f;
-                Vector3 origin=vents[i%2];origin.y=Height(origin.x,origin.z)+.09f;
-                Vector3 velocity=new Vector3(Mathf.Sin(phase)*(.28f+(i%4)*.13f),3.3f+(i%7)*.22f,Mathf.Cos(phase)*.5f);
-                Vector3 point=origin+velocity*age+Vector3.down*2.7f*age*age;
-                bool active=point.y>Height(point.x,point.z);lavaBombs[i].gameObject.SetActive(active);
-                if(active){lavaBombs[i].position=point;lavaBombs[i].localScale=Vector3.one*(.027f+(i%5)*.007f)*(1-age*.13f);}
-            }
-            for(int i=0;i<embers.Count;i++)
-            {
-                float age=Mathf.Repeat(time+emberAge[i],3.8f);var origin=vents[i%vents.Length];origin.y=Height(origin.x,origin.z)+.04f;
-                Vector3 p=origin+emberVelocity[i]*age+Vector3.down*.95f*age*age;
-                bool active=age<2.1f&&p.y>Height(p.x,p.z);embers[i].gameObject.SetActive(active);if(active)embers[i].position=p;
-            }
+            ejecta.Tick(time,lens);
             // The tiny foreground motes do not need a vertex upload on every render
             // tick.  Updating at 45 Hz keeps their motion fluid while leaving the
             // render thread headroom for skeletal animation and camera compositing.
