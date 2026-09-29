@@ -26,18 +26,23 @@ namespace UltramanGame.Runtime
         readonly Batch[] batches={new Batch(),new Batch(),new Batch(),new Batch(),new Batch()};
         readonly Func<float,float,float> height;
         readonly System.Random random=new System.Random(930);
+        readonly List<OutpostDamage.Panel> loose=new List<OutpostDamage.Panel>();
+        int buildingIndex=-1;
+        public OutpostDamage Damage {get;private set;}
         Matrix4x4 frame=Matrix4x4.identity;
         const int Concrete=0,Steel=1,Road=2,Paint=3,Glass=4;
         float Range(float a,float b)=>Mathf.Lerp(a,b,(float)random.NextDouble());
         VolcanicOutpost(Func<float,float,float> ground){height=ground;}
-        public static Transform Create(Transform parent,Func<float,float,float> ground)
+        public static VolcanicOutpost Create(Transform parent,Func<float,float,float> ground)
         {
             var root=new GameObject("Abandoned volcano observation base").transform;root.SetParent(parent,false);
-            var site=new VolcanicOutpost(ground);site.Build();site.Upload(root);return root;
+            var site=new VolcanicOutpost(ground);site.Build();site.Upload(root);return site;
         }
         void Site(float x,float z,float rotation=0)
         {frame=Matrix4x4.TRS(new Vector3(x,height(x,z)-.035f,z),Quaternion.Euler(0,rotation,0),Vector3.one);}
         void Quad(int material,Matrix4x4 matrix,Vector3 a,Vector3 b,Vector3 c,Vector3 d)=>batches[material].Quad(matrix,a,b,c,d);
+        void Loose(Vector3 center,Vector3 size)
+        {loose.Add(new OutpostDamage.Panel{Frame=frame*Matrix4x4.TRS(center,Quaternion.identity,size),Building=buildingIndex});}
         void Box(int material,Vector3 center,Vector3 size,Vector3 angles=default)
         {
             var m=frame*Matrix4x4.TRS(center,Quaternion.Euler(angles),size);
@@ -79,13 +84,22 @@ namespace UltramanGame.Runtime
         }
         void Building(float x,float z,float yaw,int floors)
         {
+            buildingIndex++;
             Site(x,z,yaw);const float width=1.55f,depth=1.06f,storey=.34f;
             Box(Concrete,new Vector3(0,.03f,0),new Vector3(width+.1f,.08f,depth+.1f));
             for(int floor=0;floor<floors;floor++)
             {
                 float y=.08f+floor*storey;
                 // Slabs stop at the broken rear corner, exposing their thickness.
-                Box(Concrete,new Vector3(-.16f-floor*.14f,y,0),new Vector3(width-.32f-floor*.28f,.042f,depth));
+                float slabWidth=width-.32f-floor*.28f,slabCenter=-.16f-floor*.14f;
+                if(floor==0)Box(Concrete,new Vector3(slabCenter,y,0),new Vector3(slabWidth,.042f,depth));
+                else
+                {
+                    // The exposed front half can detach in two sections. The
+                    // interior slab stays attached to the surviving rear frame.
+                    Box(Concrete,new Vector3(slabCenter,y,depth/4),new Vector3(slabWidth,.042f,depth/2));
+                    for(int side=-1;side<=1;side+=2)Loose(new Vector3(slabCenter+side*slabWidth/4,y,-depth/4),new Vector3(slabWidth/2,.042f,depth/2));
+                }
                 if(floor==0)Box(Concrete,new Vector3(.61f,y,-.28f),new Vector3(.3f,.042f,.5f));
                 for(int i=0;i<5;i++)
                 {
@@ -98,7 +112,7 @@ namespace UltramanGame.Runtime
                         if(y+.1f<top)Box(Concrete,new Vector3(mid,y+.065f,-depth/2),new Vector3(width/4-.06f,.105f,.074f));
                         if(y+.32f<top-.06f)
                         {
-                            Box(Concrete,new Vector3(mid,y+.29f,-depth/2),new Vector3(width/4-.05f,.06f,.075f));
+                            Loose(new Vector3(mid,y+.29f,-depth/2),new Vector3(width/4-.05f,.06f,.075f));
                             Rod(Steel,new Vector3(mid-.13f,y+.12f,-depth/2-.009f),new Vector3(mid+.13f,y+.12f,-depth/2-.009f),.009f);
                             // A few surviving panes sit inside real open windows.
                             if((i+floor)%3==0)Box(Glass,new Vector3(mid-.06f,y+.20f,-depth/2+.025f),new Vector3(.09f,.14f,.014f),new Vector3(0,4,3));
@@ -214,6 +228,7 @@ namespace UltramanGame.Runtime
                 mat.SetFloat("_Scale",i==Concrete?1.65f:4.0f);
                 var obj=new GameObject(names[i],typeof(MeshFilter),typeof(MeshRenderer));obj.transform.SetParent(root,false);
                 obj.GetComponent<MeshFilter>().sharedMesh=mesh;obj.GetComponent<MeshRenderer>().sharedMaterial=mat;
+                if(i==Concrete)Damage=new OutpostDamage(root,loose,mat,height);
             }
         }
     }

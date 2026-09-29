@@ -33,6 +33,8 @@ namespace UltramanGame.Runtime
         public int ActiveGroundStones=>groundImpact.ActiveStones;
         public int ActiveGroundDust=>groundImpact.ActiveClouds;
         public float GroundImpactAge=>groundImpact.LastAge;
+        public event System.Action<Vector3,string> GroundContact
+        {add{groundImpact.Contact+=value;}remove{groundImpact.Contact-=value;}}
         public int GroundContactCount=>groundImpact.Bursts;
         public string GroundContactCause=>groundImpact.LastCause;
         int sparkIndex,flashIndex,hitRayIndex;

@@ -139,6 +139,12 @@ namespace UltramanGame.Runtime
                 string groundKey="ground-"+world.GroundContactCause;
                 if(!proofFrames.Contains(groundKey+(photo.Captures>0?"-after-photo":"")))key=groundKey;
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&world.OutpostDamage.Detached>=2&&
+                proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
+            {
+                string outpost=world.OutpostDamage.ActiveClouds>=3?"outpost-dust":world.OutpostDamage.ActiveClouds==0?"outpost-settled":null;
+                if(outpost!=null&&!proofFrames.Contains(outpost+(photo.Captures>0?"-after-photo":"")))key=outpost;
+            }
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));

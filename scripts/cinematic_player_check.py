@@ -92,6 +92,12 @@ def main():
     # Startup renders a silent beam brace to warm the same contact materials.
     # Only gameplay contacts should have a matching gameplay sound event.
     ground_contacts = re.findall(r'\[GroundImpact\] cause=([^ ]+) ', live_output)
+    outpost_shocks = re.findall(r'\[OutpostShock\] cause=([^ ]+) scheduled=(\d+)', live_output)
+    if [cause for cause, _ in outpost_shocks] != ground_contacts:
+        raise RuntimeError('Outpost response must follow each real ground contact exactly once')
+    detached_panels = sum(int(count) for _, count in outpost_shocks)
+    if detached_panels < 4:
+        raise RuntimeError('Heavy impacts did not detach outpost panels')
     launch_landings = output.count('[MonsterLaunch] landed age=')
     if launch_landings < 1 or ground_contacts.count('uppercut-land') != launch_landings:
         raise RuntimeError('Missing uppercut launch/landing feedback')
@@ -124,6 +130,7 @@ def main():
                 'uppercut-airborne', 'uppercut-land', 'uppercut-recover')
     required += ('monster-arms-left','monster-arms-right','monster-arms-uppercut','monster-arms-beam')
     required += ('monster-recovery-drop','monster-recovery-return')
+    required += ('outpost-dust','outpost-settled')
     if args.slam:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:
@@ -147,6 +154,7 @@ def main():
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,
               'evidence_directory': str(evidence), 'beam_reaction_cuts': reaction_cuts,
+              'outpost_shocks': len(outpost_shocks), 'outpost_detachments_scheduled': detached_panels,
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))
     (root / 'artifacts/cinematic-combat/player-validation.json').write_text(json.dumps(result, indent=2))

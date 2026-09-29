@@ -28,6 +28,7 @@ namespace UltramanGame.Runtime
         public string LastCause {get;private set;}
         public float LastAge {get;private set;}=10;
         public Vector3 LastOrigin {get;private set;}
+        public event System.Action<Vector3,string> Contact;
         float Range(float a,float b)=>Mathf.Lerp(a,b,(float)random.NextDouble());
         public GroundImpact(Transform parent)
         {
@@ -93,6 +94,7 @@ namespace UltramanGame.Runtime
                 c.Root.gameObject.SetActive(c.Age>=0);c.Material.SetFloat("_Age",0);
             }
             if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] cause={cause} origin={origin.ToString("F3")} stones={stoneCount} dust={cloudCount}");
+            Contact?.Invoke(origin,cause);
         }
         static void Pose(Stone s)
         {
