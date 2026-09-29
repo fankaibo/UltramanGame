@@ -14,6 +14,9 @@ namespace UltramanGame.Core
         public GamePhase Phase { get; private set; } = GamePhase.Waiting;
         public EnemyPhase Enemy { get; private set; }
         public HeroAction Action { get; private set; }
+        // Presentation may anticipate an already accepted next fist. It never
+        // creates an input, shortens recovery or applies damage on its own.
+        public HeroAction BufferedPunch=>Phase==GamePhase.Battle?queuedPunch:HeroAction.None;
         public int MaxHealth { get; }
         public float EnemyHealth { get; private set; }
         public float Energy { get; private set; }

@@ -42,6 +42,8 @@ namespace UltramanGame.Runtime
         readonly MonsterStaggerMotion stagger=new MonsterStaggerMotion();
         readonly MonsterLaunchMotion launch=new MonsterLaunchMotion();
         readonly MonsterBeamMotion beamRecoil=new MonsterBeamMotion();
+        readonly HeroPunchLink punchLink=new HeroPunchLink();
+        public float LinkedPunchWeight=>punchLink.Weight;
         Vector3 beamTravel;
         public float BeamRecoilAge=>beamRecoil.Active?beamRecoil.Age:10;
         public bool BeamRecoilLeft=>beamRecoil.Left;
@@ -424,6 +426,7 @@ namespace UltramanGame.Runtime
                 contactLayerApplied=false;
             }
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
+            punchLink.Tick(state,dt,!monster&&preview<0);
             if(!monster)
             {
                 if(state.Phase!=GamePhase.Battle)
@@ -762,6 +765,19 @@ namespace UltramanGame.Runtime
                     upperArm.rotation=Quaternion.AngleAxis(shoulder,forward)*upperArm.rotation;
                     leftUpperArm.rotation=Quaternion.AngleAxis(-shoulder,forward)*leftUpperArm.rotation;
                 }
+                contactLayerApplied=true;
+            }
+            if(!monster&&punchLink.Weight>0)
+            {
+                // Wind the accepted next shoulder while the current fist
+                // retracts. The loading pose survives the brief Idle handoff,
+                // and is entirely gone at the unchanged punch contact time.
+                var right=Vector3.Cross(Vector3.up,forward);
+                if(!contactLayerApplied)
+                {if(upperSpine)spineBase=upperSpine.localRotation;if(head)headBase=head.localRotation;}
+                if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(-punchLink.Sign*10*punchLink.Weight,Vector3.up)
+                    *Quaternion.AngleAxis(1.5f*punchLink.Weight,right)*upperSpine.rotation;
+                if(head)head.rotation=Quaternion.AngleAxis(punchLink.Sign*5*punchLink.Weight,Vector3.up)*head.rotation;
                 contactLayerApplied=true;
             }
             if(monster&&preview<0&&next=="Hurt"&&state.Phase==GamePhase.Battle)
@@ -1173,6 +1189,11 @@ namespace UltramanGame.Runtime
             Vector3.up*(opponent.LaunchAge<MonsterLaunchMotion.Landing?.36f:0):opponentHome-forward*.33f+Vector3.up*2.48f;
         static float PunchReach(float age)=>age<Battle.PunchHitSeconds?Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds):
             1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
+        Vector3 LinkedGuard(Vector3 guard,bool left,Vector3 side)
+        {
+            if(punchLink.Side!=(left?HeroAction.LeftPunch:HeroAction.RightPunch))return guard;
+            return guard+(-forward*.10f-side*((left?-1:1)*.03f)-Vector3.up*.15f)*punchLink.Weight;
+        }
         void PoseRetargetedArms(Battle state)
         {
             if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
@@ -1194,7 +1215,7 @@ namespace UltramanGame.Runtime
                 bool left=i==0,active=punch&&(left==(state.Action==HeroAction.LeftPunch));
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
                 float sign=left?-1:1;
-                Vector3 guard=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+                Vector3 guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
                 Vector3 target=guard;
                 if(active)
                 {
@@ -1226,7 +1247,7 @@ namespace UltramanGame.Runtime
             {
                 bool left=i==0,active=punch&&!combo&&left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-                Vector3 guard=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+                Vector3 guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
                 Vector3 target=guard;
                 if(active)
                 {
@@ -1258,7 +1279,7 @@ namespace UltramanGame.Runtime
             {
                 bool left=i==0,active=left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-                Vector3 guard=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+                Vector3 guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
                 Vector3 target=guard;
                 if(active)
                 {

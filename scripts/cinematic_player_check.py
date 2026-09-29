@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--hero', choices=('Tiga','Mebius','Zero','Geed','Grigio'), default='Tiga')
     parser.add_argument('--slam', action='store_true', help='Wait for the third, ground-slam attack before counterattacking')
     parser.add_argument('--ray', action='store_true', help='Exercise the fourth, head-ray attack before counterattacking')
+    parser.add_argument('--linked', action='store_true', help='Queue the first three alternating fists during recovery')
     args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     started = datetime.now(timezone.utc)
@@ -36,7 +37,7 @@ def main():
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
                                    '--proof-output', str(native), '-screen-fullscreen', '0',
-                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else []),
+                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else []),
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         try:
             code = player.wait(timeout=180)
@@ -120,6 +121,8 @@ def main():
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:
         required += ('ray-prepare','ray-travel','ray-block','ray-fade','ray-recover')
+    if args.linked:
+        required += ('punch-link-prepare','punch-link-handoff')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
@@ -131,7 +134,7 @@ def main():
         if max(abs(a-b) for a,b in zip(pixel,(255,161,59)))>2:
             raise RuntimeError(f'HUD color was encoded incorrectly: {pixel}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,
