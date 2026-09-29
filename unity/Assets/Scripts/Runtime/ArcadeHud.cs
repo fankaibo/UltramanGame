@@ -48,7 +48,7 @@ namespace UltramanGame.Runtime
                     hud.Rounded(new Rect(36,110,244,27),new Color(.01f,.04f,.08f,.86f),6);
                     hud.Text(new Rect(42,110,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
                 }
-                if(battle.Punches>0)
+                if(battle.Punches>0&&!world.BeamReactionCloseup)
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
                     hud.Text(new Rect(37,235,210,77),battle.Punches.ToString("00"),50+(int)(pulse*7),new Color(1,.88f,.52f),bold:true);
@@ -84,7 +84,7 @@ namespace UltramanGame.Runtime
                     bool special=lastDamage>1;
                     hud.Text(new Rect(1020,107-lift,144,31),"−"+lastDamage.ToString("00"),special?28:24,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
                 }
-                if(warning)
+                if(warning&&battle.Action!=HeroAction.Beam)
                 {
                     float opacity=battle.Shield?.7f:.3f+Mathf.Sin(time*4)*.1f;
                     hud.Box(new Rect(0,130,4,420),new Color(1,.51f,.22f,opacity));

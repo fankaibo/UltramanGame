@@ -66,6 +66,9 @@ def main():
     beam_braces = live_output.count('[MonsterBeam] brace ')
     if beam_braces != 2:
         raise RuntimeError(f'Expected two beam recovery-foot landings, got {beam_braces}')
+    reaction_cuts = dict(begins=live_output.count('[BeamReactionCamera] begin'), ends=live_output.count('[BeamReactionCamera] end'))
+    if reaction_cuts != dict(begins=2, ends=2):
+        raise RuntimeError(f'Missing beam reaction shot or return: {reaction_cuts}')
     if output.count('[VolcanoEnvironment] captured=True faces=6 size=128 mipmaps=True') != 1:
         raise RuntimeError('Expected one successful arena reflection capture at startup')
     if f'[FullGameReviewHero] id={args.hero}' not in output:
@@ -106,7 +109,7 @@ def main():
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
     required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
-                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'beam-braced', 'beam-pressure', 'beam-recovery', 'Paused', 'Victory',
+                'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'beam-braced', 'beam-pressure', 'beam-recovery', 'beam-reaction-entry', 'beam-reaction-peak', 'Paused', 'Victory',
                 'victory-collapse', 'victory-turn', 'victory-dissolve', 'victory-motes', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',
                 'combo-left', 'combo-right', 'monster-threat', 'monster-threat-return',
@@ -132,7 +135,7 @@ def main():
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces,
-              'evidence_directory': str(evidence),
+              'evidence_directory': str(evidence), 'beam_reaction_cuts': reaction_cuts,
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))
     (root / 'artifacts/cinematic-combat/player-validation.json').write_text(json.dumps(result, indent=2))

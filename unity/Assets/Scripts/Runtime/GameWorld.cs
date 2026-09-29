@@ -25,6 +25,7 @@ namespace UltramanGame.Runtime
         public bool TransformationCloseup {get;private set;}
         float lastEntranceAge;
         public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
+        public bool BeamReactionCloseup {get;private set;}
         public float EnemyOpacity=>HeroShot||TransformationCloseup?0:1;
         public readonly Vector3 HeroHome=new Vector3(-.955f,0,-.555f),EnemyHome=new Vector3(.955f,0,1.355f);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
@@ -126,7 +127,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -256,6 +257,10 @@ namespace UltramanGame.Runtime
             }
             bool wasCloseup=Closeup.Active;Closeup.Tick(dt,state,Showcase);
             if(wasCloseup&&!Closeup.Active&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] end phase={state.Phase} action={state.Action}");
+            bool reaction= !Showcase&&!Closeup.Active&&BeamReactionShot.Active(state);
+            if(reaction!=BeamReactionCloseup&&Debug.isDebugBuild)
+                Debug.Log($"[BeamReactionCamera] {(reaction?"begin":"end")} age={state.ActionAge:F3} phase={state.Phase}");
+            BeamReactionCloseup=reaction;
             float focus=Closeup.Focus;
             int oldShots=comboCamera.Shots;
             comboCamera.Tick(state,dt,Showcase||Closeup.Active);
@@ -304,7 +309,7 @@ namespace UltramanGame.Runtime
             // the distant plate with that pan so its edge never enters view.
             float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
                 ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*(TransformationCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*(BeamReactionCloseup?1.95f:TransformationCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
             scale*=Mathf.Lerp(1,1.32f,ThreatFocus);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
@@ -423,6 +428,19 @@ namespace UltramanGame.Runtime
                 Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
                 Camera.fieldOfView=32;
                 // Reproject the distant landscape for this dedicated lens.
+                backdrop.rotation=Camera.transform.rotation;
+                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
+            }
+            if(BeamReactionCloseup)
+            {
+                // An editorial cut, not a fast camera flight through the hero.
+                // See the actual chest contact, head recoil and rolling smoke
+                // from the same side of the fight axis as the wide shot.
+                float t=BeamReactionShot.Progress(state.ActionAge);
+                Vector3 side=Vector3.Cross(Vector3.up,BattleAxis);
+                Camera.transform.position=EnemyHome-BattleAxis*(3.15f-.10f*t)+side*2.55f+Vector3.up*2.75f;
+                Vector3 contactFollow=Vector3.Lerp(EnemyHome+Vector3.up*2.60f,BeamTarget+Vector3.up*.18f,.28f);
+                Camera.transform.LookAt(contactFollow);Camera.fieldOfView=43;
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
             }

@@ -42,7 +42,7 @@ namespace UltramanGame.Editor
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var stream=GameObject.Find("Zeperion traveling stream").GetComponent<LineRenderer>();
             float health=state.EnemyHealth,maxTravel=0;Vector3 restingTarget=world.BeamTarget;int damage=0,flight=0,contact=0,releases=0;
-            float dt=1f/fps;
+            float dt=1f/fps;int reactionFrames=0;bool returnedFromReaction=false;
             for(int f=0;f<fps*5;f++)
             {
                 state.Tick(world.BattleDelta(dt,state),new PlayerInput{Tracking=true,Beam=f==0});
@@ -51,6 +51,21 @@ namespace UltramanGame.Editor
                 if(state.EnemyHealth<health){damage++;world.Hit(true,state);}health=state.EnemyHealth;
                 world.Tick(state,dt,f*dt);
                 if(world.BeamStarted)releases++;
+                if(world.BeamReactionCloseup)
+                {
+                    if(damage!=1||world.Closeup.Active||returnedFromReaction)throw new Exception("Reaction camera cut before hit or reentered");
+                    ValidateReactionFrame(world);
+                    if(reactionFrames++==0)
+                    {
+                        Vector3 position=world.Camera.transform.position;Quaternion rotation=world.Camera.transform.rotation;
+                        float lens=world.Camera.fieldOfView;
+                        world.Tick(state,0,f*dt);
+                        if(Vector3.Distance(position,world.Camera.transform.position)>.00001f||
+                            Quaternion.Angle(rotation,world.Camera.transform.rotation)>.001f||lens!=world.Camera.fieldOfView)
+                            throw new Exception("Reaction camera moves with zero elapsed time");
+                    }
+                }
+                else if(reactionFrames>0)returnedFromReaction=true;
                 if(world.Closeup.Active&&(world.BeamVisible||damage!=0))throw new Exception("Beam/damage during closeup");
                 if(world.BeamVisible)
                 {
@@ -65,18 +80,34 @@ namespace UltramanGame.Editor
                 if(interrupt>0&&state.Action==HeroAction.Beam&&state.ActionAge>=interrupt)
                 {
                     state.Pause();world.Tick(state,dt,f*dt);
-                    if(world.BeamVisible||GameObject.Find("Energy spill").GetComponent<Light>().intensity!=0||
+                    if(world.BeamReactionCloseup||world.BeamVisible||GameObject.Find("Energy spill").GetComponent<Light>().intensity!=0||
                         GameObject.Find("Impact spill").GetComponent<Light>().intensity!=0)throw new Exception("Pause leaves beam light/stream visible");
                     world.ResetPresentation();world.Tick(new Battle(),dt,f*dt);
-                    if(world.BeamVisible)throw new Exception("Restart leaves beam visible");
+                    if(world.BeamVisible||world.BeamReactionCloseup)throw new Exception("Restart leaves beam/camera active");
                     string canceled=$"{heroId} {fps}fps cancelAt={interrupt:F2} pause-and-reset=passed";
                     reports.AppendLine(canceled);Debug.Log("[FinisherFlow] "+canceled);return;
                 }
             }
-            if(damage!=1||health!=26||releases!=1||flight==0||contact==0||maxTravel<.04f||world.BeamVisible)
+            if(damage!=1||health!=26||releases!=1||flight==0||contact==0||maxTravel<.04f||world.BeamVisible||reactionFrames==0||!returnedFromReaction)
                 throw new Exception($"Invalid flow hero={heroId} fps={fps} damage={damage} health={health} release={releases} flight={flight} contact={contact} chestTravel={maxTravel}");
-            string result=$"{heroId} {fps}fps flight={flight} contact={contact} damage=9 releases=1 chestTravel={maxTravel:F4} recovery=passed";
+            string result=$"{heroId} {fps}fps flight={flight} contact={contact} damage=9 releases=1 chestTravel={maxTravel:F4} recovery=passed reactionFrames={reactionFrames} framing/coverage/zero-time/return=passed";
             reports.AppendLine(result);Debug.Log("[FinisherFlow] "+result);
+        }
+        static void ValidateReactionFrame(GameWorld world)
+        {
+            Vector3 chest=world.Camera.WorldToViewportPoint(world.BeamTarget);
+            if(chest.z<=0||chest.x<.25f||chest.x>.8f||chest.y<.18f||chest.y>.85f)
+                throw new Exception("Monster chest left the reaction composition: "+chest);
+            var backdrop=GameObject.Find("Realistic Mount Fuji night backdrop").transform;
+            var plane=new Plane(backdrop.forward,backdrop.position);
+            foreach(Vector3 corner in new[]{Vector3.zero,Vector3.right,Vector3.up,new Vector3(1,1,0)})
+            {
+                var ray=world.Camera.ViewportPointToRay(corner);
+                if(!plane.Raycast(ray,out float distance))throw new Exception("Reaction background behind camera");
+                Vector3 local=backdrop.InverseTransformPoint(ray.GetPoint(distance));
+                if(Mathf.Abs(local.x)>.495f||Mathf.Abs(local.y)>.495f)
+                    throw new Exception("Exposed reaction backdrop edge: "+local);
+            }
         }
         static void Render(string version)
         {
@@ -98,7 +129,7 @@ namespace UltramanGame.Editor
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");File.Delete(folder+"/impact-peak.png");
             var source=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/SkinnedSurfaceAnchor.cs","Scripts/Runtime/BeamStream.cs","Resources/BeamStream.shader","Scripts/Runtime/CinematicCamera.cs","Resources/CinematicComposite.shader","Resources/Characters/Golza/Golza.fbx.meta","Editor/CharacterAssetImport.cs","Editor/FinisherReview.cs","Scripts/Runtime/BeamCharge.cs","Resources/BeamChargeVolume.shader","Resources/ChargeFilament.shader","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Editor/BeamChargeReview.cs"})
+                foreach(string file in new[]{"Scripts/Core/BeamReactionShot.cs","Scripts/Runtime/ArcadeHud.cs","Scripts/Runtime/GuidedProof.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/SkinnedSurfaceAnchor.cs","Scripts/Runtime/BeamStream.cs","Resources/BeamStream.shader","Scripts/Runtime/CinematicCamera.cs","Resources/CinematicComposite.shader","Resources/Characters/Golza/Golza.fbx.meta","Editor/CharacterAssetImport.cs","Editor/FinisherReview.cs","Scripts/Runtime/BeamCharge.cs","Resources/BeamChargeVolume.shader","Resources/ChargeFilament.shader","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Editor/BeamChargeReview.cs"})
                 {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))source.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/render-source.txt",source.ToString());
             var rt=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;
