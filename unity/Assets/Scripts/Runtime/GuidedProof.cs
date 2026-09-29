@@ -14,6 +14,14 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            if(!photo.Active&&MonsterRayMotion.Active(battle))
+            {
+                string rayKey=battle.Enemy==EnemyPhase.Windup&&battle.WarningDuration-battle.EnemyAge<.18f?"ray-prepare":
+                    battle.Enemy==EnemyPhase.Attack?(battle.EnemyAge>=.24f&&battle.EnemyAge<.36f?"ray-travel":
+                    battle.EnemyAge>=.46f&&battle.EnemyAge<.62f?"ray-block":
+                    battle.EnemyAge>=.75f&&battle.EnemyAge<.85f?"ray-fade":null):battle.Enemy==EnemyPhase.Recover?"ray-recover":null;
+                if(rayKey!=null&&proofFrames.Add(rayKey)){StartCoroutine(SaveGuidedProof(rayKey));return;}
+            }
             if(!photo.Active&&MonsterSlamMotion.Active(battle))
             {
                 string slamKey=battle.Enemy==EnemyPhase.Windup&&battle.WarningDuration-battle.EnemyAge<.2f?"slam-prepare":

@@ -25,7 +25,9 @@ namespace UltramanGame.Runtime
             Vector3 Part(int bone,float weight)=>weight>0&&bones[bone]?bones[bone].TransformPoint(bindPoses[bone].MultiplyPoint3x4(v))*weight:Vector3.zero;
             return Part(w.boneIndex0,w.weight0)+Part(w.boneIndex1,w.weight1)+Part(w.boneIndex2,w.weight2)+Part(w.boneIndex3,w.weight3);
         }
-        public static SkinnedSurfaceAnchor Torso(Renderer[] surfaces,Ray ray)
+        public static SkinnedSurfaceAnchor Torso(Renderer[] surfaces,Ray ray)=>Create(surfaces,ray,"bip_spine","torso");
+        public static SkinnedSurfaceAnchor Head(Renderer[] surfaces,Ray ray)=>Create(surfaces,ray,"bip_head","head");
+        static SkinnedSurfaceAnchor Create(Renderer[] surfaces,Ray ray,string bonePrefix,string label)
         {
             SkinnedSurfaceAnchor selected=null;float nearest=float.MaxValue;var baked=new Mesh();
             try
@@ -41,7 +43,7 @@ namespace UltramanGame.Runtime
                     for(int v=0;v<vertices.Length;v++)
                     {
                         vertices[v]=skin.transform.TransformPoint(vertices[v]);var w=weights[v];
-                        float Part(int b,float weight)=>weight>0&&bones[b]&&bones[b].name.StartsWith("bip_spine",StringComparison.Ordinal)?weight:0;
+                        float Part(int b,float weight)=>weight>0&&bones[b]&&bones[b].name.StartsWith(bonePrefix,StringComparison.Ordinal)?weight:0;
                         chest[v]=Part(w.boneIndex0,w.weight0)+Part(w.boneIndex1,w.weight1)+Part(w.boneIndex2,w.weight2)+Part(w.boneIndex3,w.weight3);
                     }
                     for(int i=0;i<triangles.Length;i+=3)
@@ -54,8 +56,8 @@ namespace UltramanGame.Runtime
                 }
             }
             finally {if(Application.isPlaying)UnityEngine.Object.Destroy(baked);else UnityEngine.Object.DestroyImmediate(baked);}
-            if(selected==null)Debug.LogWarning("[BeamSurface] No torso surface found; using the chest-bone fallback");
-            else Debug.Log("[BeamSurface] torso-anchor=True vertices=3");
+            if(selected==null)Debug.LogWarning($"[BeamSurface] No {label} surface found; using the {(label=="torso"?"chest":"head")}-bone fallback");
+            else Debug.Log($"[BeamSurface] {label}-anchor=True vertices=3");
             return selected;
         }
         static bool Intersect(Ray ray,Vector3 a,Vector3 b,Vector3 c,out float distance,out Vector3 barycentric)

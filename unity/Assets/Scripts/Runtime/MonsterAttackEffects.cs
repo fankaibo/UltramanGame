@@ -99,7 +99,7 @@ namespace UltramanGame.Runtime
             // Older preview callers send the cue without Battle. Bind that cue
             // on its next sample rather than letting its contact follow the hand.
             if(active&&pendingImpact){impactAttack=state.EnemyAttackCount;pendingImpact=false;}
-            bool warning=active&&state.Enemy==EnemyPhase.Windup;
+            bool warning=active&&state.Enemy==EnemyPhase.Windup&&!MonsterRayMotion.Active(state);
             bool attack=active&&state.Enemy==EnemyPhase.Attack;
             Vector3 monster=home+forward*AnimatedActor.MonsterAdvance(state);
             Vector3 contact=target-forward*.7f+Vector3.up*2.15f-camera.transform.forward*.3f;
@@ -127,7 +127,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
-                claw.Visible=attack&&!MonsterSlamMotion.Variant(state.EnemyAttackCount)&&age>=.30f&&age<.64f;
+                claw.Visible=attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterSlamMotion.Variant(state.EnemyAttackCount)&&age>=.30f&&age<.64f;
                 if(claw.Visible)
                 {
                     float growth=Mathf.SmoothStep(0,1,Mathf.Clamp01((age-.30f)/.10f));

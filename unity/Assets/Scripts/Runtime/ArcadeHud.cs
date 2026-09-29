@@ -90,8 +90,8 @@ namespace UltramanGame.Runtime
                     hud.Box(new Rect(0,130,4,420),new Color(1,.51f,.22f,opacity));
                     hud.Box(new Rect(1276,130,4,420),new Color(1,.51f,.22f,opacity));
                     string warningText=battle.Enemy==EnemyPhase.Attack?
-                        (battle.Shield?"挡住它 · 保持护盾！":"怪兽冲过来了！"):
-                        (battle.Shield?"护盾准备好了":"怪兽正在蓄力");
+                        (battle.Shield?"挡住它 · 保持护盾！":MonsterRayMotion.Active(battle)?"光线来了 · 双手防御！":"怪兽冲过来了！"):
+                        (battle.Shield?"护盾准备好了":MonsterRayMotion.Active(battle)?"怪兽正在积蓄光线":"怪兽正在蓄力");
                     hud.Text(new Rect(855,139,335,36),warningText,20,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
                 }
             }

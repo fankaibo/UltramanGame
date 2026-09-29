@@ -5,6 +5,7 @@ edits; the actual game writes TEST photos to Downloads, which are moved into the
 ignored proof directory after validation.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 import numpy as np
 from PIL import Image
 
@@ -36,6 +38,12 @@ def main():
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
     log=options.log.resolve();log.parent.mkdir(parents=True,exist_ok=True);log.write_text('')
     folder=options.output.resolve();folder.mkdir(parents=True,exist_ok=True)
+    def build_hashes():
+        data=app/'Contents/Resources/Data'
+        return {key:hashlib.sha256((data/file).read_bytes()).hexdigest()
+                for key,file in [('assembly_sha256','Managed/Assembly-CSharp.dll'),('resources_sha256','resources.assets')]}
+    build={'started_utc':datetime.now(timezone.utc).isoformat(),'before':build_hashes()}
+    for name in ('guided-validation.json','build.json'):(folder/name).unlink(missing_ok=True)
     factory=FrameFactory(source='synthetic');process=None;photos=[]
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
@@ -161,6 +169,9 @@ def main():
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
-        finally:stop_process(process)
+        finally:
+            stop_process(process)
+            build['after']=build_hashes()
+            (folder/'build.json').write_text(json.dumps(build,indent=2)+'\n')
 
 if __name__=='__main__':main()

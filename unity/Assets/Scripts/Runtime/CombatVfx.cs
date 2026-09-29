@@ -180,7 +180,7 @@ namespace UltramanGame.Runtime
             if(state.Punches>previousPunches)
                 atmosphere.GroundBurst(hero.FootPosition(state.Action==HeroAction.LeftPunch),-axis,false);
             if(state.EnemyAttackCount!=previousAttack)previousEnemyAge=0;
-            if(state.Enemy==EnemyPhase.Attack)
+            if(state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount))
             {
                 bool left=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
                 bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
@@ -244,7 +244,7 @@ namespace UltramanGame.Runtime
             shieldMaterial.SetFloat("_Clock",clock);shieldMaterial.SetFloat("_HitAge",shieldHitAge);
             Vector3 enemyGround=end-Vector3.up*2.6f+axis*AnimatedActor.MonsterAdvance(state);
             bool warning=active&&state.Enemy==EnemyPhase.Windup;
-            bool attack=active&&state.Enemy==EnemyPhase.Attack;
+            bool attack=active&&state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount);
             warningRing.enabled=warning;attackRing.enabled=attack;
             if(warning)
             {

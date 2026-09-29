@@ -8,8 +8,8 @@ namespace UltramanGame.Core
         public bool Interrupted {get;private set;}
         float nextPunch,lossAge=-1;
         bool alternate;
-        readonly bool groundSlam;
-        public ReviewPlayback(bool groundSlam=false){this.groundSlam=groundSlam;}
+        readonly bool groundSlam,headRay;
+        public ReviewPlayback(bool groundSlam=false,bool headRay=false){this.groundSlam=groundSlam;this.headRay=headRay;}
         public PlayerInput Next(Battle battle,float dt)
         {
             Age+=dt;var input=new PlayerInput{Tracking=true};
@@ -20,7 +20,7 @@ namespace UltramanGame.Core
             if(battle.Phase==GamePhase.Paused)return input;
             // First take one harmless hit, then demonstrate a successful block.
             if(battle.HitsTaken==0)return input;
-            if(battle.Blocks<(groundSlam?2:1)){input.Shield=true;return input;}
+            if(battle.Blocks<(headRay?3:groundSlam?2:1)){input.Shield=true;return input;}
             if(battle.Enemy==EnemyPhase.Attack){input.Shield=true;return input;}
             if(battle.Action!=HeroAction.None)return input;
             if(battle.Energy>=Battle.MaxEnergy){input.Beam=true;return input;}

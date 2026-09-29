@@ -64,7 +64,7 @@ namespace UltramanGame.Runtime
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
         Transform head,upperSpine,pelvis;
         Vector3 beamContactLocal;
-        readonly SkinnedSurfaceAnchor beamSurface;
+        readonly SkinnedSurfaceAnchor beamSurface,foreheadSurface;
         Vector3 surfaceContactLocal;
         Transform leftThigh,rightThigh,leftShin,rightShin;
         Quaternion leftFootRest,rightFootRest;
@@ -91,14 +91,16 @@ namespace UltramanGame.Runtime
         readonly Transform[,] clawThumbs=new Transform[2,2];
         readonly Quaternion[] clawRollBase=new Quaternion[4];
         bool clawRollApplied;
-        bool slamPoseApplied;
-        float slamPrepare;
-        Vector3 slamRootBefore;
-        Quaternion slamRotationBefore;
-        readonly Quaternion[] slamRotations;
-        readonly Vector3[] slamPositions;
-        readonly Quaternion[] slamExitRotations;
-        readonly Vector3[] slamExitPositions;
+        bool attackPoseApplied;
+        float slamPrepare,rayPrepare;
+        Vector3 foreheadLocal;
+        public Vector3 RayOrigin=>foreheadSurface!=null?foreheadSurface.Position+forward*.035f:head?head.TransformPoint(foreheadLocal):Root.position+Vector3.up*3.4f;
+        Vector3 attackRootBefore;
+        Quaternion attackRotationBefore;
+        readonly Quaternion[] attackRotations;
+        readonly Vector3[] attackPositions;
+        readonly Quaternion[] attackExitRotations;
+        readonly Vector3[] attackExitPositions;
         readonly MonsterDissolve dissolve;
         public int DissolveStarts=>dissolve?.Starts??0;
         public int DissolveMotes=>dissolve?.ActiveMotes??0;
@@ -269,8 +271,8 @@ namespace UltramanGame.Runtime
                 if(tailJoints.Length>0){tailHeight=Root.InverseTransformPoint(tailJoints[0].position).y;tailRootRotation=Quaternion.Inverse(Root.rotation)*tailJoints[0].rotation;}
             }
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
-            slamRotations=new Quaternion[joints.Length];slamPositions=new Vector3[joints.Length];
-            slamExitRotations=new Quaternion[joints.Length];slamExitPositions=new Vector3[joints.Length];
+            attackRotations=new Quaternion[joints.Length];attackPositions=new Vector3[joints.Length];
+            attackExitRotations=new Quaternion[joints.Length];attackExitPositions=new Vector3[joints.Length];
             comboExitStart=new Quaternion[joints.Length];comboExitBase=new Quaternion[joints.Length];comboExitMask=new bool[joints.Length];
             if(!monster&&upperSpine)for(int i=0;i<joints.Length;i++)comboExitMask[i]=joints[i]==upperSpine||joints[i].IsChildOf(upperSpine);
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
@@ -284,7 +286,12 @@ namespace UltramanGame.Runtime
             if(rightFoot)rightFootLocal=Root.InverseTransformPoint(rightFoot.position);
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
             rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
-            if(monster)dissolve=new MonsterDissolve(Root,surfaces);
+            if(monster)
+            {
+                dissolve=new MonsterDissolve(Root,surfaces);
+                foreheadLocal=head.InverseTransformPoint(home+Vector3.up*3.48f+forward*.60f);
+                foreheadSurface=SkinnedSurfaceAnchor.Head(surfaces,new Ray(home+Vector3.up*3.48f+forward*3,-forward));
+            }
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2} vertices={modelVertices}");
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
@@ -358,14 +365,14 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
-            bool slamInterrupted=slamPoseApplied&&state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Attack&&state.EnemyHealth<lastHealth;
-            if(slamInterrupted)for(int i=0;i<joints.Length;i++)
-            {slamExitRotations[i]=joints[i].localRotation;slamExitPositions[i]=joints[i].localPosition;}
-            if(slamPoseApplied)
+            bool attackInterrupted=attackPoseApplied&&state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Attack&&state.EnemyHealth<lastHealth;
+            if(attackInterrupted)for(int i=0;i<joints.Length;i++)
+            {attackExitRotations[i]=joints[i].localRotation;attackExitPositions[i]=joints[i].localPosition;}
+            if(attackPoseApplied)
             {
-                Root.SetPositionAndRotation(slamRootBefore,slamRotationBefore);
-                for(int i=0;i<joints.Length;i++){joints[i].localRotation=slamRotations[i];joints[i].localPosition=slamPositions[i];}
-                slamPoseApplied=false;
+                Root.SetPositionAndRotation(attackRootBefore,attackRotationBefore);
+                for(int i=0;i<joints.Length;i++){joints[i].localRotation=attackRotations[i];joints[i].localPosition=attackPositions[i];}
+                attackPoseApplied=false;
             }
             if(clawRollApplied)
             {
@@ -441,7 +448,7 @@ namespace UltramanGame.Runtime
             // replay the recoil. Chest yields first; planted knees take the
             // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
             if(monster)
             {
                 if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack)beamRecoil.Clear();
@@ -521,7 +528,7 @@ namespace UltramanGame.Runtime
                 }
                 // The two-handed slam has its own planted stance. Sampling
                 // the lunge underneath it leaves one shin folded sideways.
-                if(preview<0&&MonsterSlamMotion.Active(state)&&next!="Hurt"){next="Idle";sample=0;}
+                if(preview<0&&(MonsterSlamMotion.Active(state)||MonsterRayMotion.Active(state))&&next!="Hurt"){next="Idle";sample=0;}
             }
             else if(state.Phase==GamePhase.Transforming) {next="Transform";sample=state.TransformationAge;Frame=6;}
             else if(state.Phase==GamePhase.Victory) {next="Victory";sample=Mathf.Max(0,phaseAge-VictoryMotion.TurnStartSeconds);Frame=7;}
@@ -557,11 +564,11 @@ namespace UltramanGame.Runtime
             }
             else clipAge+=dt;
             for(int i=0;i<joints.Length;i++) {positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
-            if(slamInterrupted&&next=="Hurt")
+            if(attackInterrupted&&next=="Hurt")
             {
                 // Blend out of the raised claws the player saw, not the idle
                 // source pose underneath the additive ground-strike layer.
-                for(int i=0;i<joints.Length;i++){positions[i]=slamExitPositions[i];rotations[i]=slamExitRotations[i];}
+                for(int i=0;i<joints.Length;i++){positions[i]=attackExitPositions[i];rotations[i]=attackExitRotations[i];}
                 blendLeft=.14f;
             }
             // Solve the claws in this frame's actor basis. Last frame's breathing
@@ -574,7 +581,7 @@ namespace UltramanGame.Runtime
             }
             clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
             if(monster&&preview<0)CorrectRestingArms(state);
-            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack&&!MonsterSlamMotion.Active(state))
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state))
                 CorrectAttackArms(state);
             if(monster)ApplyClawPose(state,preview,time);
             // Re-rendering a held transition must keep its blend progress. A
@@ -629,7 +636,7 @@ namespace UltramanGame.Runtime
                 }
                 contactLayerApplied=true;
             }
-            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack&&!MonsterSlamMotion.Active(state))
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state))
             {
                 // The baked clip owns both hands and the planted-foot keyframes.
                 // This small torso/head layer gives alternating lead claws a
@@ -804,7 +811,7 @@ namespace UltramanGame.Runtime
                 {comboExitBase[i]=joints[i].localRotation;joints[i].localRotation=Quaternion.Slerp(comboExitBase[i],comboExitStart[i],weight);}
                 comboExitApplied=true;
             }
-            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&!MonsterSlamMotion.Active(state)&&
+            if(monster&&preview<0&&state.Phase==GamePhase.Battle&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state)&&
                 (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
             staggerTravel=Vector3.zero;
@@ -838,6 +845,8 @@ namespace UltramanGame.Runtime
             }
             if(monster&&preview<0&&MonsterSlamMotion.Active(state)&&next!="Hurt")PoseGroundSlam(state,dt);
             else slamPrepare=0;
+            if(monster&&preview<0&&MonsterRayMotion.Active(state)&&next!="Hurt")PoseHeadRay(state,dt);
+            else rayPrepare=0;
             // Character-local emission carries the same readable signals as the
             // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
             // timer and crystal intensify during transformation and beam charge.
@@ -1001,6 +1010,31 @@ namespace UltramanGame.Runtime
                 leftHand.rotation=rotationLeft;hand.rotation=rotationRight;AlignClawWrists();
             }
         }
+        void PoseHeadRay(Battle state,float dt)
+        {
+            if(!upperSpine||!head||!leftHand||!hand||!leftFoot||!rightFoot)return;
+            rayPrepare=Mathf.MoveTowards(rayPrepare,MonsterRayMotion.Prepare(state),dt*3.5f);
+            for(int i=0;i<joints.Length;i++){attackRotations[i]=joints[i].localRotation;attackPositions[i]=joints[i].localPosition;}
+            attackRootBefore=Root.position;attackRotationBefore=Root.rotation;attackPoseApplied=true;
+            var right=Vector3.Cross(Vector3.up,forward);var facing=Quaternion.LookRotation(forward);
+            float recoil=state.Enemy==EnemyPhase.Attack?MonsterRayMotion.Recoil(state.EnemyAge):0;
+            Vector3 tailAnchor=tailJoints!=null&&tailJoints.Length>0?tailJoints[0].position:Vector3.zero;
+            Root.position+=(-forward*.08f-Vector3.up*.045f)*recoil;
+            upperSpine.rotation=Quaternion.AngleAxis((-5-6*recoil)*rayPrepare,right)*upperSpine.rotation;
+            head.rotation=Quaternion.AngleAxis((9+4*recoil)*rayPrepare,right)*head.rotation;
+            // Open the chest and hold the claws beside the ribs. Both feet stay
+            // planted; a distant ray must not inherit the forward claw lunge.
+            for(int side=0;side<2;side++)
+            {
+                float sign=side==0?-1:1;var wrist=side==0?leftHand:hand;
+                Vector3 target=home+right*(sign*.72f)+forward*.70f+Vector3.up*2.40f;
+                PoseLimb(side==0?leftUpperArm:upperArm,side==0?leftForearm:forearm,wrist,target,rayPrepare,right*sign+forward*.18f,.22f);
+            }
+            PoseLimb(leftThigh,leftShin,leftFoot,home+facing*leftFootLocal,1,forward-right*.3f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,home+facing*rightFootLocal,1,forward+right*.3f,rightFootLocal.y);
+            leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;AlignClawWrists();
+            if(tailJoints!=null&&tailJoints.Length>0)tailJoints[0].position=tailAnchor;
+        }
         void PoseGroundSlam(Battle state,float dt)
         {
             if(!upperSpine||!head||!leftHand||!hand||!leftFoot||!rightFoot)return;
@@ -1008,8 +1042,8 @@ namespace UltramanGame.Runtime
             // A hit can interrupt the last part of the tell. Re-enter the slam
             // gradually instead of snapping both claws overhead on Attack/0.
             slamPrepare=Mathf.MoveTowards(slamPrepare,desired,dt*3.5f);
-            for(int i=0;i<joints.Length;i++){slamRotations[i]=joints[i].localRotation;slamPositions[i]=joints[i].localPosition;}
-            slamRootBefore=Root.position;slamRotationBefore=Root.rotation;slamPoseApplied=true;
+            for(int i=0;i<joints.Length;i++){attackRotations[i]=joints[i].localRotation;attackPositions[i]=joints[i].localPosition;}
+            attackRootBefore=Root.position;attackRotationBefore=Root.rotation;attackPoseApplied=true;
             var right=Vector3.Cross(Vector3.up,forward);var facing=Quaternion.LookRotation(forward);
             Vector3 baseLeft=leftHand.position,baseRight=hand.position;
             Vector3 tailAnchor=tailJoints!=null&&tailJoints.Length>0?tailJoints[0].position:Vector3.zero;

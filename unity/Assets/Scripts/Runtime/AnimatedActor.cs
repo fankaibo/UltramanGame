@@ -26,6 +26,7 @@ namespace UltramanGame.Runtime
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(Battle state) => rigged!=null?rigged.EnemyStrikeOrigin(state.EnemyAttackCount):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 BeamOrigin => rigged!=null?rigged.BeamOrigin:Root.position+Vector3.up*2.7f;
+        public Vector3 RayOrigin=>rigged!=null?rigged.RayOrigin:Root.position+Vector3.up*3.32f+forwardAxis*.46f;
         public Vector3 BeamContact => rigged!=null?rigged.BeamContact:Root.position+forwardAxis*.33f+Vector3.up*2.48f;
         public Vector3 BeamSurfaceContact => rigged!=null?rigged.BeamSurfaceContact:BeamContact;
         public Vector3 FootPosition(bool left) => rigged!=null?rigged.FootPosition(left):Root.position;
@@ -93,6 +94,7 @@ namespace UltramanGame.Runtime
         public static float MonsterAdvance(Battle state)
         {
             if(state.Phase!=GamePhase.Battle)return 0;
+            if(MonsterRayMotion.Active(state))return 0;
             if(state.Enemy==EnemyPhase.Windup)
                 return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/state.WarningDuration);
             if(state.Enemy!=EnemyPhase.Attack)return 0;

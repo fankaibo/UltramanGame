@@ -61,7 +61,7 @@ namespace UltramanGame.Runtime
             DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",1);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
-            {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0);keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
+            {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0);keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
             Application.runInBackground=true;Screen.sleepTimeout=SleepTimeout.NeverSleep;
             client=new PoseClient(LocalPort("--pose-port",8765));previewClient=new PreviewClient(LocalPort("--preview-port",8766));
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
@@ -222,6 +222,7 @@ namespace UltramanGame.Runtime
             int groundContacts=world.GroundContactCount;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             sound.SetChargePower(showcase?0:world.ChargePower);
+            sound.SetMonsterRayPower(showcase?0:world.MonsterRayPower);
             if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam");
             if(world.MonsterLanded)sound.MonsterLanding();
             if(world.MonsterDissolving)sound.MonsterDeparture();
@@ -283,7 +284,8 @@ namespace UltramanGame.Runtime
         void PlayCue(GameCue cue)
         {
             if(Debug.isDebugBuild)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
-            sound.Cue(cue,battle.Phase);world.Cue(cue,battle);
+            if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
+            world.Cue(cue,battle);
             switch(cue)
             {
                 case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;hintAt=Time.unscaledTime+12;break;

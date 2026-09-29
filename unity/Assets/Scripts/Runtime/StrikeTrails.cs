@@ -126,7 +126,7 @@ namespace UltramanGame.Runtime
             if(state.EnemyAttackCount!=lastEnemyAttack)foreach(var claw in claws)claw.Clear();
             bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.34f;
             bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
-            bool emitMonster=state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
+            bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
             hero.Tick(camera,clock,emitHero,heroActor.StrikeOrigin(state.Action));
             var hand=enemyActor.EnemyStrikeOrigin(state);
             for(int i=0;i<claws.Length;i++)
