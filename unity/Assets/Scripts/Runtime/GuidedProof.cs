@@ -25,6 +25,13 @@ namespace UltramanGame.Runtime
                 string reactionKey=battle.ActionAge<.78f?"beam-reaction-entry":battle.ActionAge>1.05f?"beam-reaction-peak":null;
                 if(reactionKey!=null&&proofFrames.Add(reactionKey)){StartCoroutine(SaveGuidedProof(reactionKey));return;}
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.ClawReactionAmount>.28f)
+            {
+                string armKey=enemy.BeamRecoilAge>=.35f&&enemy.BeamRecoilAge<.65f?"monster-arms-beam":
+                    enemy.LaunchAge>.16f&&enemy.LaunchAge<.45f?"monster-arms-uppercut":
+                    battle.Action==HeroAction.LeftPunch?"monster-arms-left":battle.Action==HeroAction.RightPunch?"monster-arms-right":null;
+                if(armKey!=null&&proofFrames.Add(armKey)){StartCoroutine(SaveGuidedProof(armKey));return;}
+            }
             if(!photo.Active&&MonsterRayMotion.Active(battle))
             {
                 string rayKey=battle.Enemy==EnemyPhase.Windup&&battle.WarningDuration-battle.EnemyAge<.18f?"ray-prepare":

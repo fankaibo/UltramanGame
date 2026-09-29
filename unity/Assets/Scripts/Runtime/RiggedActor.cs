@@ -93,6 +93,10 @@ namespace UltramanGame.Runtime
         readonly Transform[,] clawThumbs=new Transform[2,2];
         readonly Quaternion[] clawRollBase=new Quaternion[4];
         bool clawRollApplied;
+        bool clawReactionApplied;
+        readonly Quaternion[] clawReactionBase=new Quaternion[6];
+        Vector3 clawLeft,clawRight,clawCarryLeft,clawCarryRight;
+        public float ClawReactionAmount=>Mathf.Max(clawLeft.magnitude,clawRight.magnitude);
         bool attackPoseApplied;
         float slamPrepare,rayPrepare;
         Vector3 foreheadLocal;
@@ -367,6 +371,12 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(clawReactionApplied)
+            {
+                leftUpperArm.localRotation=clawReactionBase[0];leftForearm.localRotation=clawReactionBase[1];leftHand.localRotation=clawReactionBase[2];
+                upperArm.localRotation=clawReactionBase[3];forearm.localRotation=clawReactionBase[4];hand.localRotation=clawReactionBase[5];
+                clawReactionApplied=false;
+            }
             bool attackInterrupted=attackPoseApplied&&state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Attack&&state.EnemyHealth<lastHealth;
             if(attackInterrupted)for(int i=0;i<joints.Length;i++)
             {attackExitRotations[i]=joints[i].localRotation;attackExitPositions[i]=joints[i].localPosition;}
@@ -477,6 +487,10 @@ namespace UltramanGame.Runtime
             if(state.Phase!=GamePhase.Battle){hitAge=10;recoilStart=Vector3.zero;recoilStartYaw=0;}
             else if(state.EnemyHealth<lastHealth)
             {
+                // Preserve only a previous ordinary impulse. A sustained beam
+                // or airborne reaction already owns its continuing arm motion.
+                clawCarryLeft=beamRecoil.Active||launch.Active?Vector3.zero:clawLeft;
+                clawCarryRight=beamRecoil.Active||launch.Active?Vector3.zero:clawRight;
                 // Continue from a still-settling hit when punches arrive quickly.
                 // Do not carry a lunge displacement into a different hit pose.
                 bool carryPose=playing=="Hurt"||playing=="Idle";
@@ -863,6 +877,7 @@ namespace UltramanGame.Runtime
             else slamPrepare=0;
             if(monster&&preview<0&&MonsterRayMotion.Active(state)&&next!="Hurt")PoseHeadRay(state,dt);
             else rayPrepare=0;
+            if(monster)PoseClawReaction(state,preview);
             // Character-local emission carries the same readable signals as the
             // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
             // timer and crystal intensify during transformation and beam charge.
@@ -1505,6 +1520,35 @@ namespace UltramanGame.Runtime
                     }
                 }
             }
+        }
+        void PoseClawReaction(Battle state,int preview)
+        {
+            if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack||
+                (MonsterSlamMotion.Active(state)||MonsterRayMotion.Active(state))&&playing!="Hurt")
+            {clawLeft=clawRight=clawCarryLeft=clawCarryRight=Vector3.zero;return;}
+            if(!upperArm||!forearm||!hand||!leftUpperArm||!leftForearm||!leftHand)return;
+            var side=Vector3.Cross(Vector3.up,forward);
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0;float sign=left?-1:1;
+                var pose=MonsterClawMotion.Sample(left,hitAge,contactSide,accentHit,launch.Age,beamRecoil.Age);
+                Vector3 offset=side*pose.X+Vector3.up*pose.Y+forward*pose.Z;
+                offset+=(left?clawCarryLeft:clawCarryRight)*MonsterClawMotion.Carry(hitAge);
+                if(left)clawLeft=offset;else clawRight=offset;
+                var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                int at=i*3;clawReactionBase[at]=upper.localRotation;clawReactionBase[at+1]=lower.localRotation;clawReactionBase[at+2]=wrist.localRotation;
+                if(offset.sqrMagnitude<.0000001f)continue;
+                var palm=wrist.rotation;var arm=wrist.position-lower.position;
+                Vector3 axis=wrist.position-upper.position;
+                Vector3 oldPole=Vector3.ProjectOnPlane(lower.position-upper.position,axis).normalized;
+                Vector3 pole=Vector3.Slerp(oldPole,side*sign+Vector3.down*.45f,Mathf.Clamp01(offset.magnitude*1.3f));
+                PoseLimb(upper,lower,wrist,wrist.position+offset,1,pole,.35f);
+                wrist.rotation=Quaternion.FromToRotation(arm,wrist.position-lower.position)*palm;
+            }
+            // Both sides must be restorable even when the lagging side is still
+            // at zero during the first few milliseconds of a contact.
+            clawReactionApplied=ClawReactionAmount>.0003f;
+            if(clawReactionApplied)AlignClawWrists();
         }
         void PoseClawRoll(Battle state,int preview)
         {

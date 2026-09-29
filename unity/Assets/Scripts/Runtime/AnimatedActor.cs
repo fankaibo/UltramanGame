@@ -13,6 +13,7 @@ namespace UltramanGame.Runtime
         public int DissolveMotes=>rigged?.DissolveMotes??0;
         public float StrikeAdvance=>rigged!=null?rigged.StrikeAdvance:PunchAdvance;
         public float LinkedPunchWeight=>rigged?.LinkedPunchWeight??0;
+        public float ClawReactionAmount=>rigged?.ClawReactionAmount??0;
         public float StaggerAge=>rigged!=null?rigged.StaggerAge:10;
         public bool StaggerLeft=>rigged!=null&&rigged.StaggerLeft;
         public int StaggerLandings=>rigged!=null?rigged.StaggerLandings:0;
