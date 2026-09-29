@@ -221,6 +221,15 @@ namespace UltramanGame.Core
                 guardAnchored=true;
             }
             if(!guardShape&&shieldGap>.20f)guardAnchored=false;
+            // A held shield already bridges a brief hidden wrist. Preserve
+            // that ownership too: the other wrist's noisy depth must not
+            // become a punch merely because two-hand geometry is unavailable.
+            // Discard those trajectories so they cannot fire when grace ends.
+            if(input.Shield&&!beamWristsReady)
+            {
+                leftMotion.Reset();rightMotion.Reset();
+                return input;
+            }
             if (beamReserved || (raised&&transformAvailable))
             {
                 guardAnchored=false;

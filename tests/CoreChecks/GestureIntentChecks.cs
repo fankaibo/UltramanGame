@@ -48,6 +48,20 @@ static class GestureIntentChecks
             }
             t=new Trial(fps);var face=Guard();face[15].y=face[16].y=.22f;t.Hold(face,.8f);
             check(t.Last.Shield&&t.Punches==0,$"hands protecting face remain defense during battle at {fps} fps");
+            foreach(int hand in new[]{15,16})
+            {
+                t=new Trial(fps);t.Hold(Guard(),.7f);
+                var overlap=Guard();overlap[hand].z=-.49f;overlap[hand==15?16:15].visibility=.1f;
+                t.Hold(overlap,.12f);
+                check(t.Last.Shield&&t.Punches==0,$"brief hidden opposite wrist cannot turn guard into hand {hand} attack at {fps} fps");
+                t.Hold(Guard(),.4f);
+                check(t.Last.Shield&&t.Punches==0,$"guard recovers after opposite wrist overlap for hand {hand} at {fps} fps");
+                t.Hold(overlap,.45f);
+                check(!t.Last.Shield&&t.Punches==0,$"long wrist loss releases defense without replaying overlap motion at {fps} fps");
+                t.Hold(Guard(),.4f);
+                var reach=Guard();reach[hand]=P(hand==15?.64f:.36f,.40f,-.49f);t.Hold(reach,.20f);
+                check(t.Punches==1&&!t.Last.Shield,$"fresh hand {hand} reach still attacks after guard overlap at {fps} fps");
+            }
             t=new Trial(fps);t.Hold(Guard(),.7f,true);t.Hold(Beam(),.3f,true);
             var wobble=Beam();wobble[15].z=-.46f;t.Hold(wobble,.16f,true);t.Hold(Beam(),.55f,true);
             check(t.Beams==1&&t.Punches==0,$"L-pose depth wobble cannot steal charging as a punch at {fps} fps");

@@ -54,7 +54,7 @@ def main():
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0
             beam_release_until=0
-            guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=0
+            guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -119,6 +119,12 @@ def main():
                                 if (now-guard_started)%.4<.14:
                                     hand=15 if int((now-guard_started)/.4)%2==0 else 16
                                     points[hand].z=-.44;guard_noise_frames+=1
+                                    # Protect a briefly hidden opposite wrist too,
+                                    # as happens when crossed hands overlap on camera.
+                                    # Alternate with depth-only noise to exercise both.
+                                    if int((now-guard_started)/.8)%2==0:
+                                        points[16 if hand==15 else 15].visibility=.1
+                                        guard_overlap_frames+=1
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
                 if stage=='review' and photos_seen==2 and now-review_at>7 and not review_loss_start:
@@ -144,8 +150,8 @@ def main():
                 if marker not in output:raise RuntimeError('Missing '+marker)
             if re.search(r'NullReferenceException|Shader error|error CS\d',output):raise RuntimeError('Unity runtime error')
             if options.gesture_wobble:
-                if unwanted_attacks or guard_noise_frames<4 or beam_noise_frames<4:
-                    raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames}')
+                if unwanted_attacks or guard_noise_frames<4 or beam_noise_frames<4 or guard_overlap_frames<4:
+                    raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames} guardOverlap={guard_overlap_frames}')
                 if output.count('[Game] cue=Block ')<1 or output.count('[Game] cue=Beam ')<2:
                     raise RuntimeError('Wobbled input did not complete both defense and finishers')
             filenames=re.findall(r'\[Photo\] saved source=synthetic size=1920x1080 file=(.+)',output)
@@ -167,7 +173,7 @@ def main():
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'photo_preview_p99_error':preview_error,'photos':photos}
-            if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
+            if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:
