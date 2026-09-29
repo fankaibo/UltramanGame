@@ -33,7 +33,9 @@ def main():
     parser.add_argument('--output',type=Path,default=ROOT/'artifacts/guided-arcade')
     parser.add_argument('--log',type=Path,default=ROOT/'logs/guided-player.log')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
+    parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     options=parser.parse_args()
+    if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     app=ROOT/'unity/Builds/TigaTraining.app'
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
     log=options.log.resolve();log.parent.mkdir(parents=True,exist_ok=True);log.write_text('')
@@ -55,6 +57,7 @@ def main():
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0
             beam_release_until=0
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
+            guard_entries=beam_entry_noise_frames=0
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -62,6 +65,8 @@ def main():
                 for line in lines:
                     if options.gesture_wobble and protected and '[Gesture]' in line and '挥拳' in line:
                         unwanted_attacks+=1
+                    if options.gesture_entry_noise and guard_started and now-guard_started<.7 and '[Gesture] 护盾已展开' in line:
+                        guard_entries+=1
                     if '[Game] cue=' in line:
                         match=re.search(r'cue=(\w+) phase=(\w+)',line)
                         cue,phase=match.groups()
@@ -109,11 +114,15 @@ def main():
                         if options.gesture_wobble and beam:
                             points[15].z=points[16].z=-.10
                             hold_age=now-beam_release_until
+                            if options.gesture_entry_noise and .04<hold_age<.29:
+                                points[15].z=-.43;beam_entry_noise_frames+=1
                             if .30<hold_age<.59:
                                 points[15].z=-.70;beam_noise_frames+=1
-                            if hold_age>.25:protected='beam'
+                            if hold_age>(0 if options.gesture_entry_noise else .25):protected='beam'
                         elif options.gesture_wobble and guard:
                             points[15].z=points[16].z=-.10
+                            if options.gesture_entry_noise and now-guard_started<=.7:
+                                points[15].z=-.44;protected='shield'
                             if now-guard_started>.7:
                                 protected='shield'
                                 if (now-guard_started)%.4<.14:
@@ -154,6 +163,8 @@ def main():
                     raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames} guardOverlap={guard_overlap_frames}')
                 if output.count('[Game] cue=Block ')<1 or output.count('[Game] cue=Beam ')<2:
                     raise RuntimeError('Wobbled input did not complete both defense and finishers')
+                if options.gesture_entry_noise and (guard_entries<1 or beam_entry_noise_frames<4):
+                    raise RuntimeError(f'Initial gesture ownership not verified: guards={guard_entries} beamNoise={beam_entry_noise_frames}')
             filenames=re.findall(r'\[Photo\] saved source=synthetic size=1920x1080 file=(.+)',output)
             if len(filenames)!=2 or len(set(filenames))!=2:raise RuntimeError('Expected two distinct TEST photos')
             for name in filenames:
@@ -174,6 +185,7 @@ def main():
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
+            if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:

@@ -162,8 +162,18 @@ namespace UltramanGame.Core
             float bdx=bl.x-br.x,bdy=bl.y-br.y,bdz=bl.z-br.z;
             // Guard and L-shape geometry use image-plane shoulders; noisy inferred depth must not shrink their target.
             float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
-            bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs) || BeamArms(br,brw,blw,bcx,bsy,bs) ||
-                ForwardPalms(bl,br,blw,brw,bsy,bs));
+            var fl=frame.points[11];var fr=frame.points[12];var flw=frame.points[15];var frw=frame.points[16];
+            float fs=Math.Max(.08f,PoseQuality.Distance(fl,fr)),fcx=(fl.x+fr.x)/2,fsy=(fl.y+fr.y)/2;
+            // A recognised L owns estimated depth from its first confirmed
+            // frame. Waiting 100 ms to protect depth stranded early charges;
+            // keep the stricter image-plane shape until the normal hold begins.
+            bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs,preserveDepth:beamHold>0) || BeamArms(br,brw,blw,bcx,bsy,bs,preserveDepth:beamHold>0) ||
+                ForwardPalms(bl,br,blw,brw,bsy,bs) ||
+                // The first complete camera pose reserves the action before
+                // smoothing catches up from hands-down or a previous punch.
+                // Raw entry uses strict shape/depth; the usual timer still
+                // requires a sustained pose before it can fire.
+                BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs));
             // Once intent is established, keep a wider pose envelope. Inferred
             // wrist depth often jumps while the child is holding an L; it must
             // not convert the same held action into a new forward punch.
@@ -171,18 +181,19 @@ namespace UltramanGame.Core
                 (BeamArms(bl,blw,brw,bcx,bsy,bs,true)||BeamArms(br,brw,blw,bcx,bsy,bs,true)||ForwardPalms(bl,br,blw,brw,bsy,bs,true));
             bool beam=beamAvailable&&(beamShape||beamMaintained);
             float leftDepth=(bl.z-blw.z)/bs,rightDepth=(br.z-brw.z)/bs;
-            var leftOffset=GuardOffset(bl,blw,bs);var rightOffset=GuardOffset(br,brw,bs);
-            // Once a guard is established, inferred depth alone cannot break it.
-            // Require a visible reach relative to the shoulder as well; moving
-            // the whole body or changing distance from the camera is not a reach.
+            var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
+            bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
+            bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
+            // Acquire the reference before the shield's hold timer. Otherwise a
+            // static depth bias could forbid defense forever at first entry.
+            // An accepted extended punch must retract before it can reacquire
+            // this reference, or the same held fist would turn into a shield.
+            if(rawGuard&&!guardAnchored&&!leftMotion.HoldingStrike&&!rightMotion.HoldingStrike)
+            {guardLeft=leftOffset;guardRight=rightOffset;guardAnchored=true;}
             bool leftCommitted=leftDepth>.90f&&leftDepth-rightDepth>.70f &&
                 (!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f);
             bool rightCommitted=rightDepth>.90f&&rightDepth-leftDepth>.70f &&
                 (!guardAnchored||PoseQuality.Distance(rightOffset,guardRight)>.16f);
-            bool guardShape=beamWristsReady && !(transformAvailable&&raised) &&
-                Math.Abs(blw.x-bcx)<.95f*bs && Math.Abs(brw.x-bcx)<.95f*bs &&
-                Math.Abs(blw.x-brw.x)<1.55f*bs && Math.Abs(blw.y-brw.y)<.70f*bs &&
-                blw.y>bsy-.80f*bs && brw.y>bsy-.80f*bs && blw.y<bsy+1.0f*bs && brw.y<bsy+1.0f*bs;
             if (steady<.25f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
@@ -259,11 +270,15 @@ namespace UltramanGame.Core
         }
         static PosePoint GuardOffset(PosePoint shoulder,PosePoint wrist,float scale)
             =>new PosePoint((wrist.x-shoulder.x)/scale,(wrist.y-shoulder.y)/scale){z=(shoulder.z-wrist.z)/scale};
-        static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false)
+        static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale)
+            =>Math.Abs(left.x-cx)<.95f*scale&&Math.Abs(right.x-cx)<.95f*scale&&
+                Math.Abs(left.x-right.x)<1.55f*scale&&Math.Abs(left.y-right.y)<.70f*scale&&
+                left.y>sy-.80f*scale&&right.y>sy-.80f*scale&&left.y<sy+scale&&right.y<sy+scale;
+        static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
             // A deeply extended single fist is a punch, even when the other wrist is lower like an L.
-            return shoulder.z-high.z<(holding?1.6f:.9f)*scale && low.y-high.y>(holding?.28f:.45f)*scale && high.y<sy+(holding?.25f:.10f)*scale && high.y>sy-1.3f*scale &&
+            return shoulder.z-high.z<(holding||preserveDepth?1.6f:.9f)*scale && low.y-high.y>(holding?.28f:.45f)*scale && high.y<sy+(holding?.25f:.10f)*scale && high.y>sy-1.3f*scale &&
                 low.y>sy+(holding?.08f:.20f)*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<(holding?1.1f:.90f)*scale &&
                 Math.Abs(low.x-cx)<(holding?1.05f:.85f)*scale && Math.Abs(high.x-low.x)<(holding?1.15f:.90f)*scale;
         }

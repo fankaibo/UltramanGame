@@ -30,6 +30,32 @@ static class GestureIntentChecks
     {
         foreach(int fps in new[]{15,30,60})
         {
+            var transition=new Trial(fps);var relaxed=Guard();relaxed[15].y=relaxed[16].y=.72f;
+            transition.Hold(relaxed,.7f,true);transition.Hold(Beam(),.5f/fps,true);
+            var entryNoise=Beam();entryNoise[15].z=-.53f;transition.Hold(entryNoise,1.2f,true);
+            check(transition.Beams==1&&transition.Punches==0,$"complete raw L owns transition before smoothing catches up at {fps} fps");
+            foreach(int hand in new[]{15,16})
+            {
+                var entry=new Trial(fps);
+                var firstGuard=Guard();firstGuard[hand].z=-.49f;
+                entry.Hold(firstGuard,.8f);
+                check(entry.Last.Shield&&entry.Punches==0,$"guard can acquire with an initially biased wrist depth for hand {hand} at {fps} fps");
+                var reach=(PosePoint[])firstGuard.Clone();reach[hand]=P(hand==15?.65f:.35f,.39f,-.80f);
+                entry.Hold(reach,.5f);
+                check(entry.Punches==1&&!entry.Last.Shield,$"real reach can leave initially biased guard without becoming shield again at {fps} fps");
+                entry.Hold(Guard(),.5f);
+                check(entry.Last.Shield&&entry.Punches==1,$"retracting after a biased guard strike restores defense at {fps} fps");
+            }
+            var early=new Trial(fps);early.Hold(Guard(),.7f,true);
+            for(int i=0;i<12&&early.R.BeamProgress==0;i++)early.Hold(Beam(),.5f/fps,true);
+            check(early.R.BeamProgress>0&&early.R.BeamProgress<.15f,$"early beam intent acquired for startup noise at {fps} fps");
+            var earlyNoise=Beam();earlyNoise[15].z=-.53f;
+            early.Hold(earlyNoise,1.2f,true);
+            check(early.Beams==1&&early.Punches==0,$"depth noise immediately after L-pose entry cannot strand finisher at {fps} fps");
+            early=new Trial(fps);early.Hold(Guard(),.7f,true);
+            for(int i=0;i<12&&early.R.BeamProgress==0;i++)early.Hold(Beam(),.5f/fps,true);
+            early.Hold(Guard(),1.2f,true);
+            check(early.Beams==0&&early.R.BeamProgress==0&&early.Last.Shield,$"early L cancelled into chest defense never completes a finisher at {fps} fps");
             var t=new Trial(fps);t.Hold(Guard(),.7f);
             var noisyGuard=Guard();noisyGuard[15].z=-.34f;
             for(int n=0;n<4;n++){t.Hold(noisyGuard,.14f);t.Hold(Guard(),.16f);}

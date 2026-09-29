@@ -14,6 +14,7 @@ namespace UltramanGame.Core
         long firedAt;
         public bool ForwardStrike { get; private set; }
         public float LastScore { get; private set; }
+        internal bool HoldingStrike => latched;
         public void Reset()
         {count=next=candidates=0;latched=false;peakOut=peakDepth=releaseHold=candidateHold=0;firedAt=0;ForwardStrike=false;LastScore=0;}
         // A guard can reject an ambiguous candidate before it becomes an action.
