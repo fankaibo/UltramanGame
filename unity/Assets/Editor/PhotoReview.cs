@@ -10,7 +10,7 @@ namespace UltramanGame.Editor
     {
         public static void Proportions()
         {
-            string folder=Path.GetFullPath("../artifacts/photo-proportions");Directory.CreateDirectory(folder);
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/photo-proportions"));Directory.CreateDirectory(folder);
             foreach(bool portrait in new[]{false,true})
             {
                 int radius=portrait?70:30,headY=portrait?335:390,shoulder=portrait?225:340,halfWidth=portrait?125:60;
@@ -29,23 +29,22 @@ namespace UltramanGame.Editor
                 var pose=new PoseFrame{schema=1,source="synthetic",streamId="photo-proportion",tracked=true,sequence=1,capturedMs=10000,points=points};
                 using(var composition=new PhotoComposition())
                 {
-                    var heroBefore=GameObject.Find("Victory photo composition/Tiga front victory").transform;
+                    var heroBefore=composition.Hero.Root;
                     var fixedScale=heroBefore.localScale;var fixedPosition=heroBefore.localPosition;
-                    var fixedCrop=heroBefore.GetComponent<Renderer>().sharedMaterial.GetVector("_Frame");
+                    var fixedRotation=heroBefore.localRotation;
                     if(!composition.SetPerson(texture,pose))throw new Exception("Body framing rejected test portrait");
                     var shot=composition.Snapshot();File.WriteAllBytes(Path.Combine(folder,portrait?"half-body.png":"full-body.png"),shot.EncodeToPNG());
                     UnityEngine.Object.DestroyImmediate(shot);
                     // In both shots the hero and person's crown-to-shoulder span should agree.
                     var person=GameObject.Find("Victory photo composition/Person").transform;
-                    var hero=GameObject.Find("Victory photo composition/Tiga front victory").transform;
+                    var hero=composition.Hero.Root;
                     var personFrame=person.GetComponent<Renderer>().sharedMaterial.GetVector("_Frame");
-                    var heroFrame=hero.GetComponent<Renderer>().sharedMaterial.GetVector("_Frame");
                     float personRatio=(headY+radius-shoulder)/480f/personFrame.w*person.localScale.y;
-                    float heroRatio=.17f*.5f/heroFrame.w*hero.localScale.y;
+                    float heroRatio=(composition.Hero.Body.Crown-composition.Hero.Body.Shoulder)*composition.Hero.Scale;
                     if(portrait&&Math.Abs(personRatio-heroRatio)>.12f)throw new Exception("Head/shoulder proportion mismatch");
-                    if(!portrait&&Math.Abs((person.localPosition.y-person.localScale.y/2)-(hero.localPosition.y-hero.localScale.y/2))>.04f)
+                    if(!portrait&&Math.Abs(person.localPosition.y-person.localScale.y/2+3.9f)>.04f)
                         throw new Exception("Photo figure floats above the paired bottom edge");
-                    if(hero.localScale!=fixedScale||hero.localPosition!=fixedPosition||heroFrame!=fixedCrop)
+                    if(hero.localScale!=fixedScale||hero.localPosition!=fixedPosition||hero.localRotation!=fixedRotation)
                         throw new Exception("Camera framing moved, resized or cropped the fixed hero");
                     Debug.Log($"[PhotoProportions] PASS portrait={portrait} personSpan={personRatio:F3} heroSpan={heroRatio:F3}");
                 }

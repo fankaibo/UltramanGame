@@ -11,12 +11,10 @@ namespace UltramanGame.Runtime
         public readonly RenderTexture Preview;
         readonly GameObject root;
         readonly Camera camera;
-        readonly Material background,hero,person;
-        readonly Transform personQuad,heroQuad,backgroundQuad;
-        readonly Texture2D heroAtlas;
-        readonly RectInt heroBounds;
-        readonly float heroCenter,heroShoulder,heroCrown;
-        [Serializable] class HeroMetrics {public float center,shoulder,crown;}
+        readonly Material background,person;
+        readonly Transform personQuad,backgroundQuad;
+        readonly PhotoLighting lighting;
+        public PhotoHero Hero {get;private set;}
         float lastShoulder,lastCenter,lastCrown;
         bool bodyMeasured;
         bool? measuredFullBody;
@@ -24,34 +22,24 @@ namespace UltramanGame.Runtime
         bool disposed,dirty=true;
         public PhotoComposition(int width=Width,int height=Height,string heroId="Tiga")
         {
-            root=new GameObject("Victory photo composition");root.transform.position=new Vector3(10000,10000,0);
-            var c=new GameObject("Photo camera");c.transform.SetParent(root.transform,false);c.transform.localPosition=new Vector3(0,0,-10);
-            camera=c.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;camera.orthographicSize=4.5f;
-            camera.aspect=16f/9;camera.cullingMask=1<<31;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.03f,.06f,.12f);
-            camera.nearClipPlane=.1f;camera.farClipPlane=30;
-            Preview=new RenderTexture(width,height,16,RenderTextureFormat.ARGB32);Preview.Create();camera.targetTexture=Preview;
-            var fuji=Resources.Load<Texture2D>("Art/VolcanoFujiNight");
-            background=Layer("Realistic Mount Fuji night",fuji,out var fujiQuad);background.renderQueue=3000;
-            backgroundQuad=fujiQuad;
-            float scale=Mathf.Max(16f/fuji.width,9f/fuji.height);fujiQuad.localScale=new Vector3(fuji.width*scale,fuji.height*scale,1);fujiQuad.localPosition=new Vector3(0,(fuji.height*scale-9)/2,2);
-            bool tiga=heroId=="Tiga";
-            var atlas=Resources.Load<Texture2D>(tiga?"Art/TigaPhotoActions":"Characters/"+heroId+"/Photo");
-            if(!atlas)throw new InvalidOperationException("Missing photo hero: "+heroId);
-            heroAtlas=atlas;
-            hero=Layer(heroId+" front victory",atlas,out heroQuad);hero.SetFloat("_KeyGreen",tiga?1:0);hero.renderQueue=3001;
-            int w=atlas.width/4,h=atlas.height/2;
-            heroBounds=Bounds(atlas,tiga,tiga?new RectInt(w*3,0,w,h):new RectInt(0,0,atlas.width,atlas.height));
-            if(tiga){heroShoulder=h*.57f;heroCrown=h*.74f;heroCenter=w*3.53f;}
-            else
+            try
             {
-                var metrics=Resources.Load<TextAsset>("Characters/"+heroId+"/PhotoMetrics");
-                var measured=metrics?JsonUtility.FromJson<HeroMetrics>(metrics.text):null;
-                heroShoulder=measured?.shoulder??heroBounds.yMin+heroBounds.height*.67f;
-                heroCrown=measured?.crown??heroBounds.yMin+heroBounds.height*.91f;
-                heroCenter=measured?.center??heroBounds.center.x;
+                root=new GameObject("Victory photo composition");root.transform.position=new Vector3(10000,10000,0);
+                var c=new GameObject("Photo camera");c.transform.SetParent(root.transform,false);c.transform.localPosition=new Vector3(0,0,-10);
+                camera=c.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;camera.orthographicSize=4.5f;
+                camera.aspect=16f/9;camera.cullingMask=1<<31;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.03f,.06f,.12f);
+                camera.nearClipPlane=.1f;camera.farClipPlane=30;
+                camera.renderingPath=RenderingPath.Forward;
+                Preview=new RenderTexture(width,height,24,RenderTextureFormat.ARGB32){antiAliasing=4};Preview.Create();camera.targetTexture=Preview;
+                var fuji=Resources.Load<Texture2D>("Art/VolcanoFujiNight");
+                // Background has no depth writes and draws before the opaque hero.
+                background=Layer("Realistic Mount Fuji night",fuji,out var fujiQuad);background.renderQueue=1000;
+                backgroundQuad=fujiQuad;
+                float scale=Mathf.Max(16f/fuji.width,9f/fuji.height);fujiQuad.localScale=new Vector3(fuji.width*scale,fuji.height*scale,1);fujiQuad.localPosition=new Vector3(0,(fuji.height*scale-9)/2,2);
+                Hero=new PhotoHero(heroId,root.transform,camera);lighting=new PhotoLighting(root.transform);
+                person=Layer("Person",null,out personQuad);person.renderQueue=3002;personQuad.gameObject.SetActive(false);
             }
-            Place(heroQuad,hero,atlas,heroBounds,-3.9f);
-            person=Layer("Person",null,out personQuad);person.renderQueue=3002;personQuad.gameObject.SetActive(false);
+            catch{Dispose();throw;}
         }
         Material Layer(string name,Texture texture,out Transform quad)
         {
@@ -70,12 +58,6 @@ namespace UltramanGame.Runtime
             if(right<=left||top<=bottom)return new RectInt();
             left=Math.Max(region.x,left-5);bottom=Math.Max(region.y,bottom-5);right=Math.Min(region.xMax,right+6);top=Math.Min(region.yMax,top+6);
             return new RectInt(left,bottom,right-left,top-bottom);
-        }
-        static void Place(Transform quad,Material material,Texture2D texture,RectInt bounds,float x)
-        {
-            material.SetVector("_Frame",new Vector4(bounds.x/(float)texture.width,bounds.y/(float)texture.height,bounds.width/(float)texture.width,bounds.height/(float)texture.height));
-            float scale=Mathf.Min(6.5f/bounds.width,7.45f/bounds.height),height=bounds.height*scale;
-            quad.localScale=new Vector3(bounds.width*scale,height,1);quad.localPosition=new Vector3(x,-3.9f+height/2,0);
         }
         public bool SetPerson(Texture2D texture,PoseFrame pose=null)
         {
@@ -116,8 +98,7 @@ namespace UltramanGame.Runtime
             }
             shoulder=lastShoulder;center=lastCenter;crown=lastCrown;
             var personBody=new PhotoBody(bounds.xMin,bounds.xMax,bounds.yMin,bounds.yMax,center,shoulder,crown);
-            var heroBody=new PhotoBody(heroBounds.xMin,heroBounds.xMax,heroBounds.yMin,heroBounds.yMax,heroCenter,heroShoulder,heroCrown);
-            if(!PhotoLayout.TryFit(personBody,heroBody,out var layout,measuredFullBody))return false;
+            if(!PhotoLayout.TryFit(personBody,Hero.Body,out var layout,measuredFullBody))return false;
             FullBody=layout.FullBody;
             person.mainTexture=texture;
             PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,3.7f,layout.ShoulderY);
@@ -153,7 +134,7 @@ namespace UltramanGame.Runtime
         public void Render(bool force=false)
         {
             if(!dirty&&!force)return;
-            camera.Render();dirty=false;
+            lighting.Render(camera);dirty=false;
         }
         public byte[] CleanPlate()
         {
@@ -165,19 +146,20 @@ namespace UltramanGame.Runtime
         {
             var color=camera.backgroundColor;
             var previousTarget=camera.targetTexture;
+            bool heroVisible=Hero.Root.gameObject.activeSelf,backgroundVisible=backgroundQuad.gameObject.activeSelf;
             // Alpha is data, not a display color. An sRGB target would encode
             // a 50% edge as 73.5%, widening the AI integration mask.
             var matte=RenderTexture.GetTemporary(Preview.width,Preview.height,16,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
             try
             {
-                backgroundQuad.gameObject.SetActive(false);heroQuad.gameObject.SetActive(false);camera.backgroundColor=Color.black;person.SetFloat("_MaskOnly",1);
+                backgroundQuad.gameObject.SetActive(false);Hero.Root.gameObject.SetActive(false);camera.backgroundColor=Color.black;person.SetFloat("_MaskOnly",1);
                 camera.targetTexture=matte;camera.Render();
                 var picture=Readback(matte,true);try{return picture.EncodeToPNG();}finally{Release(picture);}
             }
             finally
             {
                 camera.targetTexture=previousTarget;RenderTexture.ReleaseTemporary(matte);
-                backgroundQuad.gameObject.SetActive(true);heroQuad.gameObject.SetActive(true);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);dirty=true;
+                backgroundQuad.gameObject.SetActive(backgroundVisible);Hero.Root.gameObject.SetActive(heroVisible);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);dirty=true;
             }
         }
         public Texture2D Snapshot()
@@ -202,7 +184,7 @@ namespace UltramanGame.Runtime
             // Unity may destroy scene cameras before ArenaController.OnDestroy on quit.
             if(camera)camera.targetTexture=null;
             if(Preview)Preview.Release();
-            Release(Preview);Release(background);Release(hero);Release(person);Release(root);
+            Release(Preview);Release(background);Release(person);Release(root);
         }
     }
 }

@@ -5,6 +5,7 @@ namespace UltramanGame.Editor
 {
     public sealed class CharacterAssetImport : AssetPostprocessor
     {
+        public override uint GetVersion()=>2;
         void OnPreprocessModel()
         {
             if(!CharacterPath())return;
@@ -12,9 +13,10 @@ namespace UltramanGame.Editor
             importer.animationType=ModelImporterAnimationType.Legacy;
             importer.importAnimation=true;importer.importCameras=false;importer.importLights=false;
             importer.addCollider=false;
-            // The monster's beam contact skins three source vertices at runtime.
-            // Keep its mesh readable in players as well as in the Editor.
-            importer.isReadable=assetPath.EndsWith("/Golza/Golza.fbx",System.StringComparison.Ordinal);
+            // Beam contacts read monster vertices. Photo framing also reads
+            // hero head weights and rigid helmet vertices once on photo entry.
+            // Editor mesh access alone would hide a stripped-player failure.
+            importer.isReadable=true;
             importer.animationCompression=ModelImporterAnimationCompression.Off;
             importer.importBlendShapes=false;
         }

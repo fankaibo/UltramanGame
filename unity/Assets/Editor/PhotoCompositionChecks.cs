@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using UnityEditor;
 using UnityEngine;
 using UltramanGame.Runtime;
 
@@ -11,6 +13,9 @@ namespace UltramanGame.Editor
             for(int destructionOrder=0;destructionOrder<3;destructionOrder++)
             {
                 var composition=new PhotoComposition();
+                var meshes=composition.Hero.Root.GetComponentsInChildren<MeshFilter>().Select(f=>f.sharedMesh).Where(m=>!EditorUtility.IsPersistent(m)).ToArray();
+                var materials=composition.Hero.Root.GetComponentsInChildren<Renderer>().SelectMany(r=>r.sharedMaterials).Distinct().ToArray();
+                var lamps=composition.Hero.Root.parent.GetComponentsInChildren<Light>();
                 try
                 {
                     if(destructionOrder>0)
@@ -23,10 +28,13 @@ namespace UltramanGame.Editor
                     }
                     composition.Dispose();composition.Dispose();
                     if(composition.Preview)throw new Exception("Photo render target leaked during disposal");
+                    if(meshes.Any(m=>m)||materials.Any(m=>m)||lamps.Any(l=>l))
+                        throw new Exception("Photo resource leak, order="+destructionOrder+" meshes="+string.Join(",",meshes.Where(m=>m).Select(m=>m.name))+
+                            " materials="+string.Join(",",materials.Where(m=>m).Select(m=>m.name))+" lights="+string.Join(",",lamps.Where(l=>l).Select(l=>l.name)));
                 }
                 finally {composition.Dispose();}
             }
-            Debug.Log("[PhotoCleanupChecks] PASS normal, camera-first, root-first destruction and repeated disposal");
+            Debug.Log("[PhotoCleanupChecks] PASS normal, camera-first, root-first destruction and repeated disposal; meshes, materials and lights released");
         }
     }
 }
