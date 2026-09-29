@@ -14,75 +14,39 @@ namespace UltramanGame.Runtime
             bool warning=battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack;
             var gold=HudPainter.Gold;var cyan=HudPainter.Cyan;
             bool opening=battle.Phase==GamePhase.Battle&&battleStartCueAt>=0&&time-battleStartCueAt<2.1f;
-            if(!transforming)hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
+            bool cinematic=battle.Action==HeroAction.Beam;
+            if(waiting||victory)hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
             if(!waiting&&!transforming&&!victory)
             {
-                BattlePlate(new Rect(24,18,424,76),cyan,false);
-                hud.HeroPortrait(new Rect(24,12,86,86),SelectedHero.Id);
-                hud.Text(new Rect(111,17,290,30),SelectedHero.Name,24,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(265,23,160,24),SelectedHero.Form+" · 光之英雄",11,HudPainter.Muted,TextAnchor.MiddleRight);
-                for(int i=0;i<15;i++)hud.Box(new Rect(114+i*20,57,16,13),i<battle.Energy?(ready?gold:cyan):new Color(.10f,.21f,.29f));
-                hud.Text(new Rect(116,76,270,20),ready?"必杀能量已充满":$"光线能量  {battle.Energy:0} / 15",11,ready?gold:HudPainter.Muted);
-                BattlePlate(new Rect(832,18,424,76),new Color(1,.47f,.21f),true);
-                hud.Portrait(new Rect(1175,12,84,84),true);
-                hud.Text(new Rect(848,18,315,30),"哥尔赞",24,HudPainter.Ink,TextAnchor.MiddleRight,true);
-                hud.Box(new Rect(853,55,310,17),new Color(.09f,.13f,.19f));
-                float health=Mathf.Clamp01(battle.EnemyHealth/battle.MaxHealth);
-                float healthGhost=Mathf.Clamp01(enemyHealthDisplay/battle.MaxHealth);
-                if(healthGhost>health+.001f)
-                    hud.Box(new Rect(853+310*(1-healthGhost),56,310*(healthGhost-health),14),new Color(1,.84f,.35f,.78f));
-                hud.Box(new Rect(853+310*(1-health),56,310*health,14),health<.3f?new Color(1,.28f,.16f):new Color(1,.63f,.23f));
-                for(int i=1;i<10;i++)hud.Box(new Rect(853+i*31,56,1,14),new Color(.1f,.07f,.02f,.34f));
-                hud.Text(new Rect(856,76,304,20),$"怪兽力量  {Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",11,HudPainter.Muted,TextAnchor.MiddleRight);
-                if(!opening)
-                {
-                    hud.Text(new Rect(486,22,308,28),"火山大决战",18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                    hud.Line(new Vector2(558,60),new Vector2(628,60),cyan,1);
-                    hud.Dot(new Vector2(640,60),7,gold);hud.Line(new Vector2(652,60),new Vector2(722,60),cyan,1);
-                }
-                float scorePulse=time<hitUntil?Mathf.Clamp01((hitUntil-time)*1.4f):0;
-                if(battle.Action!=HeroAction.Beam&&!opening)
-                {
-                    // The monster leans through the centre in both rush and
-                    // recoil. Keep the score below the hero plate, off its face.
-                    hud.Rounded(new Rect(36,110,244,27),new Color(.01f,.04f,.08f,.86f),6);
-                    hud.Text(new Rect(42,110,232,27),$"SCORE  {ArcadeScore():000000}",13+(int)(scorePulse*2),new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
-                }
-                if(battle.Punches>0&&!world.BeamReactionCloseup)
+                DrawBattleHeader(ready,opening,cinematic);
+                if(battle.Punches>0&&!cinematic)
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
-                    hud.Text(new Rect(37,235,210,77),battle.Punches.ToString("00"),50+(int)(pulse*7),new Color(1,.88f,.52f),bold:true);
                     bool comboActive=comboCount>=2&&time<comboUntil;
-                    hud.Text(new Rect(43,306,215,25),comboActive?$"HIT  /  {comboCount:00} COMBO":"HIT  /  漂亮出击",14,comboActive?gold:HudPainter.Ink,bold:true);
-                    if(comboActive)
-                    {
-                        float comboAge=Mathf.Clamp01((comboUntil-time)/.65f);
-                        hud.Text(new Rect(39,337,230,30),$"{comboCount:00} 连击",20+Mathf.RoundToInt(comboAge*4),new Color(1,.78f,.30f,Mathf.Clamp01(comboAge)),TextAnchor.MiddleLeft,true);
-                    }
-                    hud.Line(new Vector2(42,335),new Vector2(121,335),gold,2);
-
-                    // The reference cabinet keeps its score at the edge of the playfield.
-                    // Five quiet stars make the combo feel earned without covering either actor.
-                    hud.Text(new Rect(1190,198,60,20),"评分",10,HudPainter.Muted,TextAnchor.MiddleCenter);
+                    // One counter changes meaning with the active string. Total
+                    // hits and the same combo no longer occupy three rows.
+                    hud.Text(new Rect(30,247,150,58),(comboActive?comboCount:battle.Punches).ToString("00"),38+(int)(pulse*5),new Color(1,.88f,.52f),bold:true);
+                    hud.Text(new Rect(33,306,150,22),comboActive?"连击":"命中",14,comboActive?gold:HudPainter.Muted,bold:true);
+                    hud.Line(new Vector2(33,337),new Vector2(99,337),gold,2);
                     for(int i=0;i<5;i++)
                     {
                         float earned=Mathf.Clamp01((battle.Punches-i*3)/3f);
-                        Star(new Vector2(1220,236+i*38),11,.16f+.84f*earned);
+                        Star(new Vector2(1230,244+i*30),8,.12f+.88f*earned);
                     }
                 }
-                if(time<hitUntil&&battle.Action!=HeroAction.Beam)
+                if(time<hitUntil&&!cinematic)
                 {
                     // Keep praise beside the combo counter: the monster's
                     // face and contact area must stay clear in the closer lens.
                     float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*12;
-                    hud.Text(new Rect(42,388-lift,244,40),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?25:22,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
+                    hud.Text(new Rect(33,353-lift,200,28),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?19:17,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
                 }
-                if(lastDamage>0&&time-damagePopAt<.9f)
+                if(lastDamage>0&&time-damagePopAt<.9f&&!cinematic)
                 {
                     float age=Mathf.Clamp01((time-damagePopAt)/.9f),lift=Mathf.SmoothStep(0,1,age)*6;
                     float alpha=1-Mathf.SmoothStep(0,1,age);
                     bool special=lastDamage>1;
-                    hud.Text(new Rect(1020,107-lift,144,31),"−"+lastDamage.ToString("00"),special?28:24,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
+                    hud.Text(new Rect(1038,76-lift,144,26),"−"+lastDamage.ToString("00"),special?23:19,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
                 }
                 if(warning&&battle.Action!=HeroAction.Beam)
                 {
@@ -92,7 +56,7 @@ namespace UltramanGame.Runtime
                     string warningText=battle.Enemy==EnemyPhase.Attack?
                         (battle.Shield?"挡住它 · 保持护盾！":MonsterRayMotion.Active(battle)?"光线来了 · 双手防御！":"怪兽冲过来了！"):
                         (battle.Shield?"护盾准备好了":MonsterRayMotion.Active(battle)?"怪兽正在积蓄光线":"怪兽正在蓄力");
-                    hud.Text(new Rect(855,139,335,36),warningText,20,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
+                    hud.Text(new Rect(855,105,335,28),warningText,15,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
                 }
             }
             if(waiting)
@@ -147,8 +111,45 @@ namespace UltramanGame.Runtime
             }
             DrawBattleStartCue();
             DrawArcadePreview();
-            if(keyboard)hud.Text(new Rect(20,649,332,20),"按键练习 · A/D 挥拳 · S 防御 · J 光线",11,HudPainter.Muted);
+            if(keyboard&&!cinematic)hud.Text(new Rect(20,649,332,20),"按键练习 · A/D 挥拳 · S 防御 · J 光线",11,HudPainter.Muted);
             if(pose?.source=="synthetic")hud.Text(new Rect(20,695,400,20),"合成动作测试 · 非真人输入",11,HudPainter.Gold);
+        }
+
+        void DrawBattleHeader(bool ready,bool opening,bool cinematic)
+        {
+            // During the beam, retain only peripheral energy/health strips.
+            // The reaction lens can bring either actor through the old portraits.
+            Rect energy=cinematic?new Rect(24,18,236,5):BattleHudLayout.Energy;
+            Rect healthBar=cinematic?new Rect(1020,18,236,5):BattleHudLayout.EnemyHealth;
+            var energyColor=ready?HudPainter.Gold:HudPainter.Cyan;
+            if(!cinematic)
+            {
+                hud.Fade(new Rect(0,0,1280,86),new Color(.004f,.014f,.035f,.74f));
+                BattlePlate(BattleHudLayout.HeroPlate,HudPainter.Cyan,false);
+                BattlePlate(BattleHudLayout.EnemyPlate,new Color(1,.47f,.21f),true);
+                hud.HeroPortrait(new Rect(26,10,58,58),SelectedHero.Id);
+                hud.Portrait(new Rect(1196,10,58,58),true);
+                hud.Text(new Rect(94,14,184,27),SelectedHero.Name,18,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(284,19,140,20),ready?"必杀已就绪":$"光线 {battle.Energy:0} / 15",11,ready?HudPainter.Gold:HudPainter.Muted,TextAnchor.MiddleRight);
+                hud.Text(new Rect(1000,14,182,27),"哥尔赞",18,HudPainter.Ink,TextAnchor.MiddleRight,true);
+                hud.Text(new Rect(850,19,145,20),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",11,HudPainter.Muted);
+                if(!opening)
+                {
+                    hud.Text(new Rect(485,11,310,19),"火山大决战",11,HudPainter.Muted,TextAnchor.MiddleCenter);
+                    hud.Text(new Rect(485,31,310,24),$"{ArcadeScore():000000}",17,new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
+                }
+            }
+            for(int i=0;i<Battle.MaxEnergy;i++)
+                hud.Box(new Rect(energy.x+i*energy.width/Battle.MaxEnergy,energy.y,energy.width/Battle.MaxEnergy-(cinematic?2:4),energy.height),
+                    i<battle.Energy?energyColor:new Color(.10f,.21f,.29f));
+            float health=Mathf.Clamp01(battle.EnemyHealth/battle.MaxHealth),ghost=Mathf.Clamp01(enemyHealthDisplay/battle.MaxHealth);
+            hud.Box(new Rect(healthBar.x-1,healthBar.y-1,healthBar.width+2,healthBar.height+2),new Color(.09f,.13f,.19f));
+            if(ghost>health+.001f)
+                hud.Box(new Rect(healthBar.x+healthBar.width*(1-ghost),healthBar.y,healthBar.width*(ghost-health),healthBar.height),new Color(1,.84f,.35f,.78f));
+            hud.Box(new Rect(healthBar.x+healthBar.width*(1-health),healthBar.y,healthBar.width*health,healthBar.height),
+                health<.3f?new Color(1,.28f,.16f):new Color(1,.63f,.23f));
+            if(!cinematic)for(int i=1;i<10;i++)
+                hud.Box(new Rect(healthBar.x+i*healthBar.width/10,healthBar.y,1,healthBar.height),new Color(.1f,.07f,.02f,.34f));
         }
 
         void DrawKeyboardActions()

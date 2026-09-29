@@ -137,7 +137,8 @@ def main():
     with Image.open(native / 'battle-entry.png') as frame:
         # The opaque health swatch must retain its authored display color
         # when the scene's lighting or postprocessing color space changes.
-        pixel=frame.convert('RGB').getpixel((round(frame.width*900/1280),round(frame.height*60.7/720)))
+        # Inside BattleHudLayout.EnemyHealth, away from its segment dividers.
+        pixel=frame.convert('RGB').getpixel((round(frame.width*900/1280),round(frame.height*53/720)))
         if max(abs(a-b) for a,b in zip(pixel,(255,161,59)))>2:
             raise RuntimeError(f'HUD color was encoded incorrectly: {pixel}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
