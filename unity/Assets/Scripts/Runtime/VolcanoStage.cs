@@ -68,6 +68,7 @@ namespace UltramanGame.Runtime
             Rock(new Vector3(-5.8f,Height(-5.8f,5.8f),5.8f),new Vector3(1.35f,.86f,.95f),rock);
             Rock(new Vector3(6.4f,Height(6.4f,7.4f),7.4f),new Vector3(1.65f,.95f,1.1f),rock);
             BuildScree();
+            VolcanicOutpost.Create(transform,Height);
             lava=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicLava")));
             pool=RuntimeResources.Own(transform,new Material(lava));pool.SetFloat("_Pool",1);
             for(int i=0;i<vents.Length;i++)

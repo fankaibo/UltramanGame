@@ -101,8 +101,10 @@ namespace UltramanGame.Editor
                 CharacterReview.Save(world.Camera,target,folder+"/repeat-a.png");stage.Tick(7.1f);CharacterReview.Save(world.Camera,target,folder+"/repeat-b.png");
                 if(!Equal(File.ReadAllBytes(folder+"/repeat-a.png"),File.ReadAllBytes(folder+"/repeat-b.png")))throw new Exception("Frozen stage changes without time");
                 if(state.EnemyHealth!=50||state.HitsTaken!=0||state.Blocks!=1)throw new Exception("Stage capture changed battle result");
-                var files=new System.Collections.Generic.List<string>{"Scripts/Runtime/VolcanoStage.cs","Scripts/Runtime/GameWorld.cs","Resources/VolcanoGround.shader","Resources/VolcanicPlume.shader","Resources/VolcanicLava.shader","Editor/VolcanoStageReview.cs","Editor/BasaltTextureImport.cs"};
+                var files=new System.Collections.Generic.List<string>{"Scripts/Runtime/VolcanoStage.cs","Scripts/Runtime/VolcanicOutpost.cs","Scripts/Runtime/GameWorld.cs","Resources/OutpostSurface.shader","Resources/VolcanoGround.shader","Resources/VolcanicPlume.shader","Resources/VolcanicLava.shader","Editor/VolcanoStageReview.cs","Editor/BasaltTextureImport.cs"};
                 foreach(string file in Directory.GetFiles(Path.Combine(Application.dataPath,"Resources/Art/Basalt")))files.Add(file.Substring(Application.dataPath.Length+1));
+                string outpost=Path.Combine(Application.dataPath,"Resources/Art/Outpost");
+                if(Directory.Exists(outpost))foreach(string file in Directory.GetFiles(outpost))files.Add(file.Substring(Application.dataPath.Length+1));
                 var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
                     foreach(string file in files)
                     {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}

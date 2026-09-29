@@ -9,7 +9,7 @@ namespace UltramanGame.Editor
     {
         void OnPreprocessTexture()
         {
-            if(!assetPath.StartsWith("Assets/Resources/Art/Basalt/")||!assetPath.EndsWith(".jpg"))return;
+            if(!(assetPath.StartsWith("Assets/Resources/Art/Basalt/")||assetPath.StartsWith("Assets/Resources/Art/Outpost/"))||!assetPath.EndsWith(".jpg"))return;
             var importer=(TextureImporter)assetImporter;
             bool normal=assetPath.Contains("_nor_gl_");
             importer.textureType=normal?TextureImporterType.NormalMap:TextureImporterType.Default;
