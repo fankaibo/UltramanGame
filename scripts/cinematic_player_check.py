@@ -118,6 +118,7 @@ def main():
                 'combo-camera-peak', 'combo-camera-return', 'ground-rush', 'ground-hero-land', 'ground-stagger', 'ground-defeat',
                 'uppercut-airborne', 'uppercut-land', 'uppercut-recover')
     required += ('monster-arms-left','monster-arms-right','monster-arms-uppercut','monster-arms-beam')
+    required += ('monster-recovery-drop','monster-recovery-return')
     if args.slam:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:

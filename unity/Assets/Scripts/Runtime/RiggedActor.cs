@@ -64,7 +64,11 @@ namespace UltramanGame.Runtime
         GamePhase previous;
         bool heavyHit,accentHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
-        Transform head,upperSpine,pelvis;
+        Transform head,upperSpine,pelvis,jaw;
+        Quaternion jawBase;
+        bool jawLayerApplied;
+        float jawCorrection,recoveryWeight;
+        public float RecoveryWeight=>recoveryWeight;
         Vector3 beamContactLocal;
         readonly SkinnedSurfaceAnchor beamSurface,foreheadSurface;
         Vector3 surfaceContactLocal;
@@ -236,6 +240,7 @@ namespace UltramanGame.Runtime
                 if(joint.name=="Foot_L"||joint.name=="bip_foot_L")leftFoot=joint;
                 if(joint.name=="Foot_R"||joint.name=="bip_foot_R")rightFoot=joint;
                 if(joint.name=="hip"||joint.name=="bip_pelvis")pelvis=joint;
+                if(joint.name=="jaw")jaw=joint;
                 if(joint.name=="ThighBase_L"||joint.name=="bip_hip_L")leftThigh=joint;
                 if(joint.name=="ThighBase_R"||joint.name=="bip_hip_R")rightThigh=joint;
                 if(joint.name=="Shin_L"||joint.name=="bip_knee_L")leftShin=joint;
@@ -371,6 +376,7 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(jawLayerApplied){jaw.localRotation=jawBase;jawLayerApplied=false;}
             if(clawReactionApplied)
             {
                 leftUpperArm.localRotation=clawReactionBase[0];leftForearm.localRotation=clawReactionBase[1];leftHand.localRotation=clawReactionBase[2];
@@ -461,7 +467,7 @@ namespace UltramanGame.Runtime
             // replay the recoil. Chest yields first; planted knees take the
             // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
             if(monster)
             {
                 if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack)beamRecoil.Clear();
@@ -513,6 +519,8 @@ namespace UltramanGame.Runtime
                 surfaceContactLocal=beamContactLocal;
             }
             lastHealth=state.EnemyHealth;
+            recoveryWeight=monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Recover&&!beamRecoil.Active&&!launch.Active
+                ?MonsterRecoveryMotion.Weight(state.EnemyAge)*Mathf.SmoothStep(0,1,(hitAge-MonsterRecoilMotion.Duration)/.18f):0;
             string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1,fallTilt=0,fallSide=0,fallDrop=0;
             Frame=0;
             if(monster)
@@ -781,6 +789,18 @@ namespace UltramanGame.Runtime
                 }
                 contactLayerApplied=true;
             }
+            if(recoveryWeight>0)
+            {
+                var right=Vector3.Cross(Vector3.up,forward);
+                float envelope=MonsterRecoveryMotion.Weight(state.EnemyAge);
+                float blend=envelope>0?recoveryWeight/envelope:0;
+                if(!contactLayerApplied)
+                {if(upperSpine)spineBase=upperSpine.localRotation;if(head)headBase=head.localRotation;}
+                if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(-MonsterRecoveryMotion.Chest(state.EnemyAge)*blend,right)*upperSpine.rotation;
+                if(head)head.rotation=Quaternion.AngleAxis(MonsterRecoveryMotion.HeadTurn(state.EnemyAge)*blend,Vector3.up)
+                    *Quaternion.AngleAxis(3*recoveryWeight,right)*head.rotation;
+                contactLayerApplied=true;
+            }
             if(!monster&&punchLink.Weight>0)
             {
                 // Wind the accepted next shoulder while the current fist
@@ -878,6 +898,17 @@ namespace UltramanGame.Runtime
             if(monster&&preview<0&&MonsterRayMotion.Active(state)&&next!="Hurt")PoseHeadRay(state,dt);
             else rayPrepare=0;
             if(monster)PoseClawReaction(state,preview);
+            if(monster&&jaw)
+            {
+                // Keep a small breathing gap at rest. The authored windup,
+                // attack and hurt clips retain their full opening range.
+                bool rest=preview<0&&(state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Battle&&
+                    (state.Enemy==EnemyPhase.Rest||state.Enemy==EnemyPhase.Recover)&&next!="Hurt");
+                float target=rest?-8-4*recoveryWeight+Mathf.Sin(time*1.7f)*.8f:0;
+                jawCorrection=Mathf.MoveTowards(jawCorrection,target,Mathf.Max(0,dt)*120);
+                jawBase=jaw.localRotation;jawLayerApplied=true;
+                jaw.rotation=Quaternion.AngleAxis(jawCorrection,Root.right)*jaw.rotation;
+            }
             // Character-local emission carries the same readable signals as the
             // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
             // timer and crystal intensify during transformation and beam charge.
@@ -1524,7 +1555,7 @@ namespace UltramanGame.Runtime
         void PoseClawReaction(Battle state,int preview)
         {
             if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack||
-                (MonsterSlamMotion.Active(state)||MonsterRayMotion.Active(state))&&playing!="Hurt")
+                (MonsterSlamMotion.Active(state)||MonsterRayMotion.Active(state))&&playing!="Hurt"&&state.Enemy!=EnemyPhase.Recover)
             {clawLeft=clawRight=clawCarryLeft=clawCarryRight=Vector3.zero;return;}
             if(!upperArm||!forearm||!hand||!leftUpperArm||!leftForearm||!leftHand)return;
             var side=Vector3.Cross(Vector3.up,forward);
@@ -1534,6 +1565,7 @@ namespace UltramanGame.Runtime
                 var pose=MonsterClawMotion.Sample(left,hitAge,contactSide,accentHit,launch.Age,beamRecoil.Age);
                 Vector3 offset=side*pose.X+Vector3.up*pose.Y+forward*pose.Z;
                 offset+=(left?clawCarryLeft:clawCarryRight)*MonsterClawMotion.Carry(hitAge);
+                offset+=(-forward*.12f+Vector3.down*.18f+side*(sign*.06f))*recoveryWeight;
                 if(left)clawLeft=offset;else clawRight=offset;
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
                 int at=i*3;clawReactionBase[at]=upper.localRotation;clawReactionBase[at+1]=lower.localRotation;clawReactionBase[at+2]=wrist.localRotation;
