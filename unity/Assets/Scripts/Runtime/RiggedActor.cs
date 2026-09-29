@@ -75,9 +75,16 @@ namespace UltramanGame.Runtime
         Transform leftThigh,rightThigh,leftShin,rightShin;
         Quaternion leftFootRest,rightFootRest;
         Vector3 leftFootLocal,rightFootLocal;
+        Vector3 pelvisLocal;
+        bool knockdownApplied;
+        Vector3 knockdownRoot;
+        Quaternion knockdownFacing;
+        readonly Quaternion[] knockdownRotations=new Quaternion[9];
         float leftFootClearance,rightFootClearance;
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
+        bool breathArmsApplied;
+        Quaternion breathLeftArm,breathRightArm;
         float contactSide;
         Vector3 recoilStart;
         float recoilStartYaw;
@@ -295,6 +302,7 @@ namespace UltramanGame.Runtime
             if(rightFoot)rightFootRest=Quaternion.Inverse(Root.rotation)*rightFoot.rotation;
             if(leftFoot)leftFootLocal=Root.InverseTransformPoint(leftFoot.position);
             if(rightFoot)rightFootLocal=Root.InverseTransformPoint(rightFoot.position);
+            if(pelvis)pelvisLocal=Root.InverseTransformPoint(pelvis.position);
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
             rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
             if(monster)
@@ -376,6 +384,14 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(knockdownApplied)
+            {
+                Root.SetPositionAndRotation(knockdownRoot,knockdownFacing);
+                leftThigh.localRotation=knockdownRotations[0];leftShin.localRotation=knockdownRotations[1];leftFoot.localRotation=knockdownRotations[2];
+                rightThigh.localRotation=knockdownRotations[3];rightShin.localRotation=knockdownRotations[4];rightFoot.localRotation=knockdownRotations[5];
+                leftUpperArm.localRotation=knockdownRotations[6];leftForearm.localRotation=knockdownRotations[7];leftHand.localRotation=knockdownRotations[8];
+                knockdownApplied=false;
+            }
             if(jawLayerApplied){jaw.localRotation=jawBase;jawLayerApplied=false;}
             if(clawReactionApplied)
             {
@@ -432,6 +448,14 @@ namespace UltramanGame.Runtime
                     upperArm.localRotation=stepArmRotations[3];forearm.localRotation=stepArmRotations[4];hand.localRotation=stepArmRotations[5];
                 }
                 stepArmsApplied=false;
+            }
+            // Arm IK caches the breathed pose. Remove the shoulder offset
+            // after that restore so a paused/repeated idle sample cannot add it
+            // again. A new non-retargeted clip still blends from visible hands.
+            if(breathArmsApplied)
+            {
+                if(retargetArms){leftUpperArm.localRotation=breathLeftArm;upperArm.localRotation=breathRightArm;}
+                breathArmsApplied=false;
             }
             // Blends start from the sampled clip, never from last frame's
             // additive impact. Otherwise the same impulse feeds back into itself.
@@ -566,7 +590,9 @@ namespace UltramanGame.Runtime
                 {
                     next="Hurt";sample=KnockdownMotion.ClipSeconds(state.ActionAge);Frame=5;
                     float p=KnockdownMotion.Weight(state.ActionAge);
-                    fallTilt=-62f*p;fallSide=20f*p;
+                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-62f*p:
+                        Mathf.Lerp(-62,16,RiseStep(state.ActionAge,.68f,1.02f))*(1-RiseStep(state.ActionAge,1.02f,KnockdownMotion.Duration));
+                    fallSide=20f*p;
                 }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
             }
@@ -626,7 +652,7 @@ namespace UltramanGame.Runtime
                 else PoseVictoryTurn(VictoryMotion.Turn(phaseAge));
             }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
-                PoseKnockdown(KnockdownMotion.Weight(state.ActionAge));
+                PoseKnockdown(state.ActionAge);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt"&&!launch.Active)
             {
                 // Hips yield over anchored feet instead of sliding the entire
@@ -779,6 +805,7 @@ namespace UltramanGame.Runtime
                 }
                 if(heroBreath&&upperArm&&leftUpperArm)
                 {
+                    breathLeftArm=leftUpperArm.localRotation;breathRightArm=upperArm.localRotation;breathArmsApplied=true;
                     // Keep the hero alive during the short arcade pause. The
                     // authored idle clip leaves the shoulders almost frozen;
                     // a tiny opposing arm settle makes the stance read as a
@@ -1392,23 +1419,45 @@ namespace UltramanGame.Runtime
                 home.y+(first?rightFootLocal.y:leftFootLocal.y));
             leftFoot.rotation=Root.rotation*leftFootRest;rightFoot.rotation=Root.rotation*rightFootRest;
         }
-        void PoseKnockdown(float weight)
+        static float RiseStep(float age,float start,float end)=>Mathf.SmoothStep(0,1,(age-start)/(end-start));
+        void PoseKnockdown(float age)
         {
-            if(!pelvis||weight<=0)return;
+            float weight=KnockdownMotion.Weight(age);
+            if(!pelvis||!leftThigh||!leftShin||!leftFoot||!rightThigh||!rightShin||!rightFoot||
+                !leftUpperArm||!leftForearm||!leftHand||weight<=0)return;
+            knockdownRoot=Root.position;knockdownFacing=Root.rotation;
+            knockdownRotations[0]=leftThigh.localRotation;knockdownRotations[1]=leftShin.localRotation;knockdownRotations[2]=leftFoot.localRotation;
+            knockdownRotations[3]=rightThigh.localRotation;knockdownRotations[4]=rightShin.localRotation;knockdownRotations[5]=rightFoot.localRotation;
+            knockdownRotations[6]=leftUpperArm.localRotation;knockdownRotations[7]=leftForearm.localRotation;knockdownRotations[8]=leftHand.localRotation;knockdownApplied=true;
             var side=Vector3.Cross(Vector3.up,forward);
+            var facing=Quaternion.LookRotation(forward);
             Vector3 seated=home-forward*.35f+Vector3.up*.43f;
-            Root.position+=Vector3.Lerp(pelvis.position,seated,weight)-pelvis.position;
-            Vector3 feet=seated+forward*1.12f;feet.y=home.y+.16f;
-            PoseLimb(leftThigh,leftShin,leftFoot,feet-side*.32f,weight,Vector3.up,leftFootClearance);
-            PoseLimb(rightThigh,rightShin,rightFoot,feet+side*.30f-forward*.20f,weight,Vector3.up,rightFootClearance);
-            if(leftFoot)leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,Quaternion.LookRotation(forward)*leftFootRest,weight);
-            if(rightFoot)rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,Quaternion.LookRotation(forward)*rightFootRest,weight);
-            // One hand braces beside the hip; the other retains its authored
-            // recoil. Unequal limbs read as a fall instead of a rotated statue.
-            Vector3 support=seated-side*.68f-forward*.32f;support.y=home.y+.20f;
-            Quaternion palm=leftHand?leftHand.rotation:Quaternion.identity;
-            PoseLimb(leftUpperArm,leftForearm,leftHand,support,weight,-side,.20f);
-            if(leftHand)leftHand.rotation=palm;
+            Vector3 upright=home+facing*pelvisLocal;
+            Vector3 crouch=upright+side*.12f;crouch.y=home.y+pelvisLocal.y*.52f;
+            Vector3 hips=Vector3.Lerp(seated,crouch,RiseStep(age,.80f,1.12f));
+            hips=Vector3.Lerp(hips,upright,RiseStep(age,1.12f,1.62f));
+            float landed=age<KnockdownMotion.LandingSeconds?weight:1;
+            Root.position+=Vector3.Lerp(pelvis.position,hips,landed)-pelvis.position;
+            Vector3 feet=seated+forward*1.12f;
+            Vector3 left=feet-side*.32f,right=feet+side*.30f-forward*.20f;
+            left.y=home.y+leftFootClearance;right.y=home.y+rightFootClearance;
+            // First bring the right foot beneath the hips while the left boot
+            // and hand carry the body. Then step the left boot back as the
+            // right leg pushes up. Never slide both supports with a fade weight.
+            float rightStep=RiseStep(age,.58f,.86f),leftStep=RiseStep(age,.90f,1.30f);
+            Vector3 standingLeft=home+facing*leftFootLocal,standingRight=home+facing*rightFootLocal;
+            left=Vector3.Lerp(left,standingLeft,leftStep)+Vector3.up*(.14f*Mathf.Sin(leftStep*Mathf.PI));
+            right=Vector3.Lerp(right,standingRight,rightStep)+Vector3.up*(.10f*Mathf.Sin(rightStep*Mathf.PI));
+            float floorBlend=RiseStep(age,1.38f,1.62f);
+            float lc=Mathf.Lerp(leftFootClearance,leftFootLocal.y,floorBlend),rc=Mathf.Lerp(rightFootClearance,rightFootLocal.y,floorBlend);
+            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,forward,RiseStep(age,.68f,1.02f)),lc);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,forward,RiseStep(age,.68f,1.02f)),rc);
+            leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,facing*leftFootRest,landed);
+            rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,facing*rightFootRest,landed);
+            Vector3 support=seated-side*.68f-forward*.32f;support.y=home.y+.23f;
+            Quaternion palm=leftHand.rotation;
+            PoseLimb(leftUpperArm,leftForearm,leftHand,support,landed*(1-RiseStep(age,.84f,1.22f)),-side,.23f);
+            leftHand.rotation=palm;
         }
         void PoseLimb(Transform thigh,Transform shin,Transform foot,Vector3 target,float weight,Vector3 pole,float clearance)
         {
