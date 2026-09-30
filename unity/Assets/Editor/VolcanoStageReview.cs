@@ -63,7 +63,7 @@ namespace UltramanGame.Editor
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(929);
             string folder=Path.Combine(OutputRoot,version);Directory.CreateDirectory(folder+"/frames");
             File.Delete(folder+"/validation.txt");
-            foreach(string name in new[]{"VolcanoGround","VolcanicPlume","VolcanicLava"})
+            foreach(string name in new[]{"VolcanoGround","VolcanicPlume","VolcanicLava","ScannedRock"})
             {var shader=Resources.Load<Shader>(name);if(!shader||!shader.isSupported||ShaderUtil.ShaderHasError(shader))throw new Exception("Invalid stage shader "+name);}
             foreach(string file in Directory.GetFiles(Path.Combine(Application.dataPath,"Resources/Art/Basalt"),"*.jpg"))
             {
@@ -75,6 +75,11 @@ namespace UltramanGame.Editor
             }
             var world=new GameWorld();var state=new Battle();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
+            var scannedSurfaces=new System.Collections.Generic.List<Renderer>();
+            foreach(var renderer in UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+                if(renderer.enabled&&renderer.sharedMaterial&&renderer.sharedMaterial.shader.name=="Training/ScannedRock")scannedSurfaces.Add(renderer);
+            var bodies=new System.Collections.Generic.List<SkinnedMeshRenderer>(hero.Root.GetComponentsInChildren<SkinnedMeshRenderer>());
+            bodies.AddRange(enemy.Root.GetComponentsInChildren<SkinnedMeshRenderer>());
             state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
             for(int f=0;f<1000&&state.Enemy!=EnemyPhase.Windup;f++)state.Tick(1/60f,new PlayerInput{Tracking=true});while(state.TryCue(out _)){}
             var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
@@ -86,12 +91,16 @@ namespace UltramanGame.Editor
                     const float dt=1/60f;float time=frame*dt;
                     state.Tick(dt,new PlayerInput{Tracking=true,Shield=true});while(state.TryCue(out var cue))world.Cue(cue,state);
                     hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);world.Tick(state,dt,time);
+                    foreach(var scan in scannedSurfaces)foreach(var body in bodies)
+                        if(scan.bounds.Intersects(body.bounds))throw new Exception("Scanned terrain overlaps an actor: "+scan.transform.parent.name+" / "+body.name);
                     samples.AppendLine(FormattableString.Invariant($"{frame},{state.Enemy},{state.EnemyAge:F4},{state.EnemyHealth},{state.Blocks},{state.HitsTaken}"));
                     if(frame%2==0)CharacterReview.Save(world.Camera,target,$"{folder}/frames/{frame/2:D4}.png");
                     if(frame==180||frame==420)CharacterReview.Save(world.Camera,target,$"{folder}/battle-{frame}.png");
                 }
                 File.WriteAllText(folder+"/sequence.csv",samples.ToString());
                 var stage=UnityEngine.Object.FindFirstObjectByType<VolcanoStage>();
+                if(version=="after"&&stage.ScannedRockCount<4)throw new Exception("Scanned outcrops missing from stage");
+                Debug.Log($"[ScannedOutcrops] count={stage.ScannedRockCount} triangles={stage.ScannedRockTriangles}");
                 // Inspect the same world-space vent from three directions. This
                 // camera is only for reviewing volume and crust, never gameplay.
                 var pivot=new Vector3(5.3f,1.7f,13.5f);
@@ -108,6 +117,9 @@ namespace UltramanGame.Editor
                 foreach(string file in Directory.GetFiles(Path.Combine(Application.dataPath,"Resources/Art/Basalt")))files.Add(file.Substring(Application.dataPath.Length+1));
                 string outpost=Path.Combine(Application.dataPath,"Resources/Art/Outpost");
                 if(Directory.Exists(outpost))foreach(string file in Directory.GetFiles(outpost))files.Add(file.Substring(Application.dataPath.Length+1));
+                files.Add("Scripts/Runtime/ScannedOutcrops.cs");files.Add("Resources/ScannedRock.shader");files.Add("Editor/ScannedRockImport.cs");
+                string scans=Path.Combine(Application.dataPath,"Resources/Environment/ScannedRocks");
+                if(Directory.Exists(scans))foreach(string file in Directory.GetFiles(scans))files.Add(file.Substring(Application.dataPath.Length+1));
                 var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
                     foreach(string file in files)
                     {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}

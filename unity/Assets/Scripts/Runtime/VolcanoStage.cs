@@ -9,6 +9,9 @@ namespace UltramanGame.Runtime
     {
         VolcanicEjecta ejecta;
         VolcanicOutpost outpost;
+        ScannedOutcrops scans;
+        public int ScannedRockCount=>scans?.Count??0;
+        public int ScannedRockTriangles=>scans?.Triangles??0;
         public OutpostDamage Damage=>outpost.Damage;
         readonly Material[] cloudMaterials=new Material[2];
         const int AshCount=42;
@@ -51,6 +54,7 @@ namespace UltramanGame.Runtime
             rock=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanoGround")));
             Surface(rock,"rock_face_03","diff",new Color(.46f,.50f,.56f),.37f,true);
             rock.SetFloat("_BackdropBlend",0);
+            scans=new ScannedOutcrops(transform);
             BuildTerrain();
             for(int i=0;i<64;i++)
             {
@@ -232,6 +236,8 @@ namespace UltramanGame.Runtime
         }
         void Rock(Vector3 p,Vector3 size,Material material)
         {
+            float yaw=Range(0,360);
+            if(scans.Place(p,size,yaw))return;
             // A fractured block with broad planar cuts, irregular shelves and
             // chipped edges. Subdivision changes the silhouette, not just shading.
             const int sides=24,rings=7;var vertices=new Vector3[sides*rings+2];vertices[0]=Vector3.down*.04f;
@@ -263,7 +269,7 @@ namespace UltramanGame.Runtime
             }
             var uv=new Vector2[vertices.Length];for(int i=0;i<uv.Length;i++)uv[i]=new Vector2(vertices[i].x,vertices[i].z);
             var t=MeshObject("Weathered basalt",vertices,triangles.ToArray(),uv,material);
-            t.localPosition=p;t.localRotation=Quaternion.Euler(0,Range(0,360),0);
+            t.localPosition=p;t.localRotation=Quaternion.Euler(0,yaw,0);
         }
         Transform MeshObject(string name,Vector3[] vertices,int[] triangles,Vector2[] uv,Material material)
         {
