@@ -329,7 +329,10 @@ namespace UltramanGame.Runtime
             // retaining enough margin for the feet, effects and camera preview.
             // Leave space above the helmets and below the planted feet for the
             // edge HUD, including the return from a special-move close-up.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?29.2f:state.Shield?28.5f:29.2f):37;
+            // The reference cabinet keeps the two fighters large in the
+            // playfield. Tighten the ordinary lens a little; dedicated beam,
+            // threat and combo compositions still take ownership below.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27.8f:state.Shield?27.2f:27.8f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}

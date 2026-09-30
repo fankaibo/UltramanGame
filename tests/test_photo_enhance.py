@@ -109,7 +109,7 @@ class PhotoEnhancementTests(unittest.TestCase):
             result=cv2.imread(str(output));delta=np.abs(result.astype(np.int16)-clean.astype(np.int16))
             self.assertGreater(recipe['light_wrap'],0)
             self.assertGreater(np.count_nonzero(np.any(delta>2,axis=2)),100)
-            self.assertGreater(float(delta.mean()),2.5,'local fallback must be visibly different from the source')
+            self.assertGreater(float(delta.mean()),3.0,'local fallback must be visibly different from the source')
             self.assertGreater(float(np.mean(np.any(delta>2,axis=2))),.20,'fusion must affect a meaningful part of the person')
             np.testing.assert_array_equal(result[:,:100],clean[:,:100])
 

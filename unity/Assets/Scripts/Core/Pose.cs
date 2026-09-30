@@ -108,6 +108,10 @@ namespace UltramanGame.Core
         float BeamHold=>BeamHoldSeconds+Level*.10f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
         public const float BeamHoldSeconds=.60f, BeamGapSeconds=.50f;
+        // A laptop camera can lose stable depth for several packets while the
+        // child is still visibly holding the finisher. Keep ownership longer
+        // than the charge gap so this uncertainty cannot become a punch.
+        const float BeamOwnershipGraceSeconds=.62f;
         public float BeamProgress => Math.Min(1,beamHold/BeamHold);
         public float ShieldProgress => Math.Min(1,shieldHold/ShieldHold);
         public bool BeamNeedsRelease {get;private set;}
@@ -217,7 +221,7 @@ namespace UltramanGame.Core
             // swaps a wrist depth or drops an elbow. Remember a positively
             // observed beam shape before a charge exists, so that packet
             // cannot immediately become a punch while the child settles.
-            if(beamAvailable&&(beamShape||beamEntryShape))beamShapeGrace=.36f;
+            if(beamAvailable&&(beamShape||beamEntryShape))beamShapeGrace=BeamOwnershipGraceSeconds;
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
             // A visible L is a stronger finisher signal than a loose chest
@@ -263,9 +267,9 @@ namespace UltramanGame.Core
                 beamLostAge+=dt;
                 // A deliberate low-hand release is the only immediate cancel;
                 // otherwise tolerate a short estimator wobble during charge.
-                if(beamReleasePose||beamLostAge>.36f){beamLocked=false;beamLockAge=0;}
+                if(beamReleasePose||beamLostAge>BeamOwnershipGraceSeconds){beamLocked=false;beamLockAge=0;}
             }
-            bool beamLatch=beamLocked&&beamWristsReady&&!raised&&!beamReleasePose&&beamLostAge<=.36f;
+            bool beamLatch=beamLocked&&beamWristsReady&&!raised&&!beamReleasePose&&beamLostAge<=BeamOwnershipGraceSeconds;
             bool beamGrace=(beamHold>=.10f||beamShapeGrace>0)&&beamWristsReady&&!(transformAvailable&&raised)&&
                 !guardEnvelope&&!beamReleasePose;
             // Grace owns the gesture and blocks punch/guard handoff, but it
