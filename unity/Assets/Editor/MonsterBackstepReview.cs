@@ -61,7 +61,7 @@ namespace UltramanGame.Editor
                         {skin.BakeMesh(mesh,true);foreach(var v in mesh.vertices)minY=Mathf.Min(minY,skin.transform.TransformPoint(v).y);}
                         if(state.EnemyHealth<health)
                         {
-                            contacts++;float nearest=100;Vector3 fist=hero.StrikeOrigin(state.Action)+world.BattleAxis*.12f;
+                            contacts++;float nearest=100;Vector3 fist=hero.StrikeContact(state)+world.BattleAxis*.12f;
                             foreach(var skin in enemy.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
                             {
                                 skin.BakeMesh(mesh,true);var vertices=mesh.vertices;var weights=skin.sharedMesh.boneWeights;

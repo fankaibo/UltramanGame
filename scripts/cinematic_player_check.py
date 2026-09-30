@@ -121,6 +121,9 @@ def main():
     entrance_roars=live_output.count('[MonsterEntrance] roar sound=True')
     if entrance_steps!=['left','right'] or entrance_roars!=1 or ground_contacts.count('arrival')!=2:
         raise RuntimeError('Monster opening did not pair two landings with one roar')
+    kick_contacts=live_output.count('[HeroKick] contact ')
+    if kick_contacts!=(1 if args.finisher else 2) or live_output.count('[HeroKick] begin ')!=kick_contacts:
+        raise RuntimeError('Combo kick did not match each accepted fifth/twenty-fifth hit once')
     expected_contacts = {'fist':12,'heavy':3,'beam':1} if args.finisher else {'fist':26,'heavy':6,'beam':2}
     if contacts != expected_contacts:
         raise RuntimeError(f'Contact sounds did not follow the accepted strikes: {contacts}')
@@ -142,6 +145,7 @@ def main():
     required += ('outpost-dust','outpost-settled')
     required += ('monster-entrance-step','monster-entrance-plant','monster-entrance-roar','monster-entrance-return')
     required += ('defeat-flash','defeat-billows','defeat-settling')
+    required += ('kick-chamber','kick-contact','kick-retract','kick-setdown')
     if args.slam:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:

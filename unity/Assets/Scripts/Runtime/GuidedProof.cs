@@ -10,10 +10,21 @@ namespace UltramanGame.Runtime
     {
         readonly HashSet<string> proofFrames=new HashSet<string>();
         bool proofBusy;
+        float proofLastKickTime=-10;
         void CaptureGuidedProof()
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            if(HeroKickMotion.Active(battle))proofLastKickTime=Time.unscaledTime;
+            else if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield&&
+                Time.unscaledTime-proofLastKickTime<.75f&&hero.FootPosition(true).y<.4f&&hero.FootPosition(false).y<.4f)
+            {
+                // A slow screenshot can step across the last 50 ms of the
+                // kick. Capture the actual planted feet after it, rather than
+                // requiring a narrow synthetic time window to be visited.
+                string landed="kick-setdown"+(photo.Captures>0?"-after-photo":"");
+                if(proofFrames.Add(landed)){StartCoroutine(SaveGuidedProof(landed));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.BeamRecoilAge>=.39f&&enemy.BeamRecoilAge<.65f)
             {
                 // A terminal beam has no later beam to recover a missed frame.
@@ -166,6 +177,14 @@ namespace UltramanGame.Runtime
             {
                 string outpost=world.OutpostDamage.ActiveClouds>=3?"outpost-dust":world.OutpostDamage.ActiveClouds==0?"outpost-settled":null;
                 if(outpost!=null&&!proofFrames.Contains(outpost+(photo.Captures>0?"-after-photo":"")))key=outpost;
+            }
+            // A single new kick frame takes priority over already recurring
+            // stagger/camera shots. Do this after their classification, or
+            // the retraction evidence is silently replaced by the footstep.
+            if(!captureClaw&&!photo.Active&&HeroKickMotion.Active(battle))
+            {
+                string kickKey=battle.ActionAge<Battle.PunchHitSeconds?"kick-chamber":battle.ActionAge<.23f?"kick-contact":battle.ActionAge<.33f?"kick-retract":"kick-setdown";
+                if(!proofFrames.Contains(kickKey+(photo.Captures>0?"-after-photo":"")))key=kickKey;
             }
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;

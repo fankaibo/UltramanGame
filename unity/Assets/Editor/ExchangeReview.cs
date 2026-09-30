@@ -186,7 +186,7 @@ namespace UltramanGame.Editor
                             if(state.Action==HeroAction.LeftPunch)leftWakeFrames++;
                             if(state.Action==HeroAction.RightPunch)rightWakeFrames++;
                             if(state.ActionAge>.025f&&state.ActionAge<.21f)
-                                VerifyTip("Hero striking hand wake",hero.StrikeOrigin(state.Action));
+                                VerifyTip("Hero striking hand wake",hero.StrikeContact(state));
                         }
                         if(world.MonsterTrailVisible)
                         {

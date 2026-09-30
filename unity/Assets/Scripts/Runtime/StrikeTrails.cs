@@ -126,7 +126,7 @@ namespace UltramanGame.Runtime
             bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.34f;
             bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
             bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
-            hero.Tick(camera,clock,emitHero,heroActor.StrikeOrigin(state.Action));
+            hero.Tick(camera,clock,emitHero&&(!HeroKickMotion.Active(state)||state.ActionAge<.23f),heroActor.StrikeContact(state));
             var hand=enemyActor.EnemyStrikeOrigin(state);
             float wakeOpacity=slam?1:1-.75f*Mathf.SmoothStep(0,1,(state.EnemyAge-.27f)/.12f);
             for(int i=0;i<claws.Length;i++)

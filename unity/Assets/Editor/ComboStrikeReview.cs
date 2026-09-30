@@ -87,7 +87,7 @@ namespace UltramanGame.Editor
                             {
                                 contacts++;if(strike%5==0)
                                 {
-                                    accentContacts++;Vector3 active=left?l:r,off=left?r:l,shoulder=left?rightShoulder.position:leftShoulder.position;
+                                    accentContacts++;Vector3 active=hero.StrikeContact(state),off=left?r:l,shoulder=left?rightShoulder.position:leftShoulder.position;
                                     maxOffhand=Mathf.Max(maxOffhand,Vector3.Dot(off-shoulder,world.BattleAxis));minSeparation=Mathf.Min(minSeparation,Vector3.Dot(active-off,world.BattleAxis));
                                     float gap=100;foreach(var skin in enemy.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
                                     {
@@ -132,7 +132,7 @@ namespace UltramanGame.Editor
         {
             string folder=Path.Combine(Output,version);Directory.CreateDirectory(folder+"/frames");
             var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/StrikeContactBurst.cs","Resources/StrikeContact.shader","Scripts/Core/Battle.cs","Scripts/Core/ComboStrikeMotion.cs","Scripts/Core/MonsterStaggerMotion.cs","Scripts/Core/MonsterLaunchMotion.cs","Resources/Characters/Golza/Golza.fbx","Resources/Characters/Tiga/Tiga.fbx","Editor/ComboStrikeReview.cs","Editor/MonsterBackstepReview.cs","Editor/StrikeContactReview.cs","Editor/TigaGuardReview.cs","Editor/SurfaceImpactReview.cs","Editor/RosterPunchReview.cs","Scripts/Core/ComboCameraMotion.cs","Editor/ComboCameraReview.cs"})
+                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/GameAudio.cs","Scripts/Runtime/ArenaController.cs","Scripts/Runtime/CombatVfx.cs","Scripts/Runtime/StrikeContactBurst.cs","Scripts/Runtime/StrikeTrails.cs","Resources/StrikeContact.shader","Scripts/Core/Battle.cs","Scripts/Core/HeroKickMotion.cs","Scripts/Core/ComboStrikeMotion.cs","Scripts/Core/MonsterStaggerMotion.cs","Scripts/Core/MonsterLaunchMotion.cs","Resources/Characters/Golza/Golza.fbx","Resources/Characters/Tiga/Tiga.fbx","Editor/ComboStrikeReview.cs","Editor/MonsterBackstepReview.cs","Editor/StrikeContactReview.cs","Editor/TigaGuardReview.cs","Editor/SurfaceImpactReview.cs","Editor/RosterPunchReview.cs","Scripts/Core/ComboCameraMotion.cs","Editor/ComboCameraReview.cs"})
                 {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/sources.txt",sources.ToString());
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(928);

@@ -103,7 +103,7 @@ namespace UltramanGame.Editor
                     if(state.EnemyHealth<health)
                     {
                         world.Hit(kind==2,state);age=0;var point=(Vector3)mat.GetVector("_ImpactPoint");local=chest.InverseTransformPoint(point);
-                        Vector3 contact=kind==2?world.BeamTarget:hero.StrikeOrigin(state.Action);
+                        Vector3 contact=kind==2?world.BeamTarget:hero.StrikeContact(state);
                         if(Vector3.Distance(point,contact)>.001f)throw new Exception("Skin light missed actual contact");
                     }
                     health=state.EnemyHealth;world.Tick(state,dt,t);

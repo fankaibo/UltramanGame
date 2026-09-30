@@ -137,7 +137,7 @@ namespace UltramanGame.Runtime
             obj.GetComponent<Renderer>().sharedMaterial=material;
             if(Application.isPlaying)Object.Destroy(obj.GetComponent<Collider>());else Object.DestroyImmediate(obj.GetComponent<Collider>());return obj.transform;
         }
-        public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
+        public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
         {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
@@ -151,9 +151,10 @@ namespace UltramanGame.Runtime
             // four-year-old to keep the action legible.
             Kick(special?.12f:.065f,special);
             // Use the monster's position at this contact, including its own forward step.
-            var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeOrigin(state.Action);
+            var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeContact(state);
             cinematic.PulseAt(position,special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             enemy?.BindSurfaceImpact(position);
+            if(!special&&HeroKickMotion.Active(state)&&Debug.isDebugBuild)Debug.Log($"[HeroKick] contact side={state.Action} punches={state.Punches}");
             effects.Impact(position,special,combo:!special&&state!=null&&ComboStrikeMotion.Active(state),direction:BattleAxis,volumetric:special);
             if(special)effects.BeamHit(position,BattleAxis);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
@@ -165,6 +166,7 @@ namespace UltramanGame.Runtime
         }
         public void Cue(GameCue cue,Battle state=null)
         {
+            if(cue==GameCue.Punch&&state!=null&&HeroKickMotion.Active(state)&&Debug.isDebugBuild)Debug.Log($"[HeroKick] begin side={state.Action}");
             if(cue==GameCue.EnemyAttack)
             {
                 // The rush begins with a readable visual beat.  It is a presentation
@@ -419,6 +421,12 @@ namespace UltramanGame.Runtime
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,closePosition,ComboFocus);
                 target=Vector3.Lerp(target,lookAt+Vector3.down*.04f+BattleAxis*.06f,ComboFocus);
                 Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,29.2f,ComboFocus);
+            }
+            if(HeroKickMotion.Active(state)&&!Showcase&&!Closeup.Active)
+            {
+                // Keep the support boot and raised knee in the same shot.
+                float weight=HeroKickMotion.Drive(state.ActionAge);
+                target+=Vector3.down*(.12f*weight);Camera.fieldOfView+=1.6f*weight;
             }
             if(ExchangeFocus>0)
             {

@@ -26,6 +26,7 @@ namespace UltramanGame.Runtime
         public int BeamLandings=>rigged!=null?rigged.BeamLandings:0;
         public float BeamChaseAdvance=>rigged!=null?rigged.BeamChaseAdvance:0;
         public Vector3 StrikeOrigin(HeroAction action) => rigged!=null?rigged.StrikeOrigin(action):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
+        public Vector3 StrikeContact(Battle state)=>rigged!=null&&HeroKickMotion.Active(state)?rigged.KickContact(state.Action):StrikeOrigin(state.Action);
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(Battle state) => rigged!=null?rigged.EnemyStrikeOrigin(state.EnemyAttackCount):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 BeamOrigin => rigged!=null?rigged.BeamOrigin:Root.position+Vector3.up*2.7f;
