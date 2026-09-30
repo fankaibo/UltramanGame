@@ -93,6 +93,13 @@ namespace UltramanGame.Runtime
                 key=world.VictoryAge<.8f?"Victory":world.VictoryAge<1.45f?"victory-collapse":
                     world.VictoryAge<3.04f?"victory-turn":world.VictoryAge<3.3f?"victory-dissolve":
                     world.VictoryAge<3.7f?"victory-motes":"victory-hero";
+            if(!photo.Active&&battle.Phase==GamePhase.Victory&&world.DefeatImpactVisible&&
+                proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
+            {
+                if(world.DefeatImpactAge>=.14f&&world.DefeatImpactAge<.42f)key="defeat-flash";
+                else if(world.DefeatImpactAge>=.55f&&world.DefeatImpactAge<.95f)key="defeat-billows";
+                else if(world.DefeatImpactAge>=1.3f&&world.DefeatImpactAge<1.7f)key="defeat-settling";
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Transforming)
                 key=world.EntranceAge<.26f?"Transforming":world.EntranceAge<1?"transform-front":
                     world.EntranceAge<1.66f?"transform-radiance":world.EntranceAge<MonsterEntranceMotion.Start?"transform-return":

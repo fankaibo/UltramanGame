@@ -83,6 +83,8 @@ def main():
         raise RuntimeError(f'Expected {expected_beams} {beam_voice} battle cries for {args.hero}')
     if output.count('[VictoryStage] landing-thud playing=True') != 1:
         raise RuntimeError('Expected exactly one landing sound for the defeated monster')
+    if live_output.count('[DefeatImpact] begin landing=True') != 1 or live_output.count('[DefeatImpact] sound=True') != 1:
+        raise RuntimeError('Defeat dust burst and sound did not follow the single landing')
     if output.count('[MonsterDissolve] begin samples=384') != 1 or output.count('[MonsterDissolve] shimmer playing=True') != 1:
         raise RuntimeError('Expected one surface departure and its sound before the photo')
     stagger_landings = len(re.findall(r'\[MonsterStagger\] landed side=', output))
@@ -139,6 +141,7 @@ def main():
     required += ('monster-recovery-drop','monster-recovery-return')
     required += ('outpost-dust','outpost-settled')
     required += ('monster-entrance-step','monster-entrance-plant','monster-entrance-roar','monster-entrance-return')
+    required += ('defeat-flash','defeat-billows','defeat-settling')
     if args.slam:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:

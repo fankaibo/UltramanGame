@@ -105,7 +105,7 @@ namespace UltramanGame.Editor
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var source=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Core/VictoryMotion.cs","Resources/KaijuSurface.shader","Resources/KaijuDissolve.cginc","Resources/DissolveMotes.shader","Resources/ShadowSilhouette.shader","Scripts/Runtime/MonsterDissolve.cs","Editor/VictoryReview.cs"})
+                foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/GameWorld.cs","Scripts/Core/VictoryMotion.cs","Resources/KaijuSurface.shader","Resources/KaijuDissolve.cginc","Resources/DissolveMotes.shader","Resources/ShadowSilhouette.shader","Scripts/Runtime/MonsterDissolve.cs","Scripts/Runtime/DefeatImpact.cs","Resources/DefeatImpact.shader","Scripts/Runtime/GameAudio.cs","Editor/VictoryReview.cs"})
                 {string p=Path.Combine(Application.dataPath,file);if(File.Exists(p))source.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(p))).Replace("-","").ToLowerInvariant());}
             File.WriteAllText(folder+"/render-source.txt",source.ToString());
             var rt=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;

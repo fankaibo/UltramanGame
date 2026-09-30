@@ -37,6 +37,7 @@ namespace UltramanGame.Runtime
                 for(int i=0;i<12;i++)Draw(.1f);
                 for(int i=0;i<3;i++)state.Tick(.1f,new PlayerInput{Tracking=true});world.Hit(true,state);Draw(.12f);
                 world.Cue(GameCue.EnemyAttack);world.Cue(GameCue.Hurt);Draw(.02f);
+                world.WarmDefeatImpact();camera.Render();
             }
             finally
             {

@@ -11,7 +11,7 @@ namespace UltramanGame.Runtime
         readonly AudioClip[] fistContacts=new AudioClip[3];
         readonly AudioClip heavyContact,beamContact;
         AudioClip localMusic;
-        readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer,arrivalRoar;
+        readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer,arrivalRoar,defeatSurge;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -46,6 +46,7 @@ namespace UltramanGame.Runtime
             monsterRay.clip=RuntimeResources.Own(owner.transform,CreateMonsterRay());
             battleStinger=RuntimeResources.Own(owner.transform,CreateBattleStinger());
             landingThud=RuntimeResources.Own(owner.transform,CreateLandingThud());
+            defeatSurge=RuntimeResources.Own(owner.transform,CreateDefeatSurge());
             groundCrunch=RuntimeResources.Own(owner.transform,CreateGroundCrunch());
             dissolveShimmer=RuntimeResources.Own(owner.transform,CreateDissolveShimmer());
             arrivalRoar=RuntimeResources.Own(owner.transform,CreateArrivalRoar());
@@ -100,7 +101,23 @@ namespace UltramanGame.Runtime
         {
             if(muted||!landingThud)return;
             effects.Play(landingThud,.72f);
+            debris.Play(defeatSurge,.44f);
             if(Debug.isDebugBuild)Debug.Log("[VictoryStage] landing-thud playing=True");
+            if(Debug.isDebugBuild)Debug.Log("[DefeatImpact] sound=True");
+        }
+        public static AudioClip CreateDefeatSurge()
+        {
+            const int rate=22050;var samples=new float[(int)(rate*1.6f)];
+            var random=new System.Random(260930);float air=0,rumble=0;
+            for(int i=0;i<samples.Length;i++)
+            {
+                float t=i/(float)rate,n=(float)random.NextDouble()*2-1;
+                air=Mathf.Lerp(air,n,.20f);rumble=Mathf.Lerp(rumble,n,.013f);
+                float envelope=Mathf.SmoothStep(0,1,t/.025f)*Mathf.Exp(-t*2.8f)*(1-Mathf.SmoothStep(0,1,(t-1.25f)/.35f));
+                float body=Mathf.Sin(2*Mathf.PI*(48*t-7*t*t))*Mathf.Exp(-t*5)*.15f;
+                samples[i]=(air*.38f+rumble*.9f+body)*envelope;
+            }
+            var clip=AudioClip.Create("DefeatDustSurge",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
         }
         public static AudioClip CreateDissolveShimmer()
         {

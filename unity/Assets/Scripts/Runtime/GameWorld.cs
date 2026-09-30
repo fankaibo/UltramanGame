@@ -51,6 +51,10 @@ namespace UltramanGame.Runtime
         readonly CombatVfx effects;
         readonly StrikeTrails strikeTrails;
         readonly ArcadeStageFx arcade;
+        readonly DefeatImpact defeatImpact;
+        public bool DefeatImpactVisible=>defeatImpact.Visible;
+        public float DefeatImpactAge=>defeatImpact.Age;
+        public int DefeatImpactStarts=>defeatImpact.Starts;
         readonly VolcanoStage volcano;
         Battle outpostBattle;
         public OutpostDamage OutpostDamage=>volcano.Damage;
@@ -120,6 +124,7 @@ namespace UltramanGame.Runtime
             RenderSettings.fogColor=new Color(.11f,.125f,.145f);
             volcano=VolcanoStage.Create(root);
             monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);monsterRay=new MonsterRay(root);effects=new CombatVfx(root);strikeTrails=new StrikeTrails(root);arcade=new ArcadeStageFx(root,HeroHome);
+            defeatImpact=new DefeatImpact(root);
             effects.GroundContact+=volcano.Damage.Shock;
         }
         static Light Directional(Transform parent,string name,Color color,float intensity,Vector3 angles)
@@ -133,8 +138,9 @@ namespace UltramanGame.Runtime
             if(Application.isPlaying)Object.Destroy(obj.GetComponent<Collider>());else Object.DestroyImmediate(obj.GetComponent<Collider>());return obj.transform;
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
+        internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -245,6 +251,8 @@ namespace UltramanGame.Runtime
             cinematic.CombatMotion(state,Showcase);
             float priorVictoryAge=previous==GamePhase.Victory?arcade.PhaseAge:0;
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
+            if(state.Phase==GamePhase.Victory&&!Showcase)defeatImpact.Tick(dt);
+            else defeatImpact.Clear();
             EntranceAge=state.TransformationAge;
             TransformationCloseup=!Showcase&&state.Phase==GamePhase.Transforming&&TransformationMotion.Closeup(EntranceAge);
             MonsterEntranceCloseup=!Showcase&&state.Phase==GamePhase.Transforming&&MonsterEntranceMotion.Closeup(EntranceAge);
@@ -276,6 +284,8 @@ namespace UltramanGame.Runtime
                 MonsterLanded=true;
                 effects.GroundBurst(enemy!=null?enemy.FootPosition(true):EnemyHome,-BattleAxis,true,"defeat");
                 effects.GroundBurst(enemy!=null?enemy.FootPosition(false):EnemyHome,BattleAxis,false);
+                defeatImpact.Begin(enemy!=null?(enemy.FootPosition(true)+enemy.FootPosition(false))*.5f:EnemyHome);
+                cinematic.PulseAt(EnemyHome+Vector3.up*.7f,new Color(1,.64f,.32f),.18f);
                 impact=.032f;impactAge=0;
                 if(Debug.isDebugBuild)Debug.Log("[VictoryStage] monster-landed age="+arcade.PhaseAge.ToString("F2"));
             }
