@@ -83,6 +83,11 @@ namespace UltramanGame.Core
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
         bool beamFired, beamArmed, transformFired, guardAnchored, hadWristPair;
+        // Camera pose estimates commonly spend one or two packets between the
+        // chest guard and the L-shaped finisher. Keep a short intent latch so
+        // that those packets cannot turn into a punch or erase a charge.
+        bool guardLocked, beamLocked;
+        float guardLockAge, guardLostAge, beamLockAge, beamLostAge;
         PosePoint guardLeft,guardRight;
         float beamHold,beamGap,beamRelease,beamShapeGrace,transformHold,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
@@ -113,6 +118,7 @@ namespace UltramanGame.Core
         {
             leftMotion.Reset();rightMotion.Reset();beamFired=beamArmed=transformFired=ForwardPunch=false;
             guardAnchored=hadWristPair=false;wristLossAge=0;
+            guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
             BeamNeedsRelease=false;
             beamHold=beamGap=beamRelease=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
         }
@@ -203,6 +209,21 @@ namespace UltramanGame.Core
             if(beamAvailable&&beamShape)beamShapeGrace=.36f;
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
+            // A visible L is a stronger finisher signal than a loose chest
+            // envelope. Do not acquire the guard latch from the same packet.
+            bool guardCandidate=guardShape&&!beamShape;
+            if(guardCandidate)
+            {
+                guardLockAge=Math.Min(.5f,guardLockAge+dt);guardLostAge=0;
+                if(guardLockAge>=.12f)guardLocked=true;
+            }
+            else if(guardLocked)
+            {
+                guardLostAge+=dt;
+                // A clear single-arm reach is handled below and exits the
+                // latch immediately; ordinary camera wobble gets 280 ms.
+                if(guardLostAge>.28f){guardLocked=false;guardLockAge=0;}
+            }
             // Acquire defense with the stricter chest shape so a moving punch
             // cannot create a false shield. Once it has been held for the
             // confirmation interval, the wider envelope below absorbs jitter.
@@ -218,12 +239,28 @@ namespace UltramanGame.Core
             // release or a deliberate chest guard still ends the gesture.
             bool beamReleasePose=beamWristsReady&&!raised&&
                 blw.y>bsy+.16f*bs&&brw.y>bsy+.16f*bs;
+            if(beamShape)
+            {
+                beamLockAge=Math.Min(.6f,beamLockAge+dt);beamLostAge=0;
+                if(beamLockAge>=.12f)beamLocked=true;
+            }
+            else if(beamLocked)
+            {
+                beamLostAge+=dt;
+                // A deliberate low-hand release is the only immediate cancel;
+                // otherwise tolerate a short estimator wobble during charge.
+                if(beamReleasePose||beamLostAge>.36f){beamLocked=false;beamLockAge=0;}
+            }
+            bool beamLatch=beamLocked&&beamWristsReady&&!raised&&!beamReleasePose&&beamLostAge<=.36f;
             bool beamGrace=(beamHold>=.10f||beamShapeGrace>0)&&beamWristsReady&&!(transformAvailable&&raised)&&
                 !guardEnvelope&&!beamReleasePose;
             // Grace owns the gesture and blocks punch/guard handoff, but it
             // pauses the charge clock. Only a positively observed beam shape
             // advances progress; this prevents a noisy frame from speeding up
             // the finisher while still protecting the in-progress hold.
+            // The latch reserves the finisher against punch/guard handoff, but
+            // only a positively observed shape advances its charge clock.
+            bool beamIntent=beamShape||beamMaintained||beamLatch;
             bool beam=beamAvailable&&(beamShape||beamMaintained);
             var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
             // Acquiring a shield still uses the original shape and hold. Once
@@ -249,6 +286,14 @@ namespace UltramanGame.Core
                 (!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f);
             bool rightCommitted=rightDepth>1.00f&&rightDepth-leftDepth>.75f &&
                 (!guardAnchored||PoseQuality.Distance(rightOffset,guardRight)>.16f);
+            bool guardMoved=guardAnchored&&
+                (GuardImageDistance(leftOffset,guardLeft)>.52f||GuardImageDistance(rightOffset,guardRight)>.52f);
+            if(leftCommitted||rightCommitted||guardMoved)
+            {
+                // A clear one-arm reach is the intentional exit from a held
+                // shield; only camera wobble remains protected by the latch.
+                guardLocked=false;guardLockAge=0;guardLostAge=.29f;
+            }
             if (steady<.25f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
@@ -268,8 +313,11 @@ namespace UltramanGame.Core
             BeamNeedsRelease=beam&&!beamArmed&&!beamFired;
             // Reserve the action during a brief uncertain interval. Missing
             // wrists pause progress; they neither advance it nor enable attacks.
-            bool beamReserved=beamAvailable&&(beam||beamHold>0||beamGrace);
-            bool shield=guardEnvelope&&!beamReserved&&!leftCommitted&&!rightCommitted;
+            bool beamReserved=beamAvailable&&(beamIntent||beamHold>0||beamGrace);
+            // Once the chest guard has been held, retain ownership through a
+            // brief depth/visibility wobble. A beam latch still has priority.
+            bool guardedEnvelope=guardEnvelope||guardLocked&&guardLostAge<=.28f;
+            bool shield=guardedEnvelope&&!beamReserved&&!leftCommitted&&!rightCommitted;
             if(shield) {shieldHold+=dt;shieldGap=0;}
             else
             {
@@ -284,7 +332,7 @@ namespace UltramanGame.Core
             // A partly confirmed guard already owns the gesture. Its existing
             // 200 ms wrist-occlusion grace pauses confirmation; it must also
             // prevent the visible hand's depth noise from becoming a punch.
-            input.GuardIntent=shield||shieldHold>0;
+            input.GuardIntent=shield||shieldHold>0||guardLocked&&guardLostAge<=.28f&&!beamReserved;
             input.BeamIntent=beamReserved;
             if(input.Shield)
             {
@@ -295,6 +343,14 @@ namespace UltramanGame.Core
                 guardAnchored=true;
             }
             if(!guardEnvelope&&shieldGap>.20f)guardAnchored=false;
+            if(!beamWristsReady&&wristLossAge>.20f)
+            {
+                // A real camera loss is different from one noisy packet: do
+                // not let either intent latch claim a pose without wrists.
+                guardLocked=false;guardLockAge=0;guardLostAge=.29f;
+                beamLocked=false;beamLockAge=0;beamLostAge=.37f;
+                input.Shield=false;input.GuardIntent=false;input.BeamIntent=false;
+            }
             // A held shield already bridges a brief hidden wrist. Preserve
             // that ownership too: the other wrist's noisy depth must not
             // become a punch merely because two-hand geometry is unavailable.
@@ -324,7 +380,7 @@ namespace UltramanGame.Core
             // stale strike candidate from the preceding punch. The guard is
             // released on the first clear reach, so a deliberate next punch
             // still starts normally rather than being swallowed.
-            bool shieldOwnsGesture=shieldHold>0&&guardEnvelope&&!leftCommitted&&!rightCommitted;
+            bool shieldOwnsGesture=(shieldHold>0||guardLocked&&guardLostAge<=.28f)&&guardedEnvelope&&!leftCommitted&&!rightCommitted&&!guardMoved;
             // A guard-shaped frame must leave the chest by a visible amount
             // before a noisy depth spike can turn it into an attack.
             bool leftBreakingGuard=leftCommitted&&(!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f);
@@ -341,11 +397,19 @@ namespace UltramanGame.Core
                 else input.LeftPunch=false;
             }
             ForwardPunch=input.LeftPunch&&leftMotion.ForwardStrike || input.RightPunch&&rightMotion.ForwardStrike;
-            if(input.LeftPunch||input.RightPunch) {input.Shield=false;shieldHold=0;guardAnchored=false;}
+            if(input.LeftPunch||input.RightPunch)
+            {
+                input.Shield=false;shieldHold=0;guardAnchored=false;
+                // Only a confirmed, visible reach can break the guard latch.
+                // This prevents one noisy depth packet from stealing defense.
+                if(leftCommitted||rightCommitted){guardLocked=false;guardLockAge=0;guardLostAge=.29f;}
+            }
             return input;
         }
         static PosePoint GuardOffset(PosePoint shoulder,PosePoint wrist,float scale)
             =>new PosePoint((wrist.x-shoulder.x)/scale,(wrist.y-shoulder.y)/scale){z=(shoulder.z-wrist.z)/scale};
+        static float GuardImageDistance(PosePoint a,PosePoint b)
+        {float x=a.x-b.x,y=a.y-b.y;return (float)Math.Sqrt(x*x+y*y);}
         static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale,bool holding=false)
             =>Math.Abs(left.x-cx)<(holding?1.14f:1.06f)*scale&&Math.Abs(right.x-cx)<(holding?1.14f:1.06f)*scale&&
                 // Keep the acquisition spread strict enough that two fully

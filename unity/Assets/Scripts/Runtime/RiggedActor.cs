@@ -119,6 +119,17 @@ namespace UltramanGame.Runtime
         readonly Quaternion[] clawReactionBase=new Quaternion[6];
         Vector3 clawLeft,clawRight,clawCarryLeft,clawCarryRight;
         public float ClawReactionAmount=>Mathf.Max(clawLeft.magnitude,clawRight.magnitude);
+        // Clip blending interpolates every local joint, but a moving root and
+        // the claw solver can still make a wrist jump in world space at the
+        // exact Windup/Attack/Hurt handoff. Keep a short world-space handoff
+        // for the two visible claws; combat clocks and contact origins remain
+        // on the authored clip.
+        bool monsterHandTransition;
+        float monsterHandAge,monsterHandDuration;
+        Vector3 monsterLeftHandFrom,monsterRightHandFrom;
+        Quaternion monsterLeftHandRotationFrom,monsterRightHandRotationFrom;
+        bool monsterArmPhaseKnown;
+        EnemyPhase monsterArmPhase;
         bool attackPoseApplied;
         float slamPrepare,rayPrepare;
         float slamEntryAge=1;
@@ -680,9 +691,12 @@ namespace UltramanGame.Runtime
                 float[] moments=monster?new[]{0,.15f,.4f,.8f,0,.15f,.3f,.5f}:new[]{0,.045f,.12f,.3f,.85f,.15f,1.2f,.8f};
                 next=names[Frame];sample=moments[Frame];
             }
+            bool phaseChanged=monster&&preview<0&&monsterArmPhaseKnown&&state.Enemy!=monsterArmPhase;
+            if(monster&&preview<0){monsterArmPhase=state.Enemy;monsterArmPhaseKnown=true;}
             bool changedClip=playing!=next;
             if(changedClip)
             {
+                if(monster&&preview<0)BeginMonsterHandTransition(next);
                 playing=next;clipAge=0;
                 // Punch clips already start at the combat stance. A long blend
                 // delays their baked foot compensation while the actor root
@@ -690,6 +704,7 @@ namespace UltramanGame.Runtime
                 blendLeft=!monster&&(next=="LeftPunch"||next=="RightPunch")?.025f:.055f;
             }
             else clipAge+=dt;
+            if(phaseChanged&&(!changedClip||!monsterHandTransition))BeginMonsterHandTransition(next);
             for(int i=0;i<joints.Length;i++) {positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
             if(attackInterrupted&&next=="Hurt")
             {
@@ -1025,6 +1040,7 @@ namespace UltramanGame.Runtime
             if(monster&&preview<0&&MonsterRayMotion.Active(state)&&next!="Hurt")PoseHeadRay(state,dt);
             else rayPrepare=0;
             if(monster)PoseClawReaction(state,preview);
+            if(monster&&preview<0)BlendMonsterHandTransition(dt);
             if(monster&&jaw)
             {
                 // Keep a small breathing gap at rest. The authored windup,
@@ -1788,6 +1804,34 @@ namespace UltramanGame.Runtime
                 Vector3 limited=Vector3.RotateTowards(arm,palm,35*Mathf.Deg2Rad,0);
                 wrist.rotation=Quaternion.FromToRotation(palm,limited)*wrist.rotation;
             }
+        }
+        void BlendMonsterHandTransition(float dt)
+        {
+            if(!monsterHandTransition||!leftHand||!hand||!leftForearm||!forearm||!leftUpperArm||!upperArm)return;
+            float t=Mathf.SmoothStep(0,1,Mathf.Clamp01(monsterHandAge/Mathf.Max(.001f,monsterHandDuration)));
+            Vector3 leftTarget=Vector3.Lerp(monsterLeftHandFrom,leftHand.position,t);
+            Vector3 rightTarget=Vector3.Lerp(monsterRightHandFrom,hand.position,t);
+            Vector3 leftPole=Vector3.ProjectOnPlane(leftForearm.position-leftUpperArm.position,leftTarget-leftUpperArm.position).normalized;
+            Vector3 rightPole=Vector3.ProjectOnPlane(forearm.position-upperArm.position,rightTarget-upperArm.position).normalized;
+            if(leftPole.sqrMagnitude<.001f)leftPole=forward;
+            if(rightPole.sqrMagnitude<.001f)rightPole=forward;
+            PoseLimb(leftUpperArm,leftForearm,leftHand,leftTarget,1,leftPole,.30f);
+            PoseLimb(upperArm,forearm,hand,rightTarget,1,rightPole,.30f);
+            // PoseLimb solves the arm endpoint; blend the authored palm roll
+            // separately so the fingers never spin while the wrist catches up.
+            leftHand.rotation=Quaternion.Slerp(monsterLeftHandRotationFrom,leftHand.rotation,t);
+            hand.rotation=Quaternion.Slerp(monsterRightHandRotationFrom,hand.rotation,t);
+            AlignClawWrists();
+            monsterHandAge+=Mathf.Max(0,dt);
+            if(monsterHandAge>=monsterHandDuration)monsterHandTransition=false;
+        }
+        void BeginMonsterHandTransition(string next)
+        {
+            if(!leftHand||!hand)return;
+            monsterHandTransition=true;monsterHandAge=0;
+            monsterHandDuration=next=="Hurt"?.14f:next=="Attack"||next=="AttackAlt"?.075f:.10f;
+            monsterLeftHandFrom=leftHand.position;monsterRightHandFrom=hand.position;
+            monsterLeftHandRotationFrom=leftHand.rotation;monsterRightHandRotationFrom=hand.rotation;
         }
         void ApplyClawPose(Battle state,int preview,float time)
         {
