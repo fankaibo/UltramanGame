@@ -76,7 +76,7 @@ namespace UltramanGame.Runtime
                 if(enhancement!=null&&enhancement.Done)
                 {
                     if(enhancement.ResultPng!=null)
-                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng)){if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message="AI 光色版已另存到 Downloads";}else UnityEngine.Object.Destroy(edited);}
+                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng)){if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message=enhancement.UsedLocalFallback?"网关暂不可用 · 本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
                     enhancement=null;
                 }

@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 import numpy as np
 import cv2
-from vision.photo_enhance import configuration,parse_recipe,harmonise,enhance,make_prompt,MODEL
+from vision.photo_enhance import configuration,parse_recipe,harmonise,enhance,local_fallback,make_prompt,MODEL
 
 class PhotoEnhancementTests(unittest.TestCase):
     def recipe(self):
@@ -97,6 +97,19 @@ class PhotoEnhancementTests(unittest.TestCase):
                 with patch('vision.photo_enhance.ask_model',return_value=self.recipe()):
                     output,_=enhance(source,plate,mask);self.assertTrue(output.is_file())
             self.assertEqual(original,source.read_bytes())
+
+    def test_local_fallback_creates_a_visible_but_bounded_variant(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'
+            image=np.full((120,180,3),(95,115,145),np.uint8)
+            clean=image.copy();clean[25:110,110:165]=(180,145,115)
+            matte=np.zeros((120,180),np.uint8);matte[25:110,110:165]=255
+            cv2.imwrite(str(source),clean);cv2.imwrite(str(plate),image);cv2.imwrite(str(mask),matte)
+            output,recipe=local_fallback(source,plate,mask)
+            result=cv2.imread(str(output));delta=np.abs(result.astype(np.int16)-clean.astype(np.int16))
+            self.assertGreater(recipe['light_wrap'],0)
+            self.assertGreater(np.count_nonzero(np.any(delta>2,axis=2)),100)
+            np.testing.assert_array_equal(result[:,:100],clean[:,:100])
 
     def test_worker_reports_safe_transport_class_without_exception_details(self):
         import ssl

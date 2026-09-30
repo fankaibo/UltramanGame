@@ -13,10 +13,11 @@ namespace UltramanGame.Runtime
         static readonly SemaphoreSlim Slot=new SemaphoreSlim(1,1);
         public volatile bool Done;
         public byte[] ResultPng {get;private set;}
+        public bool UsedLocalFallback {get;private set;}
         public string Status {get;private set;}="原图已保存 · AI 光色优化中";
         public string ErrorType {get;private set;}="";
         readonly string source,folder,python,script;
-        [Serializable] sealed class Result {public bool ok;public string output,status,error_type,error_operation;public int transport_status;}
+        [Serializable] sealed class Result {public bool ok;public bool fallback;public string output,status,error_type,error_operation;public int transport_status;}
         public LocalPhotoEnhancement(string source,byte[] plate,byte[] mask)
         {
             this.source=source;
@@ -36,7 +37,7 @@ namespace UltramanGame.Runtime
             {
                 entered=Slot.Wait(TimeSpan.FromSeconds(90));if(!entered){Status="原图已保存 · AI 繁忙，请稍后重试";return;}
                 string statusPath=Path.Combine(folder,"result.json");
-                var start=new ProcessStartInfo(python,Quote(script)+" --input "+Quote(source)+" --plate "+Quote(Path.Combine(folder,"plate.png"))+" --mask "+Quote(Path.Combine(folder,"mask.png"))+" --status "+Quote(statusPath))
+                var start=new ProcessStartInfo(python,Quote(script)+" --input "+Quote(source)+" --plate "+Quote(Path.Combine(folder,"plate.png"))+" --mask "+Quote(Path.Combine(folder,"mask.png"))+" --status "+Quote(statusPath)+" --fallback-local")
                     {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
                 using(var process=Process.Start(start))
                 {
@@ -46,7 +47,7 @@ namespace UltramanGame.Runtime
                 }
                 if(File.Exists(statusPath))
                 {
-                    var result=JsonUtility.FromJson<Result>(File.ReadAllText(statusPath));Status=result.status;
+                    var result=JsonUtility.FromJson<Result>(File.ReadAllText(statusPath));Status=result.status;UsedLocalFallback=result.fallback;
                     if(!result.ok&&System.Text.RegularExpressions.Regex.IsMatch(result.error_type??"",@"\A[A-Za-z][A-Za-z0-9]{0,79}\z"))ErrorType=result.error_type;
                     if(!result.ok&&System.Text.RegularExpressions.Regex.IsMatch(result.error_operation??"",@"\A[A-Za-z_][A-Za-z0-9_]{0,79}\z"))ErrorType+="@"+result.error_operation;
                     if(!result.ok&&result.transport_status>=100&&result.transport_status<=599)ErrorType+="/"+result.transport_status;

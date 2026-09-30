@@ -155,6 +155,19 @@ def harmonise(composite, plate, mask, recipe):
     corrected=person*2**recipe['exposure_ev']*np.array([recipe['blue_gain'],recipe['green_gain'],recipe['red_gain']],np.float32)
     gray=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
     corrected=np.clip(gray+(corrected-gray)*recipe['saturation'],0,1)
+    # Give the person a visible scene response instead of changing only a few
+    # contour pixels.  The blurred plate supplies the Fuji moon/lava colour;
+    # luminance comes from the already corrected person so the face remains
+    # readable.  This is deliberately a bounded optical integration pass, not
+    # generative redrawing or identity editing.
+    if recipe['light_wrap']>0:
+        scene=cv2.GaussianBlur(b,(0,0),max(2,composite.shape[0]/45))
+        scene_luma=np.sum(scene*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
+        person_luma=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
+        scene_tint=scene/np.maximum(scene_luma,.015)
+        ambient=np.clip(person_luma*scene_tint,0,1)
+        strength=min(.12,max(.025,recipe['light_wrap']*.65))
+        corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
     # Feather the premultiplied foreground out through the cutout boundary.
@@ -193,10 +206,19 @@ def enhance(source, plate_path, mask_path):
     # this bounded local floor in the approved recipe rather than asking the
     # image model to redraw a face or silhouette.
     recipe['edge_feather_px']=max(2.0,recipe['edge_feather_px'])
-    recipe['light_wrap']=max(.04,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.08,recipe['shadow_strength'])
+    # A near-zero model recipe is technically valid but indistinguishable in
+    # a family preview. Keep the effect gentle, yet visible enough to prove
+    # that the AI result has passed through the environment-light stage.
+    recipe['light_wrap']=max(.10,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.12,recipe['shadow_strength'])
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
+    _save_png(output,result)
+    return output,recipe
+
+
+def _save_png(output,result):
+    import cv2
     ok,png=cv2.imencode('.png',result)
     if not ok:raise ValueError('output_encoding_failed')
     pending=output.with_suffix('.png.tmp')
@@ -205,4 +227,23 @@ def enhance(source, plate_path, mask_path):
         os.replace(pending,output)
     finally:
         pending.unlink(missing_ok=True)
+
+
+def local_fallback(source, plate_path, mask_path):
+    """Create a clearly labelled local fusion when the model gateway is down.
+
+    The fallback never redraws the person. It uses the same bounded compositor
+    as a model recipe, so the original remains available and the child still
+    receives a visibly integrated preview instead of a silent no-op.
+    """
+    import cv2
+    source=Path(source)
+    image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
+    if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
+    recipe=dict(exposure_ev=-.12,red_gain=.98,green_gain=1.0,blue_gain=1.04,
+                saturation=.94,edge_feather_px=2.0,light_wrap=.10,shadow_strength=.12,
+                scene_summary='本地备用：富士夜景的冷月光与远处暖色火山边缘光')
+    result=harmonise(image,plate,mask,recipe)
+    output=source.with_name(source.stem+'_AI.png')
+    _save_png(output,result)
     return output,recipe
