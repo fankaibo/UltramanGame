@@ -3,7 +3,7 @@ Shader "Training/VolcanicBomb" {
  SubShader {
   Tags {"RenderType"="Opaque"}
   CGPROGRAM
-  #pragma surface surf Standard fullforwardshadows
+  #pragma surface surf Standard fullforwardshadows addshadow
   #pragma target 3.0
   sampler2D _MainTex;
   struct Input {float2 uv_MainTex;float4 color:COLOR;};
@@ -11,6 +11,9 @@ Shader "Training/VolcanicBomb" {
   float noise(float2 p){float2 n=floor(p),f=frac(p);f=f*f*(3-2*f);return lerp(lerp(hash(n),hash(n+float2(1,0)),f.x),lerp(hash(n+float2(0,1)),hash(n+1),f.x),f.y);}
   void surf(Input i,inout SurfaceOutputStandard o){
    float n=noise(i.uv_MainTex*8+i.color.g*29),detail=noise(i.uv_MainTex*27+7);
+   // Cool on the ground before the fragment disperses. A fixed surface
+   // pattern avoids the old whole-rock shrink just before first contact.
+   clip(1-i.color.b-(.015+.965*noise(i.uv_MainTex*11+i.color.g*47)));
    float heat=saturate(i.color.r),cracks=1-smoothstep(.04,.15,abs(n-.5));
    // Integrate subpixel crust detail rather than showing a blinking orange
    // wire pattern when a distant fragment covers only a handful of pixels.
