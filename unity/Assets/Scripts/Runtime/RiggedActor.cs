@@ -38,6 +38,7 @@ namespace UltramanGame.Runtime
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         float heroRecoveryAge=10;
         float chaseAdvance,observedPunchAge;
+        Vector3 punchStart;
         float windupSample=float.NaN;
         readonly MonsterStaggerMotion stagger=new MonsterStaggerMotion();
         readonly MonsterLaunchMotion launch=new MonsterLaunchMotion();
@@ -99,6 +100,8 @@ namespace UltramanGame.Runtime
         readonly Quaternion[] stepArmRotations=new Quaternion[6];
         bool stepLegsApplied;
         readonly Quaternion[] stepLegRotations=new Quaternion[6];
+        bool punchWeightApplied;
+        Quaternion punchHipBase;
         readonly Dictionary<string,Transform> clawBones=new Dictionary<string,Transform>();
         readonly Transform[,,] clawFingers=new Transform[4,2,2];
         readonly Transform[,] clawThumbs=new Transform[2,2];
@@ -384,6 +387,13 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            // Sample the fist the player saw before removing any presentation
+            // layers. A shoulder-relative start moves forward with the lunge,
+            // adding its velocity a second time to the outgoing fist curve.
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)&&
+                (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
+                punchStart=StrikeOrigin(state.Action);
             if(knockdownApplied)
             {
                 Root.SetPositionAndRotation(knockdownRoot,knockdownFacing);
@@ -437,6 +447,7 @@ namespace UltramanGame.Runtime
                 leftThigh.localRotation=stepLegRotations[0];leftShin.localRotation=stepLegRotations[1];leftFoot.localRotation=stepLegRotations[2];
                 rightThigh.localRotation=stepLegRotations[3];rightShin.localRotation=stepLegRotations[4];rightFoot.localRotation=stepLegRotations[5];stepLegsApplied=false;
             }
+            if(punchWeightApplied){pelvis.localRotation=punchHipBase;punchWeightApplied=false;}
             if(stepArmsApplied)
             {
                 // When leaving a retargeted pose, let the destination clip
@@ -875,6 +886,9 @@ namespace UltramanGame.Runtime
                 PoseRetargetedFootwork(state);
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt)
                 PoseGuardBrace(ContactPulse(guardAge,0,.14f,.64f));
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&!state.Shield&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
+                 state.Action==HeroAction.None&&punchLink.Weight>0))PosePunchWeight(state);
             if(retargetArms)
             {
                 if(retargetedPunch)PoseRetargetedArms(state);
@@ -1238,6 +1252,45 @@ namespace UltramanGame.Runtime
             rightFoot.rotation=(!beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*rightFootRest;
         }
         float PunchTravel(Battle state)=>StrikeAdvance+chaseAdvance;
+        void PosePunchWeight(Battle state)
+        {
+            if(!pelvis||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+            float side=state.Action==HeroAction.LeftPunch?-1:1;
+            // The hip drives the strike before the fist arrives. Knees accept
+            // the weight slightly later; queued opposite punches preload the
+            // other hip during retraction instead of returning to a mannequin.
+            float drive=punch?ContactPulse(state.ActionAge,0,.085f,Battle.PunchSeconds):0;
+            float load=punch?ContactPulse(state.ActionAge,0,.14f,Battle.PunchSeconds):0;
+            float coil=punchLink.Weight;
+            float yaw=-side*(ComboStrikeMotion.Active(state)?8:14)*drive+punchLink.Sign*4*coil;
+            var lateral=Vector3.Cross(Vector3.up,forward);
+            var left=leftFoot.position;var right=rightFoot.position;
+            var lr=leftFoot.rotation;var rr=rightFoot.rotation;
+            var leftPole=leftShin.position-(leftThigh.position+left)*.5f;
+            var rightPole=rightShin.position-(rightThigh.position+right)*.5f;
+            if(!stepLegsApplied)
+            {
+                stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+                stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            }
+            punchHipBase=pelvis.localRotation;punchWeightApplied=true;
+            Root.position+=lateral*(-side*.05f*drive+punchLink.Sign*.02f*coil)-Vector3.up*(.045f*load+.02f*coil);
+            pelvis.rotation=Quaternion.AngleAxis(yaw,Vector3.up)*pelvis.rotation;
+            if(head)
+            {
+                if(!contactLayerApplied){headBase=head.localRotation;if(upperSpine)spineBase=upperSpine.localRotation;}
+                head.rotation=Quaternion.AngleAxis(-yaw*.80f,Vector3.up)*head.rotation;contactLayerApplied=true;
+            }
+            // Preserve the current clip/retargeted foot placements and sole
+            // rotations while the pelvis twists above them. Never rotate both
+            // feet with the hip or add a second travelling step.
+            float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));
+            Root.position-=Vector3.up*drop;stepDrop+=drop;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,1,leftPole.sqrMagnitude>.0001f?leftPole:forward-lateral*.15f,left.y-home.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,1,rightPole.sqrMagnitude>.0001f?rightPole:forward+lateral*.15f,right.y-home.y);
+            leftFoot.rotation=lr;rightFoot.rotation=rr;
+        }
         void PoseRetargetedFootwork(Battle state)
         {
             if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
@@ -1285,7 +1338,17 @@ namespace UltramanGame.Runtime
         }
         Vector3 PunchContact=>opponent!=null?opponent.BeamSurfaceContact-
             Vector3.up*(opponent.LaunchAge<MonsterLaunchMotion.Landing?.36f:0):opponentHome-forward*.33f+Vector3.up*2.48f;
-        static float PunchReach(float age)=>age<Battle.PunchHitSeconds?Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds):
+        static float StrikeApproach(float t)
+        {
+            // Short acceleration/deceleration ramps with a steady middle. The
+            // old full-length smoothstep concentrated too much travel into two
+            // frames, even after removing the moving shoulder from the start.
+            t=Mathf.Clamp01(t);const float ramp=.20f,area=1-ramp;
+            if(t<ramp)return t*t/(2*ramp*area);
+            if(t>1-ramp){float end=1-t;return 1-end*end/(2*ramp*area);}
+            return (t-ramp*.5f)/area;
+        }
+        static float PunchReach(float age)=>age<Battle.PunchHitSeconds?StrikeApproach(age/Battle.PunchHitSeconds):
             1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
         Vector3 LinkedGuard(Vector3 guard,bool left,Vector3 side)
         {
@@ -1298,7 +1361,7 @@ namespace UltramanGame.Runtime
             bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
             float age=state.ActionAge,reach=0;
             if(punch)reach=PunchReach(age);
-            // The same guard is the start and end of both punches. The source
+            // Both punches return to the same guard. The source
             // clips stretch the other arm out too, obscuring which fist struck.
             // Keep that hand tucked while the striking shoulder transfers weight.
             var side=Vector3.Cross(Vector3.up,forward);
@@ -1318,7 +1381,7 @@ namespace UltramanGame.Runtime
                 if(active)
                 {
                     Vector3 finish=contact-forward*.12f+side*(sign*.10f);
-                    target=Vector3.Lerp(guard,finish,reach);
+                    target=Vector3.Lerp(age<=.15f?punchStart:guard,finish,reach);
                     // A small outward arc separates the two silhouettes. It
                     // disappears at contact and on return to the shared guard.
                     target+=side*(sign*.10f*Mathf.Sin(reach*Mathf.PI));
@@ -1350,7 +1413,7 @@ namespace UltramanGame.Runtime
                 if(active)
                 {
                     Vector3 finish=PunchContact-forward*.10f+side*(sign*.06f);
-                    target=Vector3.Lerp(guard,finish,motion)+side*(sign*.08f*Mathf.Sin(motion*Mathf.PI));
+                    target=Vector3.Lerp(age<=.15f?punchStart:guard,finish,motion)+side*(sign*.08f*Mathf.Sin(motion*Mathf.PI));
                 }
                 var palm=wrist.rotation;var span=wrist.position-lower.position;
                 Vector3 pole=Vector3.Lerp(side*(sign*.45f)+Vector3.down,side*(sign*.65f)+Vector3.down*.5f,active?motion:0);
