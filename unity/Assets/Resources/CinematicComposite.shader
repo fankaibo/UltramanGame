@@ -42,11 +42,25 @@ Shader "Training/CinematicComposite" {
   float distanceFromCenter=length(delta);
   // Keep the dark stage and costume colors through a hit. A local exposure
   // bloom and a faint circular wave carry the impact instead of a flat tint.
-  float localFlash=exp(-dot(delta,delta)/.020)*.46+exp(-dot(delta,delta)/.13)*.075;
+  float deltaSq=dot(delta,delta);
+  float localFlash=exp(-deltaSq/.020)*.46+exp(-deltaSq/.13)*.075;
   float exposure=lerp(.16,localFlash,_PulseCenter.z)*_PulseCenter.w;
   c+=_FlashColor.rgb*_FlashColor.a*exposure;
   float ring=exp(-pow((distanceFromCenter-_ShockRadius)/.022,2))*_ShockStrength*.24*_PulseCenter.w;
   c+=_ShockColor.rgb*ring;
+  // The reference cabinet punctuates contact with a short star-shaped burst,
+  // not only a point flash. Keep it localized to the collision and fade it
+  // toward the edge so the fighters remain readable on a television.
+  if(_PulseCenter.z>0.5)
+  {
+   float angle=atan2(delta.y,delta.x);
+   float spokes=pow(saturate(.5+.5*cos(angle*8+_ShockRadius*18)),18);
+   float reach=exp(-distanceFromCenter*1.65)*saturate(_ShockStrength*1.15);
+   float streak=spokes*reach*(.11+.20*exp(-deltaSq/.055));
+   c+=_ShockColor.rgb*streak;
+   float core=exp(-deltaSq/.006)*_ShockStrength*.16;
+   c+=_FlashColor.rgb*core;
+  }
   float2 p=i.uv*2-1;c*=1-dot(p,p)*.035;
   // A soft shoulder leaves the night scene unchanged. Bright color channels
   // approach white gradually instead of clipping to a flat white patch.
