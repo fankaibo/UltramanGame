@@ -76,8 +76,14 @@ namespace UltramanGame.Editor
                     Debug.Log("[VictoryRoster] "+result);report.AppendLine(result);
                     if(ground<-.035f||minY<.065f||maxY>.915f||footDrift>.035f||face<.90f||landings!=1||backdropEdge>.49f)throw new Exception("Victory pose failed: "+result);
                     foreach(var renderer in enemy.Root.GetComponentsInChildren<Renderer>())if(renderer.enabled)throw new Exception("Defeated monster still visible before photo");
+                    var fresh=new AnimatedActor(name,world.HeroHome,world.EnemyHome);fresh.Update(new Battle(),world.Camera,0,0);
+                    Vector3 freshRoot=fresh.Root.position,freshLeft=fresh.FootPosition(true),freshRight=fresh.FootPosition(false);
+                    UnityEngine.Object.DestroyImmediate(fresh.Root.gameObject);
                     world.ResetPresentation();var waiting=new Battle();hero.Update(waiting,world.Camera,0,0);enemy.Update(waiting,world.Camera,0,0);world.Tick(waiting,.02f,0);
-                    if(world.MonsterLanded||Vector3.Distance(hero.Root.position,world.HeroHome)>.001f||Vector3.Dot(hero.Root.forward,world.BattleAxis)<.999f)
+                    // A fresh calibrated stance can sit below the imported
+                    // root; reset must match its feet and pelvis exactly.
+                    if(world.MonsterLanded||Vector3.Distance(hero.Root.position,freshRoot)>.001f||Vector3.Dot(hero.Root.forward,world.BattleAxis)<.999f||
+                        Vector3.Distance(hero.FootPosition(true),freshLeft)>.001f||Vector3.Distance(hero.FootPosition(false),freshRight)>.001f)
                         throw new Exception("Victory pose leaks into next round");
                 }
                 finally{world.Camera.targetTexture=null;RenderTexture.active=null;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(mesh);}

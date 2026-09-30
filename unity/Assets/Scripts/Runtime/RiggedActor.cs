@@ -306,8 +306,13 @@ namespace UltramanGame.Runtime
             if(leftFoot)leftFootLocal=Root.InverseTransformPoint(leftFoot.position);
             if(rightFoot)rightFootLocal=Root.InverseTransformPoint(rightFoot.position);
             if(pelvis)pelvisLocal=Root.InverseTransformPoint(pelvis.position);
-            leftFootClearance=leftFoot?Mathf.Max(.16f,leftFoot.position.y-home.y+.025f):.16f;
-            rightFootClearance=rightFoot?Mathf.Max(.16f,rightFoot.position.y-home.y+.025f):.16f;
+            if(retargetedPunch)
+            {
+                FootPlantCalibration.Apply(Root,leftFoot,surfaces,ref leftFootLocal,ref leftFootRest);
+                FootPlantCalibration.Apply(Root,rightFoot,surfaces,ref rightFootLocal,ref rightFootRest);
+            }
+            leftFootClearance=leftFoot?Mathf.Max(.16f,leftFootLocal.y+.025f):.16f;
+            rightFootClearance=rightFoot?Mathf.Max(.16f,rightFootLocal.y+.025f):.16f;
             if(monster)
             {
                 dissolve=new MonsterDissolve(Root,surfaces);
@@ -880,9 +885,11 @@ namespace UltramanGame.Runtime
             }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest&&!launch.Active)
                 AnchorMonsterFeet();
-            if((retargetedPunch||chaseAdvance>0)&&preview<0&&state.Phase==GamePhase.Battle&&
-                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
-                 (state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield)))
+            bool plantedRoster=retargetedPunch&&(state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Transforming||
+                state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt);
+            bool pursuing=!retargetedPunch&&chaseAdvance>0&&state.Phase==GamePhase.Battle&&
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield);
+            if(preview<0&&(plantedRoster||pursuing))
                 PoseRetargetedFootwork(state);
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt)
                 PoseGuardBrace(ContactPulse(guardAge,0,.14f,.64f));
@@ -1297,7 +1304,8 @@ namespace UltramanGame.Runtime
             var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
             Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
             float lift=0,advance=0,weight=1,stride=PunchTravel(state);
-            if(state.Action==HeroAction.None)weight=1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
+            bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+            if(!punch)weight=retargetedPunch?1:1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
             else
             {
                 float age=state.ActionAge;
@@ -1463,7 +1471,9 @@ namespace UltramanGame.Runtime
             float reach=Vector3.Distance(hip.position,knee.position)+Vector3.Distance(knee.position,ankle.position)-.015f;
             float horizontal=Vector3.ProjectOnPlane(hip.position-target,Vector3.up).sqrMagnitude;
             float vertical=Mathf.Sqrt(Mathf.Max(0,reach*reach-horizontal));
-            return Mathf.Clamp(hip.position.y-target.y-vertical,0,.28f);
+            // A flat sole lowers the ankle target. Let the pelvis absorb that
+            // distance: a fixed .28 cap made longer lunges lift the rear boot.
+            return Mathf.Clamp(hip.position.y-target.y-vertical,0,reach*.30f);
         }
         void PoseVictoryTurn(float progress)
         {

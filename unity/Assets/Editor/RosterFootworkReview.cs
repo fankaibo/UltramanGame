@@ -24,7 +24,9 @@ namespace UltramanGame.Editor
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var left=Bone(hero.Root,"bip_foot_L");var right=Bone(hero.Root,"bip_foot_R");
             Vector3 lh=left.position,rh=right.position,lastL=lh,lastR=rh;Quaternion lr=left.rotation,rr=right.rotation;
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/roster-footwork",version,id));Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
+            var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--footwork-output");
+            string output=outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/roster-footwork");
+            string folder=Path.GetFullPath(Path.Combine(output,version,id));Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var source=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\n");
             using(var sha=System.Security.Cryptography.SHA256.Create())foreach(string file in new[]{"Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/GameWorld.cs","Resources/Characters/"+id+"/"+id+".fbx","Editor/RosterFootworkReview.cs"})
                 source.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,file)))).Replace("-","").ToLowerInvariant());

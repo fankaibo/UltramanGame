@@ -20,13 +20,17 @@ namespace UltramanGame.Editor
             RenderAt("grounded-rise/rates/15",true,15);RenderAt("grounded-rise/rates/30",true,30);
             CheckInterruptions();RosterPunchReview.CheckGuardTransitions();
         }
-        static void CheckInterruptions()
+        public static void CheckInterruptions()
         {
             for(int id=0;id<HeroRoster.Count;id++)
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 string name=HeroRoster.At(id).Id;var world=new GameWorld();var state=new Battle();
                 var hero=new AnimatedActor(name,world.HeroHome,world.EnemyHome);
+                var fresh=new AnimatedActor(name,world.HeroHome,world.EnemyHome);
+                for(int i=0;i<15;i++)fresh.Update(new Battle(),world.Camera,.02f,5+i*.02f);
+                Vector3 freshRoot=fresh.Root.position,freshLeft=fresh.FootPosition(true),freshRight=fresh.FootPosition(false);
+                UnityEngine.Object.DestroyImmediate(fresh.Root.gameObject);
                 state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
                 for(int i=0;i<2000;i++){state.Tick(.02f,new PlayerInput{Tracking=true});if(state.Action==HeroAction.Hurt&&state.ActionAge>=.9f)break;}
                 if(state.Action!=HeroAction.Hurt)throw new Exception("No interrupted rise");
@@ -46,7 +50,10 @@ namespace UltramanGame.Editor
                 if(state.Action!=HeroAction.Hurt)throw new Exception("No reset rise");
                 hero.Update(state,world.Camera,.02f,5);state=new Battle();world.ResetPresentation();
                 for(int i=0;i<15;i++)hero.Update(state,world.Camera,.02f,5+i*.02f);
-                if(Vector3.Distance(hero.Root.position,world.HeroHome)>.001f||hero.FootPosition(true).y<0||hero.FootPosition(false).y<0)
+                // Compare with a fresh standing actor: calibrated flat soles
+                // can legitimately lower the pelvis below its imported root.
+                if(Vector3.Distance(hero.Root.position,freshRoot)>.001f||
+                    Vector3.Distance(hero.FootPosition(true),freshLeft)>.001f||Vector3.Distance(hero.FootPosition(false),freshRight)>.001f)
                     throw new Exception("New round retains fall offset: "+name);
                 Debug.Log("[KnockdownBoundary] "+name+" pause=passed resumeGuard=passed counterpunch=passed newRound=passed");
             }
