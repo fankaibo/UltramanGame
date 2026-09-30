@@ -146,6 +146,8 @@ def main():
     required += ('monster-entrance-step','monster-entrance-plant','monster-entrance-roar','monster-entrance-return')
     required += ('defeat-flash','defeat-billows','defeat-settling')
     required += ('kick-chamber','kick-contact','kick-retract','kick-setdown')
+    if not args.finisher:
+        required += ('kick-chamber-air','kick-contact-air','kick-retract-air','kick-setdown-air')
     if args.slam:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:

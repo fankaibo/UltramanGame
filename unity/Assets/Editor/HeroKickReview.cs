@@ -116,16 +116,17 @@ namespace UltramanGame.Editor
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             var world=new GameWorld();var hero=new AnimatedActor(name,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            var state=Ready(24);float time=0;const float dt=1/60f;
+            var state=Ready(24);float time=0;const float dt=1/60f;float peakAir=0;
             void Step(PlayerInput input)
             {
                 state.Tick(world.BattleDelta(dt,state),input);while(state.TryCue(out var cue))world.Cue(cue,state);
                 hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);world.Tick(state,dt,time);time+=dt;
+                if(HeroKickMotion.Airborne(state))peakAir=Mathf.Max(peakAir,hero.FootPosition(left).y);
             }
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             Step(new PlayerInput{Tracking=true,LeftPunch=left,RightPunch=!left});
             while(state.ActionAge<.16f)Step(new PlayerInput{Tracking=true});
-            if(!HeroKickMotion.Active(state)||state.Punches!=25)throw new Exception("Interruption has no extended kick");
+            if(!HeroKickMotion.Active(state)||!HeroKickMotion.Airborne(state)||state.Punches!=25||peakAir<.08f)throw new Exception($"Interruption has no airborne kick peak={peakAir:F3}");
             var last=hero.FootPosition(left);float maxStep=0;
             if(kind=="pause")state.Pause();
             for(int f=0;f<90;f++)
@@ -139,7 +140,7 @@ namespace UltramanGame.Editor
             world.ResetPresentation();var fresh=new AnimatedActor(name,world.HeroHome,world.EnemyHome);state=new Battle();
             for(int f=0;f<30;f++){hero.Update(state,world.Camera,dt,time);fresh.Update(state,world.Camera,dt,time);time+=dt;}
             if(Vector3.Distance(hero.FootPosition(left),fresh.FootPosition(left))>.001f||Vector3.Distance(hero.FootPosition(!left),fresh.FootPosition(!left))>.001f)throw new Exception("Reset retains kicking leg");
-            report.AppendLine($"{name}/{left}/{kind} priority=passed footStep={maxStep:F4} no-extra-hit=passed new-round=passed");
+            report.AppendLine($"{name}/{left}/{kind} priority=passed airbornePeak={peakAir:F4} footStep={maxStep:F4} no-extra-hit=passed new-round=passed");
         }
     }
 }

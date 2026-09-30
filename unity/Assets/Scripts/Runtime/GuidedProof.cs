@@ -183,7 +183,8 @@ namespace UltramanGame.Runtime
             // the retraction evidence is silently replaced by the footstep.
             if(!captureClaw&&!photo.Active&&HeroKickMotion.Active(battle))
             {
-                string kickKey=battle.ActionAge<Battle.PunchHitSeconds?"kick-chamber":battle.ActionAge<.23f?"kick-contact":battle.ActionAge<.33f?"kick-retract":"kick-setdown";
+                string kickSuffix=battle.Punches>=24?"-air":"";
+                string kickKey=(battle.ActionAge<Battle.PunchHitSeconds?"kick-chamber":battle.ActionAge<.23f?"kick-contact":battle.ActionAge<.33f?"kick-retract":"kick-setdown")+kickSuffix;
                 if(!proofFrames.Contains(kickKey+(photo.Captures>0?"-after-photo":"")))key=kickKey;
             }
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";

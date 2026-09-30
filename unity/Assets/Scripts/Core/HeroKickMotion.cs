@@ -12,9 +12,20 @@ namespace UltramanGame.Core
             int ordinal=state.Punches+(state.ActionAge<Battle.PunchHitSeconds?1:0);
             return ordinal%20==5;
         }
+        public static bool Airborne(Battle state)
+        {
+            if(!Active(state))return false;
+            int ordinal=state.Punches+(state.ActionAge<Battle.PunchHitSeconds?1:0);
+            return ordinal%40==25;
+        }
         static float Smooth(float t){t=Math.Max(0,Math.Min(1,t));return t*t*(3-2*t);}
         public static float Chamber(float age)=>Smooth(age/.07f)*(1-Smooth((age-.21f)/.16f));
         public static float Extension(float age)=>Smooth((age-.045f)/.075f)*(1-Smooth((age-.15f)/.09f));
         public static float Drive(float age)=>Smooth(age/.12f)*(1-Smooth((age-.16f)/.22f));
+        public static float AirLift(float age)
+        {
+            float t=Math.Max(0,Math.Min(1,age/.38f));
+            return (float)Math.Sin(t*Math.PI)*.24f;
+        }
     }
 }

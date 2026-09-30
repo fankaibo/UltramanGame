@@ -41,6 +41,7 @@ def main():
     assert [(r['frame'], r['time']) for r in samples['before']] == [(r['frame'], r['time']) for r in samples['after']]
     checks = (FOLDER / 'kick-validation.txt').read_text()
     assert checks.count('hits=1 health=45 energy=5') == 10 and checks.count('priority=passed') == 30
+    assert checks.count('airbornePeak=') == 30
     hurt = (FOLDER / 'kick-hurt.txt').read_text()
     assert hurt.count('hurtTransitions=1 entryFootStep=0.0000') == 10
     assert hurt.count('recovered=True hitsTaken=1') == 10
@@ -71,6 +72,11 @@ def main():
             file = record['hero'] + '-' + moment + '.png'
             shutil.copy2(directory / 'native' / (moment + '.png'), FOLDER / 'native' / file)
             native += f'<img src="native/{file}" loading="lazy" alt="{record["hero"]} {moment}">'
+        if not record['finisher']:
+            for moment in ('kick-chamber-air', 'kick-contact-air', 'kick-retract-air', 'kick-setdown-air'):
+                file = record['hero'] + '-' + moment + '.png'
+                shutil.copy2(directory / 'native' / (moment + '.png'), FOLDER / 'native' / file)
+                native += f'<img src="native/{file}" loading="lazy" alt="{record["hero"]} {moment}">'
     subprocess.run(['/opt/homebrew/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
                     '-framerate', '30', '-i', str(FOLDER / 'before/frames/%04d.png'),
                     '-framerate', '30', '-i', str(FOLDER / 'after/frames/%04d.png'),
@@ -85,7 +91,7 @@ def main():
 <div class="pair"><b>原版 70c3d0f：拳击变化</b><b>当前：拳脚交替</b></div><video id="movie" src="comparison.mp4" controls loop playsinline></video><button data-speed="1">正常速度</button><button data-speed="0.5">半速检查</button><button id="step">前进一帧</button><input id="scrub" aria-label="逐帧检查" type="range" min="0" max="209" value="0">
 <p>相同十次交替输入，两侧最终均为血量 40、能量 10。踢击段动作时钟乘以 0.72，让抬膝和收腿更清楚，因此两侧动作时序不完全一致；识别仍每帧读取。7 秒无声对照，离线 30 FPS 不代表实际帧率。</p>
 <h2>五英雄 · 左右腿</h2><select id="hero" aria-label="选择角色"><option value="Tiga">迪迦</option><option value="Mebius">梦比优斯</option><option value="Zero">赛罗</option><option value="Geed">捷德</option><option value="Grigio">格力乔</option></select><div class="pair"><img id="left" alt="左腿接触"><img id="right" alt="右腿接触"></div>
-<p>命中特效和短拖尾跟随实际脚部。踢中后的收腿阶段，防御或大招立即接管规则，抬起的腿用 0.16 秒收回。五英雄左右腿的接触、支撑、重复采样与 30 种中断组合均有数值记录。</p>
+<p>命中特效和短拖尾跟随实际脚部。第 25 次连击会短暂腾空，依次经过起跳、命中、收腿和落地；第 5 次保持地面踢击，让孩子先熟悉节奏。踢中后的收腿阶段，防御或大招立即接管规则，抬起的腿用 0.16 秒收回。五英雄左右腿的接触、支撑、腾空峰值、重复采样与 30 种中断组合均有数值记录。</p>
 <h2>踢腿时受击</h2><p>从实际抬腿姿势进入倒地，避免先跳回站姿。以下为同一次受击开始后的连续采样；五英雄左右侧均验证完整倒地与恢复。</p><div class="four"><img src="hurt-entry/0000.png" alt="受击开始"><img src="hurt-entry/0006.png" alt="从抬腿转入失衡"><img src="hurt-entry/0012.png" alt="腿部回收"><img src="hurt-entry/0018.png" alt="接入倒地"></div>
 <h2>实际安装包 · 迪迦与格力乔</h2><div class="four">'''+native+'''</div><p>实际程序完成整局与胜利收尾；合成体感回放通过自动拍照、重拍、断流恢复和举手续局，防御与大招扰动未产生误攻击。没有使用真人摄像头；合成输入验证不能替代孩子试玩。</p>
 <p><a href="kick-validation.txt">五英雄踢击与中断检查</a> · <a href="kick-hurt.txt">受击衔接检查</a> · <a href="provenance.json">源码和构建记录</a></p><p>这轮增加了近身战的动作种类。整体材质、镜头组合和 AI 合照融合仍需继续改善。</p>
