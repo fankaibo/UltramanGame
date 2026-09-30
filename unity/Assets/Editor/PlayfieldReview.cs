@@ -52,7 +52,11 @@ namespace UltramanGame.Editor
                     hero.Update(state,world.Camera,dt,f*dt);enemy.Update(state,world.Camera,dt,f*dt);
                     if(state.EnemyHealth<oldHealth){contacts++;world.Hit(mode=="beam",state);}health=state.EnemyHealth;
                     world.Tick(state,dt,f*dt);
-                    bool cutin=world.Closeup.Active;
+                    bool cutin=world.Closeup.Active||world.BeamReactionCloseup;
+                    // Dedicated finisher and reaction lenses intentionally crop
+                    // the actors for the arcade cut-in. The playfield boundary
+                    // contract applies to ordinary, combo, uppercut and beam
+                    // return frames, not to that exclusive cinematic shot.
                     if(!cutin)
                     {
                         if(mode!="beam")maxSpeed=Mathf.Max(maxSpeed,Vector3.Distance(oldPosition,world.Camera.transform.position)/dt);

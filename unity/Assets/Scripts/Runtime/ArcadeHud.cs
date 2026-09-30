@@ -177,8 +177,8 @@ namespace UltramanGame.Runtime
             // when handing the closeup back to the two-fighter battle shot.
             float alpha=1-Mathf.SmoothStep(0,1,(battle.ActionAge-1.25f)/.25f);
             hud.Rounded(BattleHudLayout.BeamTitle,new Color(.006f,.02f,.055f,.80f*alpha),8);
-            hud.Line(new Vector2(438,703),new Vector2(842,703),new Color(.22f,.72f,1,.65f*alpha),2);
-            hud.Text(new Rect(432,669,416,32),SelectedHero.Beam+"！",21,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
+            hud.Line(new Vector2(438,710),new Vector2(842,710),new Color(.22f,.72f,1,.65f*alpha),2);
+            hud.Text(new Rect(432,686,416,24),SelectedHero.Beam+"！",19,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
         }
 
         // A short cabinet-style cut-in makes the transition out of the
@@ -215,12 +215,12 @@ namespace UltramanGame.Runtime
             // Keep the playfield dominant, as on the reference cabinet: the
             // instruction is a compact rail at the very bottom instead of a
             // large card covering the fighters' legs and effects.
-            hud.Fade(new Rect(0,662,1280,58),new Color(.005f,.015f,.035f,.10f));
+            hud.Fade(new Rect(0,680,1280,40),new Color(.005f,.015f,.035f,.10f));
             hud.Rounded(BattleHudLayout.Guide,new Color(.007f,.025f,.053f,.82f),8);
-            hud.Box(new Rect(370,672,3,29),accent);
-            hud.Figure(new Rect(384,664,36,43),gesture,Time.unscaledTime,accent);
-            hud.Text(new Rect(432,667,451,31),title,17,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-            hud.Bar(new Rect(455,704,410,3),progress,accent);
+            hud.Box(new Rect(370,686,3,22),accent);
+            hud.Figure(new Rect(384,680,34,32),gesture,Time.unscaledTime,accent);
+            hud.Text(new Rect(432,684,451,23),title,16,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+            hud.Bar(new Rect(455,710,410,2),progress,accent);
         }
         void DrawArcadePreview()
         {
