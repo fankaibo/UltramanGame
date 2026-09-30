@@ -49,8 +49,8 @@ Do not beautify facial features, slim bodies, invent limbs, add objects or chang
 Return ONLY a JSON object with these fields (numbers, no code):
 scene_summary: short description of observed lighting;
 exposure_ev: -0.45 to 0.15; red_gain/green_gain/blue_gain: 0.85 to 1.15;
-saturation: 0.75 to 1.05; edge_feather_px: 0.6 to 2.5 at 1080p;
-light_wrap: 0 to 0.18; shadow_strength: 0 to 0.24.
+saturation: 0.72 to 1.05; edge_feather_px: 0.6 to 4.0 at 1080p;
+light_wrap: 0 to 0.30; shadow_strength: 0 to 0.28.
 Exposure is photographic stops in LINEAR light, not multiplication of encoded sRGB values.
 RGB gains and saturation are also applied in linear light. Do not crush the face to match a dark sky:
 the hero is lit by a cool moon key, soft fill and warm lava rim. Match that readable subject lighting.
@@ -59,8 +59,8 @@ Prefer local matching and gentle edge blending. Leave skin recognisable.'''
 
 
 LIMITS = {'exposure_ev':(-.45,.15), 'red_gain':(.85,1.15), 'green_gain':(.85,1.15),
-          'blue_gain':(.85,1.15), 'saturation':(.75,1.05), 'edge_feather_px':(.6,2.5),
-          'light_wrap':(0,.18), 'shadow_strength':(0,.24)}
+          'blue_gain':(.85,1.15), 'saturation':(.72,1.05), 'edge_feather_px':(.6,4.0),
+          'light_wrap':(0,.30), 'shadow_strength':(0,.28)}
 
 
 def parse_recipe(text):
@@ -166,10 +166,11 @@ def harmonise(composite, plate, mask, recipe):
         person_luma=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
         scene_tint=scene/np.maximum(scene_luma,.015)
         ambient=np.clip(person_luma*scene_tint,0,1)
-        # The gateway may return a technically valid near-zero wrap.  A family
-        # preview needs a perceptible, still bounded response from the Fuji
-        # moon/lava plate, so keep the mix below 18% but above a small floor.
-        strength=min(.18,max(.035,recipe['light_wrap']*.85))
+        # The gateway may return a technically valid near-zero wrap. A family
+        # preview needs a perceptible response from the Fuji moon/lava plate;
+        # keep it bounded, but large enough to prove that the edited image was
+        # actually composited instead of merely copied from the original.
+        strength=min(.30,max(.065,recipe['light_wrap']*.95))
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
@@ -208,12 +209,12 @@ def enhance(source, plate_path, mask_path):
     # but a living-room cutout needs a small visible blend to be useful. Keep
     # this bounded local floor in the approved recipe rather than asking the
     # image model to redraw a face or silhouette.
-    recipe['edge_feather_px']=max(2.0,recipe['edge_feather_px'])
+    recipe['edge_feather_px']=max(2.5,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but indistinguishable in
     # a family preview. Keep the effect gentle, yet visible enough to prove
     # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(.14,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.14,recipe['shadow_strength'])
+    recipe['light_wrap']=max(.22,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.18,recipe['shadow_strength'])
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     _save_png(output,result)
@@ -243,8 +244,8 @@ def local_fallback(source, plate_path, mask_path):
     source=Path(source)
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
-    recipe=dict(exposure_ev=-.05,red_gain=1.02,green_gain=.99,blue_gain=1.08,
-                saturation=.90,edge_feather_px=2.5,light_wrap=.18,shadow_strength=.16,
+    recipe=dict(exposure_ev=-.12,red_gain=.98,green_gain=.98,blue_gain=1.14,
+                saturation=.82,edge_feather_px=3.5,light_wrap=.28,shadow_strength=.22,
                 scene_summary='本地备用：富士夜景的冷月光与远处暖色火山边缘光')
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
