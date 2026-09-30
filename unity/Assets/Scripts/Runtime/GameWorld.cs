@@ -497,7 +497,7 @@ namespace UltramanGame.Runtime
             monsterRay.Tick(state,Camera,enemy?.RayOrigin??EnemyHome+Vector3.up*3.32f-BattleAxis*.46f,
                 state.Shield?ShieldCenter+Vector3.up*.26f:HeroHome+Vector3.up*2,Showcase||Closeup.Active);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>BeamStream.LaunchSeconds;
-            BeamStarted=firing&&!beamWasVisible;beamWasVisible=firing;
+            BeamStarted=firing&&!beamWasVisible&&!(state.Finishing&&previous==GamePhase.Paused);beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
             effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget,
                 Closeup.Age,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,hero?.HandPosition??BeamOrigin);

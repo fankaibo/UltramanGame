@@ -98,7 +98,7 @@ namespace UltramanGame.Runtime
                     interrupted?"相机连接中断 · 进度已保留":"站进镜头，我们接着守护火山基地";
                 Guide(text,"transform",cyan,battle.ResumeProgress/1.2f);
             }
-            else if(battle.Action!=HeroAction.Hurt)
+            else if(battle.Action!=HeroAction.Hurt&&(!battle.Finishing||battle.Action==HeroAction.Beam))
             {
                 // The fall and recovery need the full lower part of the shot;
                 // resume the normal instructions only after the hero stands.

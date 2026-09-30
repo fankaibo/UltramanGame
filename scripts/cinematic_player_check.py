@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--slam', action='store_true', help='Wait for the third, ground-slam attack before counterattacking')
     parser.add_argument('--ray', action='store_true', help='Exercise the fourth, head-ray attack before counterattacking')
     parser.add_argument('--linked', action='store_true', help='Queue the first three alternating fists during recovery')
+    parser.add_argument('--finisher', action='store_true', help='Use 24 HP so the first beam is the final strike')
     args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     started = datetime.now(timezone.utc)
@@ -37,7 +38,7 @@ def main():
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
                                    '--proof-output', str(native), '-screen-fullscreen', '0',
-                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else []),
+                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else [])+(['--review-finisher'] if args.finisher else []),
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         try:
             code = player.wait(timeout=180)
@@ -62,13 +63,14 @@ def main():
         raise RuntimeError('Presentation was not prewarmed')
     live_output = output.split('[PresentationWarmup] complete', 1)[1]
     beam_impacts = live_output.count('[BeamImpactVolume] begin')
-    if beam_impacts != 2:
+    expected_beams = 1 if args.finisher else 2
+    if beam_impacts != expected_beams:
         raise RuntimeError(f'Expected one volume burst per real beam hit, got {beam_impacts}')
     beam_braces = live_output.count('[MonsterBeam] brace ')
-    if beam_braces != 2:
-        raise RuntimeError(f'Expected two beam recovery-foot landings, got {beam_braces}')
+    if beam_braces != expected_beams:
+        raise RuntimeError(f'Expected matching beam recovery-foot landings, got {beam_braces}')
     reaction_cuts = dict(begins=live_output.count('[BeamReactionCamera] begin'), ends=live_output.count('[BeamReactionCamera] end'))
-    if reaction_cuts != dict(begins=2, ends=2):
+    if reaction_cuts != dict(begins=expected_beams, ends=expected_beams):
         raise RuntimeError(f'Missing beam reaction shot or return: {reaction_cuts}')
     if output.count('[VolcanoEnvironment] captured=True faces=6 size=128 mipmaps=True') != 1:
         raise RuntimeError('Expected one successful arena reflection capture at startup')
@@ -77,8 +79,8 @@ def main():
     if '[BeamSurface] torso-anchor=True vertices=3' not in output or 'chest-bone fallback' in output:
         raise RuntimeError('Built player did not bind the beam to the readable monster torso')
     beam_voice = 'beam_original' if args.hero == 'Tiga' else 'beam'
-    if output.count(f'[Voice] key={beam_voice} playing=True') != 2:
-        raise RuntimeError(f'Expected two {beam_voice} battle cries for {args.hero}')
+    if output.count(f'[Voice] key={beam_voice} playing=True') != expected_beams:
+        raise RuntimeError(f'Expected {expected_beams} {beam_voice} battle cries for {args.hero}')
     if output.count('[VictoryStage] landing-thud playing=True') != 1:
         raise RuntimeError('Expected exactly one landing sound for the defeated monster')
     if output.count('[MonsterDissolve] begin samples=384') != 1 or output.count('[MonsterDissolve] shimmer playing=True') != 1:
@@ -117,8 +119,9 @@ def main():
     entrance_roars=live_output.count('[MonsterEntrance] roar sound=True')
     if entrance_steps!=['left','right'] or entrance_roars!=1 or ground_contacts.count('arrival')!=2:
         raise RuntimeError('Monster opening did not pair two landings with one roar')
-    if contacts!={'fist':26,'heavy':6,'beam':2}:
-        raise RuntimeError(f'Contact sounds did not follow the 32 punches and two finishers: {contacts}')
+    expected_contacts = {'fist':12,'heavy':3,'beam':1} if args.finisher else {'fist':26,'heavy':6,'beam':2}
+    if contacts != expected_contacts:
+        raise RuntimeError(f'Contact sounds did not follow the accepted strikes: {contacts}')
     if 'effectDuck=0.42' not in live_output:
         raise RuntimeError('No speech-priority effect mix observed during playback')
     # These images come from this player run, not the independent Editor render
@@ -142,6 +145,20 @@ def main():
         required += ('ray-prepare','ray-travel','ray-block','ray-fade','ray-recover')
     if args.linked:
         required += ('punch-link-prepare','punch-link-handoff')
+    if args.finisher:
+        # The defeated monster collapses after the release instead of taking a
+        # recovery step back into battle. Ordinary rounds still require that shot.
+        required = tuple(name for name in required if name != 'beam-recovery')
+        required += ('final-strike-contact', 'final-strike-sustain', 'final-strike-release')
+    else:
+        required += ('final-punch-recovery',)
+    final_contact = re.findall(r'\[FinalStrike\] contact action=(\w+) actionAge=([\d.]+) health=0', live_output)
+    final_complete = re.findall(r'\[FinalStrike\] completed action=(\w+) actionAge=([\d.]+)', live_output)
+    if len(final_contact) != 1 or len(final_complete) != 1 or final_contact[0][0] != final_complete[0][0]:
+        raise RuntimeError('Final hit must complete exactly once with the same action')
+    final_action, final_age = final_complete[0]
+    if (args.finisher and final_action != 'Beam') or float(final_age) < (1.5 if args.finisher else .38):
+        raise RuntimeError('Victory interrupted the last strike')
     for name in required:
         path = native / (name + '.png')
         if not path.is_file() or f'file={path}' not in output:
@@ -154,7 +171,7 @@ def main():
         if max(abs(a-b) for a,b in zip(pixel,(255,161,59)))>2:
             raise RuntimeError(f'HUD color was encoded incorrectly: {pixel}')
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,

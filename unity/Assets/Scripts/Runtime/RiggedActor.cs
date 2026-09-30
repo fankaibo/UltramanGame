@@ -124,6 +124,10 @@ namespace UltramanGame.Runtime
         readonly Vector3[] attackPositions;
         readonly Quaternion[] attackExitRotations;
         readonly Vector3[] attackExitPositions;
+        readonly Quaternion[] defeatEntryRotations;
+        readonly Vector3[] defeatEntryPositions;
+        Vector3 defeatEntryRoot;Quaternion defeatEntryFacing;
+        bool defeatEntry;
         readonly MonsterDissolve dissolve;
         public int DissolveStarts=>dissolve?.Starts??0;
         public int DissolveMotes=>dissolve?.ActiveMotes??0;
@@ -297,6 +301,7 @@ namespace UltramanGame.Runtime
             positions=new Vector3[joints.Length];scales=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];
             attackRotations=new Quaternion[joints.Length];attackPositions=new Vector3[joints.Length];
             attackExitRotations=new Quaternion[joints.Length];attackExitPositions=new Vector3[joints.Length];
+            defeatEntryRotations=new Quaternion[joints.Length];defeatEntryPositions=new Vector3[joints.Length];
             comboExitStart=new Quaternion[joints.Length];comboExitBase=new Quaternion[joints.Length];comboExitMask=new bool[joints.Length];
             if(!monster&&upperSpine)for(int i=0;i<joints.Length;i++)comboExitMask[i]=joints[i]==upperSpine||joints[i].IsChildOf(upperSpine);
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
@@ -395,6 +400,17 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            // The terminal strike survives a tracking pause. Retain its visible
+            // pose and recoil clock instead of sampling Idle beneath the pause.
+            if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
+            if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Victory)defeatEntry=false;
+            if(monster&&preview<0&&ReferenceEquals(observedBattle,state)&&previous==GamePhase.Battle&&state.Phase==GamePhase.Victory)
+            {
+                // Carry the visible recoil (including planted-foot and claw
+                // layers) into the collapse instead of snapping upright first.
+                defeatEntry=true;defeatEntryRoot=Root.position;defeatEntryFacing=Root.rotation;
+                for(int i=0;i<joints.Length;i++){defeatEntryPositions[i]=joints[i].localPosition;defeatEntryRotations[i]=joints[i].localRotation;}
+            }
             if(monster)
             {
                 if(preview>=0||!ReferenceEquals(observedBattle,state)||!MonsterSlamMotion.Active(state))slamEntryAge=1;
@@ -564,7 +580,7 @@ namespace UltramanGame.Runtime
                 {stagger.Clear();launch.Clear();beamRecoil.Begin((state.Punches/Battle.MaxEnergy)%2==1);}
                 // Leave the final warning second and the attacking claw alone.
                 // The step never delays an enemy hit or the child's next input.
-                if(monster&&accentHit&&!beamRecoil.Active&&state.Enemy!=EnemyPhase.Attack&&
+                if(monster&&accentHit&&!state.Finishing&&!beamRecoil.Active&&state.Enemy!=EnemyPhase.Attack&&
                     (state.Enemy!=EnemyPhase.Windup||state.WarningDuration-state.EnemyAge>1.1f))
                 {
                     if(MonsterLaunchMotion.Uppercut(state)&&
@@ -991,6 +1007,13 @@ namespace UltramanGame.Runtime
                 jawBase=jaw.localRotation;jawLayerApplied=true;
                 jaw.rotation=Quaternion.AngleAxis(jawCorrection,Root.right)*jaw.rotation;
             }
+            if(defeatEntry&&phaseAge<.34f)
+            {
+                float blend=Mathf.SmoothStep(0,1,phaseAge/.34f);
+                Root.SetPositionAndRotation(Vector3.Lerp(defeatEntryRoot,Root.position,blend),Quaternion.Slerp(defeatEntryFacing,Root.rotation,blend));
+                for(int i=1;i<joints.Length;i++)
+                {joints[i].localPosition=Vector3.Lerp(defeatEntryPositions[i],joints[i].localPosition,blend);joints[i].localRotation=Quaternion.Slerp(defeatEntryRotations[i],joints[i].localRotation,blend);}
+            }
             // Character-local emission carries the same readable signals as the
             // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
             // timer and crystal intensify during transformation and beam charge.
@@ -1008,7 +1031,7 @@ namespace UltramanGame.Runtime
                 Color c=monster?new Color(1,.24f,.055f):mat.GetColor("_Color");
                 mat.SetColor("_EmissionColor",c*(monster?.25f+eyeGlow*1.7f:1.05f));
             }
-            float coreGlow=!monster&&state.Action==HeroAction.Beam
+            float coreGlow=!monster&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.Beam
                 ?.55f+.95f*Mathf.Sin(Mathf.Clamp01(state.ActionAge/1.9f)*Mathf.PI):
                 !monster&&state.Phase==GamePhase.Transforming?.08f+.75f*TransformationMotion.Radiance(state.TransformationAge):.08f;
             foreach(var mat in impactMaterials)

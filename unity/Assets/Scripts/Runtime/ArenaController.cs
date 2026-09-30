@@ -9,7 +9,7 @@ namespace UltramanGame.Runtime
         Battle battle=new Battle();
         readonly Battle showcaseBattle=new Battle();
         bool showcase;int showcaseFrame;
-        ReviewPlayback review;float reviewFinishedAt=-1;int reviewBeams;bool reviewPaused;
+        ReviewPlayback review;float reviewFinishedAt=-1;int reviewBeams;bool reviewPaused,reviewFinisher;
         readonly GestureRecognizer recognizer=new GestureRecognizer();
         readonly PlayerPresence presence=new PlayerPresence();
         PoseClient client;
@@ -66,7 +66,7 @@ namespace UltramanGame.Runtime
             DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",1);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
-            {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-linked")>=0);keyboard=true;monsterHits=Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
+            {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-linked")>=0);reviewFinisher=Array.IndexOf(Environment.GetCommandLineArgs(),"--review-finisher")>=0;keyboard=true;monsterHits=reviewFinisher?24:Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
             Application.runInBackground=true;Screen.sleepTimeout=SleepTimeout.NeverSleep;
             client=new PoseClient(LocalPort("--pose-port",8765));previewClient=new PreviewClient(LocalPort("--preview-port",8766));
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
@@ -213,6 +213,7 @@ namespace UltramanGame.Runtime
                 bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
+                if(battle.Finishing&&Debug.isDebugBuild)Debug.Log($"[FinalStrike] contact action={battle.Action} actionAge={battle.ActionAge:F3} health={battle.EnemyHealth}");
                 sound.Hit(!special&&battle.Punches%5==0,special);
             }
             lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
@@ -237,9 +238,9 @@ namespace UltramanGame.Runtime
             enemy.SetPresentationOpacity(world.EnemyOpacity);
             if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
             {autoPhotoOpened=true;photo.Open();}
-            if(!keyboard&&!finalGuide&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)
+            if(!keyboard&&!finalGuide&&!battle.Finishing&&battle.Phase==GamePhase.Battle&&battle.EnemyHealth<=battle.MaxHealth*.3f&&battle.Energy<Battle.MaxEnergy&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0&&!sound.VoicePlaying)
             {finalGuide=true;sound.Speak("arcade_final",3,battle.Phase);}
-            if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&battle.Phase==GamePhase.Battle)
+            if(!keyboard&&!paused&&!settings&&!showcase&&!world.Closeup.Active&&!battle.Finishing&&battle.Phase==GamePhase.Battle)
             {
                 if(battle.Punches==0&&Time.unscaledTime>hintAt&&battle.Enemy==EnemyPhase.Rest&&battle.InstructionRemaining<=0)
                 {sound.Speak("tutorial",3,battle.Phase);hintAt=Time.unscaledTime+20;}
@@ -261,7 +262,7 @@ namespace UltramanGame.Runtime
                 if(reviewFinishedAt<0)
                 {
                     reviewFinishedAt=review.Age;
-                    bool pass=battle.MaxHealth==50&&battle.Punches==32&&reviewBeams==2&&battle.Blocks>=1&&battle.HitsTaken==1&&reviewPaused;
+                    bool pass=battle.MaxHealth==(reviewFinisher?24:50)&&battle.Punches==(reviewFinisher?15:32)&&reviewBeams==(reviewFinisher?1:2)&&battle.Blocks>=1&&battle.HitsTaken==1&&reviewPaused;
                     Debug.Log($"[FullGameReview] pass={pass} age={review.Age:F2} punches={battle.Punches} beams={reviewBeams} blocks={battle.Blocks} hurt={battle.HitsTaken} pause={reviewPaused} health={battle.EnemyHealth}");
                     if(!pass){Application.Quit(2);return;}
                 }
@@ -298,7 +299,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
                 case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
-                case GameCue.Victory:victoryAt=Time.unscaledTime;break;
+                case GameCue.Victory:victoryAt=Time.unscaledTime;if(Debug.isDebugBuild)Debug.Log($"[FinalStrike] completed action={battle.Action} actionAge={battle.ActionAge:F3}");break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }

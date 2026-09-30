@@ -14,6 +14,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.BeamRecoilAge>=.39f&&enemy.BeamRecoilAge<.65f)
+            {
+                // A terminal beam has no later beam to recover a missed frame.
+                // Capture its planted brace before the overlapping arm/shot tags.
+                string brace="beam-braced"+(photo.Captures>0?"-after-photo":"");
+                if(proofFrames.Add(brace)){StartCoroutine(SaveGuidedProof(brace));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.RecoveryWeight>.65f)
             {
                 string recoverKey=battle.EnemyAge>=.6f&&battle.EnemyAge<.8f?"monster-recovery-drop":
@@ -127,6 +134,12 @@ namespace UltramanGame.Runtime
                 else if(world.ComboCameraAge>.55f&&world.ComboFocus>.01f&&world.ComboFocus<.30f)key="combo-camera-return";
             }
             if(captureClaw)key=clawKey;
+            if(!photo.Active&&battle.Finishing&&proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
+            {
+                if(battle.Action==HeroAction.Beam)
+                    key=battle.ActionAge<.75f?"final-strike-contact":battle.ActionAge<1.28f?"final-strike-sustain":"final-strike-release";
+                else if(battle.ActionAge>=.24f)key="final-punch-recovery";
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.BeamRecoilAge<MonsterBeamMotion.Duration&&
                 proofFrames.Contains(key+(photo.Captures>0?"-after-photo":"")))
             {

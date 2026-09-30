@@ -83,6 +83,7 @@ static class Program
             KnockdownChecks.Run(Check);
             InstructionChecks.Run(Check);
             EntranceChecks.Run(Check);
+            FinalStrikeChecks.Run(Check);
             bool offline=Array.IndexOf(args,"--offline")>=0;
             RecoveryChecks.Run(Check,!offline);
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");

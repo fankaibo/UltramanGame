@@ -14,6 +14,9 @@ namespace UltramanGame.Core
         public GamePhase Phase { get; private set; } = GamePhase.Waiting;
         public EnemyPhase Enemy { get; private set; }
         public HeroAction Action { get; private set; }
+        // Damage is settled once, then the accepted last strike finishes before
+        // victory guidance and the automatic photo timer take ownership.
+        public bool Finishing=>finishing&&Phase==GamePhase.Battle;
         // Presentation may anticipate an already accepted next fist. It never
         // creates an input, shortens recovery or applies damage on its own.
         public HeroAction BufferedPunch=>Phase==GamePhase.Battle?queuedPunch:HeroAction.None;
@@ -43,6 +46,7 @@ namespace UltramanGame.Core
         GamePhase resumePhase;
         float phaseAge, immunity;
         bool hitApplied;
+        bool finishing;
         bool enemyHitApplied;
         HeroAction queuedPunch;
         float queuedAge;
@@ -62,7 +66,7 @@ namespace UltramanGame.Core
         {
             if(float.IsNaN(voiceSeconds)||float.IsInfinity(voiceSeconds)||voiceSeconds<0)
                 throw new ArgumentOutOfRangeException(nameof(voiceSeconds));
-            if(Phase!=GamePhase.Battle)return;
+            if(Phase!=GamePhase.Battle||finishing)return;
             float duration=Math.Min(voiceSeconds,20)+InstructionReactionSeconds;
             if(warning)
             {
@@ -77,7 +81,8 @@ namespace UltramanGame.Core
         {
             if(Phase==GamePhase.Paused || Phase==GamePhase.Waiting || Phase==GamePhase.Victory) return;
             resumePhase=Phase; Phase=GamePhase.Paused; ResumeProgress=0;
-            Action=HeroAction.None; Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
+            if(!finishing)Action=HeroAction.None;
+            Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
             queuedPunch=HeroAction.None;queuedAge=0;
             queuedBeamAge=0;InstructionRemaining=0;WarningDuration=WindupSeconds;
             enemyHitApplied=false;
@@ -104,6 +109,14 @@ namespace UltramanGame.Core
             if(Phase==GamePhase.Transforming)
             {
                 if(phaseAge>=TransformationSeconds) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
+                return;
+            }
+            if(finishing)
+            {
+                // Pose changes during the final hit cannot cancel its release,
+                // enqueue another fist or let a defeated enemy retaliate.
+                ActionAge+=dt;
+                if(ActionAge>=(Action==HeroAction.Beam?BeamSeconds:PunchSeconds))CompleteVictory();
                 return;
             }
             immunity=Math.Max(0,immunity-dt);
@@ -151,7 +164,12 @@ namespace UltramanGame.Core
                     hitApplied=true;
                     if(Action==HeroAction.Beam) EnemyHealth=Math.Max(0,EnemyHealth-9);
                     else { EnemyHealth=Math.Max(0,EnemyHealth-1); Punches++; AddEnergy(1); }
-                    if(EnemyHealth<=0) { Phase=GamePhase.Victory; Shield=false; Cue(GameCue.Victory); return; }
+                    if(EnemyHealth<=0)
+                    {
+                        finishing=true;Shield=false;Enemy=EnemyPhase.Rest;EnemyAge=0;
+                        queuedPunch=HeroAction.None;queuedAge=queuedBeamAge=0;
+                        return;
+                    }
                 }
                 float duration=Action==HeroAction.Beam?BeamSeconds:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
                 if(ActionAge>=duration) Action=HeroAction.None;
@@ -179,11 +197,12 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Rest; EnemyAge=0; }
         }
         void Begin(HeroAction action) { Action=action; ActionAge=0; hitApplied=false; }
+        void CompleteVictory(){finishing=false;Phase=GamePhase.Victory;Shield=false;Cue(GameCue.Victory);}
         void AddEnergy(float amount)
         {
             float before=Energy;
             Energy=Math.Min(MaxEnergy,Energy+amount);
-            if(before<MaxEnergy && Energy>=MaxEnergy) {GiveInstructionTime(0);Cue(GameCue.EnergyReady);}
+            if(before<MaxEnergy && Energy>=MaxEnergy && EnemyHealth>0) {GiveInstructionTime(0);Cue(GameCue.EnergyReady);}
         }
     }
 }
