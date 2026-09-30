@@ -35,9 +35,11 @@ def main():
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
+    parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
     options=parser.parse_args()
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     if options.gesture_shape_noise and not options.gesture_wobble:parser.error('--gesture-shape-noise requires --gesture-wobble')
+    if options.gesture_startup_noise and not options.gesture_entry_noise:parser.error('--gesture-startup-noise requires --gesture-entry-noise')
     app=ROOT/'unity/Builds/TigaTraining.app'
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
     log=options.log.resolve();log.parent.mkdir(parents=True,exist_ok=True);log.write_text('')
@@ -48,7 +50,7 @@ def main():
                 for key,file in [('assembly_sha256','Managed/Assembly-CSharp.dll'),('resources_sha256','resources.assets')]}
     build={'started_utc':datetime.now(timezone.utc).isoformat(),'before':build_hashes()}
     for name in ('guided-validation.json','build.json'):(folder/name).unlink(missing_ok=True)
-    factory=FrameFactory(source='synthetic');process=None;photos=[]
+    factory=FrameFactory(source='synthetic');process=None;photos=[];pose_trace=[]
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
@@ -61,6 +63,7 @@ def main():
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
             guard_shape_frames=guard_reacquisitions=0;guard_confirmed=False
+            guard_startup_overlap_frames=beam_startup_frames=0
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -95,6 +98,8 @@ def main():
                     if '[Photo] automatic capture complete' in line:
                         photos_seen+=1;stage='review';review_at=now
                     if '[Photo] gesture=play-again' in line:stage='replay'
+                if options.gesture_startup_noise and unwanted_attacks:
+                    raise RuntimeError(f'Gesture startup attack: count={unwanted_attacks} protected={protected}')
                 # Continue through transformation so the resumed arena must render
                 # again after its camera was disabled during the full-screen photo.
                 if replay_battle_at and now-replay_battle_at>2:break
@@ -120,10 +125,16 @@ def main():
                         if options.gesture_wobble and beam:
                             points[15].z=points[16].z=-.10
                             hold_age=now-beam_release_until
+                            if options.gesture_startup_noise:
+                                # A clear upright forearm, biased before the
+                                # first valid hold: no clean depth seed frame.
+                                points[15].y=.245;points[15].z=-.53
+                                beam_startup_frames+=1
                             if options.gesture_entry_noise and .04<hold_age<.29:
                                 points[15].z=-.43;beam_entry_noise_frames+=1
                             if .30<hold_age<.59:
                                 points[15].z=-.70;beam_noise_frames+=1
+                                if options.gesture_startup_noise:points[15].visibility=.1
                             if hold_age>(0 if options.gesture_entry_noise else .25):protected='beam'
                         elif options.gesture_wobble and guard:
                             points[15].z=points[16].z=-.10
@@ -132,6 +143,8 @@ def main():
                                 points[15].y=points[16].y=.39
                             if options.gesture_entry_noise and now-guard_started<=.7:
                                 points[15].z=-.44;protected='shield'
+                            if options.gesture_startup_noise and .06<now-guard_started<.18:
+                                points[16].visibility=.1;guard_startup_overlap_frames+=1
                             if now-guard_started>.7:
                                 protected='shield'
                                 if (now-guard_started)%.4<.14:
@@ -153,6 +166,8 @@ def main():
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
                 publish_at=time.monotonic()
                 frame=factory.make(points)
+                if options.gesture_startup_noise:
+                    pose_trace.append(dict(frame=frame,protected=protected,beam_available=beam,transform_available=phase=='Waiting'))
                 if not review_loss_start or now-review_loss_start>.45:bridge.publish(frame)
                 pose_at=time.monotonic()
                 preview.publish(None,points,frame['capturedMs'],'synthetic')
@@ -178,6 +193,8 @@ def main():
                     raise RuntimeError(f'Initial gesture ownership not verified: guards={guard_entries} beamNoise={beam_entry_noise_frames}')
                 if options.gesture_shape_noise and (guard_shape_frames<4 or guard_reacquisitions):
                     raise RuntimeError(f'Guard shape ownership failed: driftFrames={guard_shape_frames} reacquisitions={guard_reacquisitions}')
+                if options.gesture_startup_noise and (guard_startup_overlap_frames<4 or beam_startup_frames<20):
+                    raise RuntimeError(f'Gesture startup not exercised: guardOverlap={guard_startup_overlap_frames} beamBias={beam_startup_frames}')
             filenames=re.findall(r'\[Photo\] saved source=synthetic size=1920x1080 file=(.+)',output)
             if len(filenames)!=2 or len(set(filenames))!=2:raise RuntimeError('Expected two distinct TEST photos')
             for name in filenames:
@@ -200,10 +217,13 @@ def main():
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
+            if options.gesture_startup_noise:result['gesture_startup_noise']={'guard_overlap_frames':guard_startup_overlap_frames,'beam_bias_frames':beam_startup_frames}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:
             stop_process(process)
+            if options.gesture_startup_noise:
+                (folder/'synthetic-poses.jsonl').write_text(''.join(json.dumps(row,separators=(',',':'))+'\n' for row in pose_trace))
             build['after']=build_hashes()
             (folder/'build.json').write_text(json.dumps(build,indent=2)+'\n')
 

@@ -32,6 +32,70 @@ static class GestureIntentChecks
         {
             foreach(int hand in new[]{15,16})
             {
+                var switching=new Trial(fps);switching.Hold(Guard(),.8f);
+                var lateral=Guard();lateral[hand]=P(hand==15?.98f:.02f,.36f,-.2f);
+                lateral[hand==15?13:14]=P(hand==15?.80f:.20f,.38f,-.15f);
+                switching.Hold(lateral,.2f);
+                check(switching.Punches==1,$"lateral hand {hand} strike precedes guard transition at {fps} fps");
+                var returnGuard=Guard();returnGuard[15].x=.73f;returnGuard[16].x=.27f;returnGuard[hand].z=-.49f;
+                switching.Hold(returnGuard,1f/fps);
+                check(switching.Last.GuardIntent,$"visible hand {hand} retraction reserves guard before old punch cooldown at {fps} fps");
+                var switchOverlap=(PosePoint[])returnGuard.Clone();switchOverlap[hand==15?16:15].visibility=.1f;
+                switching.Hold(switchOverlap,.12f);switching.Hold(returnGuard,.5f);
+                check(switching.Last.Shield&&switching.Punches==1,$"retraction with initial overlap cannot produce another hand {hand} punch at {fps} fps");
+                var acquiring=new Trial(fps);var rest=Guard();rest[15].y=rest[16].y=.75f;
+                var skipped=new Trial(fps);skipped.Hold(rest,.8f);
+                var firstOverlap=Guard();firstOverlap[hand].z=-.49f;firstOverlap[hand==15?16:15].visibility=.1f;
+                // The player takes the latest packet; a rendering stall may
+                // skip the first complete guard and receive the overlap first.
+                skipped.Hold(firstOverlap,.12f);
+                check(skipped.Punches==0&&!skipped.Last.Shield,$"first observed guard frame may hide a wrist without punching at {fps} fps");
+                skipped.Hold(Guard(),.5f);
+                check(skipped.Last.Shield&&skipped.Punches==0,$"guard acquires after skipped entry packets at {fps} fps");
+                acquiring.Hold(rest,.8f);acquiring.Hold(Guard(),1f/fps);
+                float pending=acquiring.R.ShieldProgress;
+                check(pending>0&&pending<1,$"guard starts confirmation before acquisition overlap at {fps} fps");
+                var overlap=Guard();overlap[hand].z=-.49f;overlap[hand==15?16:15].visibility=.1f;
+                acquiring.Hold(overlap,.12f);
+                check(acquiring.Last.GuardIntent&&!acquiring.Last.Shield&&acquiring.Punches==0,
+                    $"partly confirmed guard owns input during hand {hand} overlap at {fps} fps");
+                check(Math.Abs(acquiring.R.ShieldProgress-pending)<.001f,
+                    $"occluded acquisition cannot earn shield confirmation at {fps} fps");
+                acquiring.Hold(Guard(),.35f);
+                check(acquiring.Last.Shield&&acquiring.Punches==0,$"guard completes after acquisition overlap at {fps} fps");
+                acquiring=new Trial(fps);acquiring.Hold(rest,.8f);acquiring.Hold(Guard(),1f/fps);acquiring.Hold(overlap,.5f);
+                check(!acquiring.Last.GuardIntent&&!acquiring.Last.Shield&&acquiring.Punches==0,
+                    $"long acquisition overlap releases ownership without a stale punch at {fps} fps");
+
+                var initial=new Trial(fps);initial.Hold(rest,.8f,true);
+                var biased=Beam();biased[15].z=-.53f;
+                if(hand==16)
+                {
+                    for(int a=11;a<=15;a+=2){var swap=biased[a];biased[a]=biased[a+1];biased[a+1]=swap;}
+                }
+                initial.Hold(biased,1.4f,true);
+                check(initial.Beams==1&&initial.Punches==0,$"visible forearms acquire hand {hand} L despite initial depth bias at {fps} fps");
+                initial.Hold(biased,1.2f,true);
+                check(initial.Beams==1,$"depth-biased L still fires only once at {fps} fps");
+                initial=new Trial(fps);initial.Hold(biased,1.4f,false);initial.Hold(biased,1.4f,true);
+                check(initial.Beams==0&&initial.R.BeamNeedsRelease,$"pre-held depth-biased L must release before firing at {fps} fps");
+                initial.Hold(rest,.5f,true);initial.Hold(biased,1.4f,true);
+                check(initial.Beams==1,$"released depth-biased L can fire at {fps} fps");
+                var horizontal=(PosePoint[])biased.Clone();horizontal[hand==15?13:14].y=horizontal[hand].y+.02f;
+                var rejected=new Trial(fps);rejected.Hold(rest,.8f,true);rejected.Hold(horizontal,1.4f,true);
+                check(rejected.Beams==0,$"forward horizontal arm does not borrow L depth tolerance at {fps} fps");
+                var strike=Guard();strike[hand]=P(hand==15?.65f:.35f,.28f,-.53f);
+                strike[hand==15?13:14]=P(hand==15?.66f:.34f,.29f,-.35f);
+                strike[hand==15?16:15].y=.50f;
+                rejected=new Trial(fps);rejected.Hold(Guard(),.8f,true);rejected.Hold(strike,1.4f,true);
+                check(rejected.Beams==0&&rejected.Punches==1,
+                    $"genuine hand {hand} forward strike still punches with full beam energy at {fps} fps");
+                var hidden=(PosePoint[])biased.Clone();hidden[13].visibility=hidden[14].visibility=.1f;
+                rejected=new Trial(fps);rejected.Hold(rest,.8f,true);rejected.Hold(hidden,1.4f,true);
+                check(rejected.Beams==0,$"missing forearms cannot establish depth-biased L at {fps} fps");
+            }
+            foreach(int hand in new[]{15,16})
+            {
                 var edge=new Trial(fps);var wide=Guard();wide[15].x=.73f;wide[16].x=.27f;
                 edge.Hold(wide,.8f);
                 check(edge.Last.Shield,$"wide chest guard acquired before edge jitter at {fps} fps");

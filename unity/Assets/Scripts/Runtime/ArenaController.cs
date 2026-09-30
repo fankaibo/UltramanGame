@@ -175,12 +175,12 @@ namespace UltramanGame.Runtime
                             if(detected.Length>0)
                             {
                                 gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
-                                if(Debug.isDebugBuild)Debug.Log("[Gesture] "+detected);
+                                if(Debug.isDebugBuild)Debug.Log($"[Gesture] {detected} sequence={pose.sequence}");
                             }
                             if(input.Shield&&!held.Shield)
                             {
                                 gestureFeedback="护盾已展开";gestureFeedbackUntil=Time.unscaledTime+1.3f;
-                                if(Debug.isDebugBuild)Debug.Log("[Gesture] 护盾已展开");
+                                if(Debug.isDebugBuild)Debug.Log($"[Gesture] 护盾已展开 sequence={pose.sequence}");
                             }
                         }
                     }

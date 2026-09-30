@@ -82,9 +82,9 @@ namespace UltramanGame.Core
         readonly PosePoint[] beamPoints = new PosePoint[33];
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
-        bool beamFired, beamArmed, transformFired, guardAnchored;
+        bool beamFired, beamArmed, transformFired, guardAnchored, hadWristPair;
         PosePoint guardLeft,guardRight;
-        float beamHold,beamGap,beamRelease,transformHold,shieldHold,shieldGap,steady;
+        float beamHold,beamGap,beamRelease,transformHold,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
         public int Difficulty {get;set;}
         int Level=>Math.Max(0,Math.Min(2,Difficulty));
@@ -105,7 +105,7 @@ namespace UltramanGame.Core
         void ClearGestures()
         {
             leftMotion.Reset();rightMotion.Reset();beamFired=beamArmed=transformFired=ForwardPunch=false;
-            guardAnchored=false;
+            guardAnchored=hadWristPair=false;wristLossAge=0;
             BeamNeedsRelease=false;
             beamHold=beamGap=beamRelease=transformHold=shieldHold=shieldGap=steady=0;
         }
@@ -161,6 +161,7 @@ namespace UltramanGame.Core
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
             bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
             bool beamWristsReady=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
+            if(beamWristsReady){hadWristPair=true;wristLossAge=0;}else wristLossAge+=dt;
             var bl=beamPoints[11];var br=beamPoints[12];var blw=beamPoints[15];var brw=beamPoints[16];
             float bdx=bl.x-br.x,bdy=bl.y-br.y,bdz=bl.z-br.z;
             // Guard and L-shape geometry use image-plane shoulders; noisy inferred depth must not shrink their target.
@@ -176,7 +177,9 @@ namespace UltramanGame.Core
                 // smoothing catches up from hands-down or a previous punch.
                 // Raw entry uses strict shape/depth; the usual timer still
                 // requires a sustained pose before it can fire.
-                BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs));
+                BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs)||
+                ForearmBeam(flw,frame.points[13],frw,frame.points[14],fcx,fsy,fs)||
+                ForearmBeam(frw,frame.points[14],flw,frame.points[13],fcx,fsy,fs));
             // Once intent is established, keep a wider pose envelope. Inferred
             // wrist depth often jumps while the child is holding an L; it must
             // not convert the same held action into a new forward punch.
@@ -198,7 +201,10 @@ namespace UltramanGame.Core
             // static depth bias could forbid defense forever at first entry.
             // An accepted extended punch must retract before it can reacquire
             // this reference, or the same held fist would turn into a shield.
-            if(rawGuard&&!guardAnchored&&!leftMotion.HoldingStrike&&!rightMotion.HoldingStrike)
+            float side=l.x>=r.x?1:-1;
+            bool leftReturned=!leftMotion.HoldingStrike||leftMotion.RetractedForGuard(fl,flw,scale,side);
+            bool rightReturned=!rightMotion.HoldingStrike||rightMotion.RetractedForGuard(fr,frw,scale,-side);
+            if(rawGuard&&!guardAnchored&&leftReturned&&rightReturned)
             {guardLeft=leftOffset;guardRight=rightOffset;guardAnchored=true;}
             bool leftCommitted=leftDepth>.90f&&leftDepth-rightDepth>.70f &&
                 (!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f);
@@ -233,7 +239,10 @@ namespace UltramanGame.Core
                 if(beamWristsReady||shieldGap>.20f)shieldHold=0;
             }
             input.Shield=shieldHold>=ShieldHold;
-            input.GuardIntent=shield||input.Shield;
+            // A partly confirmed guard already owns the gesture. Its existing
+            // 200 ms wrist-occlusion grace pauses confirmation; it must also
+            // prevent the visible hand's depth noise from becoming a punch.
+            input.GuardIntent=shield||shieldHold>0;
             input.BeamIntent=beamReserved;
             if(input.Shield)
             {
@@ -248,7 +257,12 @@ namespace UltramanGame.Core
             // that ownership too: the other wrist's noisy depth must not
             // become a punch merely because two-hand geometry is unavailable.
             // Discard those trajectories so they cannot fire when grace ends.
-            if(input.Shield&&!beamWristsReady)
+            // The receiver may skip the first complete pose and deliver its
+            // overlapping wrists first. Briefly discard motion across a new
+            // wrist-visibility loss, even before guard intent can be known.
+            // This never awards defense; a persistently visible single arm
+            // can still punch after the transition with a fresh trajectory.
+            if(!beamWristsReady&&(input.GuardIntent||hadWristPair&&wristLossAge<=.20f))
             {
                 leftMotion.Reset();rightMotion.Reset();
                 return input;
@@ -259,7 +273,6 @@ namespace UltramanGame.Core
                 leftMotion.Reset();rightMotion.Reset();
                 return input;
             }
-            float side=l.x>=r.x?1:-1;
             bool left=leftReady&&leftMotion.Update(l,lw,wasReliable[13],scale,side,frame.capturedMs,dt,Level);
             bool right=rightReady&&rightMotion.Update(r,rw,wasReliable[14],scale,-side,frame.capturedMs,dt,Level);
             if(!leftReady)leftMotion.Reset();if(!rightReady)rightMotion.Reset();
@@ -291,9 +304,25 @@ namespace UltramanGame.Core
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
             // A deeply extended single fist is a punch, even when the other wrist is lower like an L.
-            return shoulder.z-high.z<(holding||preserveDepth?1.6f:.9f)*scale && low.y-high.y>(holding?.28f:.45f)*scale && high.y<sy+(holding?.25f:.10f)*scale && high.y>sy-1.3f*scale &&
+            return shoulder.z-high.z<(holding||preserveDepth?1.6f:.9f)*scale && BeamHandShape(high,low,cx,sy,scale,holding);
+        }
+        static bool BeamHandShape(PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false)
+            =>low.y-high.y>(holding?.28f:.45f)*scale && high.y<sy+(holding?.25f:.10f)*scale && high.y>sy-1.3f*scale &&
                 low.y>sy+(holding?.08f:.20f)*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<(holding?1.1f:.90f)*scale &&
                 Math.Abs(low.x-cx)<(holding?1.05f:.85f)*scale && Math.Abs(high.x-low.x)<(holding?1.15f:.90f)*scale;
+        static bool ForearmBeam(PosePoint high,PosePoint highElbow,PosePoint low,PosePoint lowElbow,float cx,float sy,float scale)
+        {
+            // Monocular depth may be biased from the very first held frame.
+            // Two visible forearms provide independent image-plane evidence:
+            // one rises above its elbow/shoulder, the other crosses the chest.
+            // This is an additional entry route, not an elbow requirement for
+            // the existing wrist-only gesture or its occlusion tolerance.
+            if(!PoseQuality.Reliable(highElbow,.55f)||!PoseQuality.Reliable(lowElbow,.55f)||
+                !BeamHandShape(high,low,cx,sy,scale)||high.y>=sy-.10f*scale)return false;
+            float rise=highElbow.y-high.y,across=Math.Abs(low.x-lowElbow.x);
+            bool crossesCenter=Math.Abs(low.x-cx)<Math.Abs(lowElbow.x-cx);
+            return rise>.30f*scale&&Math.Abs(high.x-highElbow.x)<rise*.70f+.10f*scale&&
+                across>.25f*scale&&Math.Abs(low.y-lowElbow.y)<across*.45f+.10f*scale&&crossesCenter;
         }
         static bool ForwardPalms(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale,bool holding=false)
         {
