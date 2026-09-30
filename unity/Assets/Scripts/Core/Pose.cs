@@ -90,9 +90,14 @@ namespace UltramanGame.Core
         int Level=>Math.Max(0,Math.Min(2,Difficulty));
         float TransformHold=>.45f+Level*.12f;
         float ShieldHold=>.10f+Level*.14f;
-        float BeamHold=>BeamHoldSeconds+Level*.20f;
+        // The finisher should reward a readable hold, not punish a child for
+        // one noisy camera packet.  Standard difficulty now needs about .70s
+        // of a clear pose, with a longer grace window for temporary shape
+        // loss.  The recognizer still requires an explicit release before it
+        // can fire a second beam.
+        float BeamHold=>BeamHoldSeconds+Level*.10f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
-        public const float BeamHoldSeconds=.65f, BeamGapSeconds=.32f;
+        public const float BeamHoldSeconds=.60f, BeamGapSeconds=.50f;
         public float BeamProgress => Math.Min(1,beamHold/BeamHold);
         public float ShieldProgress => Math.Min(1,shieldHold/ShieldHold);
         public bool BeamNeedsRelease {get;private set;}
@@ -171,10 +176,15 @@ namespace UltramanGame.Core
             float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
             var fl=frame.points[11];var fr=frame.points[12];var flw=frame.points[15];var frw=frame.points[16];
             float fs=Math.Max(.08f,PoseQuality.Distance(fl,fr)),fcx=(fl.x+fr.x)/2,fsy=(fl.y+fr.y)/2;
+            float leftDepth=(bl.z-blw.z)/bs,rightDepth=(br.z-brw.z)/bs;
+            // A single wildly jumping wrist depth is the camera's common
+            // false-positive during a held L. It may reserve the action, but
+            // it must not advance the charge until the estimate settles.
+            bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<1.80f;
             // A recognised L owns estimated depth from its first confirmed
             // frame. Waiting 100 ms to protect depth stranded early charges;
             // keep the stricter image-plane shape until the normal hold begins.
-            bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs,preserveDepth:beamHold>0) || BeamArms(br,brw,blw,bcx,bsy,bs,preserveDepth:beamHold>0) ||
+            bool beamShape=beamWristsReady && beamDepthStable && (BeamArms(bl,blw,brw,bcx,bsy,bs,preserveDepth:beamHold>0) || BeamArms(br,brw,blw,bcx,bsy,bs,preserveDepth:beamHold>0) ||
                 ForwardPalms(bl,br,blw,brw,bsy,bs) ||
                 // The first complete camera pose reserves the action before
                 // smoothing catches up from hands-down or a previous punch.
@@ -183,23 +193,41 @@ namespace UltramanGame.Core
                 BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs)||
                 ForearmBeam(flw,frame.points[13],frw,frame.points[14],fcx,fsy,fs)||
                 ForearmBeam(frw,frame.points[14],flw,frame.points[13],fcx,fsy,fs));
+            bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
+            bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
+            // Acquire defense with the stricter chest shape so a moving punch
+            // cannot create a false shield. Once it has been held for the
+            // confirmation interval, the wider envelope below absorbs jitter.
+            bool guardEnvelope=guardShape;
             // Once intent is established, keep a wider pose envelope. Inferred
             // wrist depth often jumps while the child is holding an L; it must
             // not convert the same held action into a new forward punch.
-            bool beamMaintained=beamHold>=.10f&&beamWristsReady &&
+            bool beamMaintained=beamHold>=.10f&&beamWristsReady&&beamDepthStable &&
                 (BeamArms(bl,blw,brw,bcx,bsy,bs,true)||BeamArms(br,brw,blw,bcx,bsy,bs,true)||ForwardPalms(bl,br,blw,brw,bsy,bs,true));
+            // Once the child has held a valid finisher for a few packets,
+            // retain ownership through the common false-negative where one
+            // arm is briefly read as a forward punch. A neutral, lowered
+            // release or a deliberate chest guard still ends the gesture.
+            bool beamReleasePose=beamWristsReady&&!raised&&
+                blw.y>bsy+.16f*bs&&brw.y>bsy+.16f*bs;
+            bool beamGrace=beamHold>=.10f&&beamWristsReady&&!(transformAvailable&&raised)&&
+                !guardEnvelope&&!beamReleasePose;
+            // Grace owns the gesture and blocks punch/guard handoff, but it
+            // pauses the charge clock. Only a positively observed beam shape
+            // advances progress; this prevents a noisy frame from speeding up
+            // the finisher while still protecting the in-progress hold.
             bool beam=beamAvailable&&(beamShape||beamMaintained);
-            float leftDepth=(bl.z-blw.z)/bs,rightDepth=(br.z-brw.z)/bs;
             var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
-            bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
-            bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
             // Acquiring a shield still uses the original shape and hold. Once
             // established, a small visible drift at its boundary must not give
             // a noisy wrist-depth trajectory back to the punch recognizer.
             // Deliberate reach, a beam pose, lowered hands and tracking loss
             // retain their existing exit rules below.
             if(shieldHold>=ShieldHold&&beamWristsReady&&!(transformAvailable&&raised))
-                guardShape|=GuardArms(flw,frw,fcx,fsy,fs,true)||GuardArms(blw,brw,bcx,bsy,bs,true);
+            {
+                bool heldGuard=GuardArms(flw,frw,fcx,fsy,fs,true)||GuardArms(blw,brw,bcx,bsy,bs,true);
+                guardShape|=heldGuard;guardEnvelope|=heldGuard;
+            }
             // Acquire the reference before the shield's hold timer. Otherwise a
             // static depth bias could forbid defense forever at first entry.
             // An accepted extended punch must retract before it can reacquire
@@ -221,7 +249,7 @@ namespace UltramanGame.Core
             if(beamWristsReady&&!beamShape&&!beamMaintained)beamRelease+=dt;else beamRelease=0;
             // Rearming a finished beam and tolerating an unfinished hold have
             // different time limits. A 250 ms release must not clear a charge
-            // still inside its 320 ms uncertainty grace period.
+            // still inside its half-second uncertainty grace period.
             if(beamRelease>=.25f && (beamHold<=0||beamFired||beamGap>BeamGapSeconds))
             {beamFired=false;beamArmed=true;beamHold=0;}
             if(!beamAvailable) {beamArmed=beamRelease>=.25f;beamHold=0;}
@@ -232,8 +260,8 @@ namespace UltramanGame.Core
             BeamNeedsRelease=beam&&!beamArmed&&!beamFired;
             // Reserve the action during a brief uncertain interval. Missing
             // wrists pause progress; they neither advance it nor enable attacks.
-            bool beamReserved=beamAvailable&&(beam||beamHold>0);
-            bool shield=guardShape&&!beamReserved&&!leftCommitted&&!rightCommitted;
+            bool beamReserved=beamAvailable&&(beam||beamHold>0||beamGrace);
+            bool shield=guardEnvelope&&!beamReserved&&!leftCommitted&&!rightCommitted;
             if(shield) {shieldHold+=dt;shieldGap=0;}
             else
             {
@@ -258,7 +286,7 @@ namespace UltramanGame.Core
                 if(!guardAnchored||rightOffset.z<guardRight.z)guardRight=rightOffset;
                 guardAnchored=true;
             }
-            if(!guardShape&&shieldGap>.20f)guardAnchored=false;
+            if(!guardEnvelope&&shieldGap>.20f)guardAnchored=false;
             // A held shield already bridges a brief hidden wrist. Preserve
             // that ownership too: the other wrist's noisy depth must not
             // become a punch merely because two-hand geometry is unavailable.
@@ -284,8 +312,13 @@ namespace UltramanGame.Core
             if(!leftReady)leftMotion.Reset();if(!rightReady)rightMotion.Reset();
             // Chest/face defense owns small asymmetric depth movement. Leaving
             // it requires an unmistakable single-arm reach plus motion history.
-            input.LeftPunch=left&&(!guardShape || leftMotion.ForwardStrike&&leftCommitted);
-            input.RightPunch=right&&(!guardShape || rightMotion.ForwardStrike&&rightCommitted);
+            // While a strict chest guard is already confirmed, discard a
+            // stale strike candidate from the preceding punch. The guard is
+            // released on the first clear reach, so a deliberate next punch
+            // still starts normally rather than being swallowed.
+            bool shieldOwnsGesture=shieldHold>0&&guardEnvelope&&!leftCommitted&&!rightCommitted;
+            input.LeftPunch=left&&!shieldOwnsGesture&&(!guardShape || leftMotion.ForwardStrike&&leftCommitted);
+            input.RightPunch=right&&!shieldOwnsGesture&&(!guardShape || rightMotion.ForwardStrike&&rightCommitted);
             if(left&&!input.LeftPunch)leftMotion.RejectCandidate();
             if(right&&!input.RightPunch)rightMotion.RejectCandidate();
             if(input.LeftPunch&&input.RightPunch)

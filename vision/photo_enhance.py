@@ -155,10 +155,17 @@ def harmonise(composite, plate, mask, recipe):
     corrected=person*2**recipe['exposure_ev']*np.array([recipe['blue_gain'],recipe['green_gain'],recipe['red_gain']],np.float32)
     gray=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
     corrected=np.clip(gray+(corrected-gray)*recipe['saturation'],0,1)
-    feather=recipe['edge_feather_px']*composite.shape[0]/1080
-    soft=cv2.GaussianBlur(a,(0,0),max(.5,feather))
-    # Never invent body pixels outside the original matte; pull a halo inward.
-    alpha=np.minimum(a,soft)
+    feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
+    soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
+    # Feather the premultiplied foreground out through the cutout boundary.
+    # The previous min(a, soft) only pulled pixels inward, leaving the camera
+    # rectangle visible as a hard dark edge. Premultiplication lets the new
+    # outer pixels inherit nearby hair/clothing colour without inventing a
+    # second silhouette or touching the fixed hero on the left.
+    premult=corrected*a[:,:,None]
+    edge_colour=cv2.GaussianBlur(premult,(0,0),max(.5,feather))
+    corrected=np.where(soft[:,:,None]>.0001,edge_colour/np.maximum(soft[:,:,None],.0001),corrected)
+    alpha=soft
     radius=max(1,round(2*composite.shape[0]/1080))
     edge=(1-cv2.erode(a,np.ones((radius*2+1,radius*2+1),np.uint8)))*alpha
     wrap=cv2.GaussianBlur(b,(0,0),max(2,composite.shape[0]/80))
@@ -181,6 +188,13 @@ def enhance(source, plate_path, mask_path):
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
     recipe=ask_model(image,url,key,plate=plate,mask=mask)
+    # A provider may legitimately choose zero wrap for a clean studio plate,
+    # but a living-room cutout needs a small visible blend to be useful. Keep
+    # this bounded local floor in the approved recipe rather than asking the
+    # image model to redraw a face or silhouette.
+    recipe['edge_feather_px']=max(2.0,recipe['edge_feather_px'])
+    recipe['light_wrap']=max(.04,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.08,recipe['shadow_strength'])
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     ok,png=cv2.imencode('.png',result)
