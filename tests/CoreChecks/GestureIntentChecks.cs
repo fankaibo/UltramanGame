@@ -16,6 +16,7 @@ static class GestureIntentChecks
         public readonly GestureRecognizer R=new GestureRecognizer{Difficulty=1};
         public PlayerInput Last;public int Punches,Beams;readonly int fps;long time=900000,sequence;
         public Trial(int fps){this.fps=fps;}
+        public void SkipPackets(float seconds){time+=(long)Math.Round(seconds*1000);}
         public void Hold(PosePoint[] points,float seconds,bool beam=false)
         {
             for(int i=0;i<Math.Ceiling(seconds*fps);i++)
@@ -30,6 +31,14 @@ static class GestureIntentChecks
     {
         foreach(int fps in new[]{15,30,60})
         {
+            var packetGap=new Trial(fps);packetGap.Hold(Guard(),.8f);packetGap.SkipPackets(.12f);
+            var lateOverlap=Guard();lateOverlap[16].visibility=.1f;lateOverlap[15].z=-.49f;
+            packetGap.Hold(lateOverlap,.16f);
+            check(packetGap.Last.Shield&&packetGap.Punches==0,$"guard occlusion starts at first missing sample after skipped packets at {fps} fps");
+            packetGap.Hold(lateOverlap,.25f);
+            check(!packetGap.Last.Shield,$"long observed wrist loss still releases guard after skipped packets at {fps} fps");
+            packetGap.Hold(Guard(),.5f);
+            check(packetGap.Last.Shield&&packetGap.Punches==0,$"guard returns normally after packet-gap overlap at {fps} fps");
             foreach(int hand in new[]{15,16})
             {
                 var switching=new Trial(fps);switching.Hold(Guard(),.8f);

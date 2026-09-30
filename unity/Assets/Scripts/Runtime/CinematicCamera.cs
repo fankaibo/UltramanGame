@@ -1,4 +1,5 @@
 using UnityEngine;
+using UltramanGame.Core;
 
 namespace UltramanGame.Runtime
 {
@@ -14,6 +15,8 @@ namespace UltramanGame.Runtime
         Camera view;
         Vector3 pulseWorld;
         bool localized;
+        Vector4 motion;
+        Color motionColor;
         void OnEnable()
         {view=GetComponent<Camera>();var shader=Resources.Load<Shader>("CinematicComposite");if(shader&&shader.isSupported)composite=new Material(shader);}
         void OnRenderImage(RenderTexture source,RenderTexture destination)
@@ -39,6 +42,7 @@ namespace UltramanGame.Runtime
                 composite.SetFloat("_ShockRadius",Mathf.Lerp(.035f,.52f,Mathf.Clamp01(shockAge/.22f)));
                 composite.SetFloat("_ShockStrength",shockStrength);
                 composite.SetColor("_ShockColor",new Color(flashColor.r,flashColor.g,flashColor.b,1));
+                composite.SetVector("_Motion",motion);composite.SetColor("_MotionColor",motionColor);
                 Graphics.Blit(source,destination,composite,2);RenderCount++;
             }
             finally {RenderTexture.ReleaseTemporary(a);RenderTexture.ReleaseTemporary(b);}
@@ -47,6 +51,23 @@ namespace UltramanGame.Runtime
         { flash=Mathf.Max(flash,Mathf.Clamp01(strength));shockStrength=Mathf.Max(shockStrength,Mathf.Clamp01(strength)*.72f);shockAge=0;flashColor=color;pulsePending=true;localized=false; }
         public void PulseAt(Vector3 position,Color color,float strength)
         {Pulse(color,strength);pulseWorld=position;localized=true;}
+        public void CombatMotion(Battle state,bool showcase=false)
+        {
+            motion=Vector4.zero;
+            if(showcase||state.Phase!=GamePhase.Battle||state.Action==HeroAction.Beam)return;
+            bool punching=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+            float punch=punching?MotionBeat(state.ActionAge,.025f,.12f,.34f):0;
+            float rush=state.Enemy==EnemyPhase.Attack?MotionBeat(state.EnemyAge,.06f,.34f,.78f)*.85f:0;
+            float hurt=state.Action==HeroAction.Hurt?MotionBeat(state.ActionAge,0,.10f,.42f)*.90f:0;
+            float strength=Mathf.Max(punch,rush,hurt);
+            if(strength<=0)return;
+            bool hurtLead=hurt>punch&&hurt>=rush,rushLead=!hurtLead&&rush>punch;
+            float phase=rushLead?state.EnemyAge:state.ActionAge;
+            motion=new Vector4(strength,phase,punching?(state.Action==HeroAction.LeftPunch?-1:1):0,0);
+            motionColor=hurtLead?new Color(1,.36f,.20f):rushLead?new Color(1,.66f,.36f):new Color(.52f,.78f,1);
+        }
+        static float MotionBeat(float age,float start,float peak,float end)
+            =>Mathf.SmoothStep(0,1,Mathf.InverseLerp(start,peak,age))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(peak,end,age)));
         // GameWorld owns presentation time. Editor captures invoke it directly,
         // so relying on MonoBehaviour.Update leaves every later frame tinted.
         public void Tick(float dt)
@@ -58,7 +79,7 @@ namespace UltramanGame.Runtime
             if(flash>0)flash=Mathf.MoveTowards(flash,0,dt*8f);
             shockAge+=dt;shockStrength=Mathf.MoveTowards(shockStrength,0,dt*6.2f);
         }
-        public void Clear() {flash=0;shockAge=10;shockStrength=0;flashColor=Color.white;pulsePending=false;localized=false;pulseWorld=Vector3.zero;}
+        public void Clear() {flash=0;shockAge=10;shockStrength=0;flashColor=Color.white;pulsePending=false;localized=false;pulseWorld=Vector3.zero;motion=Vector4.zero;}
         void OnDisable()
         {Clear();if(composite){if(Application.isPlaying)Destroy(composite);else DestroyImmediate(composite);composite=null;}}
     }

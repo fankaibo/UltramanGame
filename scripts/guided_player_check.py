@@ -100,6 +100,8 @@ def main():
                     if '[Photo] gesture=play-again' in line:stage='replay'
                 if options.gesture_startup_noise and unwanted_attacks:
                     raise RuntimeError(f'Gesture startup attack: count={unwanted_attacks} protected={protected}')
+                if options.gesture_shape_noise and guard_reacquisitions:
+                    raise RuntimeError(f'Guard dropped and reacquired during protected pose: count={guard_reacquisitions}')
                 # Continue through transformation so the resumed arena must render
                 # again after its camera was disabled during the full-screen photo.
                 if replay_battle_at and now-replay_battle_at>2:break

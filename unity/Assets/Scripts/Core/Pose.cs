@@ -127,6 +127,7 @@ namespace UltramanGame.Core
             stream=frame.streamId; lastSequence=frame.sequence; lastStamp=frame.capturedMs;
             bool delayed=gapMs>250;
             float alpha=resetStream||delayed?1:(float)(1-Math.Exp(-dt/.035));
+            bool pairedBefore=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
             for (int i=0;i<33;i++)
             {
                 bool reliable=PoseQuality.Reliable(frame.points[i]);
@@ -161,7 +162,9 @@ namespace UltramanGame.Core
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
             bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
             bool beamWristsReady=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
-            if(beamWristsReady){hadWristPair=true;wristLossAge=0;}else wristLossAge+=dt;
+            bool firstWristLoss=!resetStream&&pairedBefore&&!beamWristsReady;
+            if(beamWristsReady){hadWristPair=true;wristLossAge=0;}
+            else wristLossAge=firstWristLoss?0:wristLossAge+dt;
             var bl=beamPoints[11];var br=beamPoints[12];var blw=beamPoints[15];var brw=beamPoints[16];
             float bdx=bl.x-br.x,bdy=bl.y-br.y,bdz=bl.z-br.z;
             // Guard and L-shape geometry use image-plane shoulders; noisy inferred depth must not shrink their target.
@@ -234,7 +237,10 @@ namespace UltramanGame.Core
             if(shield) {shieldHold+=dt;shieldGap=0;}
             else
             {
-                shieldGap+=dt;
+                // A latest-packet receiver can skip visible samples before an
+                // overlap. Do not count that unknown preceding interval as
+                // observed occlusion and spend the grace before it begins.
+                shieldGap=firstWristLoss?0:shieldGap+dt;
                 // Only bridge short wrist occlusion after a real guard, never an observed different action.
                 if(beamWristsReady||shieldGap>.20f)shieldHold=0;
             }

@@ -238,6 +238,7 @@ namespace UltramanGame.Runtime
                 landingPending=false;
             }
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting)cinematic.Clear();else cinematic.Tick(dt);
+            cinematic.CombatMotion(state,Showcase);
             float priorVictoryAge=previous==GamePhase.Victory?arcade.PhaseAge:0;
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
             EntranceAge=state.TransformationAge;

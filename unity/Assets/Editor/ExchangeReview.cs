@@ -127,7 +127,7 @@ namespace UltramanGame.Editor
                 string sweep="Resources/ClawSweep.shader";
                 if(File.Exists(Path.Combine(Application.dataPath,sweep)))
                     sources.AppendLine(sweep+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,sweep)))).Replace("-","").ToLowerInvariant());
-                foreach(string path in new[]{"Resources/HeroSurface.shader","Scripts/Runtime/AnimatedActor.cs"})
+                foreach(string path in new[]{"Resources/HeroSurface.shader","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/ArcadeStageFx.cs","Scripts/Runtime/CinematicCamera.cs","Resources/CinematicComposite.shader","Scripts/Core/Battle.cs"})
                     if(File.Exists(Path.Combine(Application.dataPath,path)))
                         sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
             }
