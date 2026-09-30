@@ -36,7 +36,7 @@ namespace UltramanGame.Runtime
                 {int v=i*2,t=i*6;triangles[t]=v;triangles[t+1]=v+1;triangles[t+2]=v+2;triangles[t+3]=v+1;triangles[t+4]=v+3;triangles[t+5]=v+2;}
             }
             public void Clear(){count=0;renderer.enabled=false;}
-            public void Tick(Camera camera,float clock,bool emit,Vector3 point)
+            public void Tick(Camera camera,float clock,bool emit,Vector3 point,float opacity=1)
             {
                 int expired=0;while(expired<count&&clock-times[expired]>=lifetime)expired++;
                 if(expired>0)
@@ -87,7 +87,7 @@ namespace UltramanGame.Runtime
                     float span=Mathf.Min(width,trailLength*.28f)*taper*(.5f+.5f*freshness);
                     vertices[i*2]=samples[i]-across*span;vertices[i*2+1]=samples[i]+across*span;
                     uv[i*2]=new Vector2(end,0);uv[i*2+1]=new Vector2(end,1);
-                    var color=new Color(1,1,1,freshness*freshness*Mathf.SmoothStep(0,1,end*4));
+                    var color=new Color(1,1,1,freshness*freshness*Mathf.SmoothStep(0,1,end*4)*opacity);
                     colors[i*2]=colors[i*2+1]=color;
                 }
                 // Collapse unused segments instead of allocating a new mesh or
@@ -107,12 +107,11 @@ namespace UltramanGame.Runtime
         public StrikeTrails(Transform parent)
         {
             hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,.9f),.34f,.22f);
-            // One lead claw carries the readable contact streak. Two narrower,
-            // shorter echoes add speed without making the attack look like three
-            // identical debug lines.
-            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(1,.31f,.08f,.58f),.09f,.20f);
-            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(1,.52f,.16f,.96f),.28f,.25f);
-            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(1,.37f,.10f,.62f),.11f,.22f);
+            // These are short hand-motion wisps, not a second set of glowing
+            // claws. The wider contact sweep takes over near the collision.
+            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(.94f,.82f,.68f,.20f),.10f,.14f);
+            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(.94f,.84f,.72f,.55f),.40f,.18f);
+            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(.94f,.82f,.68f,.18f),.10f,.14f);
         }
         public void Clear()
         {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
@@ -129,12 +128,13 @@ namespace UltramanGame.Runtime
             bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
             hero.Tick(camera,clock,emitHero,heroActor.StrikeOrigin(state.Action));
             var hand=enemyActor.EnemyStrikeOrigin(state);
+            float wakeOpacity=slam?1:1-.75f*Mathf.SmoothStep(0,1,(state.EnemyAge-.27f)/.12f);
             for(int i=0;i<claws.Length;i++)
             {
                 float side=i-1;
                 claws[i].Tick(camera,clock,emitMonster,
                     (slam?(i==0?enemyActor.StrikeOrigin(HeroAction.LeftPunch):enemyActor.HandPosition):hand)+camera.transform.right*side*(i==1?.025f:.065f)
-                        +camera.transform.up*side*(i==1?.012f:.025f));
+                        +camera.transform.up*side*(i==1?.012f:.025f),wakeOpacity);
             }
             lastAction=state.Action;lastHeroAge=state.ActionAge;lastEnemyAttack=state.EnemyAttackCount;
         }

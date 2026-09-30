@@ -35,9 +35,9 @@ namespace UltramanGame.Runtime
             public void Draw(Camera camera,Vector3 tip,Vector3 direction,int index,float growth,float fade,Color tint)
             {
                 var normal=Vector3.Cross(camera.transform.forward,direction).normalized;
-                float length=Mathf.Lerp(.28f,index==1?1.0f:.76f,growth);
-                float width=index==1?.17f:.085f;
-                float bow=.16f+(index-1)*.04f;
+                float length=Mathf.Lerp(.28f,index==1?1.12f:.76f,growth);
+                float width=index==1?.32f:.065f;
+                float bow=.24f+(index-1)*.04f;
                 tip+=normal*(index-1)*.12f-camera.transform.forward*.045f;
                 for(int i=0;i<=Segments;i++)
                 {
@@ -45,9 +45,9 @@ namespace UltramanGame.Runtime
                     var center=tip-direction*((1-u)*length)+normal*(Mathf.Sin(u*Mathf.PI)*bow);
                     var tangent=direction*length+normal*(Mathf.Cos(u*Mathf.PI)*Mathf.PI*bow);
                     var across=Vector3.Cross(camera.transform.forward,tangent).normalized;
-                    float span=width*Mathf.Pow(Mathf.Max(0,Mathf.Sin(u*Mathf.PI)),.8f);
+                    float span=width*Mathf.Pow(Mathf.Max(0,Mathf.Sin(u*Mathf.PI)),.7f);
                     vertices[i*2]=center-across*span;vertices[i*2+1]=center+across*span;
-                    var color=tint;color.a=fade*(index==1?1:.48f);colors[i*2]=colors[i*2+1]=color;
+                    var color=tint;color.a=fade*(index==1?.9f:.15f);colors[i*2]=colors[i*2+1]=color;
                 }
                 mesh.vertices=vertices;mesh.colors=colors;mesh.RecalculateBounds();
             }
@@ -138,7 +138,10 @@ namespace UltramanGame.Runtime
                     bool landed=age>=Battle.EnemyHitSeconds&&impactAttack==state.EnemyAttackCount;
                     float contactAge=Mathf.Max(0,age-Battle.EnemyHitSeconds);
                     var tip=landed?hitPosition+sweepDirection*(contactAge*.35f):clawPosition;
-                    var tint=landed&&blockedImpact?Color.Lerp(Amber,Ice,Mathf.Clamp01(contactAge/.06f)):Amber;
+                    // A pale air sheet gives the physical claw speed. Reserve
+                    // the saturated orange/blue for the actual impact signal.
+                    var air=new Color(.96f,.86f,.73f);
+                    var tint=landed&&blockedImpact?Color.Lerp(air,Ice,Mathf.Clamp01(contactAge/.06f)):air;
                     claw.Draw(camera,tip,sweepDirection,i,growth,fade,tint);
                 }
             }

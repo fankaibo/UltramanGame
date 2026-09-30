@@ -17,6 +17,11 @@ namespace UltramanGame.Editor
         public static void Before() => Render("before");
         [MenuItem("UltramanGame/Exchange review/Save after")]
         public static void After() => Render("after");
+        public static void ClawChecks()
+        {
+            ClawTiming();Interruptions();MonsterSlamReview.Checks();MonsterRayReview.Checks();
+            Debug.Log("[ClawWakeChecks] contact pause reset slam ray=passed");
+        }
         public static void ClawTiming()
         {
             foreach(int rate in new[]{15,30,60})foreach(bool blocked in new[]{true,false})
@@ -197,7 +202,9 @@ namespace UltramanGame.Editor
                         string pixelEvent=null;
                         if(world.HeroTrailVisible&&state.ActionAge>=.08f&&state.ActionAge<=.12f)
                             pixelEvent=state.Action.ToString();
-                        if(world.MonsterTrailVisible&&state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.40f&&state.EnemyAge<.52f)
+                        // The hand wake leads the lunge; near contact it fades
+                        // into the wider sweep checked separately below.
+                        if(world.MonsterTrailVisible&&state.Enemy==EnemyPhase.Attack&&state.EnemyAge>=.24f&&state.EnemyAge<.30f)
                             pixelEvent="Claw"+state.EnemyAttackCount;
                         if(pixelEvent!=null&&pixelEvents.Add(pixelEvent))
                         {VerifyPixels(world.Camera,target,folder,frame);visiblePixelsChecked++;}

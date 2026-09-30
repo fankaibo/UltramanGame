@@ -26,7 +26,15 @@ namespace UltramanGame.Editor
                 var joints=enemy.Root.GetComponentsInChildren<Transform>();var positions=new Vector3[joints.Length];
                 Vector3 leftHome=enemy.FootPosition(true),rightHome=enemy.FootPosition(false),priorLeft=Vector3.zero,priorRight=Vector3.zero;
                 var mesh=new Mesh();float dt=1f/rate,zeroError=0,bend=0,drift=0,bottom=100,speed=0;bool acted=false,priorActive=false;
-                int slams=0,blocks=0,hurt=0;string worst="";
+                int slams=0,blocks=0,hurt=0;string worst="",speedAt="";
+                var args=Environment.GetCommandLineArgs();int captureAt=Array.IndexOf(args,"--slam-entry-output");
+                string capture=captureAt>=0&&captureAt+1<args.Length&&rate==60&&mode=="punch"?args[captureAt+1]:null;
+                RenderTexture target=null;int captureFrame=0;
+                if(capture!=null)
+                {
+                    Directory.CreateDirectory(capture);target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
+                    using(var sha=System.Security.Cryptography.SHA256.Create())File.WriteAllText(capture+"/actor.sha256",BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Application.dataPath+"/Scripts/Runtime/RiggedActor.cs"))).Replace("-","").ToLowerInvariant());
+                }
                 try
                 {
                     int finalAttack=mode=="repeat"?6:3;
@@ -51,6 +59,8 @@ namespace UltramanGame.Editor
                         hero.Update(state,world.Camera,dt,f*dt);enemy.Update(state,world.Camera,dt,f*dt);
                         if(state.EnemyHealth<health)world.Hit(false,state);
                         int before=world.GroundContactCount;world.Tick(state,dt,f*dt);
+                        if(capture!=null&&state.EnemyAttackCount==3&&state.Enemy==EnemyPhase.Attack&&state.EnemyAge<.34f)
+                            CharacterReview.Save(world.Camera,target,$"{capture}/{captureFrame++:D4}.png");
                         if(world.GroundContactCount>before&&world.GroundContactCause=="slam")slams++;
                         bool active=MonsterSlamMotion.Active(state);
                         if(active)
@@ -62,7 +72,11 @@ namespace UltramanGame.Editor
                                 bend=Mathf.Max(bend,Vector3.Angle(center/4-wrist.position,wrist.position-lower.position));
                             }
                             if(mode!="punch")drift=Mathf.Max(drift,Vector3.Distance(leftHome,enemy.FootPosition(true)),Vector3.Distance(rightHome,enemy.FootPosition(false)));
-                            if(priorActive)speed=Mathf.Max(speed,Vector3.Distance(priorLeft,Bone(enemy,"bip_hand_L").position)/dt,Vector3.Distance(priorRight,Bone(enemy,"bip_hand_R").position)/dt);
+                            if(priorActive)
+                            {
+                                float sampleSpeed=Mathf.Max(Vector3.Distance(priorLeft,Bone(enemy,"bip_hand_L").position)/dt,Vector3.Distance(priorRight,Bone(enemy,"bip_hand_R").position)/dt);
+                                if(sampleSpeed>speed){speed=sampleSpeed;speedAt=$"{state.Enemy}/{state.EnemyAge:F4}/{state.Action}/{state.ActionAge:F4}";}
+                            }
                             if(f%3==0)foreach(var skin in enemy.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
                             {skin.BakeMesh(mesh,true);foreach(var v in mesh.vertices)bottom=Mathf.Min(bottom,skin.transform.TransformPoint(v).y);}
                             for(int i=0;i<joints.Length;i++)positions[i]=joints[i].position;
@@ -79,14 +93,18 @@ namespace UltramanGame.Editor
                         if(state.EnemyAttackCount==finalAttack&&state.Enemy==EnemyPhase.Rest)break;
                     }
                     bool interrupt=mode=="pause"||mode=="restart";
-                    string result=$"{rate}Hz {mode} slams={slams} blocks={blocks} hurt={hurt} zeroTime={zeroError:F6} worst={worst} wrist={bend:F3} feetDrift={drift:F5} minGround={bottom:F5} handSpeed={speed:F3} intervention={acted}";
+                    string result=$"{rate}Hz {mode} slams={slams} blocks={blocks} hurt={hurt} zeroTime={zeroError:F6} worst={worst} wrist={bend:F3} feetDrift={drift:F5} minGround={bottom:F5} handSpeed={speed:F3} speedAt={speedAt} intervention={acted}";
                     Debug.Log("[SlamChecks] "+result);
                     if(slams!=(mode=="repeat"?2:1)||zeroError>.0001f||bend>36||drift>.035f||bottom<-.035f||speed>26||
                         !interrupt&&(blocks!=(mode=="miss"?0:finalAttack)||hurt!=(mode=="miss"?3:0))||mode!="guard"&&mode!="miss"&&mode!="repeat"&&!acted||mode=="punch"&&state.Punches!=1)
                         throw new Exception("Slam flow failed: "+result);
                     report.AppendLine(result+" passed");
                 }
-                finally{UnityEngine.Object.DestroyImmediate(mesh);}
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(mesh);
+                    if(target){world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);}
+                }
             }
             // The shock front starts at the claws, reaches the defender 120 ms
             // later, and cannot reappear after a reset with pending lanes.

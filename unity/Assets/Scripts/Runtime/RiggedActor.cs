@@ -113,6 +113,9 @@ namespace UltramanGame.Runtime
         public float ClawReactionAmount=>Mathf.Max(clawLeft.magnitude,clawRight.magnitude);
         bool attackPoseApplied;
         float slamPrepare,rayPrepare;
+        float slamEntryAge=1;
+        Vector3 slamEntryLeft,slamEntryRight;
+        Quaternion slamEntryLeftRotation,slamEntryRightRotation;
         Vector3 foreheadLocal;
         public Vector3 RayOrigin=>foreheadSurface!=null?foreheadSurface.Position+forward*.035f:head?head.TransformPoint(foreheadLocal):Root.position+Vector3.up*3.4f;
         Vector3 attackRootBefore;
@@ -392,6 +395,19 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(monster)
+            {
+                if(preview>=0||!ReferenceEquals(observedBattle,state)||!MonsterSlamMotion.Active(state))slamEntryAge=1;
+                else if(state.Enemy==EnemyPhase.Attack&&playing=="Hurt")
+                {
+                    // The tell can end while recoil still owns the arms. Carry
+                    // the visible claws into the ground strike before undoing
+                    // their additive layers; the idle clip underneath is not
+                    // where the player last saw these hands.
+                    slamEntryAge=0;slamEntryLeft=leftHand.position;slamEntryRight=hand.position;
+                    slamEntryLeftRotation=leftHand.rotation;slamEntryRightRotation=hand.rotation;
+                }
+            }
             // Sample the fist the player saw before removing any presentation
             // layers. A shoulder-relative start moves forward with the lunge,
             // adding its velocity a second time to the outgoing fist curve.
@@ -1177,6 +1193,7 @@ namespace UltramanGame.Runtime
             // A hit can interrupt the last part of the tell. Re-enter the slam
             // gradually instead of snapping both claws overhead on Attack/0.
             slamPrepare=Mathf.MoveTowards(slamPrepare,desired,dt*3.5f);
+            slamEntryAge+=Mathf.Max(0,dt);
             for(int i=0;i<joints.Length;i++){attackRotations[i]=joints[i].localRotation;attackPositions[i]=joints[i].localPosition;}
             attackRootBefore=Root.position;attackRotationBefore=Root.rotation;attackPoseApplied=true;
             var right=Vector3.Cross(Vector3.up,forward);var facing=Quaternion.LookRotation(forward);
@@ -1198,6 +1215,14 @@ namespace UltramanGame.Runtime
                 PoseLimb(side==0?leftUpperArm:upperArm,side==0?leftForearm:forearm,wrist,target,slamPrepare,right*sign+forward*.35f,.20f);
                 Vector3 aim=Vector3.Lerp(wrist.TransformDirection(palmForwardLocal[side]),Vector3.down+forward*.15f,down*slamPrepare);
                 wrist.rotation=Quaternion.FromToRotation(wrist.TransformDirection(palmForwardLocal[side]),aim)*wrist.rotation;
+                if(slamEntryAge<.14f)
+                {
+                    float blend=Mathf.SmoothStep(0,1,slamEntryAge/.14f);
+                    Vector3 carried=Vector3.Lerp(side==0?slamEntryLeft:slamEntryRight,wrist.position,blend);
+                    Quaternion palm=Quaternion.Slerp(side==0?slamEntryLeftRotation:slamEntryRightRotation,wrist.rotation,blend);
+                    PoseLimb(side==0?leftUpperArm:upperArm,side==0?leftForearm:forearm,wrist,carried,1,right*sign+forward*.35f,.20f);
+                    wrist.rotation=palm;
+                }
             }
             PoseLimb(leftThigh,leftShin,leftFoot,home+facing*leftFootLocal,1,forward-right*.3f,leftFootLocal.y);
             PoseLimb(rightThigh,rightShin,rightFoot,home+facing*rightFootLocal,1,forward+right*.3f,rightFootLocal.y);
