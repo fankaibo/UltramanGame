@@ -27,7 +27,7 @@ static class RecoveryChecks
         frame.schema=2;
         check(!PoseQuality.Fresh(frame,100100)&&!PoseQuality.Fresh(null,100100),"invalid envelope and absent frame are not healthy camera data");
 
-        var battle=new Battle(50);battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});Step(battle,2.5f);
+        var battle=new Battle(50);battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});Step(battle,Battle.TransformationSeconds+.3f);
         for(int i=0;i<4;i++){battle.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Step(battle,.6f);}
         float health=battle.EnemyHealth,energy=battle.Energy;
         var presence=new PlayerPresence();var recognizer=new GestureRecognizer();

@@ -24,7 +24,7 @@ namespace UltramanGame.Editor
             var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
             if(charged)
             {
-                for(int f=0;f<120;f++)state.Tick(.02f,new PlayerInput{Tracking=true});
+                for(int f=0;f<(Battle.TransformationSeconds+.2f)/.02f;f++)state.Tick(.02f,new PlayerInput{Tracking=true});
                 for(int hit=0;hit<15;hit++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int f=0;f<25;f++)state.Tick(.02f,new PlayerInput{Tracking=true});}
                 if(state.Energy<Battle.MaxEnergy)throw new Exception("Beam not charged");
             }

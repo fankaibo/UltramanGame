@@ -26,7 +26,7 @@ namespace UltramanGame.Editor
         static Battle Ready(bool charged)
         {
             var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int f=0;f<120;f++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int f=0;f<(Battle.TransformationSeconds+0.2f)/(.02f);f++)state.Tick(.02f,new PlayerInput{Tracking=true});
             if(charged)
             {
                 state.GiveInstructionTime(20);

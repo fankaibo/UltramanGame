@@ -13,7 +13,7 @@ namespace UltramanGame.Editor
         static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combo-camera"));
         static Battle Ready(int punches=0,bool hold=true)
         {
-            var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<120;n++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<(Battle.TransformationSeconds+0.2f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});
             for(int n=0;n<punches;n++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int f=0;f<25;f++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             if(hold)state.GiveInstructionTime(20);while(state.TryCue(out _)){}return state;
         }

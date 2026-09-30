@@ -15,6 +15,27 @@ namespace UltramanGame.Editor
     public static class AudioMixReview
     {
         const string Pending="UltramanGame.AudioMixReview.Pending";
+        public static void Arrival()
+        {
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/monster-entrance"));Directory.CreateDirectory(folder);
+            var clip=GameAudio.CreateArrivalRoar();var samples=new float[clip.samples];clip.GetData(samples,0);
+            float peak=0;double power=0;
+            try
+            {
+                foreach(float value in samples)
+                {if(float.IsNaN(value)||float.IsInfinity(value))throw new Exception("Invalid arrival sound");peak=Mathf.Max(peak,Mathf.Abs(value));power+=value*value;}
+                if(peak>.8f||peak<.1f||Math.Abs(samples[0])>.001f||Math.Abs(samples[samples.Length-1])>.001f)throw new Exception("Arrival sound clips or pops");
+                using(var writer=new BinaryWriter(File.Create(folder+"/arrival-roar.wav")))
+                {
+                    writer.Write(Encoding.ASCII.GetBytes("RIFF"));writer.Write(36+samples.Length*2);writer.Write(Encoding.ASCII.GetBytes("WAVEfmt "));writer.Write(16);writer.Write((short)1);writer.Write((short)1);
+                    writer.Write(clip.frequency);writer.Write(clip.frequency*2);writer.Write((short)2);writer.Write((short)16);writer.Write(Encoding.ASCII.GetBytes("data"));writer.Write(samples.Length*2);
+                    foreach(float value in samples)writer.Write((short)Mathf.RoundToInt(value*32767));
+                }
+                string report=FormattableString.Invariant($"passed samples={samples.Length} frequency={clip.frequency} seconds={clip.length:F3} peak={peak:F6} rms={Math.Sqrt(power/samples.Length):F6}");
+                File.WriteAllText(folder+"/audio-validation.txt",report);Debug.Log("[ArrivalAudio] "+report);
+            }
+            finally{UnityEngine.Object.DestroyImmediate(clip);}
+        }
         static AudioMixReview()
         {if(SessionState.GetBool(Pending,false))EditorApplication.playModeStateChanged+=Entered;}
         public static void Run()

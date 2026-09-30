@@ -18,7 +18,7 @@ static class ImpactTimingChecks
         check(timing.Remaining==0&&timing.HoldRemaining==0,"tracking pause immediately clears both impact phases");
         timing.Hit(true);timing.Clear();check(timing.Delta(.1f,GamePhase.Battle)==.1f,"restart restores normal combat time");
         var battle=new Battle();battle.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});
-        for(int i=0;i<240;i++)battle.Tick(.01f,new PlayerInput{Tracking=true});
+        for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.01f);i++)battle.Tick(.01f,new PlayerInput{Tracking=true});
         timing.Hit(false);battle.Tick(timing.Delta(.016f,battle.Phase),new PlayerInput{Tracking=true,LeftPunch=true});
         check(battle.Action==HeroAction.LeftPunch,"a new punch is accepted during impact slow motion");
         timing.Clear();

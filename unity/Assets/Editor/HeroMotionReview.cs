@@ -24,7 +24,7 @@ namespace UltramanGame.Editor
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             battle.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<140;i++)battle.Tick(1/60f,new PlayerInput{Tracking=true});
+            for(int i=0;i<(Battle.TransformationSeconds+0.13333f)/(1/60f);i++)battle.Tick(1/60f,new PlayerInput{Tracking=true});
             while(battle.TryCue(out _)){}
             hero.Update(battle,world.Camera,0,0);enemy.Update(battle,world.Camera,0,0);world.Tick(battle,1,0);
             var hashes=new StringBuilder("UTC: "+DateTime.UtcNow.ToString("O")+"\n");

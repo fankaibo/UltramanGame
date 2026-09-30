@@ -35,7 +35,7 @@ namespace UltramanGame.Editor
                 if(hero.Frame!=frame||enemy.Frame!=frame)throw new Exception("Action atlas frame mismatch");
                 Save(camera,target,Path.Combine(folder,"pose-"+frame+".png"));
             }
-            state.Tick(.01f,new PlayerInput {Tracking=true,Transform=true});Step(state,2.3f);
+            state.Tick(.01f,new PlayerInput {Tracking=true,Transform=true});Step(state,Battle.TransformationSeconds+.1f);
             state.Tick(.06f,new PlayerInput {Tracking=true,LeftPunch=true});Step(state,.06f);
             RenderBattle(world,state,hero,enemy,target,folder,"battle-punch");
             var travel=hero.Root.position-world.HeroHome;
@@ -76,7 +76,7 @@ namespace UltramanGame.Editor
         }
         static Battle BeamReady()
         {
-            var state=new Battle(20);state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,2.3f);
+            var state=new Battle(20);state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,Battle.TransformationSeconds+.1f);
             for(int attempt=0;attempt<80&&state.Energy<Battle.MaxEnergy;attempt++)
             {
                 state.Tick(.02f,new PlayerInput {Tracking=true,LeftPunch=true});
@@ -152,7 +152,7 @@ namespace UltramanGame.Editor
         }
         static Battle RenderEnemy(GameWorld world,AnimatedActor hero,AnimatedActor enemy,RenderTexture target,string folder,string name,EnemyPhase phase,float age,bool shield=false,int attackNumber=1)
         {
-            var state=new Battle();state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,2.3f);
+            var state=new Battle();state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,Battle.TransformationSeconds+.1f);
             int targetCount=phase==EnemyPhase.Windup?attackNumber-1:attackNumber;
             for(int i=0;i<3000&&(state.Enemy!=phase||state.EnemyAttackCount<targetCount);i++)state.Tick(.02f,new PlayerInput {Tracking=true,Shield=shield});
             if(state.Enemy!=phase||state.EnemyAttackCount!=targetCount)throw new Exception("Enemy review phase not reached");

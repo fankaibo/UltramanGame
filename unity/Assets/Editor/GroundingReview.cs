@@ -144,7 +144,7 @@ namespace UltramanGame.Editor
                 var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
                 var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
                 var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-                for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
+                for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
                 hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
                 var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
                 var detail=new GameObject("Foot grounding camera").AddComponent<Camera>();detail.enabled=false;detail.fieldOfView=27;detail.aspect=16f/9;detail.allowHDR=true;detail.targetTexture=target;

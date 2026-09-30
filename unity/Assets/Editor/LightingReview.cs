@@ -29,7 +29,7 @@ namespace UltramanGame.Editor
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(927);
                 var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-                var state=new Battle(80);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<140;i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(30);while(state.TryCue(out _)){}
+                var state=new Battle(80);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.6f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(30);while(state.TryCue(out _)){}
                 hero.Update(state,world.Camera,.1f,2);enemy.Update(state,world.Camera,.1f,2);world.Tick(state,1,2);
                 var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
                 try

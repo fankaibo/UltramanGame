@@ -18,7 +18,7 @@ namespace UltramanGame.Editor
         static Battle Ready(string mode)
         {
             var b=new Battle(80);b.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<140;i++)b.Tick(.02f,new PlayerInput{Tracking=true});b.GiveInstructionTime(50);
+            for(int i=0;i<(Battle.TransformationSeconds+0.6f)/(.02f);i++)b.Tick(.02f,new PlayerInput{Tracking=true});b.GiveInstructionTime(50);
             int count=mode=="beam"?15:mode=="uppercut"?9:0;
             for(int n=0;n<count;n++){b.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<25;i++)b.Tick(.02f,new PlayerInput{Tracking=true});}
             return b;

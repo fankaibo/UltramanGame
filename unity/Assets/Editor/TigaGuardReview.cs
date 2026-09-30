@@ -21,7 +21,7 @@ namespace UltramanGame.Editor
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(932);
                 var world=new GameWorld();var state=new Battle();var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-                state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<120;n++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
+                state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<(Battle.TransformationSeconds+0.2f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
                 var lShoulder=Bone(hero.Root,"armBase_L");var rShoulder=Bone(hero.Root,"armBase_R");
                 float time=0,dt=1f/rate;void Step(PlayerInput input){state.Tick(dt,input);while(state.TryCue(out _)){}hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);world.Tick(state,dt,time);time+=dt;}
                 for(int n=0;n<rate;n++)Step(new PlayerInput{Tracking=true});

@@ -41,7 +41,7 @@ namespace UltramanGame.Editor
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(940);
             var world=new GameWorld();var state=new Battle(80);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int f=0;f<140;f++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(30);
+            for(int f=0;f<(Battle.TransformationSeconds+0.6f)/(.02f);f++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(30);
             for(int n=0;n<(mode=="beam"?19:9);n++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int f=0;f<25;f++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             if(mode=="late-warning")for(int f=0;f<6000;f++){state.Tick(.01f,new PlayerInput{Tracking=true});if(state.Enemy==EnemyPhase.Windup&&state.WarningDuration-state.EnemyAge<.80f)break;}
             while(state.TryCue(out _)){}

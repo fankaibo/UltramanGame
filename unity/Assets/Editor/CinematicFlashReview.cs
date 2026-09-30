@@ -106,7 +106,7 @@ namespace UltramanGame.Editor
                     // Exercise the real world reset/pause routes as well.
                     var battle=new Battle();compositor.PulseAt(contact,Color.white,.82f);world.ResetPresentation();
                     if(MaxDelta(Read(),baseline)>.002f)throw new Exception("World restart retained flash");
-                    battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int f=0;f<120;f++)battle.Tick(.02f,new PlayerInput{Tracking=true});
+                    battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int f=0;f<(Battle.TransformationSeconds+0.2f)/(.02f);f++)battle.Tick(.02f,new PlayerInput{Tracking=true});
                     compositor.PulseAt(contact,Color.white,.82f);battle.Pause();world.Tick(battle,0,0);
                     if(MaxDelta(Read(),baseline)>.002f)throw new Exception("World pause retained flash");
                     report.AppendLine($"{width}x144 projection=passed circle=passed behindCamera=passed transition={globalDelta:F4} worldPause=passed reset=passed");

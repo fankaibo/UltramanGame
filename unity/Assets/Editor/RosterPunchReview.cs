@@ -20,7 +20,7 @@ namespace UltramanGame.Editor
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 string id=HeroRoster.At(h).Id;var world=new GameWorld();var state=new Battle();
                 var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-                state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);
+                state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);
                 hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
                 var previousLeft=hero.Root.InverseTransformPoint(hero.StrikeOrigin(HeroAction.LeftPunch));var previousRight=hero.Root.InverseTransformPoint(hero.HandPosition);
                 float maxStep=0;int maxFrame=0;
@@ -52,7 +52,7 @@ namespace UltramanGame.Editor
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(270927);
             var world=new GameWorld();var state=new Battle();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
+            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--roster-output");
             string output=at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/roster-contact");

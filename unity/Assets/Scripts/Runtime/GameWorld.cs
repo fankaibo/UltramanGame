@@ -23,6 +23,10 @@ namespace UltramanGame.Runtime
         public float ComboFocus=>comboCamera.Focus;
         public float ComboCameraAge=>comboCamera.Age;
         public bool TransformationCloseup {get;private set;}
+        public bool MonsterEntranceCloseup {get;private set;}
+        public bool MonsterEntranceRoar {get;private set;}
+        public int MonsterEntranceSteps {get;private set;}
+        public int MonsterEntranceRoars {get;private set;}
         float lastEntranceAge;
         public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
         public bool BeamReactionCloseup {get;private set;}
@@ -130,7 +134,7 @@ namespace UltramanGame.Runtime
         }
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase);
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=false;ThreatFocus=EntranceAge=lastEntranceAge=0;staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -243,12 +247,27 @@ namespace UltramanGame.Runtime
             clock+=dt;hitTiming.Tick(dt,state.Phase);arcade.Tick(state,dt,clock);
             EntranceAge=state.TransformationAge;
             TransformationCloseup=!Showcase&&state.Phase==GamePhase.Transforming&&TransformationMotion.Closeup(EntranceAge);
+            MonsterEntranceCloseup=!Showcase&&state.Phase==GamePhase.Transforming&&MonsterEntranceMotion.Closeup(EntranceAge);
+            MonsterEntranceRoar=false;
             if(!Showcase&&state.Phase==GamePhase.Transforming)
             {
                 if(lastEntranceAge<TransformationMotion.CloseupStart&&EntranceAge>=TransformationMotion.CloseupStart)
                     cinematic.Pulse(new Color(.38f,.70f,1),.20f);
                 if(lastEntranceAge<TransformationMotion.CloseupEnd&&EntranceAge>=TransformationMotion.CloseupEnd)
                     cinematic.Pulse(new Color(.58f,.80f,1),.22f);
+                for(int foot=0;foot<2;foot++)
+                {
+                    bool left=foot==0;
+                    float landing=left?MonsterEntranceMotion.LeftLanding:MonsterEntranceMotion.RightLanding;
+                    if(lastEntranceAge<landing&&EntranceAge>=landing)
+                    {
+                        effects.GroundBurst(enemy?.FootPosition(left)??EnemyHome,-BattleAxis,true,"arrival");
+                        impact=.028f;impactAge=0;MonsterEntranceSteps++;
+                        if(Debug.isDebugBuild)Debug.Log($"[MonsterEntrance] step={(left?"left":"right")} age={EntranceAge:F3}");
+                    }
+                }
+                if(lastEntranceAge<MonsterEntranceMotion.RoarStart&&EntranceAge>=MonsterEntranceMotion.RoarStart)
+                {MonsterEntranceRoar=true;MonsterEntranceRoars++;if(Debug.isDebugBuild)Debug.Log($"[MonsterEntrance] roar age={EntranceAge:F3}");}
                 lastEntranceAge=EntranceAge;
             }
             else if(state.Phase!=GamePhase.Paused)lastEntranceAge=0;
@@ -314,7 +333,7 @@ namespace UltramanGame.Runtime
             // the distant plate with that pan so its edge never enters view.
             float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
                 ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*(BeamReactionCloseup?1.95f:TransformationCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*(BeamReactionCloseup?1.95f:TransformationCloseup||MonsterEntranceCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
             scale*=Mathf.Lerp(1,1.32f,ThreatFocus);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
@@ -456,10 +475,21 @@ namespace UltramanGame.Runtime
                 // release pulse. No fast orbit through the monster or scenery.
                 Vector3 side=Vector3.Cross(Vector3.up,BattleAxis);
                 Camera.transform.position=HeroHome+BattleAxis*Mathf.Lerp(6.7f,6.3f,t)+side*1.75f+Vector3.up*2.55f;
-                Camera.transform.LookAt(HeroHome+Vector3.up*2.02f);Camera.fieldOfView=37;
+                Camera.transform.LookAt(HeroHome+Vector3.up*1.96f);Camera.fieldOfView=37;
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
             }
+            if(MonsterEntranceCloseup)
+            {
+                float t=Mathf.InverseLerp(MonsterEntranceMotion.Start,MonsterEntranceMotion.CameraEnd,EntranceAge);
+                Vector3 side=Vector3.Cross(Vector3.up,BattleAxis);
+                Vector3 center=EnemyHome-BattleAxis*(MonsterEntranceMotion.Travel(EntranceAge)*.35f);
+                Camera.transform.position=center-BattleAxis*Mathf.Lerp(7.5f,7.1f,t)+side*2.25f+Vector3.up*2.42f;
+                Camera.transform.LookAt(center+Vector3.up*1.96f);Camera.fieldOfView=37;
+                backdrop.rotation=Camera.transform.rotation;
+                backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
+            }
+            hero?.SetPresentationOpacity(MonsterEntranceCloseup?0:1);
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
@@ -479,9 +509,9 @@ namespace UltramanGame.Runtime
                 {impact=.085f;impactAge=0;cinematic.PulseAt(enemy.Root.position,new Color(1,.65f,.32f),.22f);}
             }
             if(state.Phase!=previous){transformAge=0;previous=state.Phase;}
-            volcano.Damage.Tick(Camera,!Showcase&&!Closeup.Active&&(state.Phase==GamePhase.Battle||state.Phase==GamePhase.Victory)?dt:0);
+            volcano.Damage.Tick(Camera,!Showcase&&!Closeup.Active&&(state.Phase==GamePhase.Battle||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming)?dt:0);
             transformAge+=dt;
-            if(state.Phase==GamePhase.Transforming&&clock>celebrateAt)
+            if(state.Phase==GamePhase.Transforming&&EntranceAge<MonsterEntranceMotion.Start&&clock>celebrateAt)
             {celebrateAt=clock+.09f;Burst(HeroHome+new Vector3(Random.Range(-.55f,.55f),transformAge%1*3.0f,Random.Range(-.3f,.3f)),3,.25f);}
             if(state.Phase==GamePhase.Victory&&clock>celebrateAt&&transformAge<3)
             {celebrateAt=clock+.25f;Burst(HeroHome+new Vector3(Random.Range(-1.3f,1.3f),2.8f,Random.Range(-.7f,.7f)),4,.45f);}

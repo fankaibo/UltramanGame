@@ -29,7 +29,7 @@ namespace UltramanGame.Editor
         static Battle Ready()
         {
             var state=new Battle(50);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             for(int hit=0;hit<15;hit++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<22;i++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             state.GiveInstructionTime(20);while(state.TryCue(out _)){}return state;
         }

@@ -16,7 +16,7 @@ namespace UltramanGame.Editor
         static Battle Pose(string kind)
         {
             var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int n=0;n<120;n++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int n=0;n<(Battle.TransformationSeconds+0.2f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});
             if(kind=="left"||kind=="right")
             {
                 state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=kind=="left",RightPunch=kind=="right"});

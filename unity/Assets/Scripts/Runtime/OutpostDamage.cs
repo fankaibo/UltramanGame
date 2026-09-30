@@ -74,7 +74,7 @@ namespace UltramanGame.Runtime
         static float Strength(string cause)
         {
             switch(cause){case "slam":return 1;case "defeat":return 1.15f;case "uppercut-land":return .9f;
-                case "hero-land":return .72f;case "beam-brace":return .45f;case "rush":case "stagger":return .35f;default:return 0;}
+                case "hero-land":return .72f;case "beam-brace":return .45f;case "arrival":return .30f;case "rush":case "stagger":return .35f;default:return 0;}
         }
         float Shake(Piece p,float time)
         {float age=time-p.QuakeAt;return age>=0&&age<.65f?Mathf.Sin(age*40)*Mathf.Exp(-age*8)*p.Strength:0;}

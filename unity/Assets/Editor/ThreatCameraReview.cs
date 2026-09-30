@@ -18,7 +18,7 @@ namespace UltramanGame.Editor
             var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
             if(charged)
             {
-                for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+                for(int i=0;i<(Battle.TransformationSeconds+.2f)/.02f;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
                 for(int punch=0;punch<15;punch++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<22;i++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             }
             for(int i=0;i<1000;i++){state.Tick(.02f,new PlayerInput{Tracking=true});if(state.Enemy==EnemyPhase.Windup)break;}

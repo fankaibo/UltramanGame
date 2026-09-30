@@ -113,6 +113,10 @@ def main():
     if 'reaction=3.0' not in output:
         raise RuntimeError('Missing child reaction-time evidence')
     contacts={kind:live_output.count(f'[CombatAudio] contact={kind}') for kind in ('fist','heavy','beam')}
+    entrance_steps=re.findall(r'\[MonsterEntrance\] step=(left|right) ',live_output)
+    entrance_roars=live_output.count('[MonsterEntrance] roar sound=True')
+    if entrance_steps!=['left','right'] or entrance_roars!=1 or ground_contacts.count('arrival')!=2:
+        raise RuntimeError('Monster opening did not pair two landings with one roar')
     if contacts!={'fist':26,'heavy':6,'beam':2}:
         raise RuntimeError(f'Contact sounds did not follow the 32 punches and two finishers: {contacts}')
     if 'effectDuck=0.42' not in live_output:
@@ -131,6 +135,7 @@ def main():
     required += ('monster-arms-left','monster-arms-right','monster-arms-uppercut','monster-arms-beam')
     required += ('monster-recovery-drop','monster-recovery-return')
     required += ('outpost-dust','outpost-settled')
+    required += ('monster-entrance-step','monster-entrance-plant','monster-entrance-roar','monster-entrance-return')
     if args.slam:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
     if args.ray:
@@ -155,6 +160,7 @@ def main():
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,
               'evidence_directory': str(evidence), 'beam_reaction_cuts': reaction_cuts,
               'outpost_shocks': len(outpost_shocks), 'outpost_detachments_scheduled': detached_panels,
+              'entrance_steps':entrance_steps, 'entrance_roars':entrance_roars,
               'screenshots': sorted(path.name for path in native.glob('*.png'))}
     (evidence / 'validation.json').write_text(json.dumps(result, indent=2))
     (root / 'artifacts/cinematic-combat/player-validation.json').write_text(json.dumps(result, indent=2))

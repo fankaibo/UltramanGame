@@ -34,7 +34,7 @@ static class Program
     static Battle Started()
     {
         var b=new Battle();b.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});
-        Advance(b,2.4f);return b;
+        Advance(b,Battle.TransformationSeconds+.2f);return b;
     }
     static void Advance(Battle b,float seconds,bool shield=false)
     {for(int i=0;i<(int)Math.Ceiling(seconds/.02f);i++)b.Tick(.02f,new PlayerInput{Tracking=true,Shield=shield});}
@@ -82,6 +82,7 @@ static class Program
             EnemyAttackChecks.Run(Check);
             KnockdownChecks.Run(Check);
             InstructionChecks.Run(Check);
+            EntranceChecks.Run(Check);
             bool offline=Array.IndexOf(args,"--offline")>=0;
             RecoveryChecks.Run(Check,!offline);
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");

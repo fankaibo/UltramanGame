@@ -35,7 +35,7 @@ namespace UltramanGame.Core
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
         public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
-        public const float TransformationSeconds=2.2f;
+        public const float TransformationSeconds=MonsterEntranceMotion.End;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
         public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;

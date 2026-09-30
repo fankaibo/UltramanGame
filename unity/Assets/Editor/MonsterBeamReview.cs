@@ -129,7 +129,7 @@ namespace UltramanGame.Editor
         }
         static Battle Ready(int health=80)
         {
-            var state=new Battle(health);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<140;i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(30);
+            var state=new Battle(health);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.6f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(30);
             for(int n=0;n<15;n++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<25;i++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             return state;
         }

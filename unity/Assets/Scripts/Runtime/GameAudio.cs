@@ -11,7 +11,7 @@ namespace UltramanGame.Runtime
         readonly AudioClip[] fistContacts=new AudioClip[3];
         readonly AudioClip heavyContact,beamContact;
         AudioClip localMusic;
-        readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer;
+        readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer,arrivalRoar;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
         struct Line { public string Key;public int Priority;public float Expires;public GamePhase Phase; }
         readonly List<Line> pending=new List<Line>();
@@ -48,6 +48,7 @@ namespace UltramanGame.Runtime
             landingThud=RuntimeResources.Own(owner.transform,CreateLandingThud());
             groundCrunch=RuntimeResources.Own(owner.transform,CreateGroundCrunch());
             dissolveShimmer=RuntimeResources.Own(owner.transform,CreateDissolveShimmer());
+            arrivalRoar=RuntimeResources.Own(owner.transform,CreateArrivalRoar());
             // Load once at startup so a first punch/voice line does not perform resource I/O mid-fight.
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
@@ -146,6 +147,26 @@ namespace UltramanGame.Runtime
             debris.Play(groundCrunch,.48f);
             if(rush)debris.Play(landingThud,.34f);
             if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] sound=True rush={rush}");
+        }
+        public static AudioClip CreateArrivalRoar()
+        {
+            const int rate=22050;var samples=new float[(int)(rate*.88f)];var random=new System.Random(260930);float breath=0,phase=0;
+            for(int i=0;i<samples.Length;i++)
+            {
+                float t=i/(float)rate,u=t/.88f;
+                phase+=2*Mathf.PI*Mathf.Lerp(73,48,u)/rate;
+                breath=Mathf.Lerp(breath,(float)random.NextDouble()*2-1,.10f);
+                float voice=Mathf.Sin(phase)*.23f+Mathf.Sin(phase*2.01f)*.12f+Mathf.Sin(phase*3.02f)*.065f;
+                float envelope=Mathf.SmoothStep(0,1,t/.10f)*(1-Mathf.SmoothStep(0,1,(t-.46f)/.42f));
+                samples[i]=(voice*(.82f+.18f*Mathf.Sin(t*2*Mathf.PI*17))+breath*.4f)*envelope;
+            }
+            var clip=AudioClip.Create("MonsterArrivalRoar",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
+        }
+        public void MonsterArrival()
+        {
+            if(muted||!arrivalRoar)return;
+            effects.Play(arrivalRoar,.70f,1,1);
+            if(Debug.isDebugBuild)Debug.Log("[MonsterEntrance] roar sound=True");
         }
         public void MonsterRecoveryStep()
         {

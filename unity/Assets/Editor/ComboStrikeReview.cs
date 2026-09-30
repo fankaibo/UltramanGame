@@ -17,7 +17,7 @@ namespace UltramanGame.Editor
         static Transform Bone(Transform root,params string[] names)
         {foreach(var bone in root.GetComponentsInChildren<Transform>())foreach(string name in names)if(bone.name==name)return bone;throw new Exception("Missing bone "+names[0]);}
         static Battle Ready()
-        {var state=new Battle(50);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<140;i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}return state;}
+        {var state=new Battle(50);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.6f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}return state;}
         public static void Release(){After();Validate();Interruptions();StaggerReview.CheckRecovery();SurfaceImpactReview.CheckPunchRecovery();}
         public static void Interruptions()
         {
@@ -138,7 +138,7 @@ namespace UltramanGame.Editor
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(928);
             var world=new GameWorld();var state=new Battle(50);var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<140;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.6f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             state.GiveInstructionTime(10);while(state.TryCue(out _)){}
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var rt=new RenderTexture(1280,720,24){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;

@@ -88,7 +88,9 @@ namespace UltramanGame.Runtime
                     world.VictoryAge<3.7f?"victory-motes":"victory-hero";
             if(!photo.Active&&battle.Phase==GamePhase.Transforming)
                 key=world.EntranceAge<.26f?"Transforming":world.EntranceAge<1?"transform-front":
-                    world.EntranceAge<1.66f?"transform-radiance":"transform-return";
+                    world.EntranceAge<1.66f?"transform-radiance":world.EntranceAge<MonsterEntranceMotion.Start?"transform-return":
+                    world.EntranceAge<2.8f?"monster-entrance-step":world.EntranceAge<3.2f?"monster-entrance-plant":
+                    world.EntranceAge<3.65f?"monster-entrance-roar":world.MonsterEntranceCloseup?"monster-entrance-settle":"monster-entrance-return";
             if(!photo.Active&&battle.Enemy!=EnemyPhase.Attack&&ComboStrikeMotion.Active(battle)&&
                 battle.ActionAge>=Battle.PunchHitSeconds&&battle.ActionAge<.22f)
                 key=battle.Action==HeroAction.LeftPunch?"combo-left":"combo-right";

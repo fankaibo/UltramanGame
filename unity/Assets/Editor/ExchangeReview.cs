@@ -81,7 +81,7 @@ namespace UltramanGame.Editor
             foreach(bool pause in new[]{true,false})
             {
                 var state=new Battle();state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});
-                for(int i=0;i<140;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+                for(int i=0;i<(Battle.TransformationSeconds+0.6f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
                 for(int i=0;i<9;i++)
                 {
                     state.Tick(1/60f,new PlayerInput{Tracking=true,LeftPunch=i==0});

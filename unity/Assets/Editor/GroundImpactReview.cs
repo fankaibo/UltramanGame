@@ -127,7 +127,7 @@ namespace UltramanGame.Editor
         static Battle Ready(int hits,int health=50)
         {
             var state=new Battle(health);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int f=0;f<120;f++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int f=0;f<(Battle.TransformationSeconds+0.2f)/(.02f);f++)state.Tick(.02f,new PlayerInput{Tracking=true});
             for(int n=0;n<hits;n++){state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int f=0;f<25;f++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             while(state.TryCue(out _)){}return state;
         }

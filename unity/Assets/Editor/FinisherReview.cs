@@ -35,7 +35,7 @@ namespace UltramanGame.Editor
             var world=new GameWorld();var state=new Battle(50);
             var hero=new AnimatedActor(heroId,world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             for(int hit=0;hit<15;hit++)
             {state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<22;i++)state.Tick(.02f,new PlayerInput{Tracking=true});}
             state.GiveInstructionTime(10);while(state.TryCue(out _)){}
@@ -117,7 +117,7 @@ namespace UltramanGame.Editor
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             for(int hit=0;hit<15;hit++)
             {
                 state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});

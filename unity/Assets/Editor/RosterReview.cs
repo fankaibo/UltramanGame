@@ -25,7 +25,7 @@ namespace UltramanGame.Editor
                 foreach(bool left in new[]{true,false})
                 {
                     state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-                    for(int step=0;step<180;step++)state.Tick(1/60f,new PlayerInput{Tracking=true});
+                    for(int step=0;step<(Battle.TransformationSeconds+.8f)*60;step++)state.Tick(1/60f,new PlayerInput{Tracking=true});
                     hero.Update(state,world.Camera,0,0);var l=hero.StrikeOrigin(HeroAction.LeftPunch);var r=hero.StrikeOrigin(HeroAction.RightPunch);
                     state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=left,RightPunch=!left});
                     for(int step=0;step<6;step++)state.Tick(1/60f,new PlayerInput{Tracking=true});

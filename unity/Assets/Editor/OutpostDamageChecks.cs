@@ -57,7 +57,7 @@ namespace UltramanGame.Editor
             }
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             var world=new GameWorld();var state=new Battle();world.Tick(state,0,0);
-            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<140;n++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<(Battle.TransformationSeconds+0.6f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});
             world.OutpostDamage.Shock(Vector3.zero,"slam");world.Tick(state,.83f,1);
             var frozen=world.OutpostDamage.Geometry.vertices;float clock=world.OutpostDamage.Clock;state.Pause();world.Tick(state,.7f,2);
             if(world.OutpostDamage.Clock!=clock||Difference(frozen,world.OutpostDamage.Geometry.vertices)>.00001f)throw new Exception("Paused game moved the outpost");

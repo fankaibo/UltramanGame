@@ -68,11 +68,13 @@ namespace UltramanGame.Runtime
             }
             else if(transforming)
             {
+                bool monster=battle.TransformationAge>=MonsterEntranceMotion.Start;
+                var accent=monster?gold:cyan;
                 hud.Fade(new Rect(20,128,290,170),new Color(.006f,.023f,.048f,.78f));
-                hud.Line(new Vector2(38,154),new Vector2(91,154),cyan,2);
-                hud.Text(new Rect(38,166,252,25),"光之英雄",16,cyan,bold:true);
-                hud.Text(new Rect(38,195,272,47),SelectedHero.Name,34,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(38,250,272,28),"光的力量，正在觉醒",16,gold);
+                hud.Line(new Vector2(38,154),new Vector2(91,154),accent,2);
+                hud.Text(new Rect(38,166,252,25),monster?"超古代怪兽":"光之英雄",16,accent,bold:true);
+                hud.Text(new Rect(38,195,272,47),monster?"哥尔赞":SelectedHero.Name,34,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(38,250,272,28),monster?"守护基地，准备出发！":"光的力量，正在觉醒",16,gold);
             }
             else if(victory)
             {

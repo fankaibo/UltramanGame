@@ -17,7 +17,7 @@ static class GestureBattleChecks
     static Battle Started(bool charged)
     {
         var b=new Battle();b.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-        for(int i=0;i<120;i++)b.Tick(.02f,new PlayerInput{Tracking=true});
+        for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)b.Tick(.02f,new PlayerInput{Tracking=true});
         b.GiveInstructionTime(20);
         if(charged)for(int n=0;n<Battle.MaxEnergy;n++)
         {

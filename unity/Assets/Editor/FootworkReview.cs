@@ -16,7 +16,7 @@ namespace UltramanGame.Editor
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             var world=new GameWorld();var state=new Battle();var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<130;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.4f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             var left=Bone(hero.Root,"Foot_L");var right=Bone(hero.Root,"Foot_R");var axis=world.BattleAxis;var baselineL=left.position;var baselineR=right.position;
             var samples=new List<string>();float maxL=0,maxR=0,maxGap=0;
             for(int frame=0;frame<31;frame++)

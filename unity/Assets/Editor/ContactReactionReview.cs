@@ -25,7 +25,7 @@ namespace UltramanGame.Editor
                 var camera=new GameObject("Sampling camera").AddComponent<Camera>();var state=new Battle();
                 var enemy=new AnimatedActor("Golza",Vector3.zero,Vector3.forward,true);
                 state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});
-                for(int i=0;i<130;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+                for(int i=0;i<(Battle.TransformationSeconds+0.4f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
                 float dt=1f/fps;enemy.Update(state,camera,0,0);
                 var foot=Bone(enemy.Root,"bip_foot_L");var head=Bone(enemy.Root,"bip_head");var spine=Bone(enemy.Root,"bip_spine_2");float ground=foot.position.y;
                 bool sampled=false;
@@ -56,7 +56,7 @@ namespace UltramanGame.Editor
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<120;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             for(int hit=0;hit<13;hit++)
             {
                 state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});

@@ -581,8 +581,8 @@ namespace UltramanGame.Runtime
             Frame=0;
             if(monster)
             {
-                if(state.Phase==GamePhase.Transforming&&clips.ContainsKey("Walk"))
-                {next="Walk";sample=state.TransformationAge%clips["Walk"].length;travel=-.45f*(1-Mathf.SmoothStep(0,1,state.TransformationAge/Battle.TransformationSeconds));}
+                if(state.Phase==GamePhase.Transforming)
+                {next="Idle";sample=0;travel=MonsterEntranceMotion.Travel(state.TransformationAge);}
                 else if(state.Phase==GamePhase.Victory)
                 {
                     next="Defeat";sample=Mathf.Min(1.5f,phaseAge);Frame=7;
@@ -611,7 +611,7 @@ namespace UltramanGame.Runtime
                 // the lunge underneath it leaves one shin folded sideways.
                 if(preview<0&&(MonsterSlamMotion.Active(state)||MonsterRayMotion.Active(state))&&next!="Hurt"){next="Idle";sample=0;}
             }
-            else if(state.Phase==GamePhase.Transforming) {next="Transform";sample=state.TransformationAge;Frame=6;}
+            else if(state.Phase==GamePhase.Transforming&&state.TransformationAge<MonsterEntranceMotion.Start) {next="Transform";sample=state.TransformationAge;Frame=6;}
             else if(state.Phase==GamePhase.Victory) {next="Victory";sample=Mathf.Max(0,phaseAge-VictoryMotion.TurnStartSeconds);Frame=7;}
             else if(state.Phase==GamePhase.Battle)
             {
@@ -928,6 +928,7 @@ namespace UltramanGame.Runtime
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state)&&
                 (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
+            if(monster&&preview<0&&state.Phase==GamePhase.Transforming)PoseMonsterEntrance(state.TransformationAge);
             staggerTravel=Vector3.zero;
             if(monster&&preview<0&&stagger.Active)PoseStaggerStep();
             if(monster&&preview<0&&launch.Active)PoseMonsterLaunch();
@@ -985,6 +986,7 @@ namespace UltramanGame.Runtime
                 bool rest=preview<0&&(state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Battle&&
                     (state.Enemy==EnemyPhase.Rest||state.Enemy==EnemyPhase.Recover)&&next!="Hurt");
                 float target=rest?-8-4*recoveryWeight+Mathf.Sin(time*1.7f)*.8f:0;
+                if(preview<0&&state.Phase==GamePhase.Transforming)target=-8+18*MonsterEntranceMotion.Roar(state.TransformationAge);
                 jawCorrection=Mathf.MoveTowards(jawCorrection,target,Mathf.Max(0,dt)*120);
                 jawBase=jaw.localRotation;jawLayerApplied=true;
                 jaw.rotation=Quaternion.AngleAxis(jawCorrection,Root.right)*jaw.rotation;
@@ -998,6 +1000,7 @@ namespace UltramanGame.Runtime
                 ?.45f+.75f*Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
             float victoryGlow=monster&&state.Phase==GamePhase.Victory?Mathf.Clamp01(1-phaseAge/2.5f):0;
             float eyeGlow=Mathf.Clamp01(.18f+warningGlow+attackGlow+victoryGlow);
+            if(monster&&state.Phase==GamePhase.Transforming)eyeGlow+=.45f*MonsterEntranceMotion.Roar(state.TransformationAge);
             foreach(var mat in eyeMaterials)
             {
                 // Preserve the source lens color. Tiga's eyes must not also
@@ -1007,7 +1010,7 @@ namespace UltramanGame.Runtime
             }
             float coreGlow=!monster&&state.Action==HeroAction.Beam
                 ?.55f+.95f*Mathf.Sin(Mathf.Clamp01(state.ActionAge/1.9f)*Mathf.PI):
-                !monster&&state.Phase==GamePhase.Transforming?.55f+.35f*Mathf.Sin(phaseAge*8):.08f;
+                !monster&&state.Phase==GamePhase.Transforming?.08f+.75f*TransformationMotion.Radiance(state.TransformationAge):.08f;
             foreach(var mat in impactMaterials)
                 mat.SetColor("_EmissionColor",Color.black);
             if(monster)UpdateSurfaceImpact();else UpdateGuardLight();
@@ -1118,6 +1121,23 @@ namespace UltramanGame.Runtime
             PoseLimb(leftThigh,leftShin,leftFoot,left,1,leftPole,left.y-home.y);
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,rightPole,right.y-home.y);
             leftFoot.rotation=l;rightFoot.rotation=r;
+        }
+        void PoseMonsterEntrance(float age)
+        {
+            if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
+            float roar=MonsterEntranceMotion.Roar(age);
+            if(upperSpine){spineBase=upperSpine.localRotation;upperSpine.rotation=Quaternion.AngleAxis(-6*roar,side)*upperSpine.rotation;}
+            if(head){headBase=head.localRotation;head.rotation=Quaternion.AngleAxis(-9*roar,side)*head.rotation;}
+            contactLayerApplied=true;
+            Vector3 left=home+facing*leftFootLocal+forward*MonsterEntranceMotion.FootTravel(age,true)+Vector3.up*MonsterEntranceMotion.FootLift(age,true);
+            Vector3 right=home+facing*rightFootLocal+forward*MonsterEntranceMotion.FootTravel(age,false)+Vector3.up*MonsterEntranceMotion.FootLift(age,false);
+            stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
+            stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
+            stepDrop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));Root.position-=Vector3.up*stepDrop;
+            PoseLimb(leftThigh,leftShin,leftFoot,left,1,forward-side*.2f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,1,forward+side*.2f,rightFootLocal.y);
+            leftFoot.rotation=facing*leftFootRest;rightFoot.rotation=facing*rightFootRest;
         }
         void PoseMonsterStep(Battle state)
         {

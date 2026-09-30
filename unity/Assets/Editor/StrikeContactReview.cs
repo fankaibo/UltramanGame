@@ -46,7 +46,7 @@ namespace UltramanGame.Editor
                 for(int n=0;n<40;n++)burst.Hit(Vector3.zero,Vector3.right,n%5==0);
                 burst.Tick(camera,0);if(burst.ActiveCount!=6)throw new Exception("Contact pool grew or failed to reuse");
                 burst.Clear();if(Changed(empty,Read("cleared"))!=0)throw new Exception("Contact remains after clear");
-                var fx=new CombatVfx(root);var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<120;n++)state.Tick(.02f,new PlayerInput{Tracking=true});
+                var fx=new CombatVfx(root);var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<(Battle.TransformationSeconds+0.2f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});
                 void Tick()=>fx.Tick(state,camera,.02f,Vector3.zero,Vector3.forward,Vector3.zero,Vector3.forward,false,0,false,Vector3.forward,0,Vector3.zero,Vector3.zero);
                 for(int kind=0;kind<4;kind++)
                 {
@@ -68,7 +68,7 @@ namespace UltramanGame.Editor
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(931);
                 var world=new GameWorld();var state=new Battle();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-                state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<120;n++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
+                state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<(Battle.TransformationSeconds+0.2f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);while(state.TryCue(out _)){}
                 hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
                 var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
                 float health=state.EnemyHealth,time=0;int contacts=0;

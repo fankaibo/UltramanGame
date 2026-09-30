@@ -46,7 +46,7 @@ namespace UltramanGame.Editor
             for(int s=0;s<2;s++)for(int f=0;f<4;f++)fingers[s,f]=Bone(enemy.Root,"bip_"+fingerNames[f]+"_0_"+(s==0?"L":"R"));
             Vector3 leftHome=enemy.FootPosition(true),rightHome=enemy.FootPosition(false);
             state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-            for(int i=0;i<130;i++)state.Tick(.02f,new PlayerInput{Tracking=true});
+            for(int i=0;i<(Battle.TransformationSeconds+0.4f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});
             while(state.TryCue(out _)){}
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/monster-step",version));Directory.CreateDirectory(folder);
             File.Delete(folder+"/validation.txt");

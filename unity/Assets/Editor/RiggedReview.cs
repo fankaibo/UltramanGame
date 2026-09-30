@@ -50,7 +50,7 @@ namespace UltramanGame.Editor
             hero.Update(state,world.Camera,0,0,3);var guard=wrist.position;
             if(Vector3.Distance(idle,punch)<.3f||beam.y-idle.y<.3f||Vector3.Distance(idle,guard)<.15f||Vector3.Distance(hipIdle,hip.position)<.025f)
                 throw new Exception("Imported wrist/hip curves did not deform the combat poses");
-            state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,2.3f);
+            state.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(state,Battle.TransformationSeconds+.1f);
             for(int hit=0;hit<15;hit++)
             {state.Tick(.02f,new PlayerInput {Tracking=true,LeftPunch=true});Step(state,.5f);}
             for(int i=0;i<1500&&(state.Enemy!=EnemyPhase.Windup||state.EnemyAge<4.5f);i++)Step(state,1/30f);

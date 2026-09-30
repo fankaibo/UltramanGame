@@ -54,7 +54,7 @@ namespace UltramanGame.Editor
                     // Keep the inspection pose fixed while exercising real game
                     // phases, so measured radiance is not confused with occlusion.
                     var state=new Battle(200);state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-                    for(int f=0;f<120;f++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);
+                    for(int f=0;f<(Battle.TransformationSeconds+0.2f)/(.02f);f++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);
                     for(int n=0;n<15;n++)
                     {state.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int f=0;f<25;f++)state.Tick(.02f,new PlayerInput{Tracking=true});}
                     if(state.Energy!=15)throw new Exception("Light review did not charge the actual battle");

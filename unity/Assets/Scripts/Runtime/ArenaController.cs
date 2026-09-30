@@ -227,7 +227,8 @@ namespace UltramanGame.Runtime
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             sound.SetChargePower(showcase?0:world.ChargePower);
             sound.SetMonsterRayPower(showcase?0:world.MonsterRayPower);
-            if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam");
+            if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam"||world.GroundContactCause=="arrival");
+            if(world.MonsterEntranceRoar)sound.MonsterArrival();
             if(world.MonsterLanded)sound.MonsterLanding();
             if(world.MonsterDissolving)sound.MonsterDeparture();
             if(world.MonsterStaggerLanded)sound.MonsterRecoveryStep();

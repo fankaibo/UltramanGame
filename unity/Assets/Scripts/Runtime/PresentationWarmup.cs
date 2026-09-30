@@ -21,7 +21,7 @@ namespace UltramanGame.Runtime
             {
                 camera.targetTexture=target;
                 state.Tick(.01f,new PlayerInput{Tracking=true,Transform=true});world.Cue(GameCue.Transform);Draw(.05f);
-                for(int i=0;i<24;i++)state.Tick(.1f,new PlayerInput{Tracking=true});Draw(.05f);
+                for(int i=0;i<(Battle.TransformationSeconds+.2f)/.1f;i++)state.Tick(.1f,new PlayerInput{Tracking=true});Draw(.05f);
                 state.Tick(.01f,new PlayerInput{Tracking=true,Shield=true});world.Cue(GameCue.Block);Draw(.02f);
                 // A hand ribbon needs multiple sampled points to create visible
                 // geometry; skipping straight to the end never warms its shader.
