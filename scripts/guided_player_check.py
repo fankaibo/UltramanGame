@@ -34,8 +34,10 @@ def main():
     parser.add_argument('--log',type=Path,default=ROOT/'logs/guided-player.log')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
+    parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     options=parser.parse_args()
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
+    if options.gesture_shape_noise and not options.gesture_wobble:parser.error('--gesture-shape-noise requires --gesture-wobble')
     app=ROOT/'unity/Builds/TigaTraining.app'
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
     log=options.log.resolve();log.parent.mkdir(parents=True,exist_ok=True);log.write_text('')
@@ -58,6 +60,7 @@ def main():
             beam_release_until=0
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
+            guard_shape_frames=guard_reacquisitions=0;guard_confirmed=False
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -67,6 +70,9 @@ def main():
                         unwanted_attacks+=1
                     if options.gesture_entry_noise and guard_started and now-guard_started<.7 and '[Gesture] 护盾已展开' in line:
                         guard_entries+=1
+                    if options.gesture_shape_noise and guard and not beam and '[Gesture] 护盾已展开' in line:
+                        if guard_confirmed:guard_reacquisitions+=1
+                        guard_confirmed=True
                     if '[Game] cue=' in line:
                         match=re.search(r'cue=(\w+) phase=(\w+)',line)
                         cue,phase=match.groups()
@@ -78,7 +84,7 @@ def main():
                             # held pose cannot fire a second beam accidentally.
                             beam_release_until=now+.75
                         if cue in ('Beam','Victory'):beam=False;guard=False
-                        if cue=='Warning':guard=True;guard_started=now
+                        if cue=='Warning':guard=True;guard_started=now;guard_confirmed=False
                         if cue in ('Block','Hurt'):guard=False
                         # Tracking loss cancels the game's unfinished warning.
                         # Do not keep holding a guard for an attack that no longer exists.
@@ -121,11 +127,16 @@ def main():
                             if hold_age>(0 if options.gesture_entry_noise else .25):protected='beam'
                         elif options.gesture_wobble and guard:
                             points[15].z=points[16].z=-.10
+                            if options.gesture_shape_noise:
+                                points[15].x=.73;points[16].x=.27
+                                points[15].y=points[16].y=.39
                             if options.gesture_entry_noise and now-guard_started<=.7:
                                 points[15].z=-.44;protected='shield'
                             if now-guard_started>.7:
                                 protected='shield'
                                 if (now-guard_started)%.4<.14:
+                                    if options.gesture_shape_noise:
+                                        points[15].x=.747;points[16].x=.253;guard_shape_frames+=1
                                     hand=15 if int((now-guard_started)/.4)%2==0 else 16
                                     points[hand].z=-.44;guard_noise_frames+=1
                                     # Protect a briefly hidden opposite wrist too,
@@ -165,6 +176,8 @@ def main():
                     raise RuntimeError('Wobbled input did not complete both defense and finishers')
                 if options.gesture_entry_noise and (guard_entries<1 or beam_entry_noise_frames<4):
                     raise RuntimeError(f'Initial gesture ownership not verified: guards={guard_entries} beamNoise={beam_entry_noise_frames}')
+                if options.gesture_shape_noise and (guard_shape_frames<4 or guard_reacquisitions):
+                    raise RuntimeError(f'Guard shape ownership failed: driftFrames={guard_shape_frames} reacquisitions={guard_reacquisitions}')
             filenames=re.findall(r'\[Photo\] saved source=synthetic size=1920x1080 file=(.+)',output)
             if len(filenames)!=2 or len(set(filenames))!=2:raise RuntimeError('Expected two distinct TEST photos')
             for name in filenames:
@@ -186,6 +199,7 @@ def main():
                 'replay_battle_started':True,'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
+            if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:

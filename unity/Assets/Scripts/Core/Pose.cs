@@ -187,6 +187,13 @@ namespace UltramanGame.Core
             var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
+            // Acquiring a shield still uses the original shape and hold. Once
+            // established, a small visible drift at its boundary must not give
+            // a noisy wrist-depth trajectory back to the punch recognizer.
+            // Deliberate reach, a beam pose, lowered hands and tracking loss
+            // retain their existing exit rules below.
+            if(shieldHold>=ShieldHold&&beamWristsReady&&!(transformAvailable&&raised))
+                guardShape|=GuardArms(flw,frw,fcx,fsy,fs,true)||GuardArms(blw,brw,bcx,bsy,bs,true);
             // Acquire the reference before the shield's hold timer. Otherwise a
             // static depth bias could forbid defense forever at first entry.
             // An accepted extended punch must retract before it can reacquire
@@ -275,10 +282,11 @@ namespace UltramanGame.Core
         }
         static PosePoint GuardOffset(PosePoint shoulder,PosePoint wrist,float scale)
             =>new PosePoint((wrist.x-shoulder.x)/scale,(wrist.y-shoulder.y)/scale){z=(shoulder.z-wrist.z)/scale};
-        static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale)
-            =>Math.Abs(left.x-cx)<.95f*scale&&Math.Abs(right.x-cx)<.95f*scale&&
-                Math.Abs(left.x-right.x)<1.55f*scale&&Math.Abs(left.y-right.y)<.70f*scale&&
-                left.y>sy-.80f*scale&&right.y>sy-.80f*scale&&left.y<sy+scale&&right.y<sy+scale;
+        static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale,bool holding=false)
+            =>Math.Abs(left.x-cx)<(holding?1.05f:.95f)*scale&&Math.Abs(right.x-cx)<(holding?1.05f:.95f)*scale&&
+                Math.Abs(left.x-right.x)<(holding?1.75f:1.55f)*scale&&Math.Abs(left.y-right.y)<(holding?.85f:.70f)*scale&&
+                left.y>sy-(holding?.90f:.80f)*scale&&right.y>sy-(holding?.90f:.80f)*scale&&
+                left.y<sy+(holding?1.10f:1f)*scale&&right.y<sy+(holding?1.10f:1f)*scale;
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.

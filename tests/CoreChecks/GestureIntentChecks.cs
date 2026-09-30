@@ -30,6 +30,26 @@ static class GestureIntentChecks
     {
         foreach(int fps in new[]{15,30,60})
         {
+            foreach(int hand in new[]{15,16})
+            {
+                var edge=new Trial(fps);var wide=Guard();wide[15].x=.73f;wide[16].x=.27f;
+                edge.Hold(wide,.8f);
+                check(edge.Last.Shield,$"wide chest guard acquired before edge jitter at {fps} fps");
+                var drift=(PosePoint[])wide.Clone();drift[15].x=.747f;drift[16].x=.253f;drift[hand].z=-.49f;
+                var unconfirmed=new Trial(fps);unconfirmed.Hold(drift,.8f);
+                check(!unconfirmed.Last.Shield,$"guard hold tolerance cannot acquire a new shield for hand {hand} at {fps} fps");
+                edge.Hold(drift,.2f);
+                check(edge.Last.Shield&&edge.Punches==0,$"small outward wrist drift keeps guard ownership despite hand {hand} depth noise at {fps} fps");
+                edge.Hold(wide,.4f);
+                var reach=(PosePoint[])wide.Clone();reach[hand]=P(hand==15?.64f:.36f,.40f,-.49f);
+                edge.Hold(reach,.2f);
+                check(edge.Punches==1&&!edge.Last.Shield,$"deliberate hand {hand} strike can still leave widened guard at {fps} fps");
+                edge.Hold(Guard(),.5f);
+                var lowered=Guard();lowered[15].y=lowered[16].y=.78f;edge.Hold(lowered,.4f);
+                check(!edge.Last.Shield&&!edge.Last.GuardIntent,$"lowered hands leave guard tolerance immediately at {fps} fps");
+                edge.Hold(wide,.6f,true);edge.Hold(Beam(),1.3f,true);
+                check(edge.Beams==1&&!edge.Last.Shield,$"L-pose can take over an established wide guard at {fps} fps");
+            }
             var transition=new Trial(fps);var relaxed=Guard();relaxed[15].y=relaxed[16].y=.72f;
             transition.Hold(relaxed,.7f,true);transition.Hold(Beam(),.5f/fps,true);
             var entryNoise=Beam();entryNoise[15].z=-.53f;transition.Hold(entryNoise,1.2f,true);
