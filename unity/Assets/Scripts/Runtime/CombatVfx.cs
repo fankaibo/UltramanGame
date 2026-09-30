@@ -38,7 +38,7 @@ namespace UltramanGame.Runtime
         public int GroundContactCount=>groundImpact.Bursts;
         public string GroundContactCause=>groundImpact.LastCause;
         int sparkIndex,flashIndex,hitRayIndex;
-        float hitLightAge=10,shieldHitAge=10,clock,beamBurstAge;
+        float hitLightAge=10,hitLightPower=3,hitLightDuration=.22f,shieldHitAge=10,clock,beamBurstAge;
         float previousEnemyAge;
         int previousAttack,previousPunches;
         bool motionInitialized;
@@ -69,6 +69,9 @@ namespace UltramanGame.Runtime
             warningRing=Line(parent,"Monster warning ground ring",64,.035f);
             attackRing=Line(parent,"Monster attack ground ring",64,.05f);
             muzzleLight=Point(parent,"Energy spill",Ice,5);hitLight=Point(parent,"Impact spill",Warm,4);
+            // This short-lived, small light needs per-pixel falloff on the
+            // low-poly skin instead of being demoted to broad vertex lighting.
+            hitLight.renderMode=LightRenderMode.ForcePixel;
         }
         LineRenderer Line(Transform parent,string name,int count,float width)
         {
@@ -131,7 +134,16 @@ namespace UltramanGame.Runtime
             // Ordinary punches also need a small contact-to-ground cue on a TV;
             // blocks stay clean so the blue shield remains the readable answer.
             if(!blocked&&!hurt&&!volumetric)atmosphere.GroundBurst(position,Vector3.back,special);
-            hitLight.transform.position=position;hitLight.color=color;hitLightAge=0;
+            // The spark is bright, but its reflected light must remain near the
+            // fist. A four-unit punch light also lit the head, belly and knees,
+            // flattening the skin into gold during every ordinary strike.
+            hitLight.range=punch?(combo?1.10f:.80f):4;
+            hitLightPower=punch?(combo?2.1f:1.65f):3;
+            hitLightDuration=punch?(combo?.18f:.16f):.22f;
+            // Keep the reflected-light source just in front of the contact,
+            // rather than buried in the chest where outward normals reject it.
+            hitLight.transform.position=position-(punch?direction.normalized*.22f:Vector3.zero);
+            hitLight.color=color;hitLightAge=0;
         }
         public void Combo(Vector3 position)
         {
@@ -276,7 +288,8 @@ namespace UltramanGame.Runtime
             else beamBurstAge=0;
             muzzleLight.transform.position=gathering?beamCharge.Center:origin;
             muzzleLight.intensity=Mathf.Max(firing?beam.Power*1.8f:0,beamCharge.Power*.9f);
-            hitLightAge+=dt;hitLight.intensity=Mathf.Max(0,1-hitLightAge/.22f)*3;
+            hitLightAge+=dt;
+            hitLight.intensity=hitLightPower*(1-Mathf.SmoothStep(0,1,hitLightAge/hitLightDuration));
             if(contacting)
             {
                 hitLight.transform.position=beamTarget-axis*.3f;hitLight.color=Ice;
