@@ -78,6 +78,7 @@ namespace UltramanGame.Runtime
             sound.InstructionStarted+=InstructionStarted;
             photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
             photo=new VictoryPhoto(LocalPort("--photo-port",8767),sound);
+            photo.KeyboardMode=keyboard;
             heroIndex=HeroRoster.Index(PlayerPrefs.GetString("hero.selected","Tiga"));if(review!=null||!HeroAvailable(heroIndex))heroIndex=0;
             if(review!=null)
             {
@@ -339,6 +340,7 @@ namespace UltramanGame.Runtime
         {
             if(keyboard==value)return;
             keyboard=value;photoAvailable=!keyboard||Array.IndexOf(Environment.GetCommandLineArgs(),"--photo-port")>=0;
+            photo.KeyboardMode=keyboard;
             // Only replace the input source: keep the round, selected hero and
             // any open settings/photo review, while discarding stale gestures.
             recognizer.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
@@ -447,12 +449,18 @@ namespace UltramanGame.Runtime
         }
         void DrawSettingsEntry()
         {
-            // Keep the input source visible during the whole round. The old
-            // two small buttons sat directly beside the instruction rail and
-            // were easy to miss on a TV, especially after switching to camera
-            // mode. This compact status strip gives the parent an always
-            // available way back to keyboard practice without covering either
-            // fighter.
+            // Keyboard shortcuts remain available for a parent, but the child
+            // should see a clean playfield in guided camera mode. Showing F2/F4
+            // beside every instruction made the game look like a desktop tool
+            // and suggested that mouse/keyboard input was required.
+            if(!keyboard)
+            {
+                hud.Rounded(new Rect(18,650,238,40),new Color(.006f,.025f,.053f,.68f),7);
+                hud.Text(new Rect(31,660,212,20),"体感模式 · 语音引导中",12,HudPainter.Cyan,bold:true);
+                return;
+            }
+            // Keep the parent controls visible in keyboard practice. This
+            // compact status strip does not cover either fighter.
             var modeAccent=keyboard?HudPainter.Gold:HudPainter.Cyan;
             hud.Rounded(new Rect(18,640,335,60),new Color(.006f,.025f,.053f,.86f),7);
             hud.Text(new Rect(30,645,310,17),keyboard?"输入模式 · 按键练习":"输入模式 · 摄像头体感",11,modeAccent,bold:true);

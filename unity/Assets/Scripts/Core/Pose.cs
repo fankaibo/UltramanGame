@@ -112,7 +112,7 @@ namespace UltramanGame.Core
         // L for half a second. Keep the explicit Standard/Challenge profiles
         // unchanged, while allowing the default child-friendly profile to
         // complete after a shorter, still deliberate hold.
-        float BeamHold=>Level==0?.42f:BeamHoldSeconds+Level*.20f;
+        float BeamHold=>Level==0?.38f:BeamHoldSeconds+Level*.20f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
         public const float BeamHoldSeconds=.50f, BeamGapSeconds=1.45f;
         // A laptop camera can lose stable depth for several packets while the
@@ -123,7 +123,7 @@ namespace UltramanGame.Core
         // Keep a confirmed chest guard through a longer front-camera shape
         // wobble.  A deliberate reach still exits through the committed
         // trajectory checks below.
-        const float GuardOwnershipGraceSeconds=.90f;
+        const float GuardOwnershipGraceSeconds=1.10f;
         public float BeamProgress => Math.Min(1,beamHold/BeamHold);
         public float ShieldProgress => Math.Min(1,shieldHold/ShieldHold);
         public bool BeamNeedsRelease {get;private set;}
@@ -440,7 +440,14 @@ namespace UltramanGame.Core
             if(beamRelease>=.25f && (beamHold<=0||beamFired||beamGap>BeamGapSeconds))
             {beamFired=false;beamArmed=true;beamHold=0;}
             if(!beamAvailable) {beamArmed=beamRelease>=.25f;beamHold=0;}
-            if(beam&&beamArmed&&!beamFired) {beamHold+=dt;beamGap=0;} else
+            // Once a real finisher has accumulated a little charge, retain a
+            // fraction of progress through a short depth wobble. The wrists,
+            // beam ownership and release rules still have to remain visible;
+            // this only stops one noisy depth packet from restarting the pose.
+            bool beamChargeGrace=beamAvailable&&beamArmed&&beamIntent&&beamHold>=.08f&&
+                beamWristsReady&&!raised&&!beamReleasePose&&!guardEnvelope;
+            if((beam||beamChargeGrace)&&beamArmed&&!beamFired)
+            {beamHold+=dt*(beam?1f:.48f);beamGap=0;} else
             {
                 // A recognised L that temporarily loses depth stability is
                 // still the same held gesture. Pause its clock instead of

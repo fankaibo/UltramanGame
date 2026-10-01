@@ -10,6 +10,9 @@ namespace UltramanGame.Runtime
     {
         readonly int port;
         public string HeroId="Tiga";
+        // Keyboard shortcuts remain available to a parent, but the guided
+        // camera flow must not present them as a required child interaction.
+        public bool KeyboardMode {get;set;}=true;
         readonly GameAudio sound;
         readonly GuidedPhoto session=new GuidedPhoto();
         readonly PhotoChoiceGesture choice=new PhotoChoiceGesture();
@@ -208,8 +211,11 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(32,617,600,30),message,17,HudPainter.Cyan);
                 bool reading=Now<reviewReadyAt;
                 hud.Text(new Rect(32,647,1216,24),reading?"先放下双手，慢慢欣赏我们的合照":!choice.Armed?"先放下双手，再举高开始下一局":"单手举高重拍 · 双手举高再玩一次",18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-                if(hud.Button(new Rect(378,677,244,32),"再拍一张 · 空格",HudPainter.Cyan,15))Retake();
-                if(hud.Button(new Rect(656,677,244,32),"再玩一次 · Enter",HudPainter.Gold,15))PlayAgain();
+                if(KeyboardMode)
+                {
+                    if(hud.Button(new Rect(378,677,244,32),"再拍一张 · 空格",HudPainter.Cyan,15))Retake();
+                    if(hud.Button(new Rect(656,677,244,32),"再玩一次 · Enter",HudPainter.Gold,15))PlayAgain();
+                }
                 hud.Bar(new Rect(460,714,360,3),reading?0:choice.Progress,HudPainter.Gold);
             }
             else
