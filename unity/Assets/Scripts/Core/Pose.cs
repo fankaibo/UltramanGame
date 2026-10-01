@@ -110,11 +110,11 @@ namespace UltramanGame.Core
         // can fire a second beam.
         float BeamHold=>BeamHoldSeconds+Level*.10f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
-        public const float BeamHoldSeconds=.60f, BeamGapSeconds=.90f;
+        public const float BeamHoldSeconds=.60f, BeamGapSeconds=1.45f;
         // A laptop camera can lose stable depth for several packets while the
         // child is still visibly holding the finisher. Keep ownership longer
         // than the charge gap so this uncertainty cannot become a punch.
-        const float BeamOwnershipGraceSeconds=1.25f;
+        const float BeamOwnershipGraceSeconds=1.80f;
         // Keep a confirmed chest guard through a longer front-camera shape
         // wobble.  A deliberate reach still exits through the committed
         // trajectory checks below.
@@ -505,11 +505,11 @@ namespace UltramanGame.Core
                 left.y>sy-(holding?.98f:.88f)*scale&&right.y>sy-(holding?.98f:.88f)*scale&&
                 left.y<sy+(holding?1.10f:1f)*scale&&right.y<sy+(holding?1.10f:1f)*scale;
         static bool GuardEntryArms(PosePoint left,PosePoint right,float cx,float sy,float scale)
-            =>Math.Abs(left.x-cx)<1.24f*scale&&Math.Abs(right.x-cx)<1.24f*scale&&
-                Math.Abs(left.x-right.x)<1.92f*scale&&Math.Abs(left.y-right.y)<1.02f*scale&&
-                left.y>sy-.90f*scale&&right.y>sy-.90f*scale&&
-                left.y<sy+.92f*scale&&right.y<sy+.92f*scale&&
-                Math.Min(left.y,right.y)<sy+.42f*scale;
+            =>Math.Abs(left.x-cx)<1.34f*scale&&Math.Abs(right.x-cx)<1.34f*scale&&
+                Math.Abs(left.x-right.x)<2.16f*scale&&Math.Abs(left.y-right.y)<1.12f*scale&&
+                left.y>sy-.98f*scale&&right.y>sy-.98f*scale&&
+                left.y<sy+1.08f*scale&&right.y<sy+1.08f*scale&&
+                Math.Min(left.y,right.y)<sy+.52f*scale;
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
@@ -524,7 +524,7 @@ namespace UltramanGame.Core
             =>BeamHandShape(high,low,cx,sy,scale,holding);
         static bool BeamEntryShape(PosePoint shoulder,PosePoint high,PosePoint low,PosePoint elbow,float cx,float sy,float scale)
         {
-            if(!BeamHandShape(high,low,cx,sy,scale))return false;
+            if(!BeamEntryHandShape(high,low,cx,sy,scale))return false;
             // A one-arm forward punch can look like an L in the image plane.
             // Accept a large depth offset only when the high forearm visibly
             // rises from its elbow, which is the stable distinction in that
@@ -535,6 +535,10 @@ namespace UltramanGame.Core
                 return elbow.y-high.y>.28f*scale&&Math.Abs(high.x-elbow.x)<.75f*scale;
             return depth<.75f;
         }
+        static bool BeamEntryHandShape(PosePoint high,PosePoint low,float cx,float sy,float scale)
+            =>low.y-high.y>.40f*scale && high.y<sy+.20f*scale && high.y>sy-1.35f*scale &&
+              low.y>sy+.08f*scale && low.y<sy+1.15f*scale && Math.Abs(high.x-cx)<1.02f*scale &&
+              Math.Abs(low.x-cx)<1.02f*scale && Math.Abs(high.x-low.x)<1.20f*scale;
         static bool ForwardImageShape(PosePoint left,PosePoint right,float sy,float scale,bool holding=false)
             =>Math.Abs(left.y-right.y)<.78f*scale && left.y>sy-(holding?.55f:.45f)*scale &&
               left.y<sy+(holding?1.10f:1f)*scale && Math.Abs(left.x-right.x)>(holding?.42f:.52f)*scale &&

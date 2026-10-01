@@ -131,7 +131,17 @@ namespace UltramanGame.Core
             // Recognizer ownership begins before the pose's hold completes.
             // Drop buffered fists and finish an already-landed punch recovery;
             // this does not grant a shield or consume beam energy early.
-            if(poseOwnsInput&&hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
+            if((input.GuardIntent||input.BeamIntent)&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))
+            {
+                // A readable guard/finisher intent owns the player immediately.
+                // This cancels a punch that has not reached contact yet, so a
+                // child can raise a shield during the short enemy warning
+                // without being trapped by the previous attack animation.
+                if(!hitApplied){Action=HeroAction.None;ActionAge=0;}
+                else Action=HeroAction.None;
+                queuedPunch=HeroAction.None;queuedAge=0;
+            }
+            else if(poseOwnsInput&&hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
             queuedAge-=dt;
             if(queuedAge<=0 || poseOwnsInput || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&

@@ -18,11 +18,13 @@ namespace UltramanGame.Runtime
         PhotoClient client;
         PhotoComposition composition;
         PhotoFrame frame;
-        Texture2D person,saved;
+        Texture2D person,saved,originalSaved;
         Texture cameraPreview;
         byte[] photoPng;
         string message="",savedPath="";
         bool validPerson,freshPerson,reportedPerson;
+        bool enhancementReady,showEnhanced=true;
+        float enhancementMeanDelta,enhancementChangedPct;
         int previousNumber;
         double flashUntil,nextGuide,reviewReadyAt,nextSaveRetry;
         public bool Active=>session.Stage!=PhotoStage.Closed;
@@ -47,7 +49,8 @@ namespace UltramanGame.Runtime
         }
         void Prepare()
         {
-            if(saved)UnityEngine.Object.Destroy(saved);saved=null;photoPng=null;savedPath="";
+            DestroyPhotoTextures();photoPng=null;savedPath="";
+            enhancementReady=false;showEnhanced=true;enhancementMeanDelta=enhancementChangedPct=0;
             enhancement=null;
             frame=null;validPerson=freshPerson=reportedPerson=false;composition.HidePerson();composition.ResetFraming();choice.Reset();
             photoPoses.Clear();photoPoseStamp=0;
@@ -77,7 +80,7 @@ namespace UltramanGame.Runtime
                 {
                     if(enhancement.ResultPng!=null)
                     {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng))
-                        {ReportEnhancementDelta(saved,edited,enhancement.UsedLocalFallback);if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message=enhancement.UsedLocalFallback?"网关暂不可用 · 本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
+                        {ReportEnhancementDelta(originalSaved,edited,enhancement.UsedLocalFallback,out enhancementMeanDelta,out enhancementChangedPct);if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);saved=edited;enhancementReady=true;showEnhanced=true;message=enhancement.UsedLocalFallback?"本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
                         else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
                     enhancement=null;
@@ -130,7 +133,7 @@ namespace UltramanGame.Runtime
             client?.Dispose();client=null;
             try
             {
-                saved=composition.Snapshot();photoPng=saved.EncodeToPNG();Captures++;
+                saved=composition.Snapshot();originalSaved=saved;photoPng=saved.EncodeToPNG();Captures++;
                 flashUntil=Now+.22;SavePhoto();choice.Reset();
                 reviewReadyAt=Now+Math.Max(8,Say("photo_saved")+3);
                 Debug.Log("[Photo] automatic capture complete; frozen review; hands down then gesture choice");
@@ -138,14 +141,16 @@ namespace UltramanGame.Runtime
             catch(UnityException e)
             {Prepare();Debug.LogWarning("[Photo] snapshot failed: "+e.GetType().Name);}
         }
-        static void ReportEnhancementDelta(Texture2D before,Texture2D after,bool fallback)
+        static void ReportEnhancementDelta(Texture2D before,Texture2D after,bool fallback,out float meanDelta,out float changedPct)
         {
+            meanDelta=changedPct=0;
             if(!before||!after||before.width!=after.width||before.height!=after.height)return;
             var a=before.GetPixels32();var b=after.GetPixels32();long sum=0;int changed=0;
             int count=Math.Min(a.Length,b.Length);
             for(int i=0;i<count;i++)
             {int d=Math.Abs(a[i].r-b[i].r)+Math.Abs(a[i].g-b[i].g)+Math.Abs(a[i].b-b[i].b);sum+=d;if(d>=12)changed++;}
-            Debug.Log($"[PhotoAI] result loaded fallback={fallback} meanDelta={(sum/(float)Math.Max(1,count)):F2} changedPct={(changed*100f/Math.Max(1,count)):F1}");
+            meanDelta=sum/(float)Math.Max(1,count);changedPct=changed*100f/Math.Max(1,count);
+            Debug.Log($"[PhotoAI] result loaded fallback={fallback} meanDelta={meanDelta:F2} changedPct={changedPct:F1}");
         }
         void SavePhoto()
         {
@@ -165,7 +170,8 @@ namespace UltramanGame.Runtime
         {
             bool review=session.Stage==PhotoStage.Review,counting=session.Stage==PhotoStage.Countdown;
             hud.Box(new Rect(0,0,1280,720),new Color(.012f,.025f,.05f));
-            hud.Image(new Rect(0,0,1280,720),review&&saved?(Texture)saved:composition.Preview,ScaleMode.ScaleToFit);
+            Texture reviewImage=showEnhanced&&enhancementReady&&saved?saved:(Texture)(originalSaved??saved);
+            hud.Image(new Rect(0,0,1280,720),review&&reviewImage?reviewImage:composition.Preview,ScaleMode.ScaleToFit);
             if(!review&&!freshPerson&&cameraPreview)
             {
                 // Visible, honest fallback while native cutout initializes/reconnects.
@@ -177,6 +183,12 @@ namespace UltramanGame.Runtime
             hud.Box(new Rect(0,0,1280,64),new Color(.008f,.025f,.06f,.76f));
             hud.Text(new Rect(32,12,750,38),review?"光之英雄 · 合照纪念":"光之英雄 · 与"+HeroRoster.At(HeroRoster.Index(HeroId)).Name+"的胜利合照",25,HudPainter.Ink,bold:true);
             hud.Text(new Rect(900,16,345,29),frame?.Synthetic==true?"合成测试 · 非真人":review?"照片预览 · 已定格":"实时镂空取景",14,HudPainter.Cyan,TextAnchor.MiddleRight);
+            if(review&&enhancementReady)
+            {
+                string label=showEnhanced?"查看原图":"查看 AI 光色版";
+                if(hud.Button(new Rect(1004,76,240,32),label,showEnhanced?HudPainter.Cyan:HudPainter.Gold,14))showEnhanced=!showEnhanced;
+                hud.Text(new Rect(1004,111,240,18),showEnhanced?$"AI 光色融合版 · 差异 {enhancementMeanDelta:F1}":"原图对照",11,showEnhanced?HudPainter.Cyan:HudPainter.Muted,TextAnchor.MiddleRight);
+            }
             hud.Box(new Rect(0,612,1280,108),new Color(.008f,.025f,.06f,.88f));
             if(review)
             {
@@ -219,8 +231,14 @@ namespace UltramanGame.Runtime
         {
             if(!Active)return;
             session.Close();client?.Dispose();client=null;composition?.Dispose();composition=null;
-            if(person)UnityEngine.Object.Destroy(person);if(saved)UnityEngine.Object.Destroy(saved);person=saved=null;photoPng=null;
+            if(person)UnityEngine.Object.Destroy(person);DestroyPhotoTextures();photoPng=null;
             frame=null;freshPerson=validPerson=false;cameraPreview=null;Debug.Log("[Photo] closed; live cutout subscription released");
+        }
+        void DestroyPhotoTextures()
+        {
+            if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);
+            if(originalSaved)UnityEngine.Object.Destroy(originalSaved);
+            person=null;saved=originalSaved=null;
         }
         public void Dispose()=>Close();
     }
