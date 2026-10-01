@@ -36,15 +36,22 @@ static class GuardBeamChecks
         }
         var lowVisibility=Body();lowVisibility[15].visibility=lowVisibility[16].visibility=.48f;
         var trial=new Trial();trial.Hold(lowVisibility,.8f);check(trial.Last.Shield,"partially visible wrists can guard without precise elbows");
+        var childVisibility=Body();childVisibility[15].visibility=childVisibility[16].visibility=.36f;
+        trial=new Trial();trial.Hold(childVisibility,.8f);
+        check(trial.Last.Shield&&trial.Beams==0,"child-level wrist confidence still acquires defense");
         var hidden=Body();hidden[15].visibility=.1f;
         trial.Hold(hidden,.1f);check(trial.Last.Shield,"brief wrist overlap does not drop an established shield");
         trial.Hold(hidden,.25f);check(!trial.Last.Shield,"prolonged missing wrist cannot hold a shield forever");
         var l=Body(.27f,.47f,.56f,.44f);trial=new Trial();trial.Hold(Body(),.6f);trial.Hold(l,.3f);
         check(trial.Beams==0&&trial.R.BeamProgress>0,"brief L-shaped movement only shows confirmation progress");
         trial.Hold(l,.5f);check(trial.Beams==1,"deliberate held L releases one beam");
+        var shallow=Body(.29f,.43f,.60f,.44f);trial=new Trial();trial.Hold(Body(),.6f);trial.Hold(shallow,.9f);
+        check(trial.Beams==1&&trial.Last.LeftPunch==false&&trial.Last.RightPunch==false,
+            "shallow held L stays special and does not become a punch");
         trial=new Trial();trial.Hold(l,1,false);trial.Hold(l,1,true);
         check(trial.Beams==0&&trial.R.BeamNeedsRelease,"pre-held pose does not auto-fire and explains that hands must first return");
-        trial.Hold(Body(),.5f);trial.Hold(l,1,true);check(trial.Beams==1,"release and deliberate new pose confirm the next beam");
+        trial.Hold(Body(),.5f);trial.Hold(l,1,true);
+        check(trial.Beams==1,"release and deliberate new pose confirm the next beam");
         trial=new Trial();trial.Hold(Body(),.6f);trial.Hold(l,1,false);
         check(trial.Beams==0&&trial.Last.Shield,"during an enemy warning an L-like guard remains defense");
         trial=new Trial();trial.Hold(Body(.72f,.72f),1.2f);check(!trial.Last.Shield&&trial.Beams==0,"hands hanging down are neither defense nor a beam");

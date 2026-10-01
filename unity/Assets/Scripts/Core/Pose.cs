@@ -178,7 +178,13 @@ namespace UltramanGame.Core
                 }
                 wasReliable[i]=reliable;
                 // Beam-only tolerance: a partly occluded wrist need not alter working punch/guard input.
-                bool beamVisible=PoseQuality.Reliable(frame.points[i],.45f);
+                // Wrists are the first landmarks to lose confidence when a
+                // child raises both arms or turns sideways.  Use a slightly
+                // lower threshold for the two-hand gesture channel; punch
+                // motion still uses the stricter smoothed landmarks below.
+                // This keeps a readable shield/finisher alive without making
+                // a low-confidence wrist eligible for a punch.
+                bool beamVisible=PoseQuality.Reliable(frame.points[i],.35f);
                 if(beamVisible)
                 {
                     float blend=resetStream||!beamReliable[i]?1:alpha;
@@ -247,11 +253,19 @@ namespace UltramanGame.Core
                 (BeamEntryShape(bl,blw,brw,beamPoints[13],bcx,bsy,bs)||BeamEntryShape(br,brw,blw,beamPoints[14],bcx,bsy,bs)||
                  ForwardPushEntry(bl,br,blw,brw,bsy,bs)||
                  BeamEntryShape(fl,flw,frw,frame.points[13],fcx,fsy,fs)||BeamEntryShape(fr,frw,flw,frame.points[14],fcx,fsy,fs));
+            // Reserve an unmistakable two-hand L/push from the punch path
+            // even when one packet has noisy depth or a slightly shallow
+            // elbow angle. It first protects the pose while depth settles;
+            // after the short ownership latch it may also advance the same
+            // deliberate hold clock as the regular beam shape.
+            bool beamVisualCandidate=beamWristsReady&&!raised&&
+                (BeamVisualCandidate(blw,brw,bcx,bsy,bs)||BeamVisualCandidate(brw,blw,bcx,bsy,bs)||
+                 ForwardVisualCandidate(bl,br,blw,brw,bsy,bs));
             // The first few L-shape packets are where MediaPipe most often
             // swaps a wrist depth or drops an elbow. Remember a positively
             // observed beam shape before a charge exists, so that packet
             // cannot immediately become a punch while the child settles.
-            if(beamAvailable&&(beamShape||beamEntryShape))
+            if(beamAvailable&&(beamShape||beamEntryShape||beamVisualCandidate))
                 beamShapeGrace=Math.Max(beamShapeGrace,beamHold>=.10f?BeamChargedOwnershipGraceSeconds:BeamOwnershipGraceSeconds);
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
@@ -311,10 +325,13 @@ namespace UltramanGame.Core
                 Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
                 !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
                 !ForwardPushEntry(fl,fr,flw,frw,fsy,fs);
-            bool earlyDefensePriority=chestGuardPreferred&&beamHold<.12f&&!beamLocked&&beamShapeGrace<=0;
+            // A chest guard should win immediately over a stale visual beam
+            // candidate. Otherwise the child can hold a perfectly readable
+            // shield while the previous packet's L-shape grace suppresses it.
+            bool earlyDefensePriority=chestGuardPreferred&&beamHold<.12f&&!beamLocked;
             if(earlyDefensePriority)
             {
-                beamShape=false;beamEntryShape=false;beamShapeGrace=0;
+                beamShape=false;beamEntryShape=false;beamVisualCandidate=false;beamShapeGrace=0;
                 beamLocked=false;beamLockAge=0;beamLostAge=0;
             }
             // A visible L is a stronger finisher signal than a loose chest
@@ -355,7 +372,7 @@ namespace UltramanGame.Core
             // arm is briefly read as a forward punch. A neutral, lowered
             // release or a deliberate chest guard still ends the gesture.
             bool beamReleasePose=beamReleaseHold>=.22f;
-            if(beamShape||beamEntryShape)
+            if(beamShape||beamEntryShape||beamVisualCandidate)
             {
                 beamLockAge=Math.Min(.6f,beamLockAge+dt);beamLostAge=0;
                 if(beamLockAge>=.12f)beamLocked=true;
@@ -389,7 +406,7 @@ namespace UltramanGame.Core
             // input but still advanced beamGap, so a child could see the
             // gesture held while its progress silently expired and a depth
             // spike could be read as a punch on the next frame.
-            bool beamIntent=beamShape||beamEntryShape||beamMaintained||beamLatch||beamGrace;
+            bool beamIntent=beamShape||beamEntryShape||beamVisualCandidate||beamMaintained||beamLatch||beamGrace;
             bool becameBeamAvailable=beamAvailable&&!lastBeamAvailable;
             if(!beamAvailable)
             {
@@ -409,7 +426,7 @@ namespace UltramanGame.Core
             // A brief shape/depth wobble pauses the charge instead of handing
             // the same held pose to punch.
             bool beamConfirmedShape=beamShape||beamMaintained||
-                beamEntryShape&&beamLockAge>=.12f;
+                (beamEntryShape||beamVisualCandidate)&&beamLockAge>=.12f;
             // A depth anomaly pauses progress, but beamIntent/beamReserved
             // below keeps the gesture owned and prevents an attack from being
             // emitted during that pause. The next stable frame resumes the
@@ -700,6 +717,22 @@ namespace UltramanGame.Core
             =>low.y-high.y>.40f*scale && high.y<sy+.20f*scale && high.y>sy-1.35f*scale &&
               low.y>sy+.08f*scale && low.y<sy+1.15f*scale && Math.Abs(high.x-cx)<1.02f*scale &&
               Math.Abs(low.x-cx)<1.02f*scale && Math.Abs(high.x-low.x)<1.20f*scale;
+        static bool BeamVisualCandidate(PosePoint high,PosePoint low,float cx,float sy,float scale)
+            =>low.y-high.y>.24f*scale && high.y<sy+.28f*scale && high.y>sy-1.42f*scale &&
+              low.y>sy-.02f*scale && low.y<sy+1.20f*scale && Math.Abs(high.x-cx)<1.18f*scale &&
+              Math.Abs(low.x-cx)<1.18f*scale && Math.Abs(high.x-low.x)<1.42f*scale &&
+              // A deep, single-arm reach is the ordinary punch route. Let
+              // the stricter depth-aware L classifier own that case instead
+              // of reserving it as a finisher from image shape alone.
+              Math.Abs(high.z-low.z)<.40f*scale;
+        static bool ForwardVisualCandidate(PosePoint leftShoulder,PosePoint rightShoulder,PosePoint left,PosePoint right,float sy,float scale)
+        {
+            float separation=Math.Abs(left.x-right.x)/scale;
+            return separation>.70f&&separation<2.20f&&Math.Abs(left.y-right.y)<.88f*scale&&
+                left.y>sy-.58f*scale&&right.y>sy-.58f*scale&&left.y<sy+.68f*scale&&right.y<sy+.68f*scale&&
+                Math.Abs(left.z-right.z)<.35f*scale&&
+                leftShoulder.z-left.z>.42f*scale&&rightShoulder.z-right.z>.42f*scale;
+        }
         static bool ForwardImageShape(PosePoint left,PosePoint right,float sy,float scale,bool holding=false)
             =>Math.Abs(left.y-right.y)<.78f*scale && left.y>sy-(holding?.55f:.45f)*scale &&
               left.y<sy+(holding?1.10f:1f)*scale && Math.Abs(left.x-right.x)>(holding?.42f:.52f)*scale &&
