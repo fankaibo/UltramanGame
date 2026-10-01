@@ -23,7 +23,7 @@ namespace UltramanGame.Runtime
         byte[] photoPng;
         string message="",savedPath="";
         bool validPerson,freshPerson,reportedPerson;
-        bool enhancementReady,showEnhanced=true;
+        bool enhancementReady,showEnhanced=true,comparePhotos;
         float enhancementMeanDelta,enhancementChangedPct;
         int previousNumber;
         double flashUntil,nextGuide,reviewReadyAt,nextSaveRetry;
@@ -50,7 +50,7 @@ namespace UltramanGame.Runtime
         void Prepare()
         {
             DestroyPhotoTextures();photoPng=null;savedPath="";
-            enhancementReady=false;showEnhanced=true;enhancementMeanDelta=enhancementChangedPct=0;
+            enhancementReady=false;showEnhanced=true;comparePhotos=false;enhancementMeanDelta=enhancementChangedPct=0;
             enhancement=null;
             frame=null;validPerson=freshPerson=reportedPerson=false;composition.HidePerson();composition.ResetFraming();choice.Reset();
             photoPoses.Clear();photoPoseStamp=0;
@@ -171,7 +171,19 @@ namespace UltramanGame.Runtime
             bool review=session.Stage==PhotoStage.Review,counting=session.Stage==PhotoStage.Countdown;
             hud.Box(new Rect(0,0,1280,720),new Color(.012f,.025f,.05f));
             Texture reviewImage=showEnhanced&&enhancementReady&&saved?saved:(Texture)(originalSaved??saved);
-            hud.Image(new Rect(0,0,1280,720),review&&reviewImage?reviewImage:composition.Preview,ScaleMode.ScaleToFit);
+            if(review&&enhancementReady&&comparePhotos)
+            {
+                // A single full-screen toggle makes subtle lighting changes
+                // easy to miss. The side-by-side view keeps both files at the
+                // same scale and gives the parent a concrete before/after.
+                hud.Image(new Rect(0,64,640,548),originalSaved,ScaleMode.ScaleToFit);
+                hud.Image(new Rect(640,64,640,548),saved,ScaleMode.ScaleToFit);
+                hud.Box(new Rect(0,64,640,28),new Color(.005f,.02f,.05f,.82f));
+                hud.Box(new Rect(640,64,640,28),new Color(.005f,.02f,.05f,.82f));
+                hud.Text(new Rect(18,68,270,20),"原图",13,HudPainter.Muted,bold:true);
+                hud.Text(new Rect(658,68,360,20),"AI 光色融合版",13,HudPainter.Cyan,bold:true);
+            }
+            else hud.Image(new Rect(0,0,1280,720),review&&reviewImage?reviewImage:composition.Preview,ScaleMode.ScaleToFit);
             if(!review&&!freshPerson&&cameraPreview)
             {
                 // Visible, honest fallback while native cutout initializes/reconnects.
@@ -185,9 +197,10 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(900,16,345,29),frame?.Synthetic==true?"合成测试 · 非真人":review?"照片预览 · 已定格":"实时镂空取景",14,HudPainter.Cyan,TextAnchor.MiddleRight);
             if(review&&enhancementReady)
             {
-                string label=showEnhanced?"查看原图":"查看 AI 光色版";
-                if(hud.Button(new Rect(1004,76,240,32),label,showEnhanced?HudPainter.Cyan:HudPainter.Gold,14))showEnhanced=!showEnhanced;
-                hud.Text(new Rect(1004,111,240,18),showEnhanced?$"AI 光色融合版 · 差异 {enhancementMeanDelta:F1}":"原图对照",11,showEnhanced?HudPainter.Cyan:HudPainter.Muted,TextAnchor.MiddleRight);
+                string label=comparePhotos?"全屏查看":"原图 / AI 并排对比";
+                if(hud.Button(new Rect(1004,76,240,32),label,comparePhotos?HudPainter.Gold:HudPainter.Cyan,14))comparePhotos=!comparePhotos;
+                if(!comparePhotos&&hud.Button(new Rect(748,76,244,32),showEnhanced?"查看原图":"查看 AI 光色版",showEnhanced?HudPainter.Cyan:HudPainter.Gold,14))showEnhanced=!showEnhanced;
+                hud.Text(new Rect(748,111,496,18),comparePhotos?$"对比完成 · 影响 {enhancementChangedPct:F1}% 像素 · 平均差异 {enhancementMeanDelta:F1}":showEnhanced?$"AI 光色融合版 · 影响 {enhancementChangedPct:F1}% 像素":"原图对照",11,showEnhanced?HudPainter.Cyan:HudPainter.Muted,TextAnchor.MiddleRight);
             }
             hud.Box(new Rect(0,612,1280,108),new Color(.008f,.025f,.06f,.88f));
             if(review)

@@ -27,7 +27,10 @@ namespace UltramanGame.Runtime
         bool photoAvailable,autoPhotoOpened,finalGuide;
         float victoryAt,waitingGuideAt=20;
         bool keyboard,paused,muted,settings,audioSettings,videoSettings,showPreview=true,previewReported,lastTracking;
-        int draftDifficulty=1,draftResolution=1;
+        // The first play session is for a four-year-old: start with the
+        // forgiving pose envelope. Parents can still raise the threshold in
+        // Settings after the child has learned the three gestures.
+        int draftDifficulty=0,draftResolution=1;
         bool draftPhotoAi=true;
         Vector3 previousMouse;
         float cursorUntil;
@@ -63,7 +66,7 @@ namespace UltramanGame.Runtime
             monsterHits=Battle.ClampMonsterHits(PlayerPrefs.GetInt(MonsterHitsKey,Battle.DefaultMonsterHits));
             battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;
             presentedPunches=presentedHits=comboCount=0;comboUntil=0;
-            DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",1);
+            DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",0);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
             {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-linked")>=0);reviewFinisher=Array.IndexOf(Environment.GetCommandLineArgs(),"--review-finisher")>=0;keyboard=true;monsterHits=reviewFinisher?24:Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
@@ -434,7 +437,7 @@ namespace UltramanGame.Runtime
                 draftMonsterHits=Mathf.RoundToInt(GUI.HorizontalSlider(new Rect(400,356,480,24),draftMonsterHits,Battle.MinMonsterHits,Battle.MaxMonsterHits)/10)*10;
                 hud.Text(new Rect(386,382,320,30),$"{Battle.MinMonsterHits}–{Battle.MaxMonsterHits} 次 · 每次调整 10",14,HudPainter.Muted);
                 if(hud.Button(new Rect(760,382,134,30),"恢复默认 50"))draftMonsterHits=Battle.DefaultMonsterHits;
-                hud.Text(new Rect(386,429,508,25),"动作门槛 · 默认标准，减少误触发",17,HudPainter.Cyan);
+                hud.Text(new Rect(386,429,508,25),"动作门槛 · 默认宽松，优先保证孩子能做出来",17,HudPainter.Cyan);
                 for(int i=0;i<3;i++)if(hud.Button(new Rect(386+i*174,466,160,34),new[]{"宽松","标准","挑战"}[i],draftDifficulty==i?HudPainter.Gold:HudPainter.Muted,15))draftDifficulty=i;
                 hud.Text(new Rect(386,516,508,28),$"大招需 {Battle.MaxEnergy} 次普攻蓄满 · 更换血量会开始新一局",14,HudPainter.Muted);
             }

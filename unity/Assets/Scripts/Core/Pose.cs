@@ -204,17 +204,21 @@ namespace UltramanGame.Core
             // A single wildly jumping wrist depth is the camera's common
             // false-positive during a held L. It may reserve the action, but
             // it must not advance the charge until the estimate settles.
+            // Keep a clearly asymmetric depth jump from advancing the charge;
+            // the ownership grace below still pauses and protects the gesture.
             bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<2.20f;
             // A recognised L owns estimated depth from its first confirmed
             // frame. Waiting 100 ms to protect depth stranded early charges;
             // keep the stricter image-plane shape until the normal hold begins.
             bool beamShape=beamWristsReady && beamDepthStable && (BeamArms(bl,blw,brw,bcx,bsy,bs,preserveDepth:beamHold>0) || BeamArms(br,brw,blw,bcx,bsy,bs,preserveDepth:beamHold>0) ||
                 ForwardPalms(bl,br,blw,brw,bsy,bs) ||
+                ForwardPushEntry(bl,br,blw,brw,bsy,bs) ||
                 // The first complete camera pose reserves the action before
                 // smoothing catches up from hands-down or a previous punch.
                 // Raw entry uses strict shape/depth; the usual timer still
                 // requires a sustained pose before it can fire.
                 BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs)||
+                ForwardPushEntry(fl,fr,flw,frw,fsy,fs)||
                 ForearmBeam(flw,frame.points[13],frw,frame.points[14],fcx,fsy,fs)||
                 ForearmBeam(frw,frame.points[14],flw,frame.points[13],fcx,fsy,fs));
             // Depth is the least stable signal on a laptop webcam. Keep a
@@ -223,6 +227,7 @@ namespace UltramanGame.Core
             // charge clock below still requires stable depth.
             bool beamEntryShape=beamWristsReady &&
                 (BeamEntryShape(bl,blw,brw,beamPoints[13],bcx,bsy,bs)||BeamEntryShape(br,brw,blw,beamPoints[14],bcx,bsy,bs)||
+                 ForwardPushEntry(bl,br,blw,brw,bsy,bs)||
                  BeamEntryShape(fl,flw,frw,frame.points[13],fcx,fsy,fs)||BeamEntryShape(fr,frw,flw,frame.points[14],fcx,fsy,fs));
             // The first few L-shape packets are where MediaPipe most often
             // swaps a wrist depth or drops an elbow. Remember a positively
@@ -563,6 +568,17 @@ namespace UltramanGame.Core
             return (l.z-lw.z)>(holding?.30f:.55f)*scale && (r.z-rw.z)>(holding?.30f:.55f)*scale && separation>(holding?.50f:.60f) && separation<2.1f &&
                 Math.Abs(lw.y-rw.y)<.7f*scale && lw.y>sy-.45f*scale && rw.y>sy-.45f*scale &&
                 lw.y<sy+1f*scale && rw.y<sy+1f*scale;
+        }
+        static bool ForwardPushEntry(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale)
+        {
+            // A child pushing both hands forward often produces a weaker but
+            // symmetric depth signal than the strict palm test. Require both
+            // wrists to clear the shoulders and keep a visibly wide, level
+            // pair so an ordinary chest guard cannot claim this route.
+            float separation=Math.Abs(lw.x-rw.x)/scale;
+            return (l.z-lw.z)>.42f*scale&&(r.z-rw.z)>.42f*scale&&
+                separation>.62f&&separation<2.1f&&Math.Abs(lw.y-rw.y)<.65f*scale&&
+                lw.y>sy-.35f*scale&&rw.y>sy-.35f*scale&&lw.y<sy+1f*scale&&rw.y<sy+1f*scale;
         }
     }
 }
