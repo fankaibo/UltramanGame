@@ -14,19 +14,21 @@ Shader "Training/CinematicComposite" {
  half4 compose(v2f_img i):SV_Target {
   half3 c=tex2D(_MainTex,i.uv).rgb;
   // Viewport-bound motion belongs to the final lens, not world geometry.
-  // Its inner edge is exactly zero across the central 78% of the image.
-  float rim=smoothstep(.78,.98,abs(i.uv.x*2-1));
-  float vertical=smoothstep(.06,.18,i.uv.y)*(1-smoothstep(.83,.94,i.uv.y));
+  // Keep the central 64% of the image clean so the child can read the pose,
+  // while the outer thirds carry the fast cabinet-style travel smear seen in
+  // the reference footage.
+  float rim=smoothstep(.64,.98,abs(i.uv.x*2-1));
+  float vertical=smoothstep(.03,.15,i.uv.y)*(1-smoothstep(.85,.97,i.uv.y));
   float motionAmount=rim*vertical*_Motion.x;
   if(motionAmount>0) {
    float aspect=max(_Aspect,.1);
    float2 d=(i.uv-float2(.5,.49))*float2(aspect,1);
-   float2 drag=normalize(d)/float2(aspect,1)*(.006*_Motion.x);
+   float2 drag=normalize(d)/float2(aspect,1)*(.0085*_Motion.x);
    half3 trail=(tex2D(_MainTex,saturate(i.uv-drag)).rgb+tex2D(_MainTex,saturate(i.uv-drag*2)).rgb)*.5;
    // The reference cabinet uses a readable blue/orange speed shell at the
    // instant of contact. Keep the centre clean, but make the outer rails
    // survive a living-room TV's motion blur and camera exposure.
-   c=lerp(c,trail,motionAmount*.32);
+   c=lerp(c,trail,motionAmount*.42);
    float side=i.uv.x<.5?-1:1;
    float streak=0;
    [unroll] for(int n=0;n<3;n++) {
@@ -38,7 +40,7 @@ Shader "Training/CinematicComposite" {
     streak+=(filament+halo)*(.64+.36*sin(_Motion.y*9+n*2.1+side));
    }
    float lead=_Motion.z==0?1:lerp(.60,1,step(0,side*_Motion.z));
-   c+=_MotionColor.rgb*streak*motionAmount*.36*lead;
+   c+=_MotionColor.rgb*streak*motionAmount*.44*lead;
   }
   c+=tex2D(_Bloom,i.uv).rgb*_Strength;
   // Keep the Fuji plate realistic, but give the whole combat lens the
