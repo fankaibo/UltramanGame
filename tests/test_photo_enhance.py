@@ -98,6 +98,22 @@ class PhotoEnhancementTests(unittest.TestCase):
                     output,_=enhance(source,plate,mask);self.assertTrue(output.is_file())
             self.assertEqual(original,source.read_bytes())
 
+    def test_near_zero_model_recipe_still_produces_visible_ai_variant(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'
+            image=np.full((120,180,3),(95,115,145),np.uint8)
+            clean=image.copy();clean[25:110,110:165]=(180,145,115)
+            matte=np.zeros((120,180),np.uint8);matte[25:110,110:165]=255
+            cv2.imwrite(str(source),clean);cv2.imwrite(str(plate),image);cv2.imwrite(str(mask),matte)
+            near_zero=self.recipe();near_zero.update(exposure_ev=0,red_gain=1,green_gain=1,blue_gain=1,
+                saturation=1,edge_feather_px=.6,light_wrap=0,shadow_strength=0)
+            with patch('vision.photo_enhance.configuration',return_value=('https://example.invalid','test-only')):
+                with patch('vision.photo_enhance.ask_model',return_value=near_zero):
+                    output,_=enhance(source,plate,mask)
+            result=cv2.imread(str(output));delta=np.abs(result.astype(np.int16)-clean.astype(np.int16))
+            self.assertGreater(float(delta.mean()),1.0)
+            self.assertGreater(float(np.mean(np.any(delta>3,axis=2))),.15)
+
     def test_local_fallback_creates_a_visible_but_bounded_variant(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'
