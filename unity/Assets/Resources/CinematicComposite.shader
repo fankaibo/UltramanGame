@@ -41,6 +41,12 @@ Shader "Training/CinematicComposite" {
    c+=_MotionColor.rgb*streak*motionAmount*.36*lead;
   }
   c+=tex2D(_Bloom,i.uv).rgb*_Strength;
+  // Contact frames in the reference cabinet briefly lift saturation and
+  // contrast, while the neutral Fuji night remains untouched between beats.
+  float grade=saturate(_Motion.x*.22+_ShockStrength*.16+_FlashColor.a*.10);
+  float luma=dot(c,float3(.2126,.7152,.0722));
+  c=lerp(c,luma.xxx+(c-luma.xxx)*(1+grade*1.35),grade);
+  c*=1+grade*.08;
   float2 delta=(i.uv-_PulseCenter.xy)*float2(_Aspect,1);
   float distanceFromCenter=length(delta);
   // Keep the dark stage and costume colors through a hit. A local exposure
