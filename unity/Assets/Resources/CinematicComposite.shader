@@ -23,7 +23,10 @@ Shader "Training/CinematicComposite" {
    float2 d=(i.uv-float2(.5,.49))*float2(aspect,1);
    float2 drag=normalize(d)/float2(aspect,1)*(.006*_Motion.x);
    half3 trail=(tex2D(_MainTex,saturate(i.uv-drag)).rgb+tex2D(_MainTex,saturate(i.uv-drag*2)).rgb)*.5;
-   c=lerp(c,trail,motionAmount*.22);
+   // The reference cabinet uses a readable blue/orange speed shell at the
+   // instant of contact. Keep the centre clean, but make the outer rails
+   // survive a living-room TV's motion blur and camera exposure.
+   c=lerp(c,trail,motionAmount*.32);
    float side=i.uv.x<.5?-1:1;
    float streak=0;
    [unroll] for(int n=0;n<3;n++) {
@@ -35,7 +38,7 @@ Shader "Training/CinematicComposite" {
     streak+=(filament+halo)*(.64+.36*sin(_Motion.y*9+n*2.1+side));
    }
    float lead=_Motion.z==0?1:lerp(.60,1,step(0,side*_Motion.z));
-   c+=_MotionColor.rgb*streak*motionAmount*.22*lead;
+   c+=_MotionColor.rgb*streak*motionAmount*.36*lead;
   }
   c+=tex2D(_Bloom,i.uv).rgb*_Strength;
   float2 delta=(i.uv-_PulseCenter.xy)*float2(_Aspect,1);
