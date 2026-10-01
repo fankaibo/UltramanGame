@@ -15,11 +15,11 @@ static class GuardBeamChecks
         public readonly GestureRecognizer R=new GestureRecognizer();public PlayerInput Last;public int Beams;
         long stamp=800000,seq;readonly int step;
         public Trial(int fps=30){step=(int)Math.Round(1000.0/fps);}
-        public void Hold(PosePoint[] p,float seconds,bool enabled=true)
+        public void Hold(PosePoint[] p,float seconds,bool enabled=true,bool shieldPriority=false)
         {
             for(int i=0;i<Math.Ceiling(seconds*1000/step);i++)
             {
-                stamp+=step;Last=R.Update(new PoseFrame{schema=1,tracked=true,streamId="guard",sequence=++seq,capturedMs=stamp,points=p},stamp,enabled,false);
+                stamp+=step;Last=R.Update(new PoseFrame{schema=1,tracked=true,streamId="guard",sequence=++seq,capturedMs=stamp,points=p},stamp,enabled,false,shieldPriority);
                 if(Last.Beam)Beams++;
             }
         }
@@ -48,6 +48,13 @@ static class GuardBeamChecks
         var shallow=Body(.29f,.43f,.60f,.44f);trial=new Trial();trial.Hold(Body(),.6f);trial.Hold(shallow,.9f);
         check(trial.Beams==1&&trial.Last.LeftPunch==false&&trial.Last.RightPunch==false,
             "shallow held L stays special and does not become a punch");
+        // On a warning cue, a child-sized chest pose can briefly resemble a
+        // very shallow L while the webcam settles. The warning path must keep
+        // that pose as defense; the normal path remains free to use the same
+        // visual shape for the finisher when no defense cue is active.
+        var warningChest=Body(.42f,.50f,.58f,.42f);warningChest[13].y=.47f;warningChest[14].y=.52f;
+        trial=new Trial();trial.Hold(warningChest,.8f,true,true);
+        check(trial.Last.Shield&&trial.Beams==0,"warning chest pose prioritizes defense over shallow beam ambiguity");
         trial=new Trial();trial.Hold(l,1,false);trial.Hold(l,1,true);
         check(trial.Beams==0&&trial.R.BeamNeedsRelease,"pre-held pose does not auto-fire and explains that hands must first return");
         trial.Hold(Body(),.5f);trial.Hold(l,1,true);

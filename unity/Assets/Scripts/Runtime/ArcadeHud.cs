@@ -122,12 +122,12 @@ namespace UltramanGame.Runtime
                 // The fall and recovery need the full lower part of the shot;
                 // resume the normal instructions only after the hero stands.
                 if(battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
-                else if(ready&&!keyboard&&recognizer.BeamProgress>0)
+                else if(ready&&!keyboard&&(recognizer.BeamProgress>0||held.BeamIntent))
                     // Keep the instruction aligned with the gesture that owns
                     // input, even if an enemy warning begins during its hold.
-                    Guide("看见动作了 · 保持，释放光线！","beam",gold,recognizer.BeamProgress);
+                    Guide(recognizer.BeamProgress>0?"大招姿势已锁定 · 保持，释放光线！":"看见大招姿势 · 保持一下","beam",gold,recognizer.BeamProgress);
                 else if(warning)
-                    Guide(battle.Shield?(keyboard?"护盾已展开 · 继续按住 S":"护盾已展开 · 保持住！"):
+                    Guide(battle.Shield||(!keyboard&&held.GuardIntent)?(keyboard?"护盾已展开 · 继续按住 S":"护盾姿势已锁定 · 保持住！"):
                         keyboard?"按住 S，展开护盾！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,keyboard?(battle.Shield?1:0):recognizer.ShieldProgress);
                 else if(ready)
                     Guide(keyboard?"能量已满 · 按 J 释放光线":"摆 L 形，或双手向前推，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);

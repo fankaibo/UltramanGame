@@ -146,7 +146,7 @@ namespace UltramanGame.Core
             BeamNeedsRelease=false;
             beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
         }
-        public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true)
+        public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true,bool shieldPriority=false)
         {
             ForwardPunch=false;
             if (!PoseQuality.Present(frame,nowMs)) { Reset(); return default; }
@@ -320,6 +320,17 @@ namespace UltramanGame.Core
             // is visually distinct from the one-high/one-low L used by the
             // beam, yet the two envelopes overlap on a webcam. Give this pose
             // ownership before a noisy depth sample can route it to attack.
+            // During an enemy wind-up/attack the child is responding to a
+            // spoken defense cue.  A webcam can make the same chest pose look
+            // like a shallow L for one or two packets; use the elbows as a
+            // second image-plane check and give that readable shield pose
+            // ownership before punch/beam arbitration.  A real L still has a
+            // raised forearm and therefore keeps the finisher route.
+            bool elbowsStayAtChest=Math.Abs(frame.points[13].y-flw.y)<.24f*fs&&
+                Math.Abs(frame.points[14].y-frw.y)<.24f*fs;
+            bool warningShieldPreferred=shieldPriority&&guardShape&&elbowsStayAtChest&&
+                !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&!ForwardPushEntry(fl,fr,flw,frw,fsy,fs)&&
+                Math.Abs(flw.y-frw.y)<.70f*fs;
             bool chestGuardPreferred=defensivePair&&
                 Math.Abs(flw.y-frw.y)<.44f*fs&&
                 Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
@@ -328,7 +339,7 @@ namespace UltramanGame.Core
             // A chest guard should win immediately over a stale visual beam
             // candidate. Otherwise the child can hold a perfectly readable
             // shield while the previous packet's L-shape grace suppresses it.
-            bool earlyDefensePriority=chestGuardPreferred&&beamHold<.12f&&!beamLocked;
+            bool earlyDefensePriority=(chestGuardPreferred||warningShieldPreferred)&&beamHold<.12f&&!beamLocked;
             if(earlyDefensePriority)
             {
                 beamShape=false;beamEntryShape=false;beamVisualCandidate=false;beamShapeGrace=0;
@@ -394,7 +405,12 @@ namespace UltramanGame.Core
             // accumulated a short charge, however, the same guard-shaped
             // wobble remains owned by the finisher.
             bool beamGrace=(beamLocked||beamHold>=.04f||beamShapeGrace>0)&&beamWristsReady&&!raised&&!beamReleasePose&&
-                (!guardEnvelope||beamLocked||beamHold>=.06f);
+                // The first valid L/push packet can be followed by a depth
+                // wobble before the lock reaches 120 ms.  Keep ownership from
+                // that first positive packet so the wobble cannot become a
+                // punch or cancel the visible hold.  A normal chest guard has
+                // no beam shape grace and therefore is unaffected.
+                (!guardEnvelope||beamLocked||beamHold>=.06f||beamLockAge>=.02f);
             // Grace owns the gesture and blocks punch/guard handoff, but it
             // pauses the charge clock. Only a positively observed beam shape
             // advances progress; this prevents a noisy frame from speeding up

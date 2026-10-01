@@ -182,7 +182,13 @@ def harmonise(composite, plate, mask, recipe):
         # family preview must show the light response at normal TV size. Keep
         # the face readable while allowing a clearly visible cool moon/lava
         # wrap over the person instead of a near-identical copy.
-        strength=min(.46,max(.16,recipe['light_wrap']*.95))
+        # The first family preview was technically different but the change
+        # was easy to miss beside a bright hero.  Keep the identity and pose
+        # fixed, while making the environment response legible at normal TV
+        # size: a broader cool/warm wrap around the person and a softer matte
+        # transition.  This is still a bounded compositor, not image-to-image
+        # redrawing.
+        strength=min(.58,max(.22,recipe['light_wrap']*.95))
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
@@ -234,13 +240,13 @@ def enhance(source, plate_path, mask_path):
     # geometry and identity fixed, but make this optical pass reviewable.
     # A 1080p TV makes a 1–4 px model suggestion effectively invisible. The
     # saved variant keeps the same silhouette but gives the matte a reviewable
-    # 24 px optical transition, especially around a clipped shoulder or arm.
-    recipe['edge_feather_px']=max(24.0,recipe['edge_feather_px'])
+    # 34 px optical transition, especially around a clipped shoulder or arm.
+    recipe['edge_feather_px']=max(34.0,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but indistinguishable in
     # a family preview. Keep the effect gentle, yet visible enough to prove
     # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(1.15,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.52,recipe['shadow_strength'])
+    recipe['light_wrap']=max(1.35,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.58,recipe['shadow_strength'])
     recipe['exposure_ev']=min(-.34,recipe['exposure_ev'])
     recipe['red_gain']=min(.86,recipe['red_gain'])
     recipe['green_gain']=min(.90,recipe['green_gain'])

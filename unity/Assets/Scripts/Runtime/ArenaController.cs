@@ -173,7 +173,10 @@ namespace UltramanGame.Runtime
                             // during Windup/Attack, so a child who started the beam
                             // pose at the warning could be forced into guard and
                             // miss the arcade finisher window.
-                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,battle.Phase==GamePhase.Waiting);
+                            bool warningShieldPriority=battle.Phase==GamePhase.Battle&&
+                                (battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack);
+                            input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,
+                                battle.Phase==GamePhase.Waiting,warningShieldPriority);
                             string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?
                                 (recognizer.ForwardPunch?"向前挥拳":"侧前挥拳"):"";
                             if(detected.Length>0)
