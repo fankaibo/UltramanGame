@@ -64,7 +64,12 @@ namespace UltramanGame.Runtime
             motion=Vector4.zero;
             if(showcase||state.Phase!=GamePhase.Battle||state.Action==HeroAction.Beam)return;
             bool punching=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
-            float punch=punching?MotionBeat(state.ActionAge,.025f,.12f,.34f):0;
+            bool combo=punching&&ComboStrikeMotion.Active(state);
+            // Every fifth contact already owns a close shot and a larger
+            // world-space burst. Carry that same beat into the outer lens so
+            // the transition between consecutive punches reads as one arcade
+            // rhythm rather than a static pose plus a HUD counter.
+            float punch=punching?MotionBeat(state.ActionAge,.025f,.12f,.34f)*(combo?1.28f:1):0;
             float rush=state.Enemy==EnemyPhase.Attack?MotionBeat(state.EnemyAge,.06f,.34f,.78f)*.85f:0;
             float hurt=state.Action==HeroAction.Hurt?MotionBeat(state.ActionAge,0,.10f,.42f)*.90f:0;
             float strength=Mathf.Max(punch,rush,hurt);
@@ -72,7 +77,8 @@ namespace UltramanGame.Runtime
             bool hurtLead=hurt>punch&&hurt>=rush,rushLead=!hurtLead&&rush>punch;
             float phase=rushLead?state.EnemyAge:state.ActionAge;
             motion=new Vector4(strength,phase,punching?(state.Action==HeroAction.LeftPunch?-1:1):0,0);
-            motionColor=hurtLead?new Color(1,.36f,.20f):rushLead?new Color(1,.66f,.36f):new Color(.52f,.78f,1);
+            motionColor=hurtLead?new Color(1,.36f,.20f):rushLead?new Color(1,.66f,.36f):
+                combo?new Color(1,.72f,.24f):new Color(.52f,.78f,1);
         }
         static float MotionBeat(float age,float start,float peak,float end)
             =>Mathf.SmoothStep(0,1,Mathf.InverseLerp(start,peak,age))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(peak,end,age)));
