@@ -119,6 +119,7 @@ namespace UltramanGame.Core
         // child is still visibly holding the finisher. Keep ownership longer
         // than the charge gap so this uncertainty cannot become a punch.
         const float BeamOwnershipGraceSeconds=2.20f;
+        const float BeamChargedOwnershipGraceSeconds=3.40f;
         // Keep a confirmed chest guard through a longer front-camera shape
         // wobble.  A deliberate reach still exits through the committed
         // trajectory checks below.
@@ -241,7 +242,8 @@ namespace UltramanGame.Core
             // swaps a wrist depth or drops an elbow. Remember a positively
             // observed beam shape before a charge exists, so that packet
             // cannot immediately become a punch while the child settles.
-            if(beamAvailable&&(beamShape||beamEntryShape))beamShapeGrace=BeamOwnershipGraceSeconds;
+            if(beamAvailable&&(beamShape||beamEntryShape))
+                beamShapeGrace=Math.Max(beamShapeGrace,beamHold>=.10f?BeamChargedOwnershipGraceSeconds:BeamOwnershipGraceSeconds);
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
             // Front cameras often spread the wrists a little farther apart
