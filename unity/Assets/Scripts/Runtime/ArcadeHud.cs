@@ -15,6 +15,7 @@ namespace UltramanGame.Runtime
             var gold=HudPainter.Gold;var cyan=HudPainter.Cyan;
             bool opening=battle.Phase==GamePhase.Battle&&battleStartCueAt>=0&&time-battleStartCueAt<2.8f;
             bool cinematic=battle.Action==HeroAction.Beam;
+            DrawArcadeRails(time,cinematic,warning,victory,transforming);
             if(waiting||victory)hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
             if(!waiting&&!transforming&&!victory)
             {
@@ -143,6 +144,52 @@ namespace UltramanGame.Runtime
                 StarBurst(new Vector2(302,54),13,.28f+.28f*pulse,gold);
             }
             if(pose?.source=="synthetic")hud.Text(new Rect(20,695,400,20),"合成动作测试 · 非真人输入",11,HudPainter.Gold);
+        }
+
+        // The reference cabinet keeps a lit physical frame around the playfield.
+        // Recreate that read at screen space so it survives the Fuji wide shot,
+        // beam cut-in and the small display used during living-room play. The
+        // rails stay peripheral and never cover the actors or gesture guide.
+        void DrawArcadeRails(float time,bool cinematic,bool warning,bool victory,bool transforming)
+        {
+            if(battle.Phase==GamePhase.Waiting)return;
+            float pulse=.5f+.5f*Mathf.Sin(time*5.2f);
+            float action=battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch
+                ?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/.42f)*Mathf.PI):0;
+            float threat=warning?.5f+.5f*Mathf.Sin(time*8.5f):0;
+            float beam=cinematic?Mathf.Clamp01(battle.ActionAge/1.15f):0;
+            float alpha=transforming?.28f:victory?.22f:.38f+.14f*pulse;
+            Color left=new Color(.18f,.78f,1,alpha),right=new Color(1,.34f,.12f,alpha);
+            if(warning&&!cinematic)
+            {
+                left=Color.Lerp(left,new Color(1,.30f,.10f,alpha),threat*.72f);
+                right=new Color(1,.26f,.08f,alpha+.12f*threat);
+            }
+            if(cinematic)
+            {
+                left=Color.Lerp(left,new Color(.24f,.92f,1,alpha+.25f),beam);
+                right=Color.Lerp(right,new Color(.52f,.78f,1,alpha+.25f),beam);
+            }
+            if(action>.02f)
+            {
+                left.a=Mathf.Clamp01(left.a+.18f*action);right.a=Mathf.Clamp01(right.a+.12f*action);
+            }
+            const float top=112,bottom=660;
+            hud.Box(new Rect(8,top,4,bottom-top),new Color(left.r,left.g,left.b,left.a*.36f));
+            hud.Box(new Rect(1268,top,4,bottom-top),new Color(right.r,right.g,right.b,right.a*.36f));
+            for(int i=0;i<8;i++)
+            {
+                float y=top+25+i*68;
+                float wave=.55f+.45f*Mathf.Sin(time*4.1f+i*.85f);
+                float width=18+8*wave;
+                hud.Line(new Vector2(14,y),new Vector2(14+width,y-10),new Color(left.r,left.g,left.b,left.a*(.44f+.34f*wave)),2);
+                hud.Line(new Vector2(1266,y),new Vector2(1266-width,y-10),new Color(right.r,right.g,right.b,right.a*(.44f+.34f*wave)),2);
+            }
+            // A small lower chevron locks the frame to the ground plane during
+            // a hit, giving the child a clear visual rhythm without a panel.
+            float groundPulse=.35f+.65f*Mathf.Max(action,beam,threat);
+            hud.Line(new Vector2(14,674),new Vector2(44,674),new Color(left.r,left.g,left.b,left.a*groundPulse),2);
+            hud.Line(new Vector2(1266,674),new Vector2(1236,674),new Color(right.r,right.g,right.b,right.a*groundPulse),2);
         }
 
         void DrawBattleHeader(bool ready,bool opening,bool cinematic)
