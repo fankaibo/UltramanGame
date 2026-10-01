@@ -444,8 +444,17 @@ namespace UltramanGame.Runtime
         }
         void DrawSettingsEntry()
         {
-            if(hud.Button(new Rect(18,674,145,30),"设置 · F4",HudPainter.Muted,13))OpenSettings();
-            DrawModeSwitch(new Rect(175,674,177,30),13);
+            // Keep the input source visible during the whole round. The old
+            // two small buttons sat directly beside the instruction rail and
+            // were easy to miss on a TV, especially after switching to camera
+            // mode. This compact status strip gives the parent an always
+            // available way back to keyboard practice without covering either
+            // fighter.
+            var modeAccent=keyboard?HudPainter.Gold:HudPainter.Cyan;
+            hud.Rounded(new Rect(18,640,335,60),new Color(.006f,.025f,.053f,.86f),7);
+            hud.Text(new Rect(30,645,310,17),keyboard?"输入模式 · 按键练习":"输入模式 · 摄像头体感",11,modeAccent,bold:true);
+            if(hud.Button(new Rect(28,667,156,27),keyboard?"切换体感 · F2":"切换按键 · F2",modeAccent,12))SetMode(!keyboard);
+            if(hud.Button(new Rect(191,667,145,27),"设置 · F4",HudPainter.Muted,12))OpenSettings();
         }
         void DrawModeSwitch(Rect rect,int size)
         {if(hud.Button(rect,keyboard?"切换体感 · F2":"切换按键 · F2",HudPainter.Cyan,size))SetMode(!keyboard);}

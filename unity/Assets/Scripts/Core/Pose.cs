@@ -231,6 +231,15 @@ namespace UltramanGame.Core
             if(beamAvailable&&(beamShape||beamEntryShape))beamShapeGrace=BeamOwnershipGraceSeconds;
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
+            // Front cameras often spread the wrists a little farther apart
+            // than the strict chest envelope, especially for a small child.
+            // Accept that readable chest/face guard as an entry pose, while
+            // keeping the old envelope for acquisition and keeping any L
+            // shape or forward-palms pose owned by the finisher path.
+            bool guardEntry=beamWristsReady&&!(transformAvailable&&raised)&&!beamShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                Math.Abs(fl.z-flw.z)<1.15f*fs&&Math.Abs(fr.z-frw.z)<1.15f*fs&&
+                GuardEntryArms(flw,frw,fcx,fsy,fs);
+            guardShape|=guardEntry;
             // A visible L is a stronger finisher signal than a loose chest
             // envelope. Do not acquire the guard latch from the same packet.
             bool guardCandidate=guardShape&&!beamShape;
@@ -495,6 +504,12 @@ namespace UltramanGame.Core
                 Math.Abs(left.x-right.x)<(holding?1.95f:1.58f)*scale&&Math.Abs(left.y-right.y)<(holding?.95f:.82f)*scale&&
                 left.y>sy-(holding?.98f:.88f)*scale&&right.y>sy-(holding?.98f:.88f)*scale&&
                 left.y<sy+(holding?1.10f:1f)*scale&&right.y<sy+(holding?1.10f:1f)*scale;
+        static bool GuardEntryArms(PosePoint left,PosePoint right,float cx,float sy,float scale)
+            =>Math.Abs(left.x-cx)<1.24f*scale&&Math.Abs(right.x-cx)<1.24f*scale&&
+                Math.Abs(left.x-right.x)<1.92f*scale&&Math.Abs(left.y-right.y)<1.02f*scale&&
+                left.y>sy-.90f*scale&&right.y>sy-.90f*scale&&
+                left.y<sy+.92f*scale&&right.y<sy+.92f*scale&&
+                Math.Min(left.y,right.y)<sy+.42f*scale;
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.

@@ -39,6 +39,9 @@ static class GestureIntentChecks
             check(!packetGap.Last.Shield,$"long observed wrist loss still releases guard after skipped packets at {fps} fps");
             packetGap.Hold(Guard(),.5f);
             check(packetGap.Last.Shield&&packetGap.Punches==0,$"guard returns normally after packet-gap overlap at {fps} fps");
+            var childWide=Guard();childWide[15].x=.76f;childWide[16].x=.24f;
+            var wideEntry=new Trial(fps);wideEntry.Hold(childWide,.8f);
+            check(wideEntry.Last.Shield&&wideEntry.Punches==0,$"slightly wider child chest guard still acquires defense at {fps} fps");
             foreach(int hand in new[]{15,16})
             {
                 var switching=new Trial(fps);switching.Hold(Guard(),.8f);
