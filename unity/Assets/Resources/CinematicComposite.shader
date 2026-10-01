@@ -41,6 +41,19 @@ Shader "Training/CinematicComposite" {
    c+=_MotionColor.rgb*streak*motionAmount*.36*lead;
   }
   c+=tex2D(_Bloom,i.uv).rgb*_Strength;
+  // Keep the Fuji plate realistic, but give the whole combat lens the
+  // saturated cabinet response visible in the reference video.  Shadows pick
+  // up a restrained blue night key and brighter lava/suit highlights gain a
+  // warm orange lift.  This is applied after bloom so the characters and VFX
+  // share one display response; the separate photo camera never uses this
+  // composite and therefore keeps its neutral export.
+  float sceneLuma=dot(c,float3(.2126,.7152,.0722));
+  float shadowGrade=1-smoothstep(.10,.48,sceneLuma);
+  float highlightGrade=smoothstep(.36,.84,sceneLuma);
+  c=lerp(sceneLuma.xxx,c,1.08);
+  c=(c-.5)*1.045+.5;
+  c+=float3(-.006,.002,.020)*shadowGrade;
+  c+=float3(.016,.004,-.004)*highlightGrade;
   // Contact frames in the reference cabinet briefly lift saturation and
   // contrast, while the neutral Fuji night remains untouched between beats.
   float grade=saturate(_Motion.x*.22+_ShockStrength*.16+_FlashColor.a*.10);
