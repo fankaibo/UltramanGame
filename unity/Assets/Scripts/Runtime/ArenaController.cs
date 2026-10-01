@@ -27,6 +27,8 @@ namespace UltramanGame.Runtime
         bool photoAvailable,autoPhotoOpened,finalGuide;
         float victoryAt,waitingGuideAt=20;
         bool keyboard,paused,muted,settings,audioSettings,videoSettings,showPreview=true,previewReported,lastTracking;
+        bool parentControlsExpanded;
+        float parentControlsUntil;
         // The first play session is for a four-year-old: start with the
         // forgiving pose envelope. Parents can still raise the threshold in
         // Settings after the child has learned the three gestures.
@@ -458,14 +460,26 @@ namespace UltramanGame.Runtime
             // and suggested that mouse/keyboard input was required.
             if(!keyboard)
             {
-                // Keep a visible parent control in guided mode as well.  F2
-                // remains a shortcut, but a child-facing camera session must
-                // not strand the parent in pose input with no way back to the
-                // keyboard practice mode or settings screen.
+                // Keep the child-facing playfield clean. The parent can move
+                // the pointer to the corner or press F2/F4; hovering expands
+                // the same controls without leaving a desktop-style panel on
+                // screen throughout the fight.
+                var corner=new Rect(10,620,360,100);
+                if(corner.Contains(Event.current.mousePosition))
+                {parentControlsExpanded=true;parentControlsUntil=Time.unscaledTime+5f;}
+                bool expanded=parentControlsExpanded||Time.unscaledTime<parentControlsUntil;
+                if(!expanded)
+                {
+                    if(hud.Button(new Rect(18,674,142,25),"体感 · F2 / F4",HudPainter.Cyan,10))
+                    {parentControlsExpanded=true;parentControlsUntil=Time.unscaledTime+5f;}
+                    return;
+                }
                 hud.Rounded(new Rect(18,640,335,60),new Color(.006f,.025f,.053f,.86f),7);
                 hud.Text(new Rect(30,645,310,17),"输入模式 · 摄像头体感",11,HudPainter.Cyan,bold:true);
                 if(hud.Button(new Rect(28,667,156,27),"切换按键 · F2",HudPainter.Cyan,12))SetMode(true);
                 if(hud.Button(new Rect(191,667,145,27),"设置 · F4",HudPainter.Muted,12))OpenSettings();
+                if(!corner.Contains(Event.current.mousePosition)&&Time.unscaledTime>parentControlsUntil)
+                    parentControlsExpanded=false;
                 return;
             }
             // Keep the parent controls visible in keyboard practice. This
