@@ -76,7 +76,9 @@ namespace UltramanGame.Runtime
                 if(enhancement!=null&&enhancement.Done)
                 {
                     if(enhancement.ResultPng!=null)
-                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng)){if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message=enhancement.UsedLocalFallback?"网关暂不可用 · 本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}else UnityEngine.Object.Destroy(edited);}
+                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng))
+                        {ReportEnhancementDelta(saved,edited,enhancement.UsedLocalFallback);if(saved)UnityEngine.Object.Destroy(saved);saved=edited;message=enhancement.UsedLocalFallback?"网关暂不可用 · 本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
+                        else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
                     enhancement=null;
                 }
@@ -135,6 +137,15 @@ namespace UltramanGame.Runtime
             }
             catch(UnityException e)
             {Prepare();Debug.LogWarning("[Photo] snapshot failed: "+e.GetType().Name);}
+        }
+        static void ReportEnhancementDelta(Texture2D before,Texture2D after,bool fallback)
+        {
+            if(!before||!after||before.width!=after.width||before.height!=after.height)return;
+            var a=before.GetPixels32();var b=after.GetPixels32();long sum=0;int changed=0;
+            int count=Math.Min(a.Length,b.Length);
+            for(int i=0;i<count;i++)
+            {int d=Math.Abs(a[i].r-b[i].r)+Math.Abs(a[i].g-b[i].g)+Math.Abs(a[i].b-b[i].b);sum+=d;if(d>=12)changed++;}
+            Debug.Log($"[PhotoAI] result loaded fallback={fallback} meanDelta={(sum/(float)Math.Max(1,count)):F2} changedPct={(changed*100f/Math.Max(1,count)):F1}");
         }
         void SavePhoto()
         {

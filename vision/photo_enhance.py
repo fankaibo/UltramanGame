@@ -209,12 +209,23 @@ def enhance(source, plate_path, mask_path):
     # but a living-room cutout needs a small visible blend to be useful. Keep
     # this bounded local floor in the approved recipe rather than asking the
     # image model to redraw a face or silhouette.
-    recipe['edge_feather_px']=max(2.5,recipe['edge_feather_px'])
+    # A valid model response can still be visually indistinguishable on a
+    # dark volcanic plate when it chooses near-zero corrections. Keep the
+    # requested composition and identity fixed, but enforce a small visible
+    # optical pass so the saved AI image is meaningfully different from the
+    # original: a softened silhouette edge, cool scene wrap and a contact
+    # response under visible feet.
+    recipe['edge_feather_px']=max(5.0,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but indistinguishable in
     # a family preview. Keep the effect gentle, yet visible enough to prove
     # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(.24,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.20,recipe['shadow_strength'])
+    recipe['light_wrap']=max(.30,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.22,recipe['shadow_strength'])
+    recipe['exposure_ev']=min(-.06,recipe['exposure_ev'])
+    recipe['red_gain']=min(.97,recipe['red_gain'])
+    recipe['green_gain']=min(.98,recipe['green_gain'])
+    recipe['blue_gain']=max(1.06,recipe['blue_gain'])
+    recipe['saturation']=min(.94,recipe['saturation'])
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     _save_png(output,result)
@@ -244,8 +255,8 @@ def local_fallback(source, plate_path, mask_path):
     source=Path(source)
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
-    recipe=dict(exposure_ev=-.20,red_gain=.96,green_gain=.97,blue_gain=1.22,
-                saturation=.76,edge_feather_px=4.2,light_wrap=.34,shadow_strength=.26,
+    recipe=dict(exposure_ev=-.24,red_gain=.94,green_gain=.96,blue_gain=1.26,
+                saturation=.74,edge_feather_px=6.0,light_wrap=.40,shadow_strength=.30,
                 scene_summary='本地备用：富士夜景的冷月光与远处暖色火山边缘光')
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
