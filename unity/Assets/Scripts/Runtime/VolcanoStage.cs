@@ -22,6 +22,20 @@ namespace UltramanGame.Runtime
         float ashMeshClock=-1;
         readonly Light[] ventLights=new Light[2];
         Light foregroundLavaLight;
+        // The reference cabinet keeps the sky alive between attacks.  These
+        // short deterministic streaks add that motion without a particle
+        // system or per-frame allocations, and stay behind the actors.
+        const int MeteorCount=5;
+        readonly LineRenderer[] meteors=new LineRenderer[MeteorCount];
+        readonly Vector3[] meteorOrigins={
+            new Vector3(-6.8f,9.2f,27.5f),new Vector3(4.8f,10.8f,30.5f),
+            new Vector3(-1.4f,12.4f,34.5f),new Vector3(8.6f,8.4f,32.5f),
+            new Vector3(-10.2f,11.8f,36.5f)};
+        readonly Vector3[] meteorDirections={
+            new Vector3(1.75f,-.78f,0),new Vector3(-1.35f,-.64f,0),
+            new Vector3(1.25f,-.52f,0),new Vector3(-1.80f,-.84f,0),
+            new Vector3(1.55f,-.70f,0)};
+        Material meteorMaterial;
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
         Material ground,rock,lava,pool;
@@ -126,6 +140,17 @@ namespace UltramanGame.Runtime
             var ashObject=new GameObject("Drifting ash layer",typeof(MeshFilter),typeof(MeshRenderer));ashObject.transform.SetParent(transform,false);
             ashObject.GetComponent<MeshFilter>().sharedMesh=ashMesh;var ashRenderer=ashObject.GetComponent<MeshRenderer>();ashRenderer.sharedMaterial=ashMaterial;
             ashRenderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;ashRenderer.receiveShadows=false;
+            meteorMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")));
+            meteorMaterial.color=new Color(.72f,.88f,1,1);
+            for(int i=0;i<MeteorCount;i++)
+            {
+                var line=new GameObject("Fuji sky meteor "+i).AddComponent<LineRenderer>();
+                line.transform.SetParent(transform,false);line.useWorldSpace=true;line.positionCount=4;
+                line.sharedMaterial=meteorMaterial;line.numCapVertices=3;line.numCornerVertices=2;
+                line.widthMultiplier=.045f+.009f*(i%3);line.widthCurve=new AnimationCurve(
+                    new Keyframe(0,0),new Keyframe(.16f,.36f),new Keyframe(.72f,1),new Keyframe(1,0));
+                line.enabled=false;meteors[i]=line;
+            }
         }
         static void Surface(Material material,string asset,string colorMap,Color tint,float scale,bool face)
         {
@@ -299,6 +324,7 @@ namespace UltramanGame.Runtime
             foregroundLavaLight.intensity=.16f+.12f*pulse+.26f*eruption;
             var lens=Camera.main;
             ejecta.Tick(time,lens);
+            TickMeteors(time);
             // The tiny foreground motes do not need a vertex upload on every render
             // tick.  Updating at 45 Hz keeps their motion fluid while leaving the
             // render thread headroom for skeletal animation and camera compositing.
@@ -315,6 +341,36 @@ namespace UltramanGame.Runtime
                 for(int j=0;j<4;j++)ashStates[v+j]=new Vector2(i*5.17f,phase);
             }
             ashMesh.vertices=ashVertices;ashMesh.uv2=ashStates;
+        }
+        void TickMeteors(float time)
+        {
+            for(int i=0;i<MeteorCount;i++)
+            {
+                var line=meteors[i];
+                // Keep one or two streaks available during the opening and the
+                // battle intro; a very short 0.7 s window vanished between the
+                // review captures and made the dynamic sky look static.
+                float cycle=Mathf.Repeat(time*.17f+i*1.84f,9.0f);
+                const float duration=1.85f;
+                bool visible=cycle<duration;
+                line.enabled=visible;
+                if(!visible)continue;
+                float p=Mathf.Clamp01(cycle/duration);
+                float travel=Mathf.SmoothStep(0,1,p);
+                Vector3 direction=meteorDirections[i].normalized;
+                Vector3 head=meteorOrigins[i]+meteorDirections[i]*travel;
+                Vector3 tail=head-direction*Mathf.Lerp(.35f,2.05f,p);
+                for(int point=0;point<4;point++)
+                {
+                    float t=point/3f;
+                    Vector3 position=Vector3.Lerp(tail,head,t);
+                    position.y+=Mathf.Sin((time+i)*6+t*2)*.012f;
+                    line.SetPosition(point,position);
+                }
+                float fade=Mathf.Sin(p*Mathf.PI);
+                var color=new Color(.60f,.82f,1,fade*.72f);
+                line.startColor=color;line.endColor=new Color(1,.94f,.76f,fade);
+            }
         }
     }
 }
