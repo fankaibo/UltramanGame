@@ -175,7 +175,11 @@ def harmonise(composite, plate, mask, recipe):
         # looking identical at normal viewing size.  The upper bound remains
         # deliberately below a relight or face edit: this is still a bounded
         # compositing pass.
-        strength=min(.36,max(.075,recipe['light_wrap']*.95))
+        # The gateway recipe is intentionally conservative, but the saved
+        # family preview must show the light response at normal TV size. Keep
+        # the face readable while allowing a clearly visible cool moon/lava
+        # wrap over the person instead of a near-identical copy.
+        strength=min(.46,max(.16,recipe['light_wrap']*.95))
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
@@ -222,17 +226,17 @@ def enhance(source, plate_path, mask_path):
     # response under visible feet.
     # A valid gateway recipe can still be too subtle to judge on a TV. Keep
     # geometry and identity fixed, but make this optical pass reviewable.
-    recipe['edge_feather_px']=max(12.0,recipe['edge_feather_px'])
+    recipe['edge_feather_px']=max(18.0,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but indistinguishable in
     # a family preview. Keep the effect gentle, yet visible enough to prove
     # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(.72,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.34,recipe['shadow_strength'])
-    recipe['exposure_ev']=min(-.24,recipe['exposure_ev'])
-    recipe['red_gain']=min(.89,recipe['red_gain'])
-    recipe['green_gain']=min(.93,recipe['green_gain'])
-    recipe['blue_gain']=max(1.18,recipe['blue_gain'])
-    recipe['saturation']=min(.82,recipe['saturation'])
+    recipe['light_wrap']=max(1.0,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.48,recipe['shadow_strength'])
+    recipe['exposure_ev']=min(-.34,recipe['exposure_ev'])
+    recipe['red_gain']=min(.86,recipe['red_gain'])
+    recipe['green_gain']=min(.90,recipe['green_gain'])
+    recipe['blue_gain']=max(1.24,recipe['blue_gain'])
+    recipe['saturation']=min(.78,recipe['saturation'])
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     _save_png(output,result)

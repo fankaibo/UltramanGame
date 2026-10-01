@@ -206,6 +206,10 @@ namespace UltramanGame.Core
             // it must not advance the charge until the estimate settles.
             // Keep a clearly asymmetric depth jump from advancing the charge;
             // the ownership grace below still pauses and protects the gesture.
+            // Webcam depth is especially noisy when both hands are in front of
+            // the chest. Keep the depth check for acquisition, but do not make
+            // one asymmetric sample cancel a finisher that is already being
+            // held.
             bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<2.20f;
             // A recognised L owns estimated depth from its first confirmed
             // frame. Waiting 100 ms to protect depth stranded early charges;
@@ -250,6 +254,21 @@ namespace UltramanGame.Core
             // torso. It remains defense while both wrists form a compact pair
             // and neither has the depth of a deliberate two-hand push.
             guardShape|=guardEntry||defensivePair;
+            // A compact, level pair at the chest is an intentional shield. It
+            // is visually distinct from the one-high/one-low L used by the
+            // beam, yet the two envelopes overlap on a webcam. Give this pose
+            // ownership before a noisy depth sample can route it to attack.
+            bool chestGuardPreferred=defensivePair&&
+                Math.Abs(flw.y-frw.y)<.44f*fs&&
+                Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
+                !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                !ForwardPushEntry(fl,fr,flw,frw,fsy,fs);
+            bool earlyDefensePriority=chestGuardPreferred&&beamHold<.12f&&!beamLocked;
+            if(earlyDefensePriority)
+            {
+                beamShape=false;beamEntryShape=false;beamShapeGrace=0;
+                beamLocked=false;beamLockAge=0;beamLostAge=0;
+            }
             // A visible L is a stronger finisher signal than a loose chest
             // envelope. Do not acquire the guard latch from the same packet.
             bool guardCandidate=guardShape&&!beamShape;
@@ -316,7 +335,16 @@ namespace UltramanGame.Core
             bool beamIntent=beamShape||beamEntryShape||beamMaintained||beamLatch||beamGrace;
             // Only stable depth advances the charge. An entry/maintained image
             // shape still owns the gesture and pauses the timer.
-            bool beam=beamAvailable&&beamDepthStable&&(beamShape||beamMaintained);
+            // Entry shape is allowed to carry ownership while depth settles.
+            // A brief shape/depth wobble pauses the charge instead of handing
+            // the same held pose to punch.
+            bool beamConfirmedShape=beamShape||beamMaintained||
+                beamEntryShape&&beamLockAge>=.12f;
+            // A depth anomaly pauses progress, but beamIntent/beamReserved
+            // below keeps the gesture owned and prevents an attack from being
+            // emitted during that pause. The next stable frame resumes the
+            // existing charge instead of resetting it.
+            bool beam=beamAvailable&&beamConfirmedShape&&beamDepthStable;
             var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
             // Acquiring a shield still uses the original shape and hold. Once
             // established, a small visible drift at its boundary must not give
