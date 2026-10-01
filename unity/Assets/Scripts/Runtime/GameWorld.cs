@@ -61,6 +61,7 @@ namespace UltramanGame.Runtime
         readonly Light heroRim;
         readonly Light monsterRim;
         public bool EnemySlashVisible => monsterEffects.SlashVisible;
+        public bool EnemyRushVisible => monsterEffects.RushVisible;
         public bool BeamVisible => effects.BeamVisible;
         public bool BeamImpactVisible=>effects.BeamImpactVisible;
         public float BeamImpactAge=>effects.BeamImpactAge;

@@ -54,6 +54,7 @@ namespace UltramanGame.Runtime
         }
         readonly Vector3 home,target,forward;
         readonly LineRenderer charge,shock;
+        readonly LineRenderer[] rushWakes=new LineRenderer[3];
         readonly ClawSweep[] claws=new ClawSweep[3];
         readonly Material glow;
         static readonly Color Amber=new Color(1,.40f,.10f),Ice=new Color(.25f,.86f,1);
@@ -63,12 +64,15 @@ namespace UltramanGame.Runtime
         Vector3 hitPosition,previousHand,sweepDirection;
         int attackNumber=-1,impactAttack=-1;
         public bool SlashVisible => claws[0].Visible;
+        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled;
         public MonsterAttackEffects(Transform parent,Vector3 monsterHome,Vector3 heroHome)
         {
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
             glow=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")) {color=Color.white});
             charge=Line(parent,"Monster charge",48,.035f,true);
             shock=Line(parent,"Monster contact",48,.07f,true);
+            for(int i=0;i<rushWakes.Length;i++)
+                rushWakes[i]=Line(parent,"Monster body rush wake "+i,7,.06f);
             var sweep=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("ClawSweep")));
             for(int i=0;i<3;i++)claws[i]=new ClawSweep(parent,sweep,i);
         }
@@ -89,7 +93,7 @@ namespace UltramanGame.Runtime
             }
         }
         public void Clear()
-        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=false;foreach(var claw in claws)claw.Visible=false;}
+        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
         {hitAge=0;impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
@@ -124,6 +128,39 @@ namespace UltramanGame.Runtime
                 Circle(charge,monster+Vector3.up*3.1f-camera.transform.forward*.2f,camera,.35f+p*.24f);
                 ColorLine(charge,Amber,.20f+p*.45f);
             }
+            // The reference arcade shot makes the enemy's whole body travel as
+            // one readable beat.  A short, camera-facing heat wake connects the
+            // planted body to its forward step; claws keep their own brighter
+            // ribbons below.  Everything follows EnemyAge, so pause/restart
+            // cannot leave a delayed streak behind.
+            bool bodyRush=attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)
+                &&state.EnemyAge>=.045f&&state.EnemyAge<.59f;
+            if(bodyRush)
+            {
+                float age=state.EnemyAge;
+                float launch=Mathf.SmoothStep(0,1,Mathf.Clamp01((age-.045f)/.14f));
+                float settle=Mathf.Pow(Mathf.Clamp01((.63f-age)/.20f),1.35f);
+                float progress=Mathf.SmoothStep(0,1,Mathf.Clamp01(age/Battle.EnemyHitSeconds));
+                var side=Vector3.Cross(Vector3.up,forward).normalized;
+                for(int i=0;i<rushWakes.Length;i++)
+                {
+                    var line=rushWakes[i];line.enabled=true;
+                    float sideOffset=(i-1)*.22f;
+                    float height=i==1?1.25f:(i==0?.58f:2.05f);
+                    float length=Mathf.Lerp(.34f,.92f,progress);
+                    for(int point=0;point<line.positionCount;point++)
+                    {
+                        float u=point/(float)(line.positionCount-1);
+                        float tail=length*(1-u);
+                        float bow=Mathf.Sin(u*Mathf.PI)*(.035f+.08f*progress);
+                        line.SetPosition(point,monster-forward*(.08f+tail)+side*(sideOffset+bow)+Vector3.up*(height+Mathf.Sin(u*Mathf.PI)*.06f));
+                    }
+                    Color tint=i==1?new Color(1,.72f,.26f):new Color(1,.36f,.10f);
+                    ColorLine(line,tint,launch*settle*(i==1?.78f:.43f));
+                    line.widthMultiplier=(i==1?.095f:.052f)*(0.72f+.48f*progress);
+                }
+            }
+            else foreach(var wake in rushWakes)wake.enabled=false;
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
