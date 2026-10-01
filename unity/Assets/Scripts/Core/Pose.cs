@@ -108,7 +108,11 @@ namespace UltramanGame.Core
         // of a clear pose, with a longer grace window for temporary shape
         // loss.  The recognizer still requires an explicit release before it
         // can fire a second beam.
-        float BeamHold=>BeamHoldSeconds+Level*.20f;
+        // The family/default profile should not require a perfectly frozen
+        // L for half a second. Keep the explicit Standard/Challenge profiles
+        // unchanged, while allowing the default child-friendly profile to
+        // complete after a shorter, still deliberate hold.
+        float BeamHold=>Level==0?.42f:BeamHoldSeconds+Level*.20f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
         public const float BeamHoldSeconds=.50f, BeamGapSeconds=1.45f;
         // A laptop camera can lose stable depth for several packets while the
@@ -254,6 +258,21 @@ namespace UltramanGame.Core
             // torso. It remains defense while both wrists form a compact pair
             // and neither has the depth of a deliberate two-hand push.
             guardShape|=guardEntry||defensivePair;
+            // A child-sized shield can sit farther from the torso than the
+            // compact training pose. Require a balanced, low-depth pair so
+            // this never treats one clearly extended fist as defense.
+            float forgivingLeftForward=(fl.z-flw.z)/fs,forgivingRightForward=(fr.z-frw.z)/fs;
+            bool forgivingGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                Math.Abs(flw.x-fcx)<1.52f*fs&&Math.Abs(frw.x-fcx)<1.52f*fs&&
+                Math.Abs(flw.x-frw.x)<2.28f*fs&&Math.Abs(flw.y-frw.y)<.92f*fs&&
+                flw.y>fsy-1.16f*fs&&frw.y>fsy-1.16f*fs&&
+                flw.y<fsy+1.18f*fs&&frw.y<fsy+1.18f*fs&&
+                Math.Max(flw.y,frw.y)>fsy-.72f*fs&&
+                Math.Max(flw.y,frw.y)<fsy+.82f*fs&&
+                Math.Min(flw.y,frw.y)<fsy+.62f*fs&&
+                forgivingLeftForward<1.15f&&forgivingRightForward<1.15f&&
+                Math.Abs(forgivingLeftForward-forgivingRightForward)<.55f;
+            guardShape|=forgivingGuard;
             // A compact, level pair at the chest is an intentional shield. It
             // is visually distinct from the one-high/one-low L used by the
             // beam, yet the two envelopes overlap on a webcam. Give this pose
@@ -365,7 +384,8 @@ namespace UltramanGame.Core
             bool rightReturned=!rightMotion.HoldingStrike||rightMotion.RetractedForGuard(fr,frw,scale,-side);
             float observedHandSpread=Math.Abs(flw.x-frw.x)/fs;
             bool compactGuard=observedHandSpread<.65f;
-            if(rawGuard&&(!guardAnchored||!guardLocked&&compactGuard)&&leftReturned&&rightReturned)
+            bool guardAnchorShape=rawGuard||forgivingGuard;
+            if(guardAnchorShape&&(!guardAnchored||!guardLocked&&compactGuard)&&leftReturned&&rightReturned)
             {guardLeft=leftOffset;guardRight=rightOffset;guardAnchored=true;}
             bool leftOutward=(flw.x-fl.x)*side>=-.03f*fs&&flw.y<fsy-.04f*fs;
             bool rightOutward=(frw.x-fr.x)*-side>=-.03f*fs&&frw.y<fsy-.04f*fs;

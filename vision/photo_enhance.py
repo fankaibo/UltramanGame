@@ -55,7 +55,10 @@ Exposure is photographic stops in LINEAR light, not multiplication of encoded sR
 RGB gains and saturation are also applied in linear light. Do not crush the face to match a dark sky:
 the hero is lit by a cool moon key, soft fill and warm lava rim. Match that readable subject lighting.
 The shadow field applies only to visible feet; cropped portraits do not receive a ground shadow.
-Prefer local matching and gentle edge blending. Leave skin recognisable.'''
+Prefer local matching and gentle edge blending. Leave skin recognisable. If a hard
+matte edge is visible, choose a clearly measurable feather and scene wrap rather
+than returning all-zero corrections; the result should look integrated at normal
+TV size without changing the person or the hero.'''
 
 
 LIMITS = {'exposure_ev':(-.45,.15), 'red_gain':(.85,1.15), 'green_gain':(.85,1.15),
@@ -200,9 +203,12 @@ def harmonise(composite, plate, mask, recipe):
     background=b*(1-shadow[:,:,None])
     result=corrected*alpha[:,:,None]+background*(1-alpha[:,:,None])
     result=_encode(result)
-    # Preserve original bytes outside the editable region, including sparse
-    # GPU rounding differences between the snapshot and its clean plate.
-    fixed=(a==0)&(shadow<.00001)
+    # Preserve original bytes far from the editable region, including sparse
+    # GPU rounding differences between the snapshot and its clean plate. Keep
+    # the narrow feather/colour-wrap band outside the matte: replacing every
+    # zero-alpha pixel here used to erase the very edge blend that the AI
+    # result was meant to provide, leaving a hard rectangular camera crop.
+    fixed=(a==0)&((soft<.001)|(recipe['light_wrap']<=0))&(shadow<.00001)
     result[fixed]=composite[fixed]
     return result
 
@@ -226,12 +232,15 @@ def enhance(source, plate_path, mask_path):
     # response under visible feet.
     # A valid gateway recipe can still be too subtle to judge on a TV. Keep
     # geometry and identity fixed, but make this optical pass reviewable.
-    recipe['edge_feather_px']=max(18.0,recipe['edge_feather_px'])
+    # A 1080p TV makes a 1–4 px model suggestion effectively invisible. The
+    # saved variant keeps the same silhouette but gives the matte a reviewable
+    # 24 px optical transition, especially around a clipped shoulder or arm.
+    recipe['edge_feather_px']=max(24.0,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but indistinguishable in
     # a family preview. Keep the effect gentle, yet visible enough to prove
     # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(1.0,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.48,recipe['shadow_strength'])
+    recipe['light_wrap']=max(1.15,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.52,recipe['shadow_strength'])
     recipe['exposure_ev']=min(-.34,recipe['exposure_ev'])
     recipe['red_gain']=min(.86,recipe['red_gain'])
     recipe['green_gain']=min(.90,recipe['green_gain'])
@@ -267,7 +276,7 @@ def local_fallback(source, plate_path, mask_path):
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
     recipe=dict(exposure_ev=-.28,red_gain=.92,green_gain=.95,blue_gain=1.32,
-                saturation=.70,edge_feather_px=7.0,light_wrap=.52,shadow_strength=.34,
+                saturation=.70,edge_feather_px=18.0,light_wrap=.62,shadow_strength=.40,
                 scene_summary='本地备用：富士夜景的冷月光与远处暖色火山边缘光')
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
