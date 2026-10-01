@@ -332,7 +332,12 @@ namespace UltramanGame.Runtime
             // The reference cabinet keeps the two fighters large in the
             // playfield. Tighten the ordinary lens a little; dedicated beam,
             // threat and combo compositions still take ownership below.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?27.8f:state.Shield?27.2f:27.8f):37;
+            // The reference cabinet keeps the fighters close to the viewer.
+            // Tighten the ordinary lens one more step so the 16:9 living-room
+            // shot gives the actors the same visual priority as the portrait
+            // cabinet, while leaving the dedicated beam and fall compositions
+            // in control of their own framing.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?24.8f:25.2f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
