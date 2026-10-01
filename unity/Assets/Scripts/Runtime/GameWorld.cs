@@ -389,9 +389,14 @@ namespace UltramanGame.Runtime
                 if(heroStrike)
                 {
                     float side=state.Action==HeroAction.LeftPunch?-1:1;
-                    Camera.transform.position+=BattleAxis*(.40f*strike)+viewRight*(side*.18f*strike);
-                    target+=BattleAxis*(.23f*strike)+Vector3.up*(.075f*strike);
-                    dynamicZoom+=.55f*strike;
+                    // Let every ordinary fist carry a small cabinet dolly. The
+                    // actor already advances on its own; this camera response
+                    // makes the contact read as a three-part beat instead of a
+                    // pose swap, while staying far below the dedicated combo
+                    // and finisher lenses.
+                    Camera.transform.position+=BattleAxis*(.52f*strike)+viewRight*(side*.22f*strike);
+                    target+=BattleAxis*(.30f*strike)+Vector3.up*(.09f*strike);
+                    dynamicZoom+=.72f*strike;
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
