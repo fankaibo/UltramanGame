@@ -345,13 +345,6 @@ namespace UltramanGame.Core
                 (!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f||leftOutward);
             bool rightCommitted=(rightDepth>1.00f||rawRightDepth>1.00f)&&(rightDepth-leftDepth>.75f||rawRightDepth-rawLeftDepth>.75f) &&
                 (!guardAnchored||PoseQuality.Distance(rightOffset,guardRight)>.16f||rightOutward);
-            bool guardMoved=guardAnchored&&
-                // A confirmed shield may widen a little while one wrist is
-                // read in front of the other. The separate committed-reach
-                // checks below still release it on a deliberate extension;
-                // this threshold only prevents camera wobble from stealing
-                // defense ownership.
-                (GuardImageDistance(leftOffset,guardLeft)>.80f||GuardImageDistance(rightOffset,guardRight)>.80f);
             // Depth alone is not a guard exit. Require the hand to leave its
             // chest anchor (or visibly point outward) before a noisy depth
             // estimate is allowed to hand ownership to the punch recognizer.
@@ -360,6 +353,21 @@ namespace UltramanGame.Core
             // not release defense while a one-arm reach still can.
             float guardHandSpread=observedHandSpread;
             bool guardBreakSpread=guardHandSpread<1.45f;
+            float leftGuardDrift=GuardImageDistance(leftOffset,guardLeft);
+            float rightGuardDrift=GuardImageDistance(rightOffset,guardRight);
+            // Keep a confirmed shield through a symmetric wide-camera wobble,
+            // while allowing a single arm to leave the chest and hand
+            // ownership back to punch recognition. A one-arm departure is
+            // deliberately measured in the image plane because a side punch
+            // may have no reliable depth at all.
+            bool symmetricGuardWobble=leftGuardDrift>.30f&&rightGuardDrift>.30f&&
+                Math.Abs(leftGuardDrift-rightGuardDrift)<.35f;
+            bool oneArmGuardDeparture=(leftGuardDrift>.34f&&rightGuardDrift<.22f)||
+                (rightGuardDrift>.34f&&leftGuardDrift<.22f);
+            bool handsLowered=flw.y>fsy+.45f*fs&&frw.y>fsy+.45f*fs;
+            bool guardMoved=guardAnchored&&
+                (handsLowered||((leftGuardDrift>.80f||rightGuardDrift>.80f||oneArmGuardDeparture)&&
+                !symmetricGuardWobble));
             bool leftBreakingCandidate=leftCommitted&&
                 guardBreakSpread&&(GuardImageDistance(leftOffset,guardLeft)>.16f||leftOutward);
             bool rightBreakingCandidate=rightCommitted&&

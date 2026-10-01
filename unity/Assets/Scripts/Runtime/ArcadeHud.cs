@@ -33,6 +33,21 @@ namespace UltramanGame.Runtime
                         float earned=Mathf.Clamp01((battle.Punches-i*3)/3f);
                         Star(new Vector2(1230,244+i*30),8,.12f+.88f*earned);
                     }
+                    if(comboActive)
+                    {
+                        // The reference cabinet keeps the current string in a
+                        // bright central badge. It gives a four-year-old an
+                        // immediate reward without covering either fighter.
+                        float age=Mathf.Clamp01((comboUntil-time)/2.6f);
+                        float pop=Mathf.Sin(Mathf.Clamp01(age*3f)*Mathf.PI)*.08f;
+                        float width=196*(1+pop),height=47*(1+pop),x=542-width*.5f;
+                        hud.Rounded(new Rect(x,91,width,height),new Color(.035f,.055f,.12f,.90f),9);
+                        hud.Line(new Vector2(x+12,100),new Vector2(x+50,100),gold,2);
+                        hud.Line(new Vector2(x+width-50,100),new Vector2(x+width-12,100),cyan,2);
+                        hud.Text(new Rect(x+12,98,width-24,31),$"{comboCount:00} 连击",22,new Color(1,.88f,.48f,Mathf.Clamp01(age*2f)),TextAnchor.MiddleCenter,true);
+                        StarBurst(new Vector2(x+8,114),10,Mathf.Clamp01(age*1.6f),gold);
+                        StarBurst(new Vector2(x+width-8,114),10,Mathf.Clamp01(age*1.6f),cyan);
+                    }
                 }
                 if(time<hitUntil&&!cinematic)
                 {
@@ -40,6 +55,9 @@ namespace UltramanGame.Runtime
                     // face and contact area must stay clear in the closer lens.
                     float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*12;
                     hud.Text(new Rect(33,353-lift,200,28),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?19:17,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
+                    float burstAge=Mathf.Clamp01((1-age)*1.4f);
+                    Vector2 burstCenter=battle.Punches%5==0?new Vector2(515,270):new Vector2(225,350);
+                    StarBurst(burstCenter,24+12*(1-burstAge),burstAge,battle.Punches%5==0?gold:cyan);
                 }
                 if(lastDamage>0&&time-damagePopAt<.9f&&!cinematic)
                 {
@@ -117,6 +135,13 @@ namespace UltramanGame.Runtime
             }
             DrawBattleStartCue();
             DrawArcadePreview();
+            if(!waiting&&!transforming&&!victory&&ready&&!cinematic)
+            {
+                // A small pulsing ring around the full energy cue makes the
+                // special move feel available before the spoken instruction.
+                float pulse=.5f+.5f*Mathf.Sin(time*5.5f);
+                StarBurst(new Vector2(302,54),13,.28f+.28f*pulse,gold);
+            }
             if(pose?.source=="synthetic")hud.Text(new Rect(20,695,400,20),"合成动作测试 · 非真人输入",11,HudPainter.Gold);
         }
 
@@ -251,6 +276,19 @@ namespace UltramanGame.Runtime
                 float a=(i*36-90)*Mathf.Deg2Rad,b=((i+1)*36-90)*Mathf.Deg2Rad;
                 hud.Line(center+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*radius*(i%2==0?1:.45f),center+new Vector2(Mathf.Cos(b),Mathf.Sin(b))*radius*(i%2==1?1:.45f),color,3);
             }
+        }
+        void StarBurst(Vector2 center,float radius,float opacity,Color color)
+        {
+            opacity=Mathf.Clamp01(opacity);if(opacity<=.001f)return;
+            for(int i=0;i<8;i++)
+            {
+                float a=(i*Mathf.PI/4f)+Time.unscaledTime*.35f;
+                float inner=radius*.28f,outer=radius*(i%2==0?1:.72f);
+                var c=new Color(color.r,color.g,color.b,opacity*.78f);
+                hud.Line(center+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*inner,
+                    center+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*outer,c,i%2==0?2:1);
+            }
+            hud.Dot(center,radius*.18f,new Color(1,1,1,opacity*.9f));
         }
         int ArcadeScore()
         {
