@@ -83,6 +83,10 @@ namespace UltramanGame.Core
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
         bool beamFired, beamArmed, transformFired, guardAnchored, hadWristPair;
+        // Remember a neutral interval while energy is unavailable. This lets
+        // a pose that starts after the energy cue arm immediately, while a
+        // pose held before the cue still requires a deliberate release.
+        bool beamUnavailableSeen, beamNeutralSinceUnavailable, lastBeamAvailable;
         // Camera pose estimates commonly spend one or two packets between the
         // chest guard and the L-shaped finisher. Keep a short intent latch so
         // that those packets cannot turn into a punch or erase a charge.
@@ -137,6 +141,7 @@ namespace UltramanGame.Core
         {
             leftMotion.Reset();rightMotion.Reset();beamFired=beamArmed=transformFired=ForwardPunch=false;
             guardAnchored=hadWristPair=false;wristLossAge=0;
+            beamUnavailableSeen=beamNeutralSinceUnavailable=lastBeamAvailable=false;
             guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
             BeamNeedsRelease=false;
             beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
@@ -269,10 +274,19 @@ namespace UltramanGame.Core
             bool guardEntry=beamWristsReady&&!(transformAvailable&&raised)&&!beamShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
                 Math.Abs(fl.z-flw.z)<1.15f*fs&&Math.Abs(fr.z-frw.z)<1.15f*fs&&
                 GuardEntryArms(flw,frw,fcx,fsy,fs);
+            // A small child often holds both forearms diagonally in front of
+            // the chest. MediaPipe can report one wrist noticeably forward in
+            // that pose, which used to hand the frame to punch recognition.
+            // This safety envelope is intentionally symmetric and excludes a
+            // two-hand push; a one-arm reach still has to leave the anchor
+            // before it can attack.
+            bool softGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                !beamShape&&!beamEntryShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                SoftGuard(fl,fr,flw,frw,fcx,fsy,fs);
             // A child-sized shield is often wider and slightly forward of the
             // torso. It remains defense while both wrists form a compact pair
             // and neither has the depth of a deliberate two-hand push.
-            guardShape|=guardEntry||defensivePair||faceCoverGuard;
+            guardShape|=guardEntry||defensivePair||faceCoverGuard||softGuard;
             // A child-sized shield can sit farther from the torso than the
             // compact training pose. Require a balanced, low-depth pair so
             // this never treats one clearly extended fist as defense.
@@ -376,6 +390,19 @@ namespace UltramanGame.Core
             // gesture held while its progress silently expired and a depth
             // spike could be read as a punch on the next frame.
             bool beamIntent=beamShape||beamEntryShape||beamMaintained||beamLatch||beamGrace;
+            bool becameBeamAvailable=beamAvailable&&!lastBeamAvailable;
+            if(!beamAvailable)
+            {
+                beamUnavailableSeen=true;
+                if(!beamIntent)beamNeutralSinceUnavailable=true;
+            }
+            // EnergyReady is an explicit cue. If the child was neutral while
+            // waiting for it, let the first clear pose arm without forcing a
+            // second hands-down reset. A pose that was already held before
+            // the cue remains disarmed and cannot auto-fire.
+            if(becameBeamAvailable&&beamUnavailableSeen&&beamNeutralSinceUnavailable&&!beamFired)
+                beamArmed=true;
+            lastBeamAvailable=beamAvailable;
             // Only stable depth advances the charge. An entry/maintained image
             // shape still owns the gesture and pauses the timer.
             // Entry shape is allowed to carry ownership while depth settles.
@@ -470,7 +497,7 @@ namespace UltramanGame.Core
             bool beamChargeGrace=beamAvailable&&beamArmed&&beamIntent&&beamHold>=.08f&&
                 beamWristsReady&&!raised&&!beamReleasePose&&(!guardEnvelope||beamHold>=.06f);
             if((beam||beamChargeGrace)&&beamArmed&&!beamFired)
-            {beamHold+=dt*(beam?1f:.48f);beamGap=0;} else
+            {beamHold+=dt*(beam?1f:.68f);beamGap=0;} else
             {
                 // A recognised L that temporarily loses depth stability is
                 // still the same held gesture. Pause its clock instead of
@@ -627,6 +654,22 @@ namespace UltramanGame.Core
                 return false;
             float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
             return leftForward<.72f&&rightForward<.72f&&Math.Abs(leftForward-rightForward)<.42f;
+        }
+        static bool SoftGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(Math.Abs(left.x-cx)>1.35f*scale||Math.Abs(right.x-cx)>1.35f*scale||
+                Math.Abs(left.x-right.x)>2.02f*scale||Math.Abs(left.y-right.y)>1.02f*scale)
+                return false;
+            if(left.y<sy-1.12f*scale||right.y<sy-1.12f*scale||
+                left.y>sy+1.24f*scale||right.y>sy+1.24f*scale||
+                Math.Max(left.y,right.y)<sy-.78f*scale)
+                return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // One forward wrist is tolerated, but two forward level wrists are
+            // reserved for the beam/push classifier above.
+            return leftForward<1.18f&&rightForward<1.18f&&
+                Math.Abs(leftForward-rightForward)<.72f&&
+                !(leftForward>.34f&&rightForward>.34f&&Math.Abs(left.y-right.y)<.72f*scale);
         }
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {

@@ -117,6 +117,10 @@ static class MotionChecks
         check(trial.Beams==0&&trial.Recognizer.BeamProgress==0,"energy gate prevents unavailable beam charging");
         trial=new Trial();trial.Hold(Guard(),2,true);
         check(trial.Last.Shield&&trial.Beams==0&&trial.Left==0&&trial.Right==0,"held chest guard remains defense at full energy");
+        trial=new Trial();trial.Hold(Guard(),.8f,false);trial.Hold(Beam(),.9f,true);
+        check(trial.Beams==1&&trial.Left==0&&trial.Right==0,
+            "a neutral pose before EnergyReady arms the first finisher without a second reset");
+        trial=new Trial();trial.Hold(Guard());
         var close=Guard();close[15].z=close[16].z=-.5f;trial.Move(Guard(),close,beam:true);trial.Hold(close,1,true);
         check(trial.Beams==0,"close crossed hands do not become the two-hand beam");
         trial=new Trial();var faceCover=Guard();faceCover[15]=Point(.58f,.02f,-.20f);faceCover[16]=Point(.42f,.18f,-.20f);

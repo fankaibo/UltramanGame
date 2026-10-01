@@ -83,7 +83,7 @@ namespace UltramanGame.Runtime
                 {
                     if(enhancement.ResultPng!=null)
                     {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng))
-                        {ReportEnhancementDelta(originalSaved,edited,enhancement.UsedLocalFallback,out enhancementMeanDelta,out enhancementChangedPct,out enhancementSubjectMeanDelta);if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);saved=edited;enhancementReady=true;showEnhanced=true;message=enhancement.UsedLocalFallback?"本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
+                        {ReportEnhancementDelta(originalSaved,edited,enhancement.UsedLocalFallback,out enhancementMeanDelta,out enhancementChangedPct,out enhancementSubjectMeanDelta);if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);saved=edited;enhancementReady=true;showEnhanced=true;comparePhotos=true;message=enhancement.UsedLocalFallback?"本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
                         else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
                     enhancement=null;
