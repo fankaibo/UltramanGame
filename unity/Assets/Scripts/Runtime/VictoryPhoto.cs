@@ -27,7 +27,7 @@ namespace UltramanGame.Runtime
         string message="",savedPath="";
         bool validPerson,freshPerson,reportedPerson;
         bool enhancementReady,showEnhanced=true,comparePhotos;
-        float enhancementMeanDelta,enhancementChangedPct;
+        float enhancementMeanDelta,enhancementChangedPct,enhancementSubjectMeanDelta;
         int previousNumber;
         double flashUntil,nextGuide,reviewReadyAt,nextSaveRetry;
         public bool Active=>session.Stage!=PhotoStage.Closed;
@@ -53,7 +53,7 @@ namespace UltramanGame.Runtime
         void Prepare()
         {
             DestroyPhotoTextures();photoPng=null;savedPath="";
-            enhancementReady=false;showEnhanced=true;comparePhotos=false;enhancementMeanDelta=enhancementChangedPct=0;
+            enhancementReady=false;showEnhanced=true;comparePhotos=false;enhancementMeanDelta=enhancementChangedPct=enhancementSubjectMeanDelta=0;
             enhancement=null;
             frame=null;validPerson=freshPerson=reportedPerson=false;composition.HidePerson();composition.ResetFraming();choice.Reset();
             photoPoses.Clear();photoPoseStamp=0;
@@ -83,7 +83,7 @@ namespace UltramanGame.Runtime
                 {
                     if(enhancement.ResultPng!=null)
                     {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng))
-                        {ReportEnhancementDelta(originalSaved,edited,enhancement.UsedLocalFallback,out enhancementMeanDelta,out enhancementChangedPct);if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);saved=edited;enhancementReady=true;showEnhanced=true;message=enhancement.UsedLocalFallback?"本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
+                        {ReportEnhancementDelta(originalSaved,edited,enhancement.UsedLocalFallback,out enhancementMeanDelta,out enhancementChangedPct,out enhancementSubjectMeanDelta);if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);saved=edited;enhancementReady=true;showEnhanced=true;message=enhancement.UsedLocalFallback?"本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
                         else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
                     enhancement=null;
@@ -144,16 +144,20 @@ namespace UltramanGame.Runtime
             catch(UnityException e)
             {Prepare();Debug.LogWarning("[Photo] snapshot failed: "+e.GetType().Name);}
         }
-        static void ReportEnhancementDelta(Texture2D before,Texture2D after,bool fallback,out float meanDelta,out float changedPct)
+        static void ReportEnhancementDelta(Texture2D before,Texture2D after,bool fallback,out float meanDelta,out float changedPct,out float subjectMeanDelta)
         {
-            meanDelta=changedPct=0;
+            meanDelta=changedPct=subjectMeanDelta=0;
             if(!before||!after||before.width!=after.width||before.height!=after.height)return;
             var a=before.GetPixels32();var b=after.GetPixels32();long sum=0;int changed=0;
+            long subjectSum=0;int subjectCount=0;
             int count=Math.Min(a.Length,b.Length);
+            int split=Mathf.RoundToInt(before.width*.48f);
             for(int i=0;i<count;i++)
-            {int d=Math.Abs(a[i].r-b[i].r)+Math.Abs(a[i].g-b[i].g)+Math.Abs(a[i].b-b[i].b);sum+=d;if(d>=12)changed++;}
+            {int d=Math.Abs(a[i].r-b[i].r)+Math.Abs(a[i].g-b[i].g)+Math.Abs(a[i].b-b[i].b);sum+=d;if(d>=12)changed++;
+                int x=i%before.width;if(x>=split){subjectSum+=d;subjectCount++;}}
             meanDelta=sum/(float)Math.Max(1,count);changedPct=changed*100f/Math.Max(1,count);
-            Debug.Log($"[PhotoAI] result loaded fallback={fallback} meanDelta={meanDelta:F2} changedPct={changedPct:F1}");
+            subjectMeanDelta=subjectSum/(float)Math.Max(1,subjectCount);
+            Debug.Log($"[PhotoAI] result loaded fallback={fallback} meanDelta={meanDelta:F2} subjectMeanDelta={subjectMeanDelta:F2} changedPct={changedPct:F1}");
         }
         void SavePhoto()
         {
@@ -203,7 +207,7 @@ namespace UltramanGame.Runtime
                 string label=comparePhotos?"全屏查看":"原图 / AI 并排对比";
                 if(hud.Button(new Rect(1004,76,240,32),label,comparePhotos?HudPainter.Gold:HudPainter.Cyan,14))comparePhotos=!comparePhotos;
                 if(!comparePhotos&&hud.Button(new Rect(748,76,244,32),showEnhanced?"查看原图":"查看 AI 光色版",showEnhanced?HudPainter.Cyan:HudPainter.Gold,14))showEnhanced=!showEnhanced;
-                hud.Text(new Rect(748,111,496,18),comparePhotos?$"对比完成 · 影响 {enhancementChangedPct:F1}% 像素 · 平均差异 {enhancementMeanDelta:F1}":showEnhanced?$"AI 光色融合版 · 影响 {enhancementChangedPct:F1}% 像素":"原图对照",11,showEnhanced?HudPainter.Cyan:HudPainter.Muted,TextAnchor.MiddleRight);
+                hud.Text(new Rect(748,111,496,18),comparePhotos?$"对比完成 · 全图影响 {enhancementChangedPct:F1}% · 人像平均差异 {enhancementSubjectMeanDelta:F1}":showEnhanced?$"AI 光色融合版 · 人像平均差异 {enhancementSubjectMeanDelta:F1}":"原图对照",11,showEnhanced?HudPainter.Cyan:HudPainter.Muted,TextAnchor.MiddleRight);
             }
             hud.Box(new Rect(0,612,1280,108),new Color(.008f,.025f,.06f,.88f));
             if(review)

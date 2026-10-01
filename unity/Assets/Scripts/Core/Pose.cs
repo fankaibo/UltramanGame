@@ -89,7 +89,7 @@ namespace UltramanGame.Core
         bool guardLocked, beamLocked;
         float guardLockAge, guardLostAge, beamLockAge, beamLostAge;
         PosePoint guardLeft,guardRight;
-        float beamHold,beamGap,beamRelease,beamShapeGrace,transformHold,shieldHold,shieldGap,steady,wristLossAge;
+        float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
         public int Difficulty {get;set;}
         int Level=>Math.Max(0,Math.Min(2,Difficulty));
@@ -139,7 +139,7 @@ namespace UltramanGame.Core
             guardAnchored=hadWristPair=false;wristLossAge=0;
             guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
             BeamNeedsRelease=false;
-            beamHold=beamGap=beamRelease=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
+            beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
         }
         public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true)
         {
@@ -257,13 +257,22 @@ namespace UltramanGame.Core
             // shape or forward-palms pose owned by the finisher path.
             bool defensivePair=beamWristsReady&&!(transformAvailable&&raised)&&
                 DefensivePair(fl,fr,flw,frw,fcx,fsy,fs);
+            // A child often protects the eyes or cheeks instead of placing
+            // both wrists exactly on the sternum. Treat that compact, shallow
+            // face-cover pose as defense too. It is deliberately bounded by
+            // paired wrists and low depth so one reaching fist cannot borrow
+            // this route; the L/forward-push routes still retain finisher
+            // ownership when the pose is unmistakable.
+            bool faceCoverGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                !(flw.y<fsy-.55f*fs&&frw.y<fsy-.55f*fs)&&
+                !beamShape&&!beamEntryShape&&FaceCoverGuard(fl,fr,flw,frw,fcx,fsy,fs);
             bool guardEntry=beamWristsReady&&!(transformAvailable&&raised)&&!beamShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
                 Math.Abs(fl.z-flw.z)<1.15f*fs&&Math.Abs(fr.z-frw.z)<1.15f*fs&&
                 GuardEntryArms(flw,frw,fcx,fsy,fs);
             // A child-sized shield is often wider and slightly forward of the
             // torso. It remains defense while both wrists form a compact pair
             // and neither has the depth of a deliberate two-hand push.
-            guardShape|=guardEntry||defensivePair;
+            guardShape|=guardEntry||defensivePair||faceCoverGuard;
             // A child-sized shield can sit farther from the torso than the
             // compact training pose. Require a balanced, low-depth pair so
             // this never treats one clearly extended fist as defense.
@@ -318,6 +327,12 @@ namespace UltramanGame.Core
             // not convert the same held action into a new forward punch.
             bool rawBeamReleasePose=beamWristsReady&&!raised&&
                 flw.y>fsy+.16f*fs&&frw.y>fsy+.16f*fs;
+            // A webcam can dip both wrists for one or two packets while a
+            // child is still holding the finisher. Do not erase the charge
+            // on that transient low sample; require a deliberate, continuous
+            // hands-down release. The existing 1.45 s gap remains the outer
+            // safety timeout for a genuinely lost pose.
+            beamReleaseHold=rawBeamReleasePose?Math.Min(.6f,beamReleaseHold+dt):0;
             bool beamMaintained=beamHold>=.10f&&beamWristsReady&&!rawBeamReleasePose &&
                 (BeamImageShape(blw,brw,bcx,bsy,bs,true)||BeamImageShape(brw,blw,bcx,bsy,bs,true)||
                  ForwardImageShape(blw,brw,bsy,bs,true));
@@ -325,8 +340,7 @@ namespace UltramanGame.Core
             // retain ownership through the common false-negative where one
             // arm is briefly read as a forward punch. A neutral, lowered
             // release or a deliberate chest guard still ends the gesture.
-            bool beamReleasePose=rawBeamReleasePose||beamWristsReady&&!raised&&
-                blw.y>bsy+.16f*bs&&brw.y>bsy+.16f*bs;
+            bool beamReleasePose=beamReleaseHold>=.22f;
             if(beamShape||beamEntryShape)
             {
                 beamLockAge=Math.Min(.6f,beamLockAge+dt);beamLostAge=0;
@@ -441,7 +455,8 @@ namespace UltramanGame.Core
             if (wristsReady && !raised) transformFired=false;
             if (transformHold>=TransformHold && !transformFired) { input.Transform=true; transformFired=true; }
             // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
-            if(beamWristsReady&&!beamIntent)beamRelease+=dt;else beamRelease=0;
+            if(beamReleasePose&&!beamIntent)beamRelease=Math.Max(.25f,beamRelease);
+            else if(beamWristsReady&&!beamIntent)beamRelease+=dt;else beamRelease=0;
             // Rearming a finished beam and tolerating an unfinished hold have
             // different time limits. A 250 ms release must not clear a charge
             // still inside its half-second uncertainty grace period.
@@ -460,7 +475,7 @@ namespace UltramanGame.Core
                 // A recognised L that temporarily loses depth stability is
                 // still the same held gesture. Pause its clock instead of
                 // resetting it and allowing the next frame to be a punch.
-                if(beamReleasePose)
+                if(beamReleasePose&&!beamIntent)
                 {
                     // Hands deliberately lowered are an explicit release,
                     // even though ordinary estimator wobble gets the longer
@@ -601,6 +616,17 @@ namespace UltramanGame.Core
             // This compact low-depth pair gives a real chest guard priority
             // over a stale one-arm punch trajectory.
             return leftForward<.38f&&rightForward<.38f&&Math.Abs(left.x-right.x)<1.92f*scale;
+        }
+        static bool FaceCoverGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(Math.Abs(left.x-cx)>1.46f*scale||Math.Abs(right.x-cx)>1.46f*scale||
+                Math.Abs(left.x-right.x)>1.88f*scale||Math.Abs(left.y-right.y)>.78f*scale)
+                return false;
+            if(left.y<sy-1.34f*scale||right.y<sy-1.34f*scale||
+                left.y>sy+.62f*scale||right.y>sy+.62f*scale)
+                return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            return leftForward<.72f&&rightForward<.72f&&Math.Abs(leftForward-rightForward)<.42f;
         }
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {

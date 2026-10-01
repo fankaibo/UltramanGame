@@ -119,6 +119,14 @@ static class MotionChecks
         check(trial.Last.Shield&&trial.Beams==0&&trial.Left==0&&trial.Right==0,"held chest guard remains defense at full energy");
         var close=Guard();close[15].z=close[16].z=-.5f;trial.Move(Guard(),close,beam:true);trial.Hold(close,1,true);
         check(trial.Beams==0,"close crossed hands do not become the two-hand beam");
+        trial=new Trial();var faceCover=Guard();faceCover[15]=Point(.58f,.02f,-.20f);faceCover[16]=Point(.42f,.18f,-.20f);
+        trial.Hold(faceCover,.42f);check(trial.Last.Shield&&trial.Left==0&&trial.Right==0,
+            "compact hands-over-face defense is not mistaken for a punch");
+        trial=new Trial();trial.Hold(Guard(),beam:true);trial.Hold(Beam(),.35f,true);
+        var lowWobble=Beam();lowWobble[15].y=.62f;lowWobble[16].y=.63f;
+        trial.Hold(lowWobble,.12f,true);trial.Hold(Beam(),.62f,true);
+        check(trial.Beams==1&&trial.Left==0&&trial.Right==0,
+            "brief low-wrist wobble cannot interrupt a charging finisher");
         trial=new Trial();var raised=Guard();raised[15].y=raised[16].y=.05f;
         trial.Hold(raised,1,transform:false);check(trial.Transforms==0,"battle phase does not generate transform gestures");
         foreach(int fps in new[]{15,30,60})
