@@ -193,7 +193,11 @@ namespace UltramanGame.Core
             bool leftReady=shouldersReady&&wasReliable[15];
             bool rightReady=shouldersReady&&wasReliable[16];
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
-            bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
+            // The old shoulder-line cutoff treated a normal chest/face guard
+            // as the opening transform pose. A child only needs both hands
+            // clearly above the head area to count as "raise hands"; hands
+            // near the shoulders must remain available to the shield path.
+            bool raised=wristsReady && lw.y<sy-.55f*scale && rw.y<sy-.55f*scale;
             bool beamWristsReady=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
             bool firstWristLoss=!resetStream&&pairedBefore&&!beamWristsReady;
             if(beamWristsReady){hadWristPair=true;wristLossAge=0;}
@@ -284,7 +288,7 @@ namespace UltramanGame.Core
                 Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
                 !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
                 !ForwardPushEntry(fl,fr,flw,frw,fsy,fs);
-            bool earlyDefensePriority=chestGuardPreferred&&beamHold<.12f&&!beamLocked;
+            bool earlyDefensePriority=chestGuardPreferred&&beamHold<.12f&&!beamLocked&&beamShapeGrace<=0;
             if(earlyDefensePriority)
             {
                 beamShape=false;beamEntryShape=false;beamShapeGrace=0;
@@ -340,8 +344,12 @@ namespace UltramanGame.Core
             // frame where the estimator resembles a chest guard.  Without
             // this exception a depth jump can hand the same pose to the
             // punch recognizer and the child's charge appears to reset.
-            bool beamGrace=(beamLocked||beamHold>=.04f||beamShapeGrace>0)&&beamWristsReady&&!raised&&
-                (!guardEnvelope||beamHold>=.10f)&&!beamReleasePose;
+            // A stale shape grace from a previous beam must not swallow a
+            // brand-new chest guard. Once this beam has either locked or
+            // accumulated a short charge, however, the same guard-shaped
+            // wobble remains owned by the finisher.
+            bool beamGrace=(beamLocked||beamHold>=.04f||beamShapeGrace>0)&&beamWristsReady&&!raised&&!beamReleasePose&&
+                (!guardEnvelope||beamLocked||beamHold>=.06f);
             // Grace owns the gesture and blocks punch/guard handoff, but it
             // pauses the charge clock. Only a positively observed beam shape
             // advances progress; this prevents a noisy frame from speeding up
@@ -445,7 +453,7 @@ namespace UltramanGame.Core
             // beam ownership and release rules still have to remain visible;
             // this only stops one noisy depth packet from restarting the pose.
             bool beamChargeGrace=beamAvailable&&beamArmed&&beamIntent&&beamHold>=.08f&&
-                beamWristsReady&&!raised&&!beamReleasePose&&!guardEnvelope;
+                beamWristsReady&&!raised&&!beamReleasePose&&(!guardEnvelope||beamHold>=.06f);
             if((beam||beamChargeGrace)&&beamArmed&&!beamFired)
             {beamHold+=dt*(beam?1f:.48f);beamGap=0;} else
             {

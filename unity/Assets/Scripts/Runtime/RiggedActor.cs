@@ -1732,7 +1732,11 @@ namespace UltramanGame.Runtime
             float blend=state.Enemy==EnemyPhase.Rest?.34f:state.Enemy==EnemyPhase.Windup?.20f:state.Enemy==EnemyPhase.Recover?.24f:0;
             if(state.Phase!=GamePhase.Battle||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
             var right=Vector3.Cross(Vector3.up,forward).normalized;
-            Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
+            // Keep the nearer claw lower and closer to the ribs while the far
+            // claw floats a little forward. The imported clip put both wrists
+            // on one flat plane, which made Golza read like a cardboard cutout
+            // from the 45-degree battle camera.
+            Vector3 center=Root.position+forward*.38f+Vector3.up*2.32f;
             // The authored Golza idle clip holds the wrists at one exact
             // location. Add a tiny out-of-phase breath so both shoulders,
             // elbows and claws remain alive during the child's instruction.
@@ -1742,11 +1746,18 @@ namespace UltramanGame.Runtime
             // the other stays closer to the ribs. Equal forward targets made both
             // hands flatten into one prop on a three-quarter TV shot.
             SolveArm(leftUpperArm,leftForearm,leftHand,
-                center-right*.43f+forward*(depth*.35f)+Vector3.up*(.06f+lift),
-                center-right*.47f+forward*(.22f+depth)+Vector3.up*(lift*.65f),blend);
+                center-right*.48f+forward*(.02f+depth*.35f)+Vector3.up*(.01f+lift),
+                center-right*.52f+forward*(.16f+depth)+Vector3.up*(lift*.65f),blend);
             SolveArm(upperArm,forearm,hand,
-                center+right*.43f+forward*(.04f-depth*.30f)+Vector3.up*(.12f-lift*.75f),
-                center+right*.50f+forward*(.44f-depth)+Vector3.up*(.08f-lift*.45f),blend);
+                center+right*.46f+forward*(.04f-depth*.30f)+Vector3.up*(.10f-lift*.75f),
+                center+right*.53f+forward*(.33f-depth)+Vector3.up*(.04f-lift*.45f),blend);
+            // A restrained chest/head breath keeps the corrected arms attached
+            // to a living creature while the child is waiting for the next
+            // instruction. It is small enough to preserve the authored roar
+            // and attack clips when this method stops owning the pose.
+            float idleSway=Mathf.Sin(time*1.35f+.35f),idleWeight=state.Enemy==EnemyPhase.Rest?1:state.Enemy==EnemyPhase.Recover?.55f:.30f;
+            if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(idleSway*1.35f*idleWeight,right)*upperSpine.rotation;
+            if(head)head.rotation=Quaternion.AngleAxis(-idleSway*2.1f*idleWeight,right)*head.rotation;
         }
         void CorrectAttackArms(Battle state)
         {
