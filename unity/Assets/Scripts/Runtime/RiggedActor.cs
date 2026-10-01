@@ -722,7 +722,7 @@ namespace UltramanGame.Runtime
                 Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
             }
             clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
-            if(monster&&preview<0)CorrectRestingArms(state);
+            if(monster&&preview<0)CorrectRestingArms(state,time);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state))
                 CorrectAttackArms(state);
             if(monster)ApplyClawPose(state,preview,time);
@@ -1722,7 +1722,7 @@ namespace UltramanGame.Runtime
             thigh.rotation=Quaternion.FromToRotation(shin.position-start,knee-start)*thigh.rotation;
             shin.rotation=Quaternion.FromToRotation(foot.position-shin.position,start+axis*d-shin.position)*shin.rotation;
         }
-        void CorrectRestingArms(Battle state)
+        void CorrectRestingArms(Battle state,float time)
         {
             // The imported Golza idle curve leaves both elbows on the same
             // plane, which makes the hands read as a flat, mirrored prop on a
@@ -1733,15 +1733,20 @@ namespace UltramanGame.Runtime
             if(state.Phase!=GamePhase.Battle||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
             var right=Vector3.Cross(Vector3.up,forward).normalized;
             Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
+            // The authored Golza idle clip holds the wrists at one exact
+            // location. Add a tiny out-of-phase breath so both shoulders,
+            // elbows and claws remain alive during the child's instruction.
+            float breath=state.Enemy==EnemyPhase.Rest?Mathf.Sin(time*1.72f+.8f):0;
+            float lift=.028f*breath,depth=.032f*breath;
             // A kaiju guard is asymmetrical: one claw owns the foreground while
             // the other stays closer to the ribs. Equal forward targets made both
             // hands flatten into one prop on a three-quarter TV shot.
             SolveArm(leftUpperArm,leftForearm,leftHand,
-                center-right*.43f+forward*.00f+Vector3.up*.06f,
-                center-right*.47f+forward*.22f+Vector3.up*.00f,blend);
+                center-right*.43f+forward*(depth*.35f)+Vector3.up*(.06f+lift),
+                center-right*.47f+forward*(.22f+depth)+Vector3.up*(lift*.65f),blend);
             SolveArm(upperArm,forearm,hand,
-                center+right*.43f+forward*.04f+Vector3.up*.12f,
-                center+right*.50f+forward*.44f+Vector3.up*.08f,blend);
+                center+right*.43f+forward*(.04f-depth*.30f)+Vector3.up*(.12f-lift*.75f),
+                center+right*.50f+forward*(.44f-depth)+Vector3.up*(.08f-lift*.45f),blend);
         }
         void CorrectAttackArms(Battle state)
         {
@@ -1872,7 +1877,9 @@ namespace UltramanGame.Runtime
                 Vector3 palmUp=wrist.TransformDirection(palmUpLocal[side]);
                 Vector3 curlAxis=Vector3.Cross(palmForward,-palmUp).normalized;
                 bool lead=attack&&((side==0&&attackSide<0)||(side==1&&attackSide>0));
-                float amount=curl*(lead?1.08f:.86f);
+                float idlePulse=!attack&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Rest
+                    ?Mathf.Sin(time*2.35f+side*1.15f)*.045f:0;
+                float amount=Mathf.Max(.04f,curl*(lead?1.08f:.86f)+idlePulse);
                 float sideSpread=(side==0?-1:1)*spread;
                 for(int i=0;i<ClawFingerNames.Length;i++)
                 {
