@@ -32,7 +32,15 @@ namespace UltramanGame.Runtime
                 Graphics.Blit(source,a,composite,0);
                 composite.SetVector("_Direction",Vector2.right*1.4f);Graphics.Blit(a,b,composite,1);
                 composite.SetVector("_Direction",Vector2.up*1.4f);Graphics.Blit(b,a,composite,1);
-                composite.SetTexture("_Bloom",a);composite.SetFloat("_Strength",.32f);
+                composite.SetTexture("_Bloom",a);
+                // Keep the Fuji night scene restrained at rest, then let the
+                // arcade beats punch through the screen at the exact contact
+                // frame. This makes a rush, guard impact and finisher read as
+                // one continuous cabinet effect instead of three unrelated
+                // world-space flashes.
+                float beatBloom=.32f+Mathf.Clamp01(flash)*.22f+
+                    Mathf.Clamp01(shockStrength)*.16f+Mathf.Clamp01(motion.x)*.10f;
+                composite.SetFloat("_Strength",beatBloom);
                 composite.SetColor("_FlashColor",new Color(flashColor.r,flashColor.g,flashColor.b,flash));
                 // Project after GameWorld has positioned the camera. The flash
                 // stays on the collision, including closeups and camera recoil.

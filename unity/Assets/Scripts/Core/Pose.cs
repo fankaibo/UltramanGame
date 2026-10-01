@@ -102,19 +102,19 @@ namespace UltramanGame.Core
         // Keep the child-friendly quick confirmation used by the standard
         // profile; the shape envelope and punch trajectory remain the actual
         // defense/attack distinction.
-        float ShieldHold=>.06f+Level*.10f;
+        float ShieldHold=>.05f+Level*.12f;
         // The finisher should reward a readable hold, not punish a child for
         // one noisy camera packet.  Standard difficulty now needs about .70s
         // of a clear pose, with a longer grace window for temporary shape
         // loss.  The recognizer still requires an explicit release before it
         // can fire a second beam.
-        float BeamHold=>BeamHoldSeconds+Level*.10f;
+        float BeamHold=>BeamHoldSeconds+Level*.20f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
-        public const float BeamHoldSeconds=.60f, BeamGapSeconds=1.45f;
+        public const float BeamHoldSeconds=.50f, BeamGapSeconds=1.45f;
         // A laptop camera can lose stable depth for several packets while the
         // child is still visibly holding the finisher. Keep ownership longer
         // than the charge gap so this uncertainty cannot become a punch.
-        const float BeamOwnershipGraceSeconds=1.80f;
+        const float BeamOwnershipGraceSeconds=2.20f;
         // Keep a confirmed chest guard through a longer front-camera shape
         // wobble.  A deliberate reach still exits through the committed
         // trajectory checks below.
@@ -241,10 +241,15 @@ namespace UltramanGame.Core
             // Accept that readable chest/face guard as an entry pose, while
             // keeping the old envelope for acquisition and keeping any L
             // shape or forward-palms pose owned by the finisher path.
+            bool defensivePair=beamWristsReady&&!(transformAvailable&&raised)&&
+                DefensivePair(fl,fr,flw,frw,fcx,fsy,fs);
             bool guardEntry=beamWristsReady&&!(transformAvailable&&raised)&&!beamShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
                 Math.Abs(fl.z-flw.z)<1.15f*fs&&Math.Abs(fr.z-frw.z)<1.15f*fs&&
                 GuardEntryArms(flw,frw,fcx,fsy,fs);
-            guardShape|=guardEntry;
+            // A child-sized shield is often wider and slightly forward of the
+            // torso. It remains defense while both wrists form a compact pair
+            // and neither has the depth of a deliberate two-hand push.
+            guardShape|=guardEntry||defensivePair;
             // A visible L is a stronger finisher signal than a loose chest
             // envelope. Do not acquire the guard latch from the same packet.
             bool guardCandidate=guardShape&&!beamShape;
@@ -295,7 +300,7 @@ namespace UltramanGame.Core
             // frame where the estimator resembles a chest guard.  Without
             // this exception a depth jump can hand the same pose to the
             // punch recognizer and the child's charge appears to reset.
-            bool beamGrace=(beamHold>=.10f||beamShapeGrace>0)&&beamWristsReady&&!raised&&
+            bool beamGrace=(beamLocked||beamHold>=.04f||beamShapeGrace>0)&&beamWristsReady&&!raised&&
                 (!guardEnvelope||beamHold>=.10f)&&!beamReleasePose;
             // Grace owns the gesture and blocks punch/guard handoff, but it
             // pauses the charge clock. Only a positively observed beam shape
@@ -515,6 +520,15 @@ namespace UltramanGame.Core
                 left.y>sy-.98f*scale&&right.y>sy-.98f*scale&&
                 left.y<sy+1.08f*scale&&right.y<sy+1.08f*scale&&
                 Math.Min(left.y,right.y)<sy+.52f*scale;
+        static bool DefensivePair(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(!GuardEntryArms(left,right,cx,sy,scale))return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // The forward-push routes require a larger symmetric depth gap.
+            // This compact low-depth pair gives a real chest guard priority
+            // over a stale one-arm punch trajectory.
+            return leftForward<.38f&&rightForward<.38f&&Math.Abs(left.x-right.x)<1.92f*scale;
+        }
         static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
