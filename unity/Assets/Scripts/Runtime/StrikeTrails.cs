@@ -106,12 +106,16 @@ namespace UltramanGame.Runtime
         public bool MonsterVisible=>claws[0].Visible||claws[1].Visible||claws[2].Visible;
         public StrikeTrails(Transform parent)
         {
-            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,.9f),.34f,.22f);
+            // The reference cabinet exposes the travel between anticipation
+            // and contact as a readable air wake.  Keep it short and tied to
+            // the sampled hand, but give the ribbon enough width and lifetime
+            // to survive a living-room TV's 16:9 scale.
+            hero=new Ribbon(parent,"Hero striking hand wake",new Color(.32f,.74f,1,.96f),.48f,.27f);
             // These are short hand-motion wisps, not a second set of glowing
             // claws. The wider contact sweep takes over near the collision.
-            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(.94f,.82f,.68f,.20f),.10f,.14f);
-            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(.94f,.84f,.72f,.55f),.40f,.18f);
-            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(.94f,.82f,.68f,.18f),.10f,.14f);
+            claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(.94f,.82f,.68f,.24f),.13f,.17f);
+            claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(.94f,.84f,.72f,.62f),.48f,.22f);
+            claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(.94f,.82f,.68f,.22f),.13f,.17f);
         }
         public void Clear()
         {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}

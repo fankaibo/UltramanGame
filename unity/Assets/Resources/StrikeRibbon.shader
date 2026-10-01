@@ -22,7 +22,10 @@ Shader "Training/StrikeRibbon" {
     float core=pow(edge,14);
     float wisps=.8+.2*sin(i.uv.y*43+i.uv.x*17);
     float ends=smoothstep(0,.16,i.uv.x)*(1-smoothstep(.82,1,i.uv.x));
-    float alpha=(edge*edge*edge*.16*wisps+core*.58)*ends*i.color.a*_Color.a;
+    // A slightly denser core keeps the sampled hand path visible at 1080p;
+    // the short lifetime and tapered ends still keep the wake behind the
+    // actor instead of becoming a permanent glow strip.
+    float alpha=(edge*edge*edge*.23*wisps+core*.76)*ends*i.color.a*_Color.a;
     return fixed4(lerp(_Color.rgb,float3(1,.98,.86),core*.7),alpha);
    }
   ENDCG }
