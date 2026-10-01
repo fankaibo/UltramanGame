@@ -185,6 +185,14 @@ static class GestureIntentChecks
             var wobble=Beam();wobble[15].z=-.46f;t.Hold(wobble,.16f,true);t.Hold(Beam(),.55f,true);
             check(t.Beams==1&&t.Punches==0,$"L-pose depth wobble cannot steal charging as a punch at {fps} fps");
             t.Hold(Beam(),1,true);check(t.Beams==1,$"held finisher fires only once after depth wobble at {fps} fps");
+            // A real webcam can hold an ambiguous depth estimate for longer
+            // than one render hiccup.  Once charge has started this interval
+            // must remain owned by the finisher instead of becoming a punch.
+            t=new Trial(fps);t.Hold(Guard(),.7f,true);t.Hold(Beam(),.35f,true);
+            var longUncertain=Beam();longUncertain[15].z=-.92f;longUncertain[16].z=-.08f;
+            longUncertain[15].y=.34f;longUncertain[16].y=.48f;
+            t.Hold(longUncertain,.72f,true);t.Hold(Beam(),.55f,true);
+            check(t.Beams==1&&t.Punches==0,$"long finisher depth interruption stays owned at {fps} fps");
             t=new Trial(fps);t.Hold(Guard(),.7f,true);t.Hold(Beam(),.45f,true);
             float progress=t.R.BeamProgress;
             var uncertain=Beam();uncertain[15].z=-.9f;uncertain[16].z=-.1f;t.Hold(uncertain,.26f,true);

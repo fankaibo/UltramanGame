@@ -110,12 +110,15 @@ namespace UltramanGame.Core
         // can fire a second beam.
         float BeamHold=>BeamHoldSeconds+Level*.10f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
-        public const float BeamHoldSeconds=.60f, BeamGapSeconds=.50f;
+        public const float BeamHoldSeconds=.60f, BeamGapSeconds=.90f;
         // A laptop camera can lose stable depth for several packets while the
         // child is still visibly holding the finisher. Keep ownership longer
         // than the charge gap so this uncertainty cannot become a punch.
-        const float BeamOwnershipGraceSeconds=.90f;
-        const float GuardOwnershipGraceSeconds=.72f;
+        const float BeamOwnershipGraceSeconds=1.25f;
+        // Keep a confirmed chest guard through a longer front-camera shape
+        // wobble.  A deliberate reach still exits through the committed
+        // trajectory checks below.
+        const float GuardOwnershipGraceSeconds=.90f;
         public float BeamProgress => Math.Min(1,beamHold/BeamHold);
         public float ShieldProgress => Math.Min(1,shieldHold/ShieldHold);
         public bool BeamNeedsRelease {get;private set;}
@@ -201,7 +204,7 @@ namespace UltramanGame.Core
             // A single wildly jumping wrist depth is the camera's common
             // false-positive during a held L. It may reserve the action, but
             // it must not advance the charge until the estimate settles.
-            bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<1.80f;
+            bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<2.20f;
             // A recognised L owns estimated depth from its first confirmed
             // frame. Waiting 100 ms to protect depth stranded early charges;
             // keep the stricter image-plane shape until the normal hold begins.
@@ -234,7 +237,7 @@ namespace UltramanGame.Core
             if(guardCandidate)
             {
                 guardLockAge=Math.Min(.5f,guardLockAge+dt);guardLostAge=0;
-                if(guardLockAge>=.12f)guardLocked=true;
+                if(guardLockAge>=.10f)guardLocked=true;
             }
             else if(guardLocked)
             {
@@ -274,8 +277,12 @@ namespace UltramanGame.Core
                 if(beamReleasePose||beamLostAge>BeamOwnershipGraceSeconds){beamLocked=false;beamLockAge=0;}
             }
             bool beamLatch=beamLocked&&beamWristsReady&&!raised&&!beamReleasePose&&beamLostAge<=BeamOwnershipGraceSeconds;
-            bool beamGrace=(beamHold>=.10f||beamShapeGrace>0)&&beamWristsReady&&!(transformAvailable&&raised)&&
-                !guardEnvelope&&!beamReleasePose;
+            // After a finisher has started, its ownership survives a short
+            // frame where the estimator resembles a chest guard.  Without
+            // this exception a depth jump can hand the same pose to the
+            // punch recognizer and the child's charge appears to reset.
+            bool beamGrace=(beamHold>=.10f||beamShapeGrace>0)&&beamWristsReady&&!raised&&
+                (!guardEnvelope||beamHold>=.10f)&&!beamReleasePose;
             // Grace owns the gesture and blocks punch/guard handoff, but it
             // pauses the charge clock. Only a positively observed beam shape
             // advances progress; this prevents a noisy frame from speeding up
@@ -361,7 +368,14 @@ namespace UltramanGame.Core
                 // A recognised L that temporarily loses depth stability is
                 // still the same held gesture. Pause its clock instead of
                 // resetting it and allowing the next frame to be a punch.
-                if(beamIntent&&!beamReleasePose)beamGap=0;
+                if(beamReleasePose)
+                {
+                    // Hands deliberately lowered are an explicit release,
+                    // even though ordinary estimator wobble gets the longer
+                    // grace interval above.
+                    beamHold=0;beamGap=0;
+                }
+                else if(beamIntent)beamGap=0;
                 else {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
             }
             if (beam && beamArmed && beamHold>=BeamHold && !beamFired)
@@ -369,7 +383,8 @@ namespace UltramanGame.Core
             BeamNeedsRelease=beam&&!beamArmed&&!beamFired;
             // Reserve the action during a brief uncertain interval. Missing
             // wrists pause progress; they neither advance it nor enable attacks.
-            bool beamReserved=beamAvailable&&(beamIntent||beamHold>0||beamGrace);
+            bool beamRetain=beamHold>=.10f&&beamWristsReady&&!raised&&!beamReleasePose;
+            bool beamReserved=beamAvailable&&(beamIntent||beamHold>0||beamGrace||beamRetain);
             // Once the chest guard has been held, retain ownership through a
             // brief depth/visibility wobble. A beam latch still has priority.
             bool guardedEnvelope=guardEnvelope||guardLocked&&guardLostAge<=GuardOwnershipGraceSeconds;

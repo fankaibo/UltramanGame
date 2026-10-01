@@ -220,17 +220,17 @@ def enhance(source, plate_path, mask_path):
     # optical pass so the saved AI image is meaningfully different from the
     # original: a softened silhouette edge, cool scene wrap and a contact
     # response under visible feet.
-    recipe['edge_feather_px']=max(6.0,recipe['edge_feather_px'])
+    recipe['edge_feather_px']=max(8.0,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but indistinguishable in
     # a family preview. Keep the effect gentle, yet visible enough to prove
     # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(.36,recipe['light_wrap'])
+    recipe['light_wrap']=max(.50,recipe['light_wrap'])
     recipe['shadow_strength']=max(.26,recipe['shadow_strength'])
-    recipe['exposure_ev']=min(-.10,recipe['exposure_ev'])
-    recipe['red_gain']=min(.95,recipe['red_gain'])
-    recipe['green_gain']=min(.97,recipe['green_gain'])
-    recipe['blue_gain']=max(1.10,recipe['blue_gain'])
-    recipe['saturation']=min(.90,recipe['saturation'])
+    recipe['exposure_ev']=min(-.16,recipe['exposure_ev'])
+    recipe['red_gain']=min(.93,recipe['red_gain'])
+    recipe['green_gain']=min(.95,recipe['green_gain'])
+    recipe['blue_gain']=max(1.14,recipe['blue_gain'])
+    recipe['saturation']=min(.86,recipe['saturation'])
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     _save_png(output,result)
