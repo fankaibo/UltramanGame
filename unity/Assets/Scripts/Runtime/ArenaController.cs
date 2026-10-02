@@ -28,6 +28,7 @@ namespace UltramanGame.Runtime
         bool photoAvailable,autoPhotoOpened,finalGuide;
         float victoryAt,waitingGuideAt=20;
         bool keyboard,paused,muted,settings,audioSettings,videoSettings,showPreview=true,previewReported,lastTracking;
+        float previewFocus=1f;
         bool parentControlsExpanded;
         float parentControlsUntil;
         // The first play session is for a four-year-old: start with the

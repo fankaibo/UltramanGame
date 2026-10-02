@@ -345,8 +345,18 @@ namespace UltramanGame.Runtime
             if(keyboard)return;
             if(!showPreview)
             {if(hud.Button(new Rect(1100,653,156,30),"显示取景 · F3",HudPainter.Cyan,12))showPreview=true;return;}
-            var r=new Rect(1100,566,156,117);
-            hud.Rounded(new Rect(r.x-4,r.y-18,r.width+8,r.height+40),new Color(.01f,.025f,.05f,.84f),6);
+            // Keep the camera available as a confidence check, but give the
+            // cabinet lane back to the fighters while an action is actually
+            // playing. The preview never disappears; it only breathes from
+            // the neutral 156x117 card to a compact 124x93 card and returns
+            // before the next gesture instruction.
+            bool actionFocus=battle.Phase==GamePhase.Battle&&
+                (battle.Action!=HeroAction.None||world.Closeup.Active||battle.Enemy==EnemyPhase.Attack);
+            previewFocus=Mathf.MoveTowards(previewFocus,actionFocus?.78f:1f,Time.unscaledDeltaTime*4.5f);
+            float width=Mathf.Lerp(124,156,previewFocus),height=Mathf.Lerp(93,117,previewFocus);
+            var r=new Rect(1256-width,683-height,width,height);
+            float alpha=Mathf.Lerp(.68f,.84f,previewFocus);
+            hud.Rounded(new Rect(r.x-4,r.y-18,r.width+8,r.height+40),new Color(.01f,.025f,.05f,alpha),6);
             hud.Text(new Rect(r.x,r.y-18,r.width-48,17),"镜像取景",10,HudPainter.Cyan);
             if(hud.Button(new Rect(r.xMax-43,r.y-18,43,17),"收起",HudPainter.Muted,10))showPreview=false;
             if(previewTexture&&previewFrame!=null&&previewFrame.Fresh(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))hud.Image(r,previewTexture,ScaleMode.ScaleToFit);
