@@ -45,6 +45,10 @@ namespace UltramanGame.Runtime
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         float heroRecoveryAge=10;
+        // Keep the post-contact weight transfer visible long enough for a TV
+        // viewer to read the planted foot and the next shoulder load. This is
+        // presentation time only; Battle still ends the punch at PunchSeconds.
+        const float HeroRecoverySeconds=.36f;
         float chaseAdvance,observedPunchAge;
         Vector3 punchStart;
         float windupSample=float.NaN;
@@ -787,12 +791,12 @@ namespace UltramanGame.Runtime
                 Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:accentHit?.11f:.065f)*recoil);
                 Root.rotation*=Quaternion.AngleAxis(recoilStartYaw*carry+contactSide*(heavyHit?4.5f:accentHit?10:4f)*recoil,Vector3.up);
             }
-            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&heroRecoveryAge<.26f)
+            if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&heroRecoveryAge<HeroRecoverySeconds)
             {
                 // Keep a small follow-through after the authored punch clip ends.
                 // The root returns to its home line first, then settles back from
                 // contact so rapid left/right punches do not snap between poses.
-                float settle=1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
+                float settle=1-Mathf.SmoothStep(0,1,heroRecoveryAge/HeroRecoverySeconds);
                 var right=Vector3.Cross(Vector3.up,forward);
                 Root.position-=forward*(.045f*settle);
                 Root.position+=right*(lastPunchSide*.018f*settle);
@@ -995,7 +999,7 @@ namespace UltramanGame.Runtime
             bool plantedRoster=retargetedPunch&&(state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Transforming||
                 state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt);
             bool pursuing=!retargetedPunch&&chaseAdvance>0&&state.Phase==GamePhase.Battle&&
-                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||state.Action==HeroAction.None&&heroRecoveryAge<.26f&&!state.Shield);
+                (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||state.Action==HeroAction.None&&heroRecoveryAge<HeroRecoverySeconds&&!state.Shield);
             if(preview<0&&!kick&&(plantedRoster||pursuing))
                 PoseRetargetedFootwork(state);
             if(!monster&&!kick&&preview<0&&state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt)
@@ -1471,7 +1475,7 @@ namespace UltramanGame.Runtime
             Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
             float lift=0,advance=0,weight=1,stride=PunchTravel(state);
             bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
-            if(!punch)weight=retargetedPunch?1:1-Mathf.SmoothStep(0,1,heroRecoveryAge/.26f);
+            if(!punch)weight=retargetedPunch?1:1-Mathf.SmoothStep(0,1,heroRecoveryAge/HeroRecoverySeconds);
             else
             {
                 float age=state.ActionAge;
@@ -1544,7 +1548,7 @@ namespace UltramanGame.Runtime
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
             Vector3 contact=PunchContact;
-            float blend=punch||heroRecoveryAge<.26f?1:Mathf.SmoothStep(0,1,clipAge/.16f);
+            float blend=punch||heroRecoveryAge<HeroRecoverySeconds?1:Mathf.SmoothStep(0,1,clipAge/.16f);
             for(int i=0;i<2;i++)
             {
                 bool left=i==0,active=punch&&(left==(state.Action==HeroAction.LeftPunch));
@@ -1574,7 +1578,7 @@ namespace UltramanGame.Runtime
             bool punch=!HeroKickMotion.Active(state)&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch);
             float age=state.ActionAge;
             float motion=punch&&!combo?PunchReach(age):0;
-            float blend=punch||heroRecoveryAge<.26f?1:Mathf.SmoothStep(0,1,clipAge/.16f);
+            float blend=punch||heroRecoveryAge<HeroRecoverySeconds?1:Mathf.SmoothStep(0,1,clipAge/.16f);
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
             var side=Vector3.Cross(Vector3.up,forward);
