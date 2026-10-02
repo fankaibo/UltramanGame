@@ -34,7 +34,7 @@ namespace UltramanGame.Runtime
         public string RequestedBeamVoiceKey {get;private set;}="beam";
         public string ResolvedBeamVoiceKey {get;private set;}="beam";
         public bool BeamVoiceExact {get;private set;}
-        public string BeamVoiceSource => BeamVoiceExact?"hero-specific/original":"neutral fallback";
+        public string BeamVoiceSource => BeamVoiceExact?"hero-specific/original":ResolvedBeamVoiceKey=="missing"?"missing":"neutral fallback";
         public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} beamVoice={ResolvedBeamVoiceKey} beamVoiceSource={BeamVoiceSource} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.LastPitch:F2} effectVoices={effects.ActiveCount}/{effects.Capacity} effectDuck={effectsDuck:F2} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
