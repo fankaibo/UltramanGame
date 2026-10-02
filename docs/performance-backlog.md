@@ -56,3 +56,9 @@
 证据：`logs/claw-current-stability.log`、`artifacts/claw-current/stability-only/stability.txt`、`logs/check-idempotent-claw.log`、`logs/build-idempotent-claw.log`。
 
 修复后的 macOS 构建再次完成无人值守全流程，耗时 154.9 秒：键鼠事件 0、自动合照 2 次、重拍、照片预览、合照断流恢复和再开一局均通过。该次开发遥测仍为 allocated 约 241–255 MB、reserved 约 599–607 MB，第二局进入战斗约 247 MB allocated；原始日志：[idempotent-guided-2](../logs/idempotent-guided-2.log)，报告：[guided-validation.json](../artifacts/idempotent-guided-2/guided-validation.json)。
+
+### 2026-10-02：合照缓存回收与遗留构建进程记录
+
+合照流程现在会在 PNG 成功写入 Downloads 后立即清空编码字节缓存，保存的网络帧也会在定格后释放；AI 返回的 PNG 由 `Texture2D.LoadImage` 消费一次后立刻移交并清空，避免原图、AI 结果和 Unity 纹理同时长期驻留。保存失败仍保留一次重试所需的缓冲。`scripts/build_macos.sh` 也增加了退出清理：批处理 Unity 被中断或卡在 Licensing 时，脚本退出会结束自己的子进程，避免下次运行叠加多个遗留 Unity 实例。
+
+本轮排查发现系统里曾有多个运行 7–9 小时的遗留 Unity 批处理/审查进程，以及旧 Licensing client；它们会被 macOS 的系统总内存统计计入，并阻塞后续构建。已结束这些本项目遗留进程，Unity Hub 图形界面未关闭。它们不是游戏本身的稳定 RSS，因此“系统总内存约 5 GB”不能直接等同于游戏内存。发行包构建需在 Unity Licensing 通道恢复后再做一次最终启动验证；当前代码回归检查已通过 674 项。

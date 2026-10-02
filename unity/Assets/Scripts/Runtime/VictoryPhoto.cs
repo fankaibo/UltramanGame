@@ -81,8 +81,9 @@ namespace UltramanGame.Runtime
                 if(savedPath.Length==0&&photoPng!=null&&Now>=nextSaveRetry)SavePhoto();
                 if(enhancement!=null&&enhancement.Done)
                 {
-                    if(enhancement.ResultPng!=null)
-                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(enhancement.ResultPng))
+                    var resultPng=enhancement.TakeResultPng();
+                    if(resultPng!=null)
+                    {var edited=new Texture2D(2,2,TextureFormat.RGB24,false);if(edited.LoadImage(resultPng))
                         {ReportEnhancementDelta(originalSaved,edited,enhancement.UsedLocalFallback,out enhancementMeanDelta,out enhancementChangedPct,out enhancementSubjectMeanDelta);if(saved&&saved!=originalSaved)UnityEngine.Object.Destroy(saved);saved=edited;enhancementReady=true;showEnhanced=true;comparePhotos=true;message=enhancement.UsedLocalFallback?"本地环境光版已另存到 Downloads":"AI 光色版已另存到 Downloads";}
                         else UnityEngine.Object.Destroy(edited);}
                     else message=enhancement.Status;
@@ -137,7 +138,12 @@ namespace UltramanGame.Runtime
             try
             {
                 saved=composition.Snapshot();originalSaved=saved;photoPng=saved.EncodeToPNG();Captures++;
-                flashUntil=Now+.22;SavePhoto();choice.Reset();
+                flashUntil=Now+.22;SavePhoto();
+                // The file is written (and, when enabled, the enhancement
+                // worker has copied its own input files). The network frame
+                // is no longer needed for review.
+                if(frame!=null)frame.Png=null;
+                choice.Reset();
                 reviewReadyAt=Now+Math.Max(8,Say("photo_saved")+3);
                 Debug.Log("[Photo] automatic capture complete; frozen review; hands down then gesture choice");
             }
@@ -165,6 +171,10 @@ namespace UltramanGame.Runtime
             try
             {
                 savedPath=PhotoFiles.Save(PhotoFiles.Downloads,photoPng,frame.Synthetic);
+                // Keep the retry buffer only when the write failed. A saved
+                // 1080P/2K PNG can otherwise remain alongside the Texture2D
+                // and AI worker result throughout the review screen.
+                photoPng=null;
                 message="已保存到 Downloads";
                 if(PlayerPrefs.GetInt("photo.ai",1)==1&&!frame.Synthetic)
                 {enhancement=new LocalPhotoEnhancement(savedPath,composition.CleanPlate(),composition.PersonMatte());message="原图已保存 · AI 正在匹配环境光与边缘";}

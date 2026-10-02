@@ -29,6 +29,13 @@ namespace UltramanGame.Runtime
             File.WriteAllBytes(Path.Combine(folder,"plate.png"),plate);File.WriteAllBytes(Path.Combine(folder,"mask.png"),mask);
             new Thread(Run){IsBackground=true,Name="Photo AI harmony"}.Start();
         }
+        // The main thread consumes the encoded result exactly once. Keeping
+        // the worker's byte[] alive after Texture2D.LoadImage would retain a
+        // second full-resolution photo until the next retake or battle.
+        public byte[] TakeResultPng()
+        {
+            var result=ResultPng;ResultPng=null;return result;
+        }
         static string Quote(string text)=>"\""+text.Replace("\\","\\\\").Replace("\"","\\\"")+"\"";
         void Run()
         {
