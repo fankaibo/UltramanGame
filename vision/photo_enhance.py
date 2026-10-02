@@ -197,7 +197,10 @@ def harmonise(composite, plate, mask, recipe):
         # result whose environment response was hard to see.  Keep the face
         # and clothing intact, but give the Fuji moon/lava plate a clearly
         # readable, bounded response over the visible person area.
-        strength=min(.42,max(.26,recipe['light_wrap']*.98))
+        # Keep the environment response visible in the saved family preview.
+        # The model can still choose a milder value above this floor, but a
+        # near-zero recipe must not collapse into a visually identical copy.
+        strength=min(.50,max(.34,recipe['light_wrap']*1.20))
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
@@ -238,18 +241,18 @@ def enhance(source, plate_path, mask_path):
     # Keep the model's composition and identity decisions bounded locally. A
     # near-zero recipe still gets a small, reviewable optical pass, while no
     # image-to-image redraw or face editing is permitted here.
-    recipe['edge_feather_px']=max(2.4,recipe['edge_feather_px'])
+    recipe['edge_feather_px']=max(3.0,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but can be hard to judge
     # in a family preview. Use a bounded optical floor: cool scene wrap,
     # restrained contact shadow and a small colour-temperature correction.
     # Do not force the whole person darker; the face must remain readable.
-    recipe['light_wrap']=max(.26,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.16,min(.30,recipe['shadow_strength']))
-    recipe['exposure_ev']=max(-.18,min(.05,recipe['exposure_ev']))
-    recipe['red_gain']=max(.90,min(.98,recipe['red_gain']))
-    recipe['green_gain']=max(.94,min(1.02,recipe['green_gain']))
-    recipe['blue_gain']=max(1.08,min(1.15,recipe['blue_gain']))
-    recipe['saturation']=max(.86,min(.98,recipe['saturation']))
+    recipe['light_wrap']=max(.34,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.20,min(.34,recipe['shadow_strength']))
+    recipe['exposure_ev']=max(-.22,min(.04,recipe['exposure_ev']))
+    recipe['red_gain']=max(.88,min(.98,recipe['red_gain']))
+    recipe['green_gain']=max(.92,min(1.02,recipe['green_gain']))
+    recipe['blue_gain']=max(1.10,min(1.15,recipe['blue_gain']))
+    recipe['saturation']=max(.84,min(.98,recipe['saturation']))
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     _save_png(output,result)

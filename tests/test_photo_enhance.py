@@ -111,8 +111,8 @@ class PhotoEnhancementTests(unittest.TestCase):
                 with patch('vision.photo_enhance.ask_model',return_value=near_zero):
                     output,_=enhance(source,plate,mask)
             result=cv2.imread(str(output));delta=np.abs(result.astype(np.int16)-clean.astype(np.int16))
-            self.assertGreater(float(delta.mean()),1.0)
-            self.assertGreater(float(np.mean(np.any(delta>3,axis=2))),.15)
+            self.assertGreater(float(delta.mean()),1.5)
+            self.assertGreater(float(np.mean(np.any(delta>3,axis=2))),.20)
 
     def test_local_fallback_creates_a_visible_but_bounded_variant(self):
         with tempfile.TemporaryDirectory() as folder:
