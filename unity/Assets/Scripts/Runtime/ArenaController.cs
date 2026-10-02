@@ -445,7 +445,12 @@ namespace UltramanGame.Runtime
                 hud.Line(new Vector2(-offset,y),new Vector2(115+i*17-offset,y-12),color,2);
                 hud.Line(new Vector2(1165+offset,y-12),new Vector2(1320+offset,y),color,2);
             }
-            hud.Text(new Rect(140,720-band,1000,band),SelectedHero.Beam+"！",32,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
+            if(band>40)
+            {
+                hud.Text(new Rect(140,720-band+6,1000,30),SelectedHero.Beam+"！",30,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(140,720-band+38,1000,18),SelectedHero.BeamJapanese,14,new Color(1,.91f,.68f,focus*.88f),TextAnchor.MiddleCenter,true);
+            }
+            else hud.Text(new Rect(140,720-band,1000,band),SelectedHero.Beam+"！",28,new Color(1,.82f,.47f,focus),TextAnchor.MiddleCenter,true);
         }
         void DrawSettings()
         {

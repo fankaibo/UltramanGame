@@ -302,7 +302,7 @@ namespace UltramanGame.Runtime
             float alpha=1-Mathf.SmoothStep(0,1,(battle.ActionAge-1.25f)/.25f);
             hud.Rounded(BattleHudLayout.BeamTitle,new Color(.006f,.02f,.055f,.80f*alpha),8);
             hud.Line(new Vector2(438,710),new Vector2(842,710),new Color(.22f,.72f,1,.65f*alpha),2);
-            hud.Text(new Rect(432,686,416,24),SelectedHero.Beam+"！",19,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
+            hud.Text(new Rect(432,686,416,24),$"{SelectedHero.Beam} · {SelectedHero.BeamJapanese}",17,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
         }
 
         // A short cabinet-style cut-in makes the transition out of the
