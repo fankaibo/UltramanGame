@@ -24,6 +24,7 @@ namespace UltramanGame.Runtime
         LocalMusic music;
         HudPainter hud;
         VictoryPhoto photo;
+        readonly RuntimeMemoryDiagnostics memory=new RuntimeMemoryDiagnostics();
         bool photoAvailable,autoPhotoOpened,finalGuide;
         float victoryAt,waitingGuideAt=20;
         bool keyboard,paused,muted,settings,audioSettings,videoSettings,showPreview=true,previewReported,lastTracking;
@@ -103,6 +104,7 @@ namespace UltramanGame.Runtime
         }
         void Update()
         {
+            memory.Tick(battle.Phase,photo!=null&&photo.Active,Time.unscaledTime);
             if(Input.mousePosition!=previousMouse){previousMouse=Input.mousePosition;cursorUntil=Time.unscaledTime+3;}
             Cursor.visible=keyboard||settings||showcase||music.Choosing||Time.unscaledTime<cursorUntil||photo.Stage==PhotoStage.Review;
             if(Input.GetKeyDown(KeyCode.F2)){SetMode(!keyboard);return;}

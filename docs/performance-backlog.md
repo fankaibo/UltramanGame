@@ -34,3 +34,15 @@
 本次流程持续 162.9 秒，自动合照 2 次、重拍和再开局均通过，未出现 RSS 随流程线性增长；完整识别回归仍为通过。当前结论是：暂不为了一个未复现的 5GB 总内存读数盲目降低素材质量；下一次性能窗口优先补做三局连续循环和角色切换/合照释放检查。若用户看到的是系统总内存，则需要同时记录 Unity Editor/Hub、姿态服务、合照网关和开发审查缓存的进程占用。
 
 本次原始采样：[memory-profile-20261002.tsv](../logs/memory-profile-20261002.tsv)；完整流程报告：[guided-validation.json](../artifacts/memory-profile-20261002/guided-validation.json)。
+
+### 开发构建遥测与后续动作
+
+已加入仅在 Development Build/Debug Build 输出的低频 `[RuntimeMemory]` 记录，区分 Unity allocated、reserved、Mono used 和 Mono heap，并标注战斗阶段与合照是否打开。重新构建后的完整体感流程（151.6 秒，键鼠事件 0，自动合照 2 次，重拍和再开局通过）记录到：
+
+- Unity allocated：约 242–255 MB
+- Unity reserved：约 597–605 MB
+- 合照阶段没有持续单调增长，返回第二局时仍约 247 MB allocated / 605 MB reserved
+
+这项遥测不进入发行版的交互逻辑，也不触发自动卸载。下一次优化只在连续三局或角色切换能够复现增长时处理资源生命周期；若 Activity Monitor 仍显示 5GB，则应同时抓取 Unity、Hub、姿态服务和网关进程的 RSS。
+
+本次遥测日志：[guided-runtime-memory.log](../logs/guided-runtime-memory.log)；流程报告：[guided-validation.json](../artifacts/guided-runtime-memory/guided-validation.json)。
