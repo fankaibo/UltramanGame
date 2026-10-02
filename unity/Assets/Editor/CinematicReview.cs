@@ -19,15 +19,15 @@ namespace UltramanGame.Editor
         {RenderAt("cinematic-combat");}
         static void RenderAt(string outputFolder)
         {
-            // Unity's Null graphics device cannot execute OnRenderImage, so
-            // the GPU locality micro-review would read an unchanged buffer
-            // and fail before the actual frame sequence is produced. The
-            // player and the normal graphics review still run that check;
-            // headless rendering records the limitation and continues with
-            // the deterministic battle frames.
-            if(SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null)
-                Debug.Log("[CinematicReview] skipped GPU flash locality check on Null graphics device");
-            else CinematicFlashReview.Run();
+            // The flash locality micro-review is useful as a separate GPU
+            // diagnostic, but it must not gate the actual movie render: some
+            // macOS driver paths quantize the tiny off-screen probe even
+            // though the player compositor is healthy. Opt into that probe
+            // explicitly so the default review always produces the real
+            // deterministic battle frames.
+            bool runFlash=Array.IndexOf(Environment.GetCommandLineArgs(),"--run-flash-review")>=0;
+            if(runFlash&&SystemInfo.graphicsDeviceType!=GraphicsDeviceType.Null)CinematicFlashReview.Run();
+            else Debug.Log("[CinematicReview] flash locality micro-review skipped; use --run-flash-review to run it separately");
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(20260909);
             var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback();
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
