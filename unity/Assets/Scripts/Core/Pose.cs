@@ -526,8 +526,12 @@ namespace UltramanGame.Core
             // ownership back to punch recognition. A one-arm departure is
             // deliberately measured in the image plane because a side punch
             // may have no reliable depth at all.
+            // Both wrists can move by different amounts after a camera
+            // packet is skipped.  Treat a roughly symmetric departure as
+            // estimator wobble; a real punch still has one arm leaving first
+            // and is handled by the single-arm break checks below.
             bool symmetricGuardWobble=leftGuardDrift>.30f&&rightGuardDrift>.30f&&
-                Math.Abs(leftGuardDrift-rightGuardDrift)<.35f;
+                Math.Abs(leftGuardDrift-rightGuardDrift)<.58f;
             bool oneArmGuardDeparture=(leftGuardDrift>.34f&&rightGuardDrift<.22f)||
                 (rightGuardDrift>.34f&&leftGuardDrift<.22f);
             bool handsLowered=flw.y>fsy+.45f*fs&&frw.y>fsy+.45f*fs;
@@ -538,7 +542,13 @@ namespace UltramanGame.Core
                 guardBreakSpread&&(GuardImageDistance(leftOffset,guardLeft)>.16f||leftOutward);
             bool rightBreakingCandidate=rightCommitted&&
                 guardBreakSpread&&(GuardImageDistance(rightOffset,guardRight)>.16f||rightOutward);
-            if(leftBreakingCandidate||rightBreakingCandidate||guardMoved)
+            // Do not clear an established shield merely because both wrists
+            // drifted together.  Only a hands-down release or an unmistakable
+            // one-arm departure may end the latch immediately; the normal
+            // ownership grace still handles a genuinely missing pose.
+            bool hardGuardBreak=leftBreakingCandidate||rightBreakingCandidate||handsLowered||
+                (oneArmGuardDeparture&&!symmetricGuardWobble);
+            if(hardGuardBreak)
             {
                 // A clear one-arm reach is the intentional exit from a held
                 // shield; only camera wobble remains protected by the latch.

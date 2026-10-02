@@ -29,7 +29,15 @@ namespace UltramanGame.Editor
             if(runFlash&&SystemInfo.graphicsDeviceType!=GraphicsDeviceType.Null)CinematicFlashReview.Run();
             else Debug.Log("[CinematicReview] flash locality micro-review skipped; use --run-flash-review to run it separately");
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(20260909);
-            var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback();
+            // The default review remains stable for regression checks. Optional
+            // deterministic variants make the exported showcase cover the same
+            // ground-slam, monster-ray and alternating-punch beats visible in
+            // the arcade reference without changing player input rules.
+            var args=Environment.GetCommandLineArgs();
+            bool slam=Array.IndexOf(args,"--review-slam")>=0;
+            bool ray=Array.IndexOf(args,"--review-ray")>=0;
+            bool linked=Array.IndexOf(args,"--review-linked")>=0;
+            var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback(slam,ray,linked);
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts",outputFolder));Directory.CreateDirectory(folder+"/frames");
             File.Delete(folder+"/validation.txt");
