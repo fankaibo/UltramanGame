@@ -74,3 +74,11 @@
 Unity Licensing 通道已恢复。最新开发构建的完整无键鼠流程持续 165.8 秒，覆盖两局战斗、大招、防御噪声、自动合照、重拍、预览断流恢复和再开局；运行时遥测仍为 allocated 约 241–255 MB、reserved 约 599–607 MB，第二局战斗约 247 MB allocated。当前样本没有显示合照或重开导致单调增长；后续仍需在同一次会话内补做三局连续循环和多角色切换，才能关闭 P1。
 
 证据：[guided-current-development.log](../logs/guided-current-development.log)、[guided-validation.json](../artifacts/guided-current-development/guided-validation.json)。
+
+### 2026-10-02：独立发行进程的系统级 footprint 复核
+
+为复核用户再次看到的约 5 GB，本次直接启动发行包 `TigaTraining.app`，并用 macOS `ps`、`vmmap -summary` 和 `footprint` 采样；没有把 Unity Editor 的内存混入游戏进程。键盘练习实例的 RSS 从启动加载期约 516 MiB，在约 50 秒后回落到 361 MiB；物理 footprint 当前约 1.72 GiB，峰值约 1.80 GiB。`vmmap` 中图形相关 footprint 约 680 MiB（IOAccelerator graphics）+ 391 MiB（owned graphics），是当前主要组成。独立 MediaPipe 相机服务约 210 MiB RSS。当前没有证据表明游戏进程稳定占用 5 GB；VSZ 约 431 GB 是 macOS/Unity 的保留虚拟地址空间，不能当作实际内存。
+
+这次结果不触发降低角色纹理或关闭特效的仓促修改：当前街机画面仍需要高质量模型、灯光和合照输出。P1 任务继续保留，下一次性能窗口在同一进程内覆盖三局、角色切换、大招和合照预览，并同时记录游戏、相机服务、Unity Hub/Editor 的 RSS；只有在游戏自身 footprint 随流程持续增长，或单独进程达到 GB 级且可复现时，才按 GPU 纹理、临时 RenderTexture、特效对象和角色生命周期逐项优化。
+
+本次原始采样（本地日志，未纳入版本库）：`logs/runtime-memory-20261002-baseline.tsv`、`logs/runtime-memory-20261002-footprint.txt`。
