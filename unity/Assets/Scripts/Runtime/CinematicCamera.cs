@@ -69,6 +69,10 @@ namespace UltramanGame.Runtime
             // world-space burst. Carry that same beat into the outer lens so
             // the transition between consecutive punches reads as one arcade
             // rhythm rather than a static pose plus a HUD counter.
+            // Keep the established timing windows and amplitudes. Only the
+            // interpolation shape changes here: the C2-continuous envelope
+            // removes the visible snap at entry, contact and release without
+            // changing camera speed, gameplay timing, or the central pose.
             float punch=punching?MotionBeat(state.ActionAge,.025f,.12f,.34f)*(combo?1.28f:1):0;
             float rush=state.Enemy==EnemyPhase.Attack?MotionBeat(state.EnemyAge,.06f,.34f,.78f)*.85f:0;
             float hurt=state.Action==HeroAction.Hurt?MotionBeat(state.ActionAge,0,.10f,.42f)*.90f:0;
@@ -81,7 +85,19 @@ namespace UltramanGame.Runtime
                 combo?new Color(1,.72f,.24f):new Color(.52f,.78f,1);
         }
         static float MotionBeat(float age,float start,float peak,float end)
-            =>Mathf.SmoothStep(0,1,Mathf.InverseLerp(start,peak,age))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(peak,end,age)));
+        {
+            float rise=Quintic(Mathf.InverseLerp(start,peak,age));
+            float fall=1-Quintic(Mathf.InverseLerp(peak,end,age));
+            return rise*fall;
+        }
+        // C2-continuous easing keeps the edge smear from gaining a visible
+        // snap at entry, contact, or release while remaining deterministic at
+        // any render rate.
+        static float Quintic(float t)
+        {
+            t=Mathf.Clamp01(t);
+            return t*t*t*(t*(t*6-15)+10);
+        }
         // GameWorld owns presentation time. Editor captures invoke it directly,
         // so relying on MonoBehaviour.Update leaves every later frame tinted.
         public void Tick(float dt)
