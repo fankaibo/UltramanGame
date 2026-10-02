@@ -96,3 +96,21 @@ Unity Licensing 通道已恢复。最新开发构建的完整无键鼠流程持�
 启动探针在加载梦比优斯/哥尔赞骨骼后进入 Metal 首帧渲染与 shader variant 等待，导致开发引导脚本误判为“没有进入游戏”。`PresentationWarmup` 现在默认不创建离屏 RenderTexture，也不在标题页前调用 `Camera.Render`；实时战斗仍使用完整渲染路径。完整开发版引导回归通过：158.1 秒、键鼠事件 0、两次自动合照、重拍、预览断流恢复和再开局通过；姿态噪声下没有误出拳，防御 4 次、大招 2 次。运行时遥测仍约 242–261 MB allocated、588–607 MB reserved，未观察到本修复造成的资源增长。
 
 本次证据：[guided-validation.json](../artifacts/bilingual-finisher-guided/guided-validation.json)、[bilingual-finisher-guided.log](../logs/bilingual-finisher-guided.log)。这只证明启动阻塞和流程回归，不替代 P1 要求的发行版三局连续 footprint 采样。
+
+### 2026-10-03：ARCADE-90 运行时资源审计与可复现采样器
+
+本轮只审计运行时资源生命周期，没有修改 `ArenaController`、战斗规则、HUD 或角色素材。静态核对确认：`VictoryPhoto.Close` 释放 `PhotoClient`、`PhotoComposition`、实时人像与成片纹理；`PhotoComposition.Dispose` 解绑相机目标、释放 1920×1080/2K `RenderTexture`、材质和合照角色根节点；`PhotoClient` 只保留一个最新帧并在关闭时清空；`LocalPhotoEnhancement.TakeResultPng` 在 `Texture2D.LoadImage` 后清空编码结果；`ContactShadows`、`VolcanoEnvironment` 和 `RuntimeResources` 均有成对的 RenderTexture、材质、网格或 GameObject 清理路径。没有发现可以安全解释 GB 级持续增长的新泄漏，因此没有加入强制 `Resources.UnloadUnusedAssets` 或降低纹理质量的改动。
+
+新增 [scripts/runtime_memory_profile.py](../scripts/runtime_memory_profile.py)，只使用子进程 PID 和 macOS `ps` 读取 RSS/VSZ，按局输出 TSV，并在每局结束后记录首个、峰值和最后一个有效 RSS；终止行的 `ps` 零值会被视为缺失，避免把回收误报成零内存。可用同一命令连续启动三次，命令参数中的 `{cycle}`、`{output}` 会替换为局号和独立输出目录，例如：
+
+```sh
+python3 scripts/runtime_memory_profile.py --cycles 3 --interval 5 \
+  --output logs/memory-cycles-new.tsv --command \
+  unity/Builds/TigaTraining.app/Contents/MacOS/迪迦体感训练场 \
+  -screen-fullscreen 0 -screen-width 1920 -screen-height 1080 \
+  -logFile logs/memory-cycle-{cycle}.log
+```
+
+脚本本身已用三次短命令循环和现有 Unity 可执行文件做有界启动探针验证；Unity 探针在 8 秒上限后按预期终止，首个有效启动样本约 149 MiB，加载阶段约 234–761 MiB RSS，VSZ 约 421 GiB，说明脚本能采到实际玩家进程且不会把 VSZ 当作内存。该探针没有进入战斗或合照，不能替代完整流程。完整三局证据仍采用同一源码的 Development Build：第一/二/三局 RSS 峰值约 950.6/948.7/774.2 MiB，结束约 442.4/388.0/410.0 MiB；96 个有效样本没有按局单调增长，见 [memory-cycles-20261002.tsv](../logs/memory-cycles-20261002.tsv)。
+
+验证：`python3 -m py_compile scripts/runtime_memory_profile.py`、`git diff --check` 通过；在允许本机回环和进程读取的环境执行 `bash scripts/check.sh`，39 个 Python 单元测试及完整规则检查共 **680 项**通过。受限沙箱中的同一命令曾因端口绑定和 `ps` 进程枚举 EPERM 产生环境错误，未计入代码失败。当前仍没有复现“单独游戏进程稳定占用 5 GB”；系统总内存读数继续按游戏、Unity、姿态服务、合照服务和审查缓存分项取证，P1 保留为待发行包三局/角色切换同进程复核。
