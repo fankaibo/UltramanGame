@@ -521,6 +521,26 @@ namespace UltramanGame.Runtime
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
             }
+            // A real cabinet shot leans into the contact for a fraction of a
+            // second. Add the same restrained roll after the dedicated lens
+            // blocks have chosen their framing. It is tied to the existing
+            // attack clocks, so it cannot drift during pause/replay and never
+            // changes the gesture or damage timing.
+            if(!Showcase&&!Closeup.Active&&state.Phase==GamePhase.Battle)
+            {
+                bool heroStrike=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+                float punchRoll=heroStrike
+                    ?Mathf.Sin(Mathf.Clamp01(state.ActionAge/.38f)*Mathf.PI)
+                    * (state.Action==HeroAction.LeftPunch?1.55f:-1.55f):0;
+                float rushRoll=state.Enemy==EnemyPhase.Attack
+                    ?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI)*
+                    (state.EnemyAttackCount%2==0?-1.25f:1.25f):0;
+                float hurtRoll=state.Action==HeroAction.Hurt
+                    ?Mathf.Sin(Mathf.Clamp01(state.ActionAge/KnockdownMotion.Duration)*Mathf.PI)*2.1f:0;
+                float roll=punchRoll+rushRoll+hurtRoll;
+                if(Mathf.Abs(roll)>.01f)
+                    Camera.transform.rotation=Quaternion.AngleAxis(roll,Camera.transform.forward)*Camera.transform.rotation;
+            }
             hero?.SetPresentationOpacity(MonsterEntranceCloseup?0:1);
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);

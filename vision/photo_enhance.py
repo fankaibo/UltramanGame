@@ -192,7 +192,12 @@ def harmonise(composite, plate, mask, recipe):
         # family face into a silhouette. The previous floor (.58 effective
         # strength) made the AI version look like a dark exposure variant
         # instead of a composited subject.
-        strength=min(.34,max(.14,recipe['light_wrap']*.88))
+        # The finished photo is shown beside the source at TV scale.  A
+        # near-zero gateway recipe previously produced a mathematically valid
+        # result whose environment response was hard to see.  Keep the face
+        # and clothing intact, but give the Fuji moon/lava plate a clearly
+        # readable, bounded response over the visible person area.
+        strength=min(.42,max(.26,recipe['light_wrap']*.98))
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
@@ -238,8 +243,8 @@ def enhance(source, plate_path, mask_path):
     # in a family preview. Use a bounded optical floor: cool scene wrap,
     # restrained contact shadow and a small colour-temperature correction.
     # Do not force the whole person darker; the face must remain readable.
-    recipe['light_wrap']=max(.20,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.14,min(.28,recipe['shadow_strength']))
+    recipe['light_wrap']=max(.26,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.16,min(.30,recipe['shadow_strength']))
     recipe['exposure_ev']=max(-.18,min(.05,recipe['exposure_ev']))
     recipe['red_gain']=max(.90,min(.98,recipe['red_gain']))
     recipe['green_gain']=max(.94,min(1.02,recipe['green_gain']))
