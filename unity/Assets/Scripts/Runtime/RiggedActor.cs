@@ -1556,7 +1556,15 @@ namespace UltramanGame.Runtime
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
             Vector3 contact=PunchContact;
-            float blend=punch||heroRecoveryAge<HeroRecoverySeconds?1:Mathf.SmoothStep(0,1,clipAge/.16f);
+            // The first Idle sample after a punch is rarely authored from the
+            // exact contact silhouette.  Forcing the IK correction to weight
+            // one made the visible fist snap back to the guard as soon as the
+            // combat clock returned to None.  Let the guard correction grow
+            // with the existing presentation-only recovery clock; the hit
+            // timestamp and damage resolution remain unchanged.
+            float recoveryBlend=state.Action==HeroAction.None
+                ?Mathf.SmoothStep(0,1,heroRecoveryAge/HeroRecoverySeconds):1;
+            float blend=punch?1:state.Action==HeroAction.None?recoveryBlend:Mathf.SmoothStep(0,1,clipAge/.16f);
             for(int i=0;i<2;i++)
             {
                 bool left=i==0,active=punch&&(left==(state.Action==HeroAction.LeftPunch));
@@ -1586,7 +1594,13 @@ namespace UltramanGame.Runtime
             bool punch=!HeroKickMotion.Active(state)&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch);
             float age=state.ActionAge;
             float motion=punch&&!combo?PunchReach(age):0;
-            float blend=punch||heroRecoveryAge<HeroRecoverySeconds?1:Mathf.SmoothStep(0,1,clipAge/.16f);
+            // Preserve the contact pose while the authored Idle clip takes
+            // over.  A short, monotonic guard blend keeps the shoulder and
+            // support hand connected to the punch instead of snapping both
+            // arms on the action-to-None handoff.
+            float recoveryBlend=state.Action==HeroAction.None
+                ?Mathf.SmoothStep(0,1,heroRecoveryAge/HeroRecoverySeconds):1;
+            float blend=punch?1:state.Action==HeroAction.None?recoveryBlend:Mathf.SmoothStep(0,1,clipAge/.16f);
             stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
             stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
             var side=Vector3.Cross(Vector3.up,forward);
