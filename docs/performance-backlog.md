@@ -90,3 +90,9 @@ Unity Licensing 通道已恢复。最新开发构建的完整无键鼠流程持�
 独立游戏进程每 5 秒采样一次，共 96 个有效样本：第一局 RSS 峰值约 950.6 MiB、结束约 442.4 MiB；第二局峰值约 948.7 MiB、结束约 388.0 MiB；第三局峰值约 774.2 MiB、结束约 410.0 MiB。三局没有按回合单调增长，采样最低约 355.3 MiB。Unity `[RuntimeMemory]` 在每局战斗稳定约 242–248 MB allocated、597–607 MB reserved，合照阶段约 252–261 MB allocated，回到新局战斗约 247.7 MB allocated；没有看到合照或重开后持续叠加。
 
 本轮没有触发降低角色纹理、关闭特效或强制 `UnloadUnusedAssets`：当前证据更接近启动/图形资源峰值，而不是可复现的游戏内存泄漏。期间另有一次加入全部姿态噪声的压力回归在第二局出现一次护盾重新获取，日志同时出现 130–600 ms 长帧；它已与资源生命周期基线分开记录，不能据此宣称存在内存泄漏。三局原始采样：[memory-cycles-20261002.tsv](../logs/memory-cycles-20261002.tsv)；完整报告目录：[memory-cycles-20261002](../artifacts/memory-cycles-20261002)。P1 任务仍保留，后续若发行版单进程 footprint 达到 GB 级并随角色切换/合照持续增长，再针对 GPU 纹理、RenderTexture 和特效对象逐项优化。
+
+### 2026-10-03：启动预热阻塞修复与引导回归
+
+启动探针在加载梦比优斯/哥尔赞骨骼后进入 Metal 首帧渲染与 shader variant 等待，导致开发引导脚本误判为“没有进入游戏”。`PresentationWarmup` 现在默认不创建离屏 RenderTexture，也不在标题页前调用 `Camera.Render`；实时战斗仍使用完整渲染路径。完整开发版引导回归通过：158.1 秒、键鼠事件 0、两次自动合照、重拍、预览断流恢复和再开局通过；姿态噪声下没有误出拳，防御 4 次、大招 2 次。运行时遥测仍约 242–261 MB allocated、588–607 MB reserved，未观察到本修复造成的资源增长。
+
+本次证据：[guided-validation.json](../artifacts/bilingual-finisher-guided/guided-validation.json)、[bilingual-finisher-guided.log](../logs/bilingual-finisher-guided.log)。这只证明启动阻塞和流程回归，不替代 P1 要求的发行版三局连续 footprint 采样。
