@@ -34,7 +34,13 @@ namespace UltramanGame.Core
             bool struck=left==(punchSide>0);
             float weight=Pulse(hitAge,struck?.015f:.05f,struck?.12f:.19f,MonsterRecoilMotion.Duration);
             float force=accent?1.2f:1;
-            return new Offset(sign*(struck?.36f:-.08f)*weight*force,(struck?.22f:-.06f)*weight*force,-(struck?.12f:.22f)*weight*force);
+            // The supporting claw used to inherit too much of the source Hurt
+            // clip's face-guard pose, so a hero punch made both hands climb
+            // beside the jaw. Keep the struck claw's recoil unchanged, while
+            // dropping the support claw toward the chest and shortening its
+            // backward pull. This preserves the three-quarter silhouette and
+            // leaves contact timing, damage and mirrored sides untouched.
+            return new Offset(sign*(struck?.36f:-.08f)*weight*force,(struck?.22f:-.16f)*weight*force,-(struck?.12f:.12f)*weight*force);
         }
     }
 }
