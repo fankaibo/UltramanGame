@@ -53,8 +53,13 @@ namespace UltramanGame.Editor
                 camera.cullingMask=0;camera.backgroundColor=new Color(.05f,.06f,.09f);
                 camera.transform.SetPositionAndRotation(new Vector3(0,0,-10),Quaternion.identity);
                 camera.aspect=width/144f;
-                var target=new RenderTexture(width,144,24,RenderTextureFormat.ARGBHalf);target.Create();camera.targetTexture=target;
-                var pixels=new Texture2D(width,144,TextureFormat.RGBAFloat,false,true);
+                // The Null device cannot read back HDR pixels, while the
+                // normal macOS graphics device can. Keep the HDR path for
+                // the real review so the flash ordering is not quantized at
+                // low intensity; use an 8-bit fallback only in headless mode.
+                bool hdrReadback=SystemInfo.graphicsDeviceType!=UnityEngine.Rendering.GraphicsDeviceType.Null;
+                var target=new RenderTexture(width,144,24,hdrReadback?RenderTextureFormat.ARGBHalf:RenderTextureFormat.ARGB32);target.Create();camera.targetTexture=target;
+                var pixels=new Texture2D(width,144,hdrReadback?TextureFormat.RGBAFloat:TextureFormat.RGBA32,false,true);
                 var oldTarget=RenderTexture.active;
                 Color[] Read(string name=null)
                 {

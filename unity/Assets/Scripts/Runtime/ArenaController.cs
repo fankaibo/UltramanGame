@@ -183,8 +183,14 @@ namespace UltramanGame.Runtime
                             // preference can steal the first L-pose packets
                             // and the hold appears to restart as a punch.
                             bool warningShieldPriority=battle.Phase==GamePhase.Battle&&
-                                battle.Energy<Battle.MaxEnergy&&
-                                (battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack);
+                                (battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack)&&
+                                // A full energy bar does not cancel a defense
+                                // cue. Keep the shield channel authoritative
+                                // until a finisher has visibly acquired and
+                                // announced ownership; otherwise a shallow
+                                // chest/L pose during the monster warning can
+                                // become an accidental punch.
+                                (recognizer.BeamProgress<=0&&!held.BeamIntent);
                             input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,
                                 battle.Phase==GamePhase.Waiting,warningShieldPriority);
                             string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?

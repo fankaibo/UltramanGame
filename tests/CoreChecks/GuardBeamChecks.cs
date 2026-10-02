@@ -58,6 +58,8 @@ static class GuardBeamChecks
         var warningChest=Body(.42f,.50f,.58f,.42f);warningChest[13].y=.47f;warningChest[14].y=.52f;
         trial=new Trial();trial.Hold(warningChest,.8f,true,true);
         check(trial.Last.Shield&&trial.Beams==0,"warning chest pose prioritizes defense over shallow beam ambiguity");
+        trial=new Trial();trial.Hold(l,1,true,true);
+        check(trial.Last.Shield&&trial.Beams==0,"enemy warning keeps a held L-like response on the defense channel");
         trial=new Trial();trial.Hold(l,1,false);trial.Hold(l,1,true);
         check(trial.Beams==0&&trial.R.BeamNeedsRelease,"pre-held pose does not auto-fire and explains that hands must first return");
         trial.Hold(Body(),.5f);trial.Hold(l,1,true);

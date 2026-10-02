@@ -359,7 +359,15 @@ namespace UltramanGame.Core
             // A chest guard should win immediately over a stale visual beam
             // candidate. Otherwise the child can hold a perfectly readable
             // shield while the previous packet's L-shape grace suppresses it.
-            bool earlyDefensePriority=(chestGuardPreferred||warningShieldPreferred)&&beamHold<.12f&&!beamLocked;
+            // During a telegraphed enemy warning, the child is answering a
+            // defense cue rather than trying to win a finisher race. Keep the
+            // warning shield owner active for the whole readable pose; the
+            // previous .12 s handoff let a shallow L/depth wobble become a
+            // punch after the first confirmation frame. Outside the warning,
+            // retain the short chest-guard arbitration window so a deliberate
+            // finisher can still take ownership normally.
+            bool earlyDefensePriority=(warningShieldPreferred&&shieldPriority) ||
+                ((chestGuardPreferred||warningShieldPreferred)&&beamHold<.12f&&!beamLocked);
             if(earlyDefensePriority)
             {
                 beamShape=false;beamEntryShape=false;beamVisualCandidate=false;beamShapeGrace=0;
