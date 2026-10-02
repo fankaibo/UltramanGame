@@ -16,6 +16,7 @@ namespace UltramanGame.Runtime
             bool opening=battle.Phase==GamePhase.Battle&&battleStartCueAt>=0&&time-battleStartCueAt<2.8f;
             bool cinematic=battle.Action==HeroAction.Beam;
             DrawArcadeRails(time,cinematic,warning,victory,transforming);
+            DrawMotionBursts(time,cinematic,warning,victory,transforming);
             if(waiting||victory)hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
             if(!waiting&&!transforming&&!victory)
             {
@@ -190,6 +191,43 @@ namespace UltramanGame.Runtime
             float groundPulse=.35f+.65f*Mathf.Max(action,beam,threat);
             hud.Line(new Vector2(14,674),new Vector2(44,674),new Color(left.r,left.g,left.b,left.a*groundPulse),2);
             hud.Line(new Vector2(1266,674),new Vector2(1236,674),new Color(right.r,right.g,right.b,right.a*groundPulse),2);
+        }
+
+        // The reference cabinet uses brief directional streaks to connect a
+        // child's movement with the fighter's contact. Keep them peripheral
+        // and short: they add speed to a hit without hiding the actual pose or
+        // turning the TV view into a permanent post-processing overlay.
+        void DrawMotionBursts(float time,bool cinematic,bool warning,bool victory,bool transforming)
+        {
+            if(cinematic||victory||transforming)return;
+            bool punch=battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch;
+            float punchPulse=punch?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/.38f)*Mathf.PI):0;
+            float rushPulse=battle.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(battle.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
+            float hurtPulse=battle.Action==HeroAction.Hurt?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/KnockdownMotion.Duration)*Mathf.PI):0;
+            if(punchPulse>.015f)
+                ScreenBurst(new Vector2(642,380),punchPulse,new Color(.26f,.84f,1),time,0,8,74,190);
+            if(rushPulse>.015f)
+                ScreenBurst(new Vector2(1010,350),rushPulse,new Color(1,.34f,.12f),time,1,7,88,210);
+            if(hurtPulse>.015f)
+                ScreenBurst(new Vector2(438,420),hurtPulse,new Color(1,.18f,.12f),time,2,6,72,170);
+            if(warning&&!punch&&rushPulse<=.015f)
+            {
+                float pulse=.18f+.12f*(.5f+.5f*Mathf.Sin(time*7.2f));
+                ScreenBurst(new Vector2(1020,350),pulse,new Color(1,.46f,.15f),time,3,4,96,150);
+            }
+        }
+
+        void ScreenBurst(Vector2 center,float pulse,Color color,float time,int seed,int count,float inner,float outer)
+        {
+            for(int i=0;i<count;i++)
+            {
+                float angle=(i+seed*.37f)*Mathf.PI*2/count+time*(.16f+seed*.03f);
+                float wobble=.84f+.16f*Mathf.Sin(time*4.2f+i*1.7f+seed);
+                float start=inner*(.82f+.18f*wobble),end=outer*(.82f+.18f*wobble)*pulse+.45f*outer;
+                Vector2 direction=new Vector2(Mathf.Cos(angle),Mathf.Sin(angle));
+                float alpha=Mathf.Clamp01(pulse*(.18f+.07f*(i%3)));
+                hud.Line(center+direction*start,center+direction*(start+end),new Color(color.r,color.g,color.b,alpha),i%3==0?2:1);
+            }
         }
 
         void DrawBattleHeader(bool ready,bool opening,bool cinematic)
