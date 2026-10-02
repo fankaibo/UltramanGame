@@ -110,10 +110,18 @@ namespace UltramanGame.Runtime
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
             Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special));
             bool punch=!special&&!blocked&&!hurt;
-            if(punch)strikeContact.Hit(position,direction==Vector3.zero?Vector3.right:direction,combo);
+            if(punch)
+            {
+                strikeContact.Hit(position,direction==Vector3.zero?Vector3.right:direction,combo);
+                // Ordinary contacts need the same one-frame arcade punctuation
+                // as the reference cabinet. Keep the flash short and local so
+                // it reads as fist-to-chest impact, not a second finisher.
+                FlashAt(position,combo?1.12f:.82f,combo?.20f:.14f,
+                    new Color(1,.72f,.26f,combo?.92f:.78f));
+            }
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             if(!blocked&&!punch&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=punch?0:special?(volumetric?6:14):blocked?9:7;
+            int rayCount=punch?(combo?9:6):special?(volumetric?6:14):blocked?9:7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
@@ -128,7 +136,8 @@ namespace UltramanGame.Runtime
                 // ordinary hit and the finisher.
                 var tint=blocked?Ice:hurt?Warm:(special?new Color(.38f,.78f,1):new Color(1,.72f,.28f));
                 ray.Color=Color.Lerp(tint,Color.white,.38f);
-                ray.Age=0;ray.Life=special?.34f:blocked?.27f:.22f;ray.Width=special?.12f:blocked?.085f:.075f;
+                ray.Age=0;ray.Life=punch?(combo?.20f:.15f):special?.34f:blocked?.27f:.22f;
+                ray.Width=punch?(combo?.075f:.055f):special?.12f:blocked?.085f:.075f;
                 ray.Line.SetPosition(0,position);ray.Line.SetPosition(1,position);ray.Line.enabled=true;
             }
             // Ordinary punches also need a small contact-to-ground cue on a TV;
