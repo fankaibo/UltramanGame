@@ -143,6 +143,38 @@ def _foot_shadow(alpha):
     return shadow
 
 
+def _soften_camera_crop(alpha, soft):
+    """Fade a person that is visibly cropped by the source camera frame.
+
+    Native person segmentation correctly identifies a shoulder or torso that
+    touches the input edge, but that edge is still a perfectly straight PNG
+    boundary.  Treat only those four source-frame boundaries as a short optical
+    falloff; ordinary silhouette edges continue to use the matte feather below.
+    """
+    import numpy as np
+    height, width = alpha.shape
+    span=max(8, round(height*.018))
+    span=min(span, max(1, min(height, width)//8))
+    t=np.linspace(0,1,span,dtype=np.float32)
+    ramp=t*t*(3-2*t)
+    # A matte that fills an entire edge row/column is usually a synthetic
+    # translucent test band or a deliberate full-frame plate.  A real cropped
+    # person occupies only a minority of that boundary; use that occupancy to
+    # avoid fading a legitimate full-height subject.
+    def cropped(edge, limit):
+        occupied=float(np.mean(edge>.50))
+        return occupied>.005 and occupied<limit
+    if cropped(alpha[:,0],.98):
+        soft[:,:span]*=ramp[None,:]
+    if cropped(alpha[:,-1],.98):
+        soft[:,-span:]*=ramp[::-1][None,:]
+    if cropped(alpha[0,:],.35):
+        soft[:span,:]*=ramp[:,None]
+    if cropped(alpha[-1,:],.35):
+        soft[-span:,:]*=ramp[::-1][:,None]
+    return soft
+
+
 def harmonise(composite, plate, mask, recipe):
     import cv2
     import numpy as np
@@ -204,6 +236,10 @@ def harmonise(composite, plate, mask, recipe):
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
+    # A cropped shoulder, head or torso can otherwise leave a visibly straight
+    # camera-frame edge in the finished photo.  Keep the interior and the
+    # fixed hero untouched while fading only source-frame boundaries.
+    soft=_soften_camera_crop(a,soft)
     # Feather the premultiplied foreground out through the cutout boundary.
     # The previous min(a, soft) only pulled pixels inward, leaving the camera
     # rectangle visible as a hard dark edge. Premultiplication lets the new

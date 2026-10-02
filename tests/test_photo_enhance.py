@@ -85,6 +85,20 @@ class PhotoEnhancementTests(unittest.TestCase):
         result=harmonise(image,plate,mask,recipe)
         np.testing.assert_array_equal(image[mask==0],result[mask==0])
 
+    def test_camera_frame_crop_gets_a_short_edge_falloff(self):
+        recipe=dict(exposure_ev=0,red_gain=1,green_gain=1,blue_gain=1,
+                    saturation=1,edge_feather_px=.6,light_wrap=.2,shadow_strength=0)
+        plate=np.full((120,180,3),(34,54,82),np.uint8)
+        mask=np.zeros((120,180),np.uint8);mask[24:108,:42]=255
+        image=plate.copy();image[mask>0]=(180,116,72)
+        result=harmonise(image,plate,mask,recipe)
+        # The subject genuinely touches the left camera edge. Its interior is
+        # retained, but the first pixel is allowed to meet the new background
+        # without a one-pixel-wide vertical cut line.
+        self.assertLess(int(result[62,0,0]),int(result[62,18,0]))
+        self.assertGreater(int(result[62,26,0]),int(plate[62,26,0]))
+        np.testing.assert_array_equal(result[:,90:],image[:,90:])
+
     def test_original_survives_success_or_model_failure(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'
