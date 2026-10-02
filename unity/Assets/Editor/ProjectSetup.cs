@@ -75,10 +75,12 @@ namespace UltramanGame.Editor
                 if(!Resources.Load<Shader>(shader))throw new System.Exception("Missing actor shadow shader: "+shader);
             PhotoCompositionChecks.Run();
             PhotoReview.Proportions();
+            bool release=System.Environment.GetEnvironmentVariable("ULTRAMAN_RELEASE_BUILD")=="1";
+            Debug.Log("[Build] configuration="+(release?"Release":"Development"));
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
                 locationPathName="Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,
-                options=BuildOptions.Development });
+                options=release?BuildOptions.None:BuildOptions.Development });
             if(report.summary.result!=BuildResult.Succeeded) throw new System.Exception("macOS build failed");
         }
         static void RequireAudio(string path)

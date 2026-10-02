@@ -1,6 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+build_mode="development"
+if [ "${1:-}" = "--release" ]; then
+  build_mode="release"
+elif [ "${1:-}" != "" ]; then
+  echo "用法：bash scripts/build_macos.sh [--release]" >&2
+  exit 2
+fi
+if [ "$build_mode" = "release" ]; then
+  export ULTRAMAN_RELEASE_BUILD=1
+else
+  unset ULTRAMAN_RELEASE_BUILD || true
+fi
 game_version=$(awk '/^m_EditorVersion:/ {print $2}' unity/ProjectSettings/ProjectVersion.txt)
 game_editor=${UNITY_EDITOR:-"/Applications/Unity/Hub/Editor/$game_version/Unity.app/Contents/MacOS/Unity"}
 if [ ! -x "$game_editor" ]; then
@@ -16,3 +28,4 @@ if [ -x .venv/bin/python ]; then game_python=.venv/bin/python; fi
   -executeMethod UltramanGame.Editor.ProjectSetup.BuildMac -quit -logFile "$PWD/logs/unity-build.log"
 "$game_python" scripts/sign_macos.py
 echo "构建完成：unity/Builds/TigaTraining.app"
+echo "构建模式：$build_mode"
