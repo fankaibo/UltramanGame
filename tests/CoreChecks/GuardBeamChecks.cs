@@ -39,6 +39,9 @@ static class GuardBeamChecks
         var childVisibility=Body();childVisibility[15].visibility=childVisibility[16].visibility=.36f;
         trial=new Trial();trial.Hold(childVisibility,.8f);
         check(trial.Last.Shield&&trial.Beams==0,"child-level wrist confidence still acquires defense");
+        var forwardChest=Body(.42f,.44f,.58f,.42f);forwardChest[15].z=-.47f;forwardChest[16].z=-.44f;
+        trial=new Trial();trial.Hold(forwardChest,.8f);
+        check(trial.Last.Shield&&trial.Beams==0,"centred forward chest guard stays defense despite webcam depth bias");
         var hidden=Body();hidden[15].visibility=.1f;
         trial.Hold(hidden,.1f);check(trial.Last.Shield,"brief wrist overlap does not drop an established shield");
         trial.Hold(hidden,.25f);check(!trial.Last.Shield,"prolonged missing wrist cannot hold a shield forever");

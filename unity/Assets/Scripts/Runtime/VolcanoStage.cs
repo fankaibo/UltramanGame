@@ -28,9 +28,12 @@ namespace UltramanGame.Runtime
         const int MeteorCount=5;
         readonly LineRenderer[] meteors=new LineRenderer[MeteorCount];
         readonly Vector3[] meteorOrigins={
-            new Vector3(-6.8f,9.2f,27.5f),new Vector3(4.8f,10.8f,30.5f),
-            new Vector3(-1.4f,12.4f,34.5f),new Vector3(8.6f,8.4f,32.5f),
-            new Vector3(-10.2f,11.8f,36.5f)};
+            // The ordinary battle lens is tighter than the wide introduction;
+            // keep the streaks above Fuji's ridge but inside that lens instead
+            // of placing them permanently above the rendered sky.
+            new Vector3(-6.8f,7.0f,27.5f),new Vector3(4.8f,6.8f,30.5f),
+            new Vector3(-1.4f,7.6f,34.5f),new Vector3(8.6f,6.2f,32.5f),
+            new Vector3(-10.2f,7.4f,36.5f)};
         readonly Vector3[] meteorDirections={
             new Vector3(1.75f,-.78f,0),new Vector3(-1.35f,-.64f,0),
             new Vector3(1.25f,-.52f,0),new Vector3(-1.80f,-.84f,0),
@@ -147,7 +150,7 @@ namespace UltramanGame.Runtime
                 var line=new GameObject("Fuji sky meteor "+i).AddComponent<LineRenderer>();
                 line.transform.SetParent(transform,false);line.useWorldSpace=true;line.positionCount=4;
                 line.sharedMaterial=meteorMaterial;line.numCapVertices=3;line.numCornerVertices=2;
-                line.widthMultiplier=.045f+.009f*(i%3);line.widthCurve=new AnimationCurve(
+                line.widthMultiplier=.055f+.011f*(i%3);line.widthCurve=new AnimationCurve(
                     new Keyframe(0,0),new Keyframe(.16f,.36f),new Keyframe(.72f,1),new Keyframe(1,0));
                 line.enabled=false;meteors[i]=line;
             }
@@ -350,8 +353,11 @@ namespace UltramanGame.Runtime
                 // Keep one or two streaks available during the opening and the
                 // battle intro; a very short 0.7 s window vanished between the
                 // review captures and made the dynamic sky look static.
-                float cycle=Mathf.Repeat(time*.17f+i*1.84f,9.0f);
-                const float duration=1.85f;
+                // Stagger a few longer passes so at least one streak is in the
+                // frame during a normal combat exchange, rather than allowing
+                // the whole sky to go static between two review captures.
+                float cycle=Mathf.Repeat(time*.15f+i*1.22f,6.8f);
+                const float duration=3.0f;
                 bool visible=cycle<duration;
                 line.enabled=visible;
                 if(!visible)continue;
@@ -368,7 +374,7 @@ namespace UltramanGame.Runtime
                     line.SetPosition(point,position);
                 }
                 float fade=Mathf.Sin(p*Mathf.PI);
-                var color=new Color(.60f,.82f,1,fade*.72f);
+                var color=new Color(.66f,.88f,1,fade*.86f);
                 line.startColor=color;line.endColor=new Color(1,.94f,.76f,fade);
             }
         }

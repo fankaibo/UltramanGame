@@ -188,7 +188,11 @@ def harmonise(composite, plate, mask, recipe):
         # size: a broader cool/warm wrap around the person and a softer matte
         # transition.  This is still a bounded compositor, not image-to-image
         # redrawing.
-        strength=min(.58,max(.22,recipe['light_wrap']*.95))
+        # Keep the environment response visible without turning a readable
+        # family face into a silhouette. The previous floor (.58 effective
+        # strength) made the AI version look like a dark exposure variant
+        # instead of a composited subject.
+        strength=min(.34,max(.14,recipe['light_wrap']*.88))
         corrected=corrected*(1-strength)+ambient*strength
     feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
@@ -226,32 +230,21 @@ def enhance(source, plate_path, mask_path):
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
     recipe=ask_model(image,url,key,plate=plate,mask=mask)
-    # A provider may legitimately choose zero wrap for a clean studio plate,
-    # but a living-room cutout needs a small visible blend to be useful. Keep
-    # this bounded local floor in the approved recipe rather than asking the
-    # image model to redraw a face or silhouette.
-    # A valid model response can still be visually indistinguishable on a
-    # dark volcanic plate when it chooses near-zero corrections. Keep the
-    # requested composition and identity fixed, but enforce a small visible
-    # optical pass so the saved AI image is meaningfully different from the
-    # original: a softened silhouette edge, cool scene wrap and a contact
-    # response under visible feet.
-    # A valid gateway recipe can still be too subtle to judge on a TV. Keep
-    # geometry and identity fixed, but make this optical pass reviewable.
-    # A 1080p TV makes a 1–4 px model suggestion effectively invisible. The
-    # saved variant keeps the same silhouette but gives the matte a reviewable
-    # 34 px optical transition, especially around a clipped shoulder or arm.
-    recipe['edge_feather_px']=max(34.0,recipe['edge_feather_px'])
-    # A near-zero model recipe is technically valid but indistinguishable in
-    # a family preview. Keep the effect gentle, yet visible enough to prove
-    # that the AI result has passed through the environment-light stage.
-    recipe['light_wrap']=max(1.35,recipe['light_wrap'])
-    recipe['shadow_strength']=max(.58,recipe['shadow_strength'])
-    recipe['exposure_ev']=min(-.34,recipe['exposure_ev'])
-    recipe['red_gain']=min(.86,recipe['red_gain'])
-    recipe['green_gain']=min(.90,recipe['green_gain'])
-    recipe['blue_gain']=max(1.24,recipe['blue_gain'])
-    recipe['saturation']=min(.78,recipe['saturation'])
+    # Keep the model's composition and identity decisions bounded locally. A
+    # near-zero recipe still gets a small, reviewable optical pass, while no
+    # image-to-image redraw or face editing is permitted here.
+    recipe['edge_feather_px']=max(2.4,recipe['edge_feather_px'])
+    # A near-zero model recipe is technically valid but can be hard to judge
+    # in a family preview. Use a bounded optical floor: cool scene wrap,
+    # restrained contact shadow and a small colour-temperature correction.
+    # Do not force the whole person darker; the face must remain readable.
+    recipe['light_wrap']=max(.20,recipe['light_wrap'])
+    recipe['shadow_strength']=max(.14,min(.28,recipe['shadow_strength']))
+    recipe['exposure_ev']=max(-.18,min(.05,recipe['exposure_ev']))
+    recipe['red_gain']=max(.90,min(.98,recipe['red_gain']))
+    recipe['green_gain']=max(.94,min(1.02,recipe['green_gain']))
+    recipe['blue_gain']=max(1.08,min(1.15,recipe['blue_gain']))
+    recipe['saturation']=max(.86,min(.98,recipe['saturation']))
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
     _save_png(output,result)

@@ -297,10 +297,19 @@ namespace UltramanGame.Core
             bool softGuard=beamWristsReady&&!(transformAvailable&&raised)&&
                 !beamShape&&!beamEntryShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
                 SoftGuard(fl,fr,flw,frw,fcx,fsy,fs);
+            // A real child-sized shield often has both hands a little farther
+            // forward than the strict chest envelope. If the pair remains
+            // centred, level and balanced, depth is too noisy to decide that
+            // it is a punch. Give this symmetric pose ownership before the
+            // one-arm motion channel runs; a raised/lower L or a two-hand push
+            // is excluded and remains available to the finisher path.
+            bool balancedGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                !beamShape&&!beamEntryShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                BalancedGuard(fl,fr,flw,frw,fcx,fsy,fs);
             // A child-sized shield is often wider and slightly forward of the
             // torso. It remains defense while both wrists form a compact pair
             // and neither has the depth of a deliberate two-hand push.
-            guardShape|=guardEntry||defensivePair||faceCoverGuard||softGuard;
+            guardShape|=guardEntry||defensivePair||faceCoverGuard||softGuard||balancedGuard;
             // A child-sized shield can sit farther from the torso than the
             // compact training pose. Require a balanced, low-depth pair so
             // this never treats one clearly extended fist as defense.
@@ -331,7 +340,7 @@ namespace UltramanGame.Core
             bool warningShieldPreferred=shieldPriority&&guardShape&&elbowsStayAtChest&&
                 !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&!ForwardPushEntry(fl,fr,flw,frw,fsy,fs)&&
                 Math.Abs(flw.y-frw.y)<.70f*fs;
-            bool chestGuardPreferred=defensivePair&&
+            bool chestGuardPreferred=(defensivePair||balancedGuard)&&
                 Math.Abs(flw.y-frw.y)<.44f*fs&&
                 Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
                 !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
@@ -510,7 +519,12 @@ namespace UltramanGame.Core
                 // shield; only camera wobble remains protected by the latch.
                 guardLocked=false;guardLockAge=0;guardLostAge=.29f;
             }
-            if (steady<.25f) return input;
+            // The first camera packets are already useful for a chest guard.
+            // Waiting a quarter second made a child hold the defense pose while
+            // the punch recognizer accumulated a competing trajectory. Keep a
+            // short settle window, but let the explicit two-hand safety pose
+            // own input after the camera has delivered a few fresh frames.
+            if (steady<.12f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
             if (wristsReady && !raised) transformFired=false;
             if (transformHold>=TransformHold && !transformFired) { input.Transform=true; transformFired=true; }
@@ -677,6 +691,27 @@ namespace UltramanGame.Core
             // over a stale one-arm punch trajectory.
             return leftForward<.38f&&rightForward<.38f&&Math.Abs(left.x-right.x)<1.92f*scale;
         }
+        static bool BalancedGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(Math.Abs(left.x-cx)>1.62f*scale||Math.Abs(right.x-cx)>1.62f*scale||
+                Math.Abs(left.x-right.x)>2.36f*scale||Math.Abs(left.y-right.y)>.62f*scale)
+                return false;
+            // Both wrists must still be near their own shoulder line. This
+            // keeps a one-arm lateral reach from borrowing the symmetric
+            // safety route while allowing a broad child-sized chest guard.
+            if(Math.Abs(left.x-ls.x)>.92f*scale||Math.Abs(right.x-rs.x)>.92f*scale)
+                return false;
+            if(left.y<sy-1.28f*scale||right.y<sy-1.28f*scale||
+                left.y>sy+1.22f*scale||right.y>sy+1.22f*scale||
+                Math.Max(left.y,right.y)<sy-.74f*scale)
+                return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // Permit a moderate, symmetric forward offset from webcam depth;
+            // reject the characteristic one-fist reach and a two-hand push.
+            return leftForward<1.46f&&rightForward<1.46f&&
+                Math.Abs(leftForward-rightForward)<.92f&&
+                !(leftForward>.38f&&rightForward>.38f&&Math.Abs(left.y-right.y)<.52f*scale);
+        }
         static bool FaceCoverGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
         {
             if(Math.Abs(left.x-cx)>1.46f*scale||Math.Abs(right.x-cx)>1.46f*scale||
@@ -739,8 +774,10 @@ namespace UltramanGame.Core
               Math.Abs(low.x-cx)<1.18f*scale && Math.Abs(high.x-low.x)<1.42f*scale &&
               // A deep, single-arm reach is the ordinary punch route. Let
               // the stricter depth-aware L classifier own that case instead
-              // of reserving it as a finisher from image shape alone.
-              Math.Abs(high.z-low.z)<.40f*scale;
+              // of reserving it as a finisher from image shape alone. The
+              // modestly wider bound absorbs a noisy wrist estimate, while
+              // the vertical L shape still excludes a horizontal punch.
+              Math.Abs(high.z-low.z)<.55f*scale;
         static bool ForwardVisualCandidate(PosePoint leftShoulder,PosePoint rightShoulder,PosePoint left,PosePoint right,float sy,float scale)
         {
             float separation=Math.Abs(left.x-right.x)/scale;

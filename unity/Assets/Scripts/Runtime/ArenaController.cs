@@ -40,6 +40,7 @@ namespace UltramanGame.Runtime
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
+        bool lastGuardIntent,lastBeamIntent;
         long sequence;
         float captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
         int presentedPunches,presentedHits,comboCount;
@@ -175,7 +176,14 @@ namespace UltramanGame.Runtime
                             // during Windup/Attack, so a child who started the beam
                             // pose at the warning could be forced into guard and
                             // miss the arcade finisher window.
+                            // At full energy the child has just been told to
+                            // perform the finisher. Let the beam candidate
+                            // reserve the gesture even while the monster is
+                            // warning/attacking; otherwise the warning shield
+                            // preference can steal the first L-pose packets
+                            // and the hold appears to restart as a punch.
                             bool warningShieldPriority=battle.Phase==GamePhase.Battle&&
+                                battle.Energy<Battle.MaxEnergy&&
                                 (battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack);
                             input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,
                                 battle.Phase==GamePhase.Waiting,warningShieldPriority);
@@ -191,6 +199,9 @@ namespace UltramanGame.Runtime
                                 gestureFeedback="护盾已展开";gestureFeedbackUntil=Time.unscaledTime+1.3f;
                                 if(Debug.isDebugBuild)Debug.Log($"[Gesture] 护盾已展开 sequence={pose.sequence}");
                             }
+                            if(Debug.isDebugBuild&&(input.GuardIntent!=lastGuardIntent||input.BeamIntent!=lastBeamIntent))
+                                Debug.Log($"[GestureIntent] guard={input.GuardIntent} beam={input.BeamIntent} shieldProgress={recognizer.ShieldProgress:F2} beamProgress={recognizer.BeamProgress:F2} energy={battle.Energy:F0}");
+                            lastGuardIntent=input.GuardIntent;lastBeamIntent=input.BeamIntent;
                         }
                     }
                     catch(ArgumentException) {pose=null;recognizer.Reset();input=default;}
