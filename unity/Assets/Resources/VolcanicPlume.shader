@@ -22,11 +22,36 @@ Shader "Training/VolcanicPlume" {
    float density(float3 p){
     float h=p.y+.5;
     float3 flow=p*float3(6.4,9,6.4)+float3(_Seed,-_Clock*.65,_Seed*.37);
-    float n=noise(flow)*.55+noise(flow*2.13+8)*.30+noise(flow*4.19-3)*.15;
-    float2 center=float2(-.12+h*.23+.025*sin(h*14-_Clock*.5+_Seed),.015*sin(h*11+_Seed));
-    float radius=.055+pow(saturate(h),.62)*.29;
-    float body=1-length(p.xz-center)/radius;
-    return saturate(body*2.5+(n-.48)*3.2)*smoothstep(0,.04,h)*(1-smoothstep(.67,.98,h));
+    // Three noise bands keep the silhouette soft while opening irregular gaps
+    // between puffs.  The low band moves the lobes as a group; the high band
+    // breaks up their edges so the volume does not read as a single cylinder.
+    float coarse=noise(flow*.44+float3(1.7,-.8,2.4));
+    float n=noise(flow)*.52+noise(flow*2.13+8)*.30+noise(flow*4.19-3)*.18;
+    float detail=noise(flow*1.63+float3(-3.2,4.6,1.1));
+    float drift=.035*sin(h*12-_Clock*.32+_Seed)+(.5-coarse)*.065;
+    float2 spine=float2(-.12+h*.23+drift,.015*sin(h*10+_Seed)+(.5-coarse)*.045);
+
+    // Two overlapping, tapering lobes form a broken billow.  Their offsets
+    // trade sides as the plume rises, producing a naturally pinched waist and
+    // a wider, uneven cap instead of one smooth radial shell.
+    float lobePhase=h*10.5-_Clock*.18+coarse*2.4;
+    float2 offset=float2(.085*sin(lobePhase),.045*cos(lobePhase*.83));
+    float lobeBias=.62+.24*smoothstep(.08,.72,h);
+    float radius=.048+pow(saturate(h),.58)*.255;
+    float radiusA=radius*(.84+.13*sin(h*8.2+coarse*4));
+    float radiusB=radius*(.74+.16*cos(h*7.3+coarse*3));
+    float bodyA=1-length((p.xz-(spine+offset))/radiusA);
+    float bodyB=1-length((p.xz-(spine-offset*.72))/radiusB);
+    float body=max(bodyA,bodyB*lobeBias);
+    // Low-frequency noise hollows the center of a few puffs, while detail
+    // noise only erodes the outer shell.  Both are bounded to keep fill rate
+    // close to the original 36-step ray march.
+    float hollow=(coarse-.43)*.45;
+    float shell=body+hollow+(n-.5)*.72+(detail-.5)*.22;
+    float base=smoothstep(0,.035,h);
+    float brokenCap=1-smoothstep(.73,.99,h);
+    float layers=.84+.16*saturate(.5+.5*sin(h*25+coarse*5.5+n*3.0));
+    return saturate(shell*2.45)*base*brokenCap*layers;
    }
    float4 frag(v2f i):SV_Target {
     float3 ray=normalize(i.world-_WorldSpaceCameraPos);
