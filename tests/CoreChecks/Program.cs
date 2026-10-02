@@ -74,6 +74,10 @@ static class Program
             Check(Holds(r,"shield",20,x=>x.LeftPunch||x.RightPunch||x.Beam)==0,"shield cannot generate attacks");
             Holds(r,"neutral",20,x=>false);
             Check(Holds(r,"raised",50,x=>x.Transform)==1,"transform pose triggers once");
+            r.Reset(requireTransformRelease:true);
+            Check(Holds(r,"raised",50,x=>x.Transform)==0,"new round cannot reuse the photo hands-up pose");
+            Holds(r,"neutral",20,x=>false);
+            Check(Holds(r,"raised",50,x=>x.Transform)==1,"new round transforms after a fresh hands-down release");
             r.Update(null,stamp);Check(!Feed(r,"beam").Beam,"tracking loss clears held gesture");
             TrackingRegressions();
             FriendlyMotionRegressions();

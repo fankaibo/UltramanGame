@@ -144,8 +144,13 @@ namespace UltramanGame.Runtime
                 // is no longer needed for review.
                 if(frame!=null)frame.Png=null;
                 choice.Reset();
-                reviewReadyAt=Now+Math.Max(8,Say("photo_saved")+3);
-                Debug.Log("[Photo] automatic capture complete; frozen review; hands down then gesture choice");
+                // The narration already tells the player to lower then raise
+                // their hands.  A second multi-second grace period made the
+                // next round feel stuck; keep only a short buffer after the
+                // voice ends, while PhotoChoiceGesture still requires a fresh
+                // neutral interval before accepting the raised-hands pose.
+                reviewReadyAt=Now+Math.Max(2.5,Say("photo_saved")+.45);
+                Debug.Log($"[Photo] automatic capture complete; frozen review; choiceReadyIn={(reviewReadyAt-Now):F2}s; hands-down gate active");
             }
             catch(UnityException e)
             {Prepare();Debug.LogWarning("[Photo] snapshot failed: "+e.GetType().Name);}

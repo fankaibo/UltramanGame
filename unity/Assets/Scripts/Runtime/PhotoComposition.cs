@@ -18,6 +18,13 @@ namespace UltramanGame.Runtime
         float lastShoulder,lastCenter,lastCrown;
         bool bodyMeasured;
         bool? measuredFullBody;
+        // Camera cutouts arrive asynchronously and their matte bounds can
+        // change by a few pixels from frame to frame.  Keep a committed body
+        // mode and a smoothed layout so a child never appears to jump toward
+        // or away from the hero during the live viewfinder.
+        bool layoutMeasured;
+        float stablePersonScale,stablePersonX,stableShoulderY;
+        bool? committedFullBody;
         public bool FullBody {get;private set;}
         bool disposed,dirty=true;
         public PhotoComposition(int width=Width,int height=Height,string heroId="Tiga")
@@ -103,7 +110,23 @@ namespace UltramanGame.Runtime
             var personBody=new PhotoBody(bounds.xMin,bounds.xMax,bounds.yMin,bounds.yMax,center,shoulder,crown);
             // The image can arrive before its nearest pose. Never let a stale
             // full-body measurement float a newly cropped camera frame.
-            if(!PhotoLayout.TryFit(personBody,Hero.Body,out var layout,cropped?(bool?)false:measuredFullBody))return false;
+            bool? fitHint=cropped?(bool?)false:committedFullBody??measuredFullBody;
+            if(!PhotoLayout.TryFit(personBody,Hero.Body,out var layout,fitHint))return false;
+            if(!layoutMeasured)
+            {
+                committedFullBody=layout.FullBody;
+                stablePersonScale=layout.PersonScale;stablePersonX=layout.PersonX;stableShoulderY=layout.ShoulderY;
+                layoutMeasured=true;
+            }
+            else
+            {
+                // Keep deliberate distance changes responsive while rejecting
+                // the large one-frame jumps caused by a noisy silhouette.
+                stablePersonScale=Mathf.Lerp(stablePersonScale,layout.PersonScale,.20f);
+                stablePersonX=Mathf.Lerp(stablePersonX,layout.PersonX,.24f);
+                stableShoulderY=Mathf.Lerp(stableShoulderY,layout.ShoulderY,.24f);
+                layout.PersonScale=stablePersonScale;layout.PersonX=stablePersonX;layout.ShoulderY=stableShoulderY;
+            }
             FullBody=layout.FullBody;
             person.mainTexture=texture;
             PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,layout.PersonX,layout.ShoulderY);
@@ -128,7 +151,8 @@ namespace UltramanGame.Runtime
             quad.localScale=new Vector3(bounds.width*scale,bounds.height*scale,1);
             quad.localPosition=new Vector3(x+(bounds.center.x-anchorX)*scale,y+(bounds.center.y-anchorY)*scale,0);
         }
-        public void ResetFraming() {bodyMeasured=false;measuredFullBody=null;}
+        public void ResetFraming()
+        {bodyMeasured=false;measuredFullBody=null;layoutMeasured=false;committedFullBody=null;stablePersonScale=stablePersonX=stableShoulderY=0;}
         public void HidePerson()
         {
             if(!personQuad.gameObject.activeSelf)return;

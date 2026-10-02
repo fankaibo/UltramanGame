@@ -29,6 +29,7 @@ namespace UltramanGame.Runtime
         public float Volume=.75f,MusicVolume=.45f;
         public event System.Action<string,float> InstructionStarted;
         public string HeroId="Tiga";
+        public string MusicSource {get;private set;}="内置原创战斗循环（未包含《奇迹再现》）";
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
         public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.LastPitch:F2} effectVoices={effects.ActiveCount}/{effects.Capacity} effectDuck={effectsDuck:F2} muted={muted}";
         AudioSource Source(GameObject owner)
@@ -54,11 +55,12 @@ namespace UltramanGame.Runtime
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
             calm.clip=Clip("Audio/music_ready");battle.clip=Clip("Audio/music_battle");
+            MusicSource="内置原创战斗循环（未包含《奇迹再现》）";
             calm.loop=battle.loop=true;calm.volume=battle.volume=0;calm.Play();battle.Play();
             Volume=PlayerPrefs.GetFloat("sound.master",.75f);MusicVolume=PlayerPrefs.GetFloat("sound.music",.45f);
             MusicEnabled=PlayerPrefs.GetInt("sound.musicEnabled",1)==1;
             ApplyEffectsMix();
-            if(Debug.isDebugBuild) Debug.Log($"[Audio] musicReady={calm.clip!=null} musicBattle={battle.clip!=null} voice={Clip("Voice/welcome")!=null}");
+            if(Debug.isDebugBuild) Debug.Log($"[Audio] musicReady={calm.clip!=null} musicBattle={battle.clip!=null} source={MusicSource} voice={Clip("Voice/welcome")!=null}");
         }
         AudioClip Clip(string key)
         {
@@ -243,11 +245,13 @@ namespace UltramanGame.Runtime
             monsterRay.pitch=.88f+.16f*power;
             if(!monsterRay.isPlaying){monsterRay.Play();if(Debug.isDebugBuild)Debug.Log("[MonsterRayAudio] started");}
         }
-        public void UseLocalMusic(AudioClip clip)
+        public void UseLocalMusic(AudioClip clip,string sourceName=null)
         {
             battle.Stop();var previous=localMusic;localMusic=clip;
             battle.clip=clip?clip:Clip("Audio/music_battle");battle.loop=true;battle.Play();
             if(previous)Object.Destroy(previous);
+            MusicSource=clip?(sourceName??clip.name):"内置原创战斗循环（未包含《奇迹再现》）";
+            if(Debug.isDebugBuild)Debug.Log($"[Audio] music source={MusicSource} local={(clip!=null)}");
             MusicEnabled=true;
         }
         public void Effect(string key,float gain=1)

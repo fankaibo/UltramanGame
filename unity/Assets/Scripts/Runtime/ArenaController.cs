@@ -337,7 +337,7 @@ namespace UltramanGame.Runtime
         void Restart()
         {
             photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
-            battle=new Battle(monsterHits);recognizer.Reset();presence.Reset();pose=null;held=default;
+            battle=new Battle(monsterHits);recognizer.Reset(requireTransformRelease:true);presence.Reset();pose=null;held=default;
             // A photo round can leave the native worker on the same camera stream.
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
@@ -524,18 +524,19 @@ namespace UltramanGame.Runtime
         {
             hud.Text(new Rect(386,236,508,36),music.SelectedName,23,HudPainter.Gold,bold:true);
             hud.Text(new Rect(386,276,508,32),music.Status,14,HudPainter.Muted);
+            hud.Text(new Rect(386,302,508,20),"当前来源："+sound.MusicSource,11,HudPainter.Cyan);
             GUI.enabled=!music.Loading&&!music.Choosing;
-            if(hud.Button(new Rect(386,315,276,38),"导入音乐 · F6",HudPainter.Cyan))music.Choose();
-            if(hud.Button(new Rect(677,315,216,38),"恢复内置配乐"))music.BuiltIn();
+            if(hud.Button(new Rect(386,335,276,38),"导入音乐 · F6",HudPainter.Cyan))music.Choose();
+            if(hud.Button(new Rect(677,335,216,38),"恢复内置配乐"))music.BuiltIn();
             GUI.enabled=true;
-            hud.Text(new Rect(386,360,225,25),"总音量  "+Mathf.RoundToInt(sound.Volume*100)+"%",17);
-            sound.Volume=GUI.HorizontalSlider(new Rect(633,368,256,20),sound.Volume,0,1);
-            hud.Text(new Rect(386,405,225,25),"音乐音量  "+Mathf.RoundToInt(sound.MusicVolume*100)+"%",17);
-            sound.MusicVolume=GUI.HorizontalSlider(new Rect(633,413,256,20),sound.MusicVolume,0,1);
-            if(hud.Button(new Rect(386,454,156,34),sound.MusicEnabled?"音乐：开":"音乐：关"))sound.MusicEnabled=!sound.MusicEnabled;
-            if(hud.Button(new Rect(560,454,157,34),muted?"恢复声音":"全部静音"))muted=!muted;
-            if(hud.Button(new Rect(735,454,158,34),"全屏 · F11"))Screen.fullScreen=!Screen.fullScreen;
-            hud.Text(new Rect(386,510,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
+            hud.Text(new Rect(386,380,225,25),"总音量  "+Mathf.RoundToInt(sound.Volume*100)+"%",17);
+            sound.Volume=GUI.HorizontalSlider(new Rect(633,388,256,20),sound.Volume,0,1);
+            hud.Text(new Rect(386,425,225,25),"音乐音量  "+Mathf.RoundToInt(sound.MusicVolume*100)+"%",17);
+            sound.MusicVolume=GUI.HorizontalSlider(new Rect(633,433,256,20),sound.MusicVolume,0,1);
+            if(hud.Button(new Rect(386,474,156,34),sound.MusicEnabled?"音乐：开":"音乐：关"))sound.MusicEnabled=!sound.MusicEnabled;
+            if(hud.Button(new Rect(560,474,157,34),muted?"恢复声音":"全部静音"))muted=!muted;
+            if(hud.Button(new Rect(735,474,158,34),"全屏 · F11"))Screen.fullScreen=!Screen.fullScreen;
+            hud.Text(new Rect(386,530,506,34),"支持 MP3 / WAV / OGG / AIFF · 选择后会自动记住\nF3 取景 · F4 设置 · F5 角色动作 · Esc 返回",13,HudPainter.Muted);
         }
         void OnDestroy()
         {Cursor.visible=true;photo?.Dispose();client?.Dispose();previewClient?.Dispose();if(previewTexture)Destroy(previewTexture);hud?.Dispose();sound?.Save();}

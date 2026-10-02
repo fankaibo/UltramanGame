@@ -30,7 +30,8 @@ namespace UltramanGame.Runtime
         {
             if(battle.Phase!=GamePhase.Waiting)return;
             const float x=319,y=510,w=122,gap=10;
-            hud.Text(new Rect(x,475,642,30),selectionHint.Length>0?selectionHint:"←  左右方向键选择英雄  →",17,HudPainter.Cyan,TextAnchor.MiddleCenter);
+            hud.Text(new Rect(x,475,642,24),selectionHint.Length>0?selectionHint:"←  左右方向键选择英雄  →",17,HudPainter.Cyan,TextAnchor.MiddleCenter);
+            hud.Text(new Rect(x,499,642,18),SelectedHero.Name+" · "+SelectedHero.Form+" · "+SelectedHero.Beam,11,HudPainter.Muted,TextAnchor.MiddleCenter);
             for(int i=0;i<HeroRoster.Count;i++)
             {
                 var r=new Rect(x+i*(w+gap),y,w,85);bool selected=i==heroIndex,available=HeroAvailable(i);

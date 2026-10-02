@@ -82,7 +82,7 @@ namespace UltramanGame.Core
         readonly PosePoint[] beamPoints = new PosePoint[33];
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
-        bool beamFired, beamArmed, transformFired, guardAnchored, hadWristPair;
+        bool beamFired, beamArmed, transformFired, transformReleaseRequired, guardAnchored, hadWristPair;
         // Remember a neutral interval while energy is unavailable. This lets
         // a pose that starts after the energy cue arm immediately, while a
         // pose held before the cue still requires a deliberate release.
@@ -141,8 +141,15 @@ namespace UltramanGame.Core
         public bool BeamNeedsRelease {get;private set;}
 
         public void Reset()
+        { Reset(false); }
+        // A photo review can finish while the child is still holding both
+        // hands up.  The next round must observe a hands-down frame before the
+        // same pose can transform again; otherwise the waiting screen is
+        // skipped before the child can see or hear the hero selection.
+        public void Reset(bool requireTransformRelease)
         {
             stream=null; lastSequence=lastStamp=0;
+            transformReleaseRequired=requireTransformRelease;
             ClearGestures();
         }
         void ClearGestures()
@@ -159,7 +166,7 @@ namespace UltramanGame.Core
         {
             ForwardPunch=false;
             ReferencePose="P0-准备";
-            if (!PoseQuality.Present(frame,nowMs)) { Reset(); return default; }
+            if (!PoseQuality.Present(frame,nowMs)) { ClearGestures(); return default; }
             if (stream==frame.streamId && frame.sequence<=lastSequence) return default;
             // A delayed but still-fresh camera packet is not a new gesture
             // stream. Under TV/Unity load several packets can arrive more than
@@ -590,8 +597,8 @@ namespace UltramanGame.Core
             // own input after the camera has delivered a few fresh frames.
             if (steady<.12f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
-            if (wristsReady && !raised) transformFired=false;
-            if (transformHold>=TransformHold && !transformFired) { input.Transform=true; transformFired=true; }
+            if (wristsReady && !raised) {transformFired=false;transformReleaseRequired=false;}
+            if (!transformReleaseRequired&&transformHold>=TransformHold&&!transformFired) { input.Transform=true; transformFired=true; }
             // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
             if(beamReleasePose&&!beamIntent)beamRelease=Math.Max(.25f,beamRelease);
             else if(beamWristsReady&&!beamIntent)beamRelease+=dt;else beamRelease=0;

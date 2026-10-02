@@ -380,6 +380,10 @@ namespace UltramanGame.Runtime
                 // shader applies this only at grazing angles, so the rim
                 // supports depth without flattening the costume colours.
                 mat.SetColor("_RimColor",new Color(.10f,.42f,1));mat.SetFloat("_RimPower",3.2f);mat.SetFloat("_RimStrength",.16f);
+                // Keep the high-resolution Tiga suit restrained while giving
+                // the smaller downloaded atlases a little stable surface
+                // breakup at the 45-degree battle distance.
+                mat.SetFloat("_MicroDetail",character=="Tiga"?.12f:character=="Zero"?.18f:.42f);
             }
             else if(kaiju)
             {
@@ -713,9 +717,13 @@ namespace UltramanGame.Runtime
                 {
                     next="Hurt";sample=KnockdownMotion.ClipSeconds(state.ActionAge);Frame=5;
                     float p=KnockdownMotion.Weight(state.ActionAge);
-                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-62f*p:
-                        Mathf.Lerp(-62,16,RiseStep(state.ActionAge,.68f,1.02f))*(1-RiseStep(state.ActionAge,1.02f,KnockdownMotion.Duration));
-                    fallSide=20f*p;
+                    // Let the shoulders lead a diagonal loss of balance.  The
+                    // old symmetric knee fold read as a squat; a shallower
+                    // pitch plus a clear side lean makes the hit look like a
+                    // body falling onto one bracing arm.
+                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-48f*p:
+                        Mathf.Lerp(-48,14,RiseStep(state.ActionAge,.68f,1.02f))*(1-RiseStep(state.ActionAge,1.02f,KnockdownMotion.Duration));
+                    fallSide=30f*p;
                 }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
             }
@@ -1723,33 +1731,45 @@ namespace UltramanGame.Runtime
             knockdownRotations[6]=leftUpperArm.localRotation;knockdownRotations[7]=leftForearm.localRotation;knockdownRotations[8]=leftHand.localRotation;knockdownApplied=true;
             var side=Vector3.Cross(Vector3.up,forward);
             var facing=Quaternion.LookRotation(forward);
-            Vector3 seated=home-forward*.35f+Vector3.up*.43f;
+            Vector3 seated=home-forward*.43f+side*.34f+Vector3.up*.50f;
             Vector3 upright=home+facing*pelvisLocal;
-            Vector3 crouch=upright+side*.12f;crouch.y=home.y+pelvisLocal.y*.52f;
-            Vector3 hips=Vector3.Lerp(seated,crouch,RiseStep(age,.80f,1.12f));
+            Vector3 crouch=upright+side*.10f-forward*.08f;crouch.y=home.y+pelvisLocal.y*.54f;
+            Vector3 hips=Vector3.Lerp(seated,crouch,RiseStep(age,.78f,1.12f));
             hips=Vector3.Lerp(hips,upright,RiseStep(age,1.12f,1.62f));
             float landed=age<KnockdownMotion.LandingSeconds?weight:1;
             Root.position+=Vector3.Lerp(pelvis.position,hips,landed)-pelvis.position;
-            Vector3 feet=seated+forward*1.12f;
-            Vector3 left=feet-side*.32f,right=feet+side*.30f-forward*.20f;
+            Vector3 feet=seated+forward*1.02f;
+            // The outside leg extends to catch the fall while the nearer leg
+            // folds under the pelvis.  Staggered targets are what make the
+            // landing read as a fall rather than two knees bending together.
+            Vector3 left=feet-side*.48f-forward*.16f,right=feet+side*.18f+forward*.12f;
             left.y=home.y+leftFootClearance;right.y=home.y+rightFootClearance;
             // First bring the right foot beneath the hips while the left boot
             // and hand carry the body. Then step the left boot back as the
             // right leg pushes up. Never slide both supports with a fade weight.
-            float rightStep=RiseStep(age,.58f,.86f),leftStep=RiseStep(age,.90f,1.30f);
+            float rightStep=RiseStep(age,.56f,.86f),leftStep=RiseStep(age,.92f,1.34f);
             Vector3 standingLeft=home+facing*leftFootLocal,standingRight=home+facing*rightFootLocal;
-            left=Vector3.Lerp(left,standingLeft,leftStep)+Vector3.up*(.14f*Mathf.Sin(leftStep*Mathf.PI));
-            right=Vector3.Lerp(right,standingRight,rightStep)+Vector3.up*(.10f*Mathf.Sin(rightStep*Mathf.PI));
+            left=Vector3.Lerp(left,standingLeft,leftStep)+Vector3.up*(.18f*Mathf.Sin(leftStep*Mathf.PI));
+            right=Vector3.Lerp(right,standingRight,rightStep)+Vector3.up*(.08f*Mathf.Sin(rightStep*Mathf.PI));
             float floorBlend=RiseStep(age,1.38f,1.62f);
             float lc=Mathf.Lerp(leftFootClearance,leftFootLocal.y,floorBlend),rc=Mathf.Lerp(rightFootClearance,rightFootLocal.y,floorBlend);
-            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,forward,RiseStep(age,.68f,1.02f)),lc);
-            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,forward,RiseStep(age,.68f,1.02f)),rc);
+            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,side+forward,RiseStep(age,.68f,1.02f)),lc);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,-forward,RiseStep(age,.68f,1.02f)),rc);
             leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,facing*leftFootRest,landed);
             rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,facing*rightFootRest,landed);
-            Vector3 support=seated-side*.68f-forward*.32f;support.y=home.y+.23f;
+            Vector3 support=seated-side*.74f-forward*.34f;support.y=home.y+.20f;
             Quaternion palm=leftHand.rotation;
-            PoseLimb(leftUpperArm,leftForearm,leftHand,support,landed*(1-RiseStep(age,.84f,1.22f)),-side,.23f);
+            PoseLimb(leftUpperArm,leftForearm,leftHand,support,landed*(1-RiseStep(age,.82f,1.24f)),-side,.23f);
             leftHand.rotation=palm;
+            // The free hand crosses the torso for balance instead of hanging
+            // beside a second identically folded arm.
+            if(upperArm&&forearm&&hand)
+            {
+                Vector3 brace=seated+forward*.05f-side*.10f+Vector3.up*.92f;
+                Quaternion rightPalm=hand.rotation;
+                PoseLimb(upperArm,forearm,hand,brace,landed*(1-RiseStep(age,.74f,1.18f)),side+forward,.28f);
+                hand.rotation=rightPalm;
+            }
         }
         void PoseLimb(Transform thigh,Transform shin,Transform foot,Vector3 target,float weight,Vector3 pole,float clearance)
         {

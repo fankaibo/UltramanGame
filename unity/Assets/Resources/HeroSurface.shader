@@ -5,6 +5,7 @@ Shader "Training/HeroSurface" {
   _RimColor("Arcade rim color",Color)=(.12,.48,1,1)
   _RimPower("Arcade rim falloff",Range(0.5,8))=3.2 _RimStrength("Arcade rim strength",Range(0,2))=.18
   _TextureArmor("Silver material separation",Range(0,1))=0
+  _MicroDetail("Suit micro detail",Range(0,2))=.35
   _CostumeFinish("Tiga costume finish",Range(0,1))=0
   _CostumeOcclusion("Local costume cavities",2D)="white"{}
   _EmissionColor("Base emission",Color)=(0,0,0,0)
@@ -25,7 +26,7 @@ Shader "Training/HeroSurface" {
   #pragma target 3.0
   sampler2D _MainTex,_CostumeOcclusion;fixed4 _Color,_EmissionColor,_RimColor;float4 _GuardPoint;
   half _CostumeFinish;
-  half4 _GuardColor;half _Metallic,_Glossiness,_TextureArmor,_EmissionAudit,_RimPower,_RimStrength;
+  half4 _GuardColor;half _Metallic,_Glossiness,_TextureArmor,_MicroDetail,_EmissionAudit,_RimPower,_RimStrength;
   float4 _EyeRegion,_CoreRegion;half _AtlasLights,_WarmEyes,_EyeRadiance,_CoreRadiance;
   struct Input {float2 uv_MainTex;float3 worldPos;float3 worldNormal;INTERNAL_DATA};
   float AtlasRegion(float2 uv,float4 region) {
@@ -61,6 +62,13 @@ Shader "Training/HeroSurface" {
    float silver=(1-smoothstep(.12,.35,saturation))*smoothstep(.15,.65,brightest)*_TextureArmor;
    // The silver panels are painted costume/armor, not polished chrome.
    // Broader reflections leave the suit's curves legible between spot lights.
+   // Small source atlases (especially the 256px Geed/Grigio textures) need a
+   // stable material cue at the 45-degree battle distance. This restrained,
+   // UV-attached grain adds cloth/paint breakup without inventing geometry.
+   float2 grain=i.uv_MainTex*180;
+   float grainWave=(sin(grain.x*6.283185)+sin(grain.y*6.283185*1.17))*.5;
+   float grainMask=saturate(1-silver)*_MicroDetail;
+   c.rgb*=1+grainWave*.028*grainMask;
    o.Albedo=c.rgb;o.Metallic=lerp(_Metallic,.42,silver);o.Smoothness=lerp(_Glossiness,.43,silver);
    if(_CostumeFinish>0) {
     // The original UV colors define the panels exactly. Calibrate their
@@ -79,7 +87,7 @@ Shader "Training/HeroSurface" {
     float2 filtered=1-smoothstep(.25,.65,fwidth(yarn));
     float2 weave=sin(yarn*6.283185)*filtered;
     float fabric=(1-silver)*_CostumeFinish;
-    o.Normal=normalize(float3(weave*.032*fabric,1));
+    o.Normal=normalize(float3(weave*.032*fabric+grainWave*.012*grainMask,1));
     o.Smoothness=lerp(o.Smoothness,.25+.035*weave.x*weave.y,fabric);
     o.Occlusion=lerp(1,tex2D(_CostumeOcclusion,i.uv_MainTex).r,.72*_CostumeFinish);
    }
