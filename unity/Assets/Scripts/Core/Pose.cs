@@ -118,7 +118,11 @@ namespace UltramanGame.Core
         // complete after a shorter, still deliberate hold.
         float BeamHold=>Level==0?.38f:BeamHoldSeconds+Level*.20f;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
-        public const float BeamHoldSeconds=.50f, BeamGapSeconds=1.45f;
+        public const float BeamHoldSeconds=.50f;
+        // A held finisher can lose the L angle for a few camera packets while
+        // the child is still clearly keeping both hands up. Let the intent
+        // survive that gap; deliberate hands-down release remains the reset.
+        public const float BeamGapSeconds=2.60f;
         // A laptop camera can lose stable depth for several packets while the
         // child is still visibly holding the finisher. Keep ownership longer
         // than the charge gap so this uncertainty cannot become a punch.
@@ -337,9 +341,16 @@ namespace UltramanGame.Core
             // raised forearm and therefore keeps the finisher route.
             bool elbowsStayAtChest=Math.Abs(frame.points[13].y-flw.y)<.24f*fs&&
                 Math.Abs(frame.points[14].y-frw.y)<.24f*fs;
-            bool warningShieldPreferred=shieldPriority&&guardShape&&elbowsStayAtChest&&
-                !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&!ForwardPushEntry(fl,fr,flw,frw,fsy,fs)&&
-                Math.Abs(flw.y-frw.y)<.70f*fs;
+            bool warningShieldPose=shieldPriority&&beamWristsReady&&!(transformAvailable&&raised)&&
+                WarningShieldPose(fl,fr,flw,frw,fcx,fsy,fs);
+            bool warningShieldPreferred=shieldPriority&&
+                ((guardShape&&elbowsStayAtChest&&
+                  !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&!ForwardPushEntry(fl,fr,flw,frw,fsy,fs)&&
+                  Math.Abs(flw.y-frw.y)<.70f*fs)||warningShieldPose);
+            // The warning cue is a deliberate defense window. If both hands
+            // are still in the compact chest envelope, let that cue own the
+            // packet before a noisy single-arm trajectory can become a punch.
+            guardShape|=warningShieldPreferred;
             bool chestGuardPreferred=(defensivePair||balancedGuard)&&
                 Math.Abs(flw.y-frw.y)<.44f*fs&&
                 Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
@@ -386,7 +397,13 @@ namespace UltramanGame.Core
             beamReleaseHold=rawBeamReleasePose?Math.Min(.6f,beamReleaseHold+dt):0;
             bool beamMaintained=beamHold>=.10f&&beamWristsReady&&!rawBeamReleasePose &&
                 (BeamImageShape(blw,brw,bcx,bsy,bs,true)||BeamImageShape(brw,blw,bcx,bsy,bs,true)||
-                 ForwardImageShape(blw,brw,bsy,bs,true));
+                 ForwardImageShape(blw,brw,bsy,bs,true)||
+                 // Once the finisher has acquired a little charge, do not
+                 // hand it to the punch channel just because one wrist depth
+                 // or elbow angle flickers. The child still has both wrists
+                 // visible and has not performed the explicit hands-down
+                 // release, so the correct action is to keep charging.
+                 beamLocked||beamHold>=.12f);
             // Once the child has held a valid finisher for a few packets,
             // retain ownership through the common false-negative where one
             // arm is briefly read as a forward punch. A neutral, lowered
@@ -666,6 +683,27 @@ namespace UltramanGame.Core
             =>new PosePoint((wrist.x-shoulder.x)/scale,(wrist.y-shoulder.y)/scale){z=(shoulder.z-wrist.z)/scale};
         static float GuardImageDistance(PosePoint a,PosePoint b)
         {float x=a.x-b.x,y=a.y-b.y;return (float)Math.Sqrt(x*x+y*y);}
+        static bool WarningShieldPose(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            // During the monster warning the child is answering an explicit
+            // shield cue. Keep the acquisition envelope broad enough for a
+            // small child and a laptop camera, but reject a clear one-arm
+            // lateral reach so an intentional punch still wins after the
+            // warning has been answered.
+            if(Math.Abs(left.x-cx)>1.78f*scale||Math.Abs(right.x-cx)>1.78f*scale||
+                Math.Abs(left.x-right.x)>2.55f*scale||Math.Abs(left.y-right.y)>1.08f*scale)
+                return false;
+            if(left.y<sy-1.36f*scale||right.y<sy-1.36f*scale||
+                left.y>sy+1.28f*scale||right.y>sy+1.28f*scale)
+                return false;
+            bool leftReach=Math.Abs(left.x-ls.x)>1.05f*scale&&Math.Abs(right.x-rs.x)<.92f*scale;
+            bool rightReach=Math.Abs(right.x-rs.x)>1.05f*scale&&Math.Abs(left.x-ls.x)<.92f*scale;
+            if(leftReach||rightReach)return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // Both hands may be slightly forward in a shield. A large
+            // imbalance is the webcam signature of a single extended fist.
+            return Math.Abs(leftForward-rightForward)<1.35f;
+        }
         static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale,bool holding=false)
             =>Math.Abs(left.x-cx)<(holding?1.14f:1.06f)*scale&&Math.Abs(right.x-cx)<(holding?1.14f:1.06f)*scale&&
                 // Keep the acquisition envelope centered on the chest, but
