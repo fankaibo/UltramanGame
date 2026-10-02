@@ -31,7 +31,11 @@ namespace UltramanGame.Runtime
         public string HeroId="Tiga";
         public string MusicSource {get;private set;}="内置原创战斗循环（未包含《奇迹再现》）";
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
-        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.LastPitch:F2} effectVoices={effects.ActiveCount}/{effects.Capacity} effectDuck={effectsDuck:F2} muted={muted}";
+        public string RequestedBeamVoiceKey {get;private set;}="beam";
+        public string ResolvedBeamVoiceKey {get;private set;}="beam";
+        public bool BeamVoiceExact {get;private set;}
+        public string BeamVoiceSource => BeamVoiceExact?"hero-specific/original":"neutral fallback";
+        public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} beamOriginal={HasOriginalBeamVoice} beamVoice={ResolvedBeamVoiceKey} beamVoiceSource={BeamVoiceSource} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.LastPitch:F2} effectVoices={effects.ActiveCount}/{effects.Capacity} effectDuck={effectsDuck:F2} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
         public GameAudio(GameObject owner)
@@ -306,6 +310,14 @@ namespace UltramanGame.Runtime
             if(key=="warning"||key=="battle"||key=="energy"||key=="resume"||key=="tutorial"||key=="beam_help"||key=="beam_reset"||key=="arcade_final")
                 InstructionStarted?.Invoke(key,seconds);
         }
+        public string ResolveBeamVoiceKeyForHero(string heroId,out bool exact)
+        {
+            string requested="beam";
+            for(int i=0;i<HeroRoster.Count;i++)
+                if(HeroRoster.At(i).Id==heroId){requested=HeroRoster.At(i).BeamVoiceKey;break;}
+            exact=HasVoice(requested);
+            return exact?requested:(HasVoice("beam")?"beam":null);
+        }
         public void Cue(GameCue cue,GamePhase state)
         {
             switch(cue)
@@ -322,14 +334,18 @@ namespace UltramanGame.Runtime
                     pending.Clear();Effect("shield",.45f);Speak("energy",5,state);break;
                 case GameCue.Beam:
                     pending.Clear();
-                    string beamKey="beam";
+                    bool exact;
+                    string beamKey=ResolveBeamVoiceKeyForHero(HeroId,out exact);
+                    RequestedBeamVoiceKey="beam";
                     for(int i=0;i<HeroRoster.Count;i++)
-                        if(HeroRoster.At(i).Id==HeroId){beamKey=HeroRoster.At(i).BeamVoiceKey;break;}
+                        if(HeroRoster.At(i).Id==HeroId){RequestedBeamVoiceKey=HeroRoster.At(i).BeamVoiceKey;break;}
+                    ResolvedBeamVoiceKey=beamKey??"missing";BeamVoiceExact=exact;
                     // Only use a clip when it has actually been imported for
                     // that hero. Missing licensed/original recordings fall
                     // back to the neutral beam cue instead of pretending that
                     // a generic voice is the hero's source audio.
-                    if(!HasVoice(beamKey))beamKey="beam";
+                    if(Debug.isDebugBuild)Debug.Log($"[BeamVoice] hero={HeroId} requested={RequestedBeamVoiceKey} resolved={ResolvedBeamVoiceKey} exact={BeamVoiceExact} source={BeamVoiceSource}");
+                    if(string.IsNullOrEmpty(beamKey))break;
                     Speak(beamKey,5,state);break;
                 case GameCue.Victory:effects.Stop();pending.Clear();Speak("victory",6,state);break;
                 case GameCue.Resume:Speak("resume",3,state);break;

@@ -15,6 +15,31 @@ namespace UltramanGame.Editor
     public static class AudioMixReview
     {
         const string Pending="UltramanGame.AudioMixReview.Pending";
+        public static void VoiceCoverage()
+        {
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combat-audio/voice-coverage"));
+            Directory.CreateDirectory(folder);
+            var report=new StringBuilder("heroId\tname\tbeam\trequestedClip\tresolvedClip\tsource\tseconds\n");
+            bool tigaOriginal=false,neutralFallback=false;
+            for(int i=0;i<HeroRoster.Count;i++)
+            {
+                var hero=HeroRoster.At(i);
+                var requested=Resources.Load<AudioClip>("Voice/"+hero.BeamVoiceKey);
+                var fallback=Resources.Load<AudioClip>("Voice/beam");
+                var resolved=requested?requested:fallback;
+                string source=requested?"hero-specific/original":resolved?"neutral fallback":"missing";
+                if(hero.Id=="Tiga"&&hero.BeamVoiceKey=="beam_original"&&requested)tigaOriginal=true;
+                if(fallback)neutralFallback=true;
+                report.Append(hero.Id).Append('\t').Append(hero.Name).Append('\t').Append(hero.BeamJapanese).Append('\t')
+                    .Append(requested?hero.BeamVoiceKey:"-").Append('\t').Append(resolved?resolved.name:"-").Append('\t').Append(source).Append('\t')
+                    .AppendLine(resolved?resolved.length.ToString("F3",System.Globalization.CultureInfo.InvariantCulture):"0.000");
+            }
+            report.AppendLine("policy\tOnly imported hero-specific/original clips are exact; missing licensed recordings use neutral beam.aiff and remain visible in this report.");
+            File.WriteAllText(folder+"/voice-coverage.tsv",report.ToString());
+            File.WriteAllText(folder+"/summary.txt",FormattableString.Invariant($"tigaOriginal={(tigaOriginal?"passed":"failed")} neutralFallback={(neutralFallback?"passed":"failed")} heroes={HeroRoster.Count}\n"));
+            if(!tigaOriginal||!neutralFallback)throw new Exception("Beam voice coverage lost the confirmed Tiga original or neutral fallback clip");
+            Debug.Log("[AudioVoiceCoverage] passed heroes="+HeroRoster.Count+" folder="+folder);
+        }
         public static void Arrival()
         {
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/monster-entrance"));Directory.CreateDirectory(folder);
