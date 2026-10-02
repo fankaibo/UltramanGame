@@ -10,6 +10,8 @@ Shader "Training/KaijuSurface" {
   _ImpactColor("Local impact light",Color)=(0,0,0,0)
   [HideInInspector] _EmissionAudit("Emission inspection",Float)=0
   _Metallic("Metal",Range(0,1))=.03 _Glossiness("Smoothness",Range(0,1))=.26
+  _RimColor("Arcade rim color",Color)=(1,.16,.035,1)
+  _RimPower("Arcade rim falloff",Range(0.5,8))=2.6 _RimStrength("Arcade rim strength",Range(0,2))=.24
   _SrcBlend("Source",Float)=1 _DstBlend("Destination",Float)=0 _ZWrite("Depth",Float)=1
  }
  SubShader {
@@ -18,7 +20,7 @@ Shader "Training/KaijuSurface" {
   #pragma surface surf Standard fullforwardshadows addshadow keepalpha finalcolor:FadeAdditive
   #pragma target 3.0
   #include "KaijuDissolve.cginc"
-  sampler2D _MainTex;float4 _MainTex_TexelSize,_ImpactPoint,_ImpactDirection;fixed4 _Color,_EmissionColor;half4 _ImpactColor;half _Metallic,_Glossiness,_EmissionAudit;
+  sampler2D _MainTex;float4 _MainTex_TexelSize,_ImpactPoint,_ImpactDirection;fixed4 _Color,_EmissionColor,_RimColor;half4 _ImpactColor;half _Metallic,_Glossiness,_EmissionAudit,_RimPower,_RimStrength;
   struct Input {float2 uv_MainTex;float3 worldPos;float3 worldNormal;INTERNAL_DATA};
   float _DissolveAmount,_SkinDetail;float4 _DissolveBounds;
   float hash(float2 p) {return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453);}
@@ -70,7 +72,11 @@ Shader "Training/KaijuSurface" {
    float facing=smoothstep(0,.45,dot(normalize(WorldNormalVector(i,o.Normal)),normalize(_ImpactDirection.xyz)));
    float patch=(1-smoothstep(.15,1,distanceToHit))*facing;
    float detail=.30+.70*dot(c.rgb,float3(.30,.59,.11));
-   o.Emission=_EmissionColor.rgb+_ImpactColor.rgb*(_ImpactColor.a*patch*detail)+float3(2.6,1.1,.16)*edge;o.Alpha=c.a;
+   float3 worldNormal=normalize(WorldNormalVector(i,o.Normal));
+   float3 toCamera=normalize(_WorldSpaceCameraPos-i.worldPos);
+   float rim=pow(1-saturate(dot(worldNormal,toCamera)),max(.5,_RimPower));
+   o.Emission=_EmissionColor.rgb+_ImpactColor.rgb*(_ImpactColor.a*patch*detail)+float3(2.6,1.1,.16)*edge
+       +_RimColor.rgb*rim*_RimStrength;o.Alpha=c.a;
   }
   ENDCG
  }

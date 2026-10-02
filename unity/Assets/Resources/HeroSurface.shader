@@ -2,6 +2,8 @@ Shader "Training/HeroSurface" {
  Properties {
   _MainTex("Original suit",2D)="white"{} _Color("Tint",Color)=(1,1,1,1)
   _Metallic("Metal",Range(0,1))=.2 _Glossiness("Smoothness",Range(0,1))=.42
+  _RimColor("Arcade rim color",Color)=(.12,.48,1,1)
+  _RimPower("Arcade rim falloff",Range(0.5,8))=3.2 _RimStrength("Arcade rim strength",Range(0,2))=.18
   _TextureArmor("Silver material separation",Range(0,1))=0
   _CostumeFinish("Tiga costume finish",Range(0,1))=0
   _CostumeOcclusion("Local costume cavities",2D)="white"{}
@@ -21,9 +23,9 @@ Shader "Training/HeroSurface" {
   CGPROGRAM
   #pragma surface surf Standard fullforwardshadows addshadow keepalpha finalcolor:FadeAdditive
   #pragma target 3.0
-  sampler2D _MainTex,_CostumeOcclusion;fixed4 _Color,_EmissionColor;float4 _GuardPoint;
+  sampler2D _MainTex,_CostumeOcclusion;fixed4 _Color,_EmissionColor,_RimColor;float4 _GuardPoint;
   half _CostumeFinish;
-  half4 _GuardColor;half _Metallic,_Glossiness,_TextureArmor,_EmissionAudit;
+  half4 _GuardColor;half _Metallic,_Glossiness,_TextureArmor,_EmissionAudit,_RimPower,_RimStrength;
   float4 _EyeRegion,_CoreRegion;half _AtlasLights,_WarmEyes,_EyeRadiance,_CoreRadiance;
   struct Input {float2 uv_MainTex;float3 worldPos;float3 worldNormal;INTERNAL_DATA};
   float AtlasRegion(float2 uv,float4 region) {
@@ -98,6 +100,13 @@ Shader "Training/HeroSurface" {
    float core=AtlasRegion(i.uv_MainTex,_CoreRegion)*blue;
    o.Emission=_EmissionColor.rgb+_GuardColor.rgb*(_GuardColor.a*patch)*(.18+c.rgb*.55)
        +c.rgb*(_AtlasLights*(_EyeRadiance*eyes+_CoreRadiance*core));
+   // A restrained Fresnel rim separates the suit from the dark Fuji plate.
+   // It is view-dependent, so the edge moves naturally with the close camera
+   // rather than painting a fixed outline into the texture.
+   float3 worldNormal=normalize(WorldNormalVector(i,float3(0,0,1)));
+   float3 toCamera=normalize(_WorldSpaceCameraPos-i.worldPos);
+   float rim=pow(1-saturate(dot(worldNormal,toCamera)),max(.5,_RimPower));
+   o.Emission+=_RimColor.rgb*rim*_RimStrength;
    o.Alpha=c.a;
   }
   ENDCG

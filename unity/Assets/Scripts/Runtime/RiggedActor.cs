@@ -359,6 +359,17 @@ namespace UltramanGame.Runtime
             var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):
                 heroSurface?new Material(Resources.Load<Shader>("HeroSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
             mat.color=new Color(.72f,.77f,.85f);mat.SetFloat("_Metallic",heroSurface?.48f:.65f);mat.SetFloat("_Glossiness",heroSurface?.46f:.55f);
+            if(heroSurface)
+            {
+                // Keep the suit readable against the dark Fuji plate. The
+                // shader applies this only at grazing angles, so the rim
+                // supports depth without flattening the costume colours.
+                mat.SetColor("_RimColor",new Color(.10f,.42f,1));mat.SetFloat("_RimPower",3.2f);mat.SetFloat("_RimStrength",.16f);
+            }
+            else if(kaiju)
+            {
+                mat.SetColor("_RimColor",new Color(1,.15f,.035f));mat.SetFloat("_RimPower",2.6f);mat.SetFloat("_RimStrength",.22f);
+            }
             if(name.StartsWith("Golza",StringComparison.Ordinal))
             {
                 bool eye=name.Contains("Eyes");mat.mainTexture=eye?eyes:texture;mat.color=Color.white;
