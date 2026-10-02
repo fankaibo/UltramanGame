@@ -27,8 +27,10 @@ namespace UltramanGame.Runtime
                     bool comboActive=comboCount>=2&&time<comboUntil;
                     // One counter changes meaning with the active string. Total
                     // hits and the same combo no longer occupy three rows.
-                    hud.Text(new Rect(30,247,150,58),(comboActive?comboCount:battle.Punches).ToString("00"),38+(int)(pulse*5),new Color(1,.88f,.52f),bold:true);
-                    hud.Text(new Rect(33,306,150,22),comboActive?"连击":"命中",14,comboActive?gold:HudPainter.Muted,bold:true);
+                    // Keep the score cue legible at TV distance without
+                    // letting this side rail compete with the two fighters.
+                    hud.Text(new Rect(30,247,150,54),(comboActive?comboCount:battle.Punches).ToString("00"),34+(int)(pulse*4),new Color(1,.88f,.52f),bold:true);
+                    hud.Text(new Rect(33,304,150,20),comboActive?"连击":"命中",12,comboActive?gold:HudPainter.Muted,bold:true);
                     hud.Line(new Vector2(33,337),new Vector2(99,337),gold,2);
                     for(int i=0;i<5;i++)
                     {
@@ -42,11 +44,11 @@ namespace UltramanGame.Runtime
                         // immediate reward without covering either fighter.
                         float age=Mathf.Clamp01((comboUntil-time)/2.6f);
                         float pop=Mathf.Sin(Mathf.Clamp01(age*3f)*Mathf.PI)*.08f;
-                        float width=196*(1+pop),height=47*(1+pop),x=542-width*.5f;
+                        float width=180*(1+pop),height=42*(1+pop),x=640-width*.5f;
                         hud.Rounded(new Rect(x,91,width,height),new Color(.035f,.055f,.12f,.90f),9);
                         hud.Line(new Vector2(x+12,100),new Vector2(x+50,100),gold,2);
                         hud.Line(new Vector2(x+width-50,100),new Vector2(x+width-12,100),cyan,2);
-                        hud.Text(new Rect(x+12,98,width-24,31),$"{comboCount:00} 连击",22,new Color(1,.88f,.48f,Mathf.Clamp01(age*2f)),TextAnchor.MiddleCenter,true);
+                        hud.Text(new Rect(x+10,96,width-20,29),$"{comboCount:00} 连击",20,new Color(1,.88f,.48f,Mathf.Clamp01(age*2f)),TextAnchor.MiddleCenter,true);
                         StarBurst(new Vector2(x+8,114),10,Mathf.Clamp01(age*1.6f),gold);
                         StarBurst(new Vector2(x+width-8,114),10,Mathf.Clamp01(age*1.6f),cyan);
                     }
@@ -56,7 +58,7 @@ namespace UltramanGame.Runtime
                     // Keep praise beside the combo counter: the monster's
                     // face and contact area must stay clear in the closer lens.
                     float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*12;
-                    hud.Text(new Rect(33,353-lift,200,28),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?19:17,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
+                    hud.Text(new Rect(33,351-lift,200,26),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?17:15,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
                     float burstAge=Mathf.Clamp01((1-age)*1.4f);
                     Vector2 burstCenter=battle.Punches%5==0?new Vector2(515,270):new Vector2(225,350);
                     StarBurst(burstCenter,24+12*(1-burstAge),burstAge,battle.Punches%5==0?gold:cyan);
@@ -76,7 +78,7 @@ namespace UltramanGame.Runtime
                     string warningText=battle.Enemy==EnemyPhase.Attack?
                         (battle.Shield?"挡住它 · 保持护盾！":MonsterRayMotion.Active(battle)?"光线来了 · 双手防御！":"怪兽冲过来了！"):
                         (battle.Shield?"护盾准备好了":MonsterRayMotion.Active(battle)?"怪兽正在积蓄光线":"怪兽正在蓄力");
-                    hud.Text(new Rect(855,105,335,28),warningText,15,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
+                    hud.Text(new Rect(855,105,335,26),warningText,14,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
                 }
             }
             if(waiting)
@@ -259,9 +261,9 @@ namespace UltramanGame.Runtime
                 BattlePlate(BattleHudLayout.EnemyPlate,new Color(1,.47f,.21f),true);
                 hud.HeroPortrait(new Rect(26,10,58,58),SelectedHero.Id);
                 hud.Portrait(new Rect(1196,10,58,58),true);
-                hud.Text(new Rect(94,14,184,27),SelectedHero.Name,18,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(94,14,184,27),SelectedHero.Name,16,HudPainter.Ink,bold:true);
                 hud.Text(new Rect(284,19,140,20),ready?"必杀已就绪":$"光线 {battle.Energy:0} / 15",11,ready?HudPainter.Gold:HudPainter.Muted,TextAnchor.MiddleRight);
-                hud.Text(new Rect(1000,14,182,27),"哥尔赞",18,HudPainter.Ink,TextAnchor.MiddleRight,true);
+                hud.Text(new Rect(1000,14,182,27),"哥尔赞",16,HudPainter.Ink,TextAnchor.MiddleRight,true);
                 hud.Text(new Rect(850,19,145,20),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",11,HudPainter.Muted);
                 if(!opening)
                 {
@@ -352,7 +354,7 @@ namespace UltramanGame.Runtime
             hud.Rounded(BattleHudLayout.Guide,new Color(.007f,.025f,.053f,.82f),8);
             hud.Box(new Rect(370,686,3,22),accent);
             hud.Figure(new Rect(384,680,34,32),gesture,Time.unscaledTime,accent);
-            hud.Text(new Rect(432,684,451,23),title,16,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+            hud.Text(new Rect(432,684,451,23),title,14,HudPainter.Ink,TextAnchor.MiddleCenter,true);
             hud.Bar(new Rect(455,710,410,2),progress,accent);
         }
         void DrawArcadePreview()
