@@ -10,11 +10,17 @@ Shader "Training/VolcanicBomb" {
   float hash(float2 p){return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453);}
   float noise(float2 p){float2 n=floor(p),f=frac(p);f=f*f*(3-2*f);return lerp(lerp(hash(n),hash(n+float2(1,0)),f.x),lerp(hash(n+float2(0,1)),hash(n+1),f.x),f.y);}
   void surf(Input i,inout SurfaceOutputStandard o){
-   float n=noise(i.uv_MainTex*8+i.color.g*29),detail=noise(i.uv_MainTex*27+7);
+   // Keep the cooling fragments broad and readable. High-frequency UV noise
+   // produced repeated ring-shaped red marks on small airborne rocks.
+   float n=noise(i.uv_MainTex*3.2+i.color.g*11),detail=noise(i.uv_MainTex*6.0+7);
    // Cool on the ground before the fragment disperses. A fixed surface
    // pattern avoids the old whole-rock shrink just before first contact.
    clip(1-i.color.b-(.015+.965*noise(i.uv_MainTex*11+i.color.g*47)));
-   float heat=saturate(i.color.r),cracks=1-smoothstep(.04,.15,abs(n-.5));
+   float heat=saturate(i.color.r);
+   // Use broad, broken hot patches for cooling ejecta. The old narrow
+   // threshold turned the noise lattice into repeated red scribbles when a
+   // fragment was viewed against the dark sky.
+   float cracks=smoothstep(.46,.76,n)*.72+smoothstep(.52,.82,detail)*.28;
    // Integrate subpixel crust detail rather than showing a blinking orange
    // wire pattern when a distant fragment covers only a handful of pixels.
    float footprint=max(length(ddx(i.uv_MainTex*8)),length(ddy(i.uv_MainTex*8)));
@@ -22,7 +28,7 @@ Shader "Training/VolcanicBomb" {
    cracks=lerp(.38,cracks,detailWeight);detail=lerp(.5,detail,detailWeight);
    float3 fire=lerp(float3(.6,.025,.001),float3(3.2,.78,.07),heat*heat);
    o.Albedo=lerp(float3(.021,.018,.017),float3(.095,.065,.048),detail);
-   o.Emission=fire*pow(heat,1.3)*(.12+.88*cracks);
+   o.Emission=fire*pow(heat,1.35)*(.08+.72*cracks);
    o.Metallic=0;o.Smoothness=.10;o.Occlusion=.75+.25*detail;
   }
   ENDCG
