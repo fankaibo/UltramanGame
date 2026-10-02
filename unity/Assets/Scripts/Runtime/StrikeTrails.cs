@@ -98,6 +98,11 @@ namespace UltramanGame.Runtime
             }
         }
         readonly Ribbon hero;
+        // A short secondary ribbon is reserved for combo contacts. The main
+        // cyan wake shows the hand path; this warmer echo gives the cabinet
+        // style fifth-hit beat a visible afterimage without leaving a trail
+        // during ordinary punches or between rounds.
+        readonly Ribbon heroComboEcho;
         readonly Ribbon[] claws=new Ribbon[3];
         HeroAction lastAction;
         float clock,lastHeroAge;
@@ -116,9 +121,10 @@ namespace UltramanGame.Runtime
             claws[0]=new Ribbon(parent,"Monster moving claw 0",new Color(.94f,.82f,.68f,.24f),.13f,.17f);
             claws[1]=new Ribbon(parent,"Monster moving claw 1",new Color(.94f,.84f,.72f,.62f),.48f,.22f);
             claws[2]=new Ribbon(parent,"Monster moving claw 2",new Color(.94f,.82f,.68f,.22f),.13f,.17f);
+            heroComboEcho=new Ribbon(parent,"Hero combo afterimage",new Color(1,.56f,.18f,.78f),.24f,.16f);
         }
         public void Clear()
-        {hero.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
+        {hero.Clear();heroComboEcho.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
         public void Tick(Battle state,Camera camera,float dt,AnimatedActor heroActor,AnimatedActor enemyActor,bool closeup)
         {
             if(state.Phase!=GamePhase.Battle||closeup||heroActor==null||enemyActor==null){Clear();return;}
@@ -128,9 +134,15 @@ namespace UltramanGame.Runtime
             if(punch&&(state.Action!=lastAction||state.ActionAge<lastHeroAge))hero.Clear();
             if(state.EnemyAttackCount!=lastEnemyAttack)foreach(var claw in claws)claw.Clear();
             bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.34f;
+            bool combo=ComboStrikeMotion.Active(state);
             bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
             bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
             hero.Tick(camera,clock,emitHero&&(!HeroKickMotion.Active(state)||state.ActionAge<.23f),heroActor.StrikeContact(state));
+            // Echo only the contact-facing part of a combo strike. It fades in
+            // the same bounded history as the main wake, so a paused frame,
+            // input handoff, or photo round cannot leave an orphaned afterimage.
+            heroComboEcho.Tick(camera,clock,emitHero&&combo&&state.ActionAge<.24f,
+                heroActor.StrikeContact(state),.82f);
             var hand=enemyActor.EnemyStrikeOrigin(state);
             float wakeOpacity=slam?1:1-.75f*Mathf.SmoothStep(0,1,(state.EnemyAge-.27f)/.12f);
             for(int i=0;i<claws.Length;i++)
