@@ -342,7 +342,7 @@ namespace UltramanGame.Runtime
             // A slightly tighter ordinary lens gives the 16:9 living-room
             // shot more of that arcade scale while leaving the beam and fall
             // compositions in control of their own framing.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?23.8f:24.0f):37;
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?24.8f:25.1f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
@@ -404,9 +404,9 @@ namespace UltramanGame.Runtime
                     // makes the contact read as a three-part beat instead of a
                     // pose swap, while staying far below the dedicated combo
                     // and finisher lenses.
-                    Camera.transform.position+=BattleAxis*(.58f*strike)+viewRight*(side*.24f*strike);
-                    target+=BattleAxis*(.34f*strike)+Vector3.up*(.10f*strike);
-                    dynamicZoom+=.86f*strike;
+                    Camera.transform.position+=BattleAxis*(.52f*strike)+viewRight*(side*.22f*strike);
+                    target+=BattleAxis*(.30f*strike)+Vector3.up*(.09f*strike);
+                    dynamicZoom+=.72f*strike;
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
