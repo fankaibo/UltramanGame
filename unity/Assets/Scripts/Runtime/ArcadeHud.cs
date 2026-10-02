@@ -100,15 +100,30 @@ namespace UltramanGame.Runtime
             {
                 float age=time-victoryAt,alpha=Mathf.SmoothStep(0,1,(age-.85f)/.45f);
                 var winColor=new Color(gold.r,gold.g,gold.b,alpha);
-                hud.Text(new Rect(38,78,325,62),"守护成功！",35,winColor,TextAnchor.MiddleLeft,true);
-                for(int i=0;i<3;i++)Star(new Vector2(65+i*53,164),15,Mathf.Clamp01((age-1.1f-i*.25f)*2));
-                hud.Text(new Rect(41,213,285,30),$"本局得分  {ArcadeScore():000000}",18,winColor,TextAnchor.MiddleLeft,true);
+                // The reference cabinet gives the child a clear result card:
+                // title, score and a five-star reward read in one glance. Keep
+                // it compact on the left so the victory pose and volcanic
+                // backdrop remain the hero of the shot.
+                hud.Rounded(new Rect(30,58,350,310),new Color(.006f,.022f,.050f,.82f*alpha),12);
+                hud.Line(new Vector2(48,78),new Vector2(132,78),cyan,2);
+                hud.Line(new Vector2(278,78),new Vector2(362,78),gold,2);
+                hud.Text(new Rect(50,82,310,28),"战斗结果",16,cyan,TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(48,111,314,52),"守护成功！",32,winColor,TextAnchor.MiddleCenter,true);
+                int stars=Mathf.Clamp(3+(battle.Blocks>0?1:0)+(battle.HitsTaken==0?1:0),3,5);
+                float starStart=76,starStep=57,starAge=Mathf.Clamp01((age-1.0f)/1.15f);
+                for(int i=0;i<5;i++)
+                {
+                    float reveal=Mathf.Clamp01((starAge-i*.12f)*3.2f);
+                    Star(new Vector2(starStart+i*starStep,198),16,i<stars?reveal*.98f:.16f);
+                }
+                hud.Text(new Rect(52,227,306,20),$"本局得分  {ArcadeScore():000000}",18,winColor,TextAnchor.MiddleCenter,true);
+                hud.Text(new Rect(52,253,306,18),$"命中 {battle.Punches:00}   防御 {battle.Blocks:00}   受击 {battle.HitsTaken:00}",11,HudPainter.Muted,TextAnchor.MiddleCenter);
                 if(age>3)
                 {
-                    hud.Rounded(new Rect(32,264,292,76),new Color(.007f,.025f,.053f,.82f),8);
+                    hud.Line(new Vector2(52,284),new Vector2(358,284),new Color(.22f,.50f,.70f,.55f),1);
                     string next=keyboard?(photoAvailable?"按 F7 合照，或按 R 再玩一次":"按 R，再守护一次火山基地"):
                         "接下来，和"+SelectedHero.Name+"合照";
-                    hud.Text(new Rect(46,272,266,60),"谢谢你！\n"+next,18,HudPainter.Ink,TextAnchor.MiddleLeft,true);
+                    hud.Text(new Rect(52,294,306,54),"谢谢你！\n"+next,16,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 }
             }
             else if(battle.Phase==GamePhase.Paused)
