@@ -58,7 +58,7 @@ def main():
         try:
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
-            photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0
+            photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
             beam_release_until=0
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
@@ -97,7 +97,8 @@ def main():
                     if '[Photo] automatic live viewfinder opened' in line:stage='photo'
                     if '[Photo] automatic capture complete' in line:
                         photos_seen+=1;stage='review';review_at=now
-                    if '[Photo] gesture=play-again' in line:stage='replay'
+                    if '[Photo] gesture=play-again' in line:
+                        stage='replay';replay_started_at=now
                 if options.gesture_startup_noise and unwanted_attacks:
                     raise RuntimeError(f'Gesture startup attack: count={unwanted_attacks} protected={protected}')
                 if options.gesture_shape_noise and guard_reacquisitions:
@@ -116,7 +117,15 @@ def main():
                         points=landmarks_at(2.5)
                         if photos_seen==1:
                             points[16].y=.61
-                elif stage=='replay' or phase=='Waiting':
+                elif stage=='replay':
+                    # The game deliberately gates a new round behind a fresh
+                    # hands-down release and the spoken "举起双手" cue. Keep
+                    # the synthetic player neutral until the audio window has
+                    # elapsed; holding the transform pose from the photo review
+                    # would correctly be rejected as stale input.
+                    if replay_started_at and now-replay_started_at>7.0:
+                        points=landmarks_at(2.5)
+                elif phase=='Waiting':
                     if age>3:points=landmarks_at(2.5)
                 elif phase=='Battle' and stage=='battle':
                     if beam and now<beam_release_until:
