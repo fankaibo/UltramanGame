@@ -27,6 +27,9 @@ static class ClawReactionChecks
             }
             check(bounded&&ended&&peak>.4f,$"{rate} Hz claw impulses stay bounded, begin at rest and return fully");
         }
+        var support=MonsterClawMotion.Sample(false,.19f,1,false,10,10);
+        check(support.Y<-.10f&&support.Z<-.05f,
+            "unstruck monster claw settles below the jaw during a punch reaction");
         var before=MonsterClawMotion.Sample(true,.8f,1,false,10,.8f);
         var following=MonsterClawMotion.Sample(true,0,-1,true,10,.8f);
         check(before.Length>.3f&&before.X==following.X&&before.Y==following.Y&&before.Z==following.Z,
