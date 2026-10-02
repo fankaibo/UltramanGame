@@ -98,6 +98,17 @@ namespace UltramanGame.Runtime
         Vector3 recoilStart;
         float recoilStartYaw;
         Battle observedBattle;
+        // A zero-delta render sample is sometimes requested immediately after
+        // the normal frame (editor reviews and camera captures do this). Keep
+        // that repeated sample idempotent instead of reapplying wrist/claw
+        // constraints on top of an already solved pose.
+        Battle lastSampleBattle;
+        GamePhase lastSamplePhase;
+        EnemyPhase lastSampleEnemy;
+        HeroAction lastSampleAction;
+        float lastSampleTime,lastSampleActionAge,lastSampleEnemyAge,lastSampleHealth;
+        int lastSampleAttackCount,lastSamplePunches,lastSampleBlocks;
+        bool lastSampleShield,lastSampleValid;
         int observedBlocks;
         float guardAge=10;
         Vector3 guardContact;
@@ -432,6 +443,16 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(preview<0&&dt<=0&&lastSampleValid&&ReferenceEquals(lastSampleBattle,state)&&
+                Mathf.Approximately(lastSampleTime,time)&&lastSamplePhase==state.Phase&&
+                lastSampleEnemy==state.Enemy&&lastSampleAction==state.Action&&
+                Mathf.Approximately(lastSampleActionAge,state.ActionAge)&&
+                Mathf.Approximately(lastSampleEnemyAge,state.EnemyAge)&&
+                Mathf.Approximately(lastSampleHealth,state.EnemyHealth)&&
+                lastSampleAttackCount==state.EnemyAttackCount&&
+                lastSamplePunches==state.Punches&&lastSampleBlocks==state.Blocks&&
+                lastSampleShield==state.Shield)
+                return;
             // The terminal strike survives a tracking pause. Retain its visible
             // pose and recoil clock instead of sampling Idle beneath the pause.
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
@@ -1116,6 +1137,14 @@ namespace UltramanGame.Runtime
             // Departure removes actual surface fragments, retaining opaque
             // depth and matching shadows until each fragment disappears.
             poseOpacity=monster&&state.Phase==GamePhase.Victory&&preview<0?(opacity>0?1:0):opacity;SetPresentationOpacity(1);
+            if(preview<0)
+            {
+                lastSampleBattle=state;lastSamplePhase=state.Phase;lastSampleEnemy=state.Enemy;
+                lastSampleAction=state.Action;lastSampleTime=time;lastSampleActionAge=state.ActionAge;
+                lastSampleEnemyAge=state.EnemyAge;lastSampleHealth=state.EnemyHealth;
+                lastSampleAttackCount=state.EnemyAttackCount;lastSamplePunches=state.Punches;
+                lastSampleBlocks=state.Blocks;lastSampleShield=state.Shield;lastSampleValid=true;
+            }
         }
         void UpdateGuardLight()
         {

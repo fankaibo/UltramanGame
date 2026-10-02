@@ -46,3 +46,11 @@
 这项遥测不进入发行版的交互逻辑，也不触发自动卸载。下一次优化只在连续三局或角色切换能够复现增长时处理资源生命周期；若 Activity Monitor 仍显示 5GB，则应同时抓取 Unity、Hub、姿态服务和网关进程的 RSS。
 
 本次遥测日志：[guided-runtime-memory.log](../logs/guided-runtime-memory.log)；流程报告：[guided-validation.json](../artifacts/guided-runtime-memory/guided-validation.json)。
+
+### 2026-10-02：记录后的第一项低风险修复
+
+本轮没有因为系统监视器的 5 GB 总内存读数盲目卸载资源；先修复了一个会污染性能/画面判断的开发期取样问题。Unity 近景审查在同一状态、同一时间被重复调用时，哥尔赞的手腕和手指约束会二次叠加，曾出现 0.375765 个场景单位的零时间位移。运行时现在对相同战斗状态和时间的零增量取样直接复用已解算姿态；状态、时间或动作任一改变仍会正常重新求解。
+
+修复后 `ClawPoseReview.Stability` 在 15/30/60 Hz 的交换、连续攻击、暂停恢复和新局复位共 12 组全部通过，`zeroTimeError=0.000000`；`scripts/check.sh` 通过 674 项，macOS 播放器已重新构建。它不会降低素材质量，也不会改变游戏战斗时序。内存专项仍按“连续三局 + 角色切换 + 合照释放”验收，等出现可复现的进程 RSS 增长后再处理资源生命周期。
+
+证据：`logs/claw-current-stability.log`、`artifacts/claw-current/stability-only/stability.txt`、`logs/check-idempotent-claw.log`、`logs/build-idempotent-claw.log`。
