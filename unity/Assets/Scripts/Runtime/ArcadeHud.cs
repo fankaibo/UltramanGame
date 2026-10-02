@@ -141,12 +141,12 @@ namespace UltramanGame.Runtime
                 else if(ready&&!keyboard&&(recognizer.BeamProgress>0||held.BeamIntent))
                     // Keep the instruction aligned with the gesture that owns
                     // input, even if an enemy warning begins during its hold.
-                    Guide(recognizer.BeamProgress>0?"大招姿势已锁定 · 保持，释放光线！":"看见大招姿势 · 保持一下","beam",gold,recognizer.BeamProgress);
+                    Guide(recognizer.BeamProgress>0?$"{SelectedHero.Beam}姿势已锁定 · 保持，释放光线！":"看见光线姿势 · 保持一下","beam",gold,recognizer.BeamProgress);
                 else if(warning)
                     Guide(battle.Shield||(!keyboard&&held.GuardIntent)?(keyboard?"护盾已展开 · 继续按住 S":"护盾姿势已锁定 · 保持住！"):
                         keyboard?"按住 S，展开护盾！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,keyboard?(battle.Shield?1:0):recognizer.ShieldProgress);
                 else if(ready)
-                    Guide(keyboard?"能量已满 · 按 J 释放光线":"摆 L 形，或双手向前推，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);
+                    Guide(keyboard?"能量已满 · 按 J 释放光线":"双臂交叉成光线姿势，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);
                 else if(time<captionUntil||battle.Punches<3)
                     Guide(keyboard?"交替按 A / D，挥拳出击！":time<captionUntil?caption:"收回拳头，再向前挥出去","punch",cyan,0);
             }

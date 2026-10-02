@@ -283,7 +283,7 @@ namespace UltramanGame.Runtime
             // Let the finisher cry complete even when its hit immediately wins the round.
             if(!voice.isPlaying || (!beamVoice && (importance>priority || importance>=5)))
             {
-                voice.Stop();voice.clip=clip;priority=importance;beamVoice=key=="beam"||key=="beam_original";voice.Play();
+                voice.Stop();voice.clip=clip;priority=importance;beamVoice=key.StartsWith("beam",System.StringComparison.Ordinal);voice.Play();
                 // Apply before this frame's impact starts, not one render frame later.
                 voice.volume=Mathf.Clamp01(Volume);effectsDuck=.42f;ApplyEffectsMix();
                 NotifyInstruction(key,clip.length);
@@ -318,7 +318,15 @@ namespace UltramanGame.Runtime
                     pending.Clear();Effect("shield",.45f);Speak("energy",5,state);break;
                 case GameCue.Beam:
                     pending.Clear();
-                    Speak(HeroId=="Tiga"&&HasOriginalBeamVoice?"beam_original":"beam",5,state);break;
+                    string beamKey="beam";
+                    for(int i=0;i<HeroRoster.Count;i++)
+                        if(HeroRoster.At(i).Id==HeroId){beamKey=HeroRoster.At(i).BeamVoiceKey;break;}
+                    // Only use a clip when it has actually been imported for
+                    // that hero. Missing licensed/original recordings fall
+                    // back to the neutral beam cue instead of pretending that
+                    // a generic voice is the hero's source audio.
+                    if(!HasVoice(beamKey))beamKey="beam";
+                    Speak(beamKey,5,state);break;
                 case GameCue.Victory:effects.Stop();pending.Clear();Speak("victory",6,state);break;
                 case GameCue.Resume:Speak("resume",3,state);break;
             }

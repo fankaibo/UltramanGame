@@ -201,7 +201,7 @@ namespace UltramanGame.Runtime
                             if(detected.Length>0)
                             {
                                 gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
-                                if(Debug.isDebugBuild)Debug.Log($"[Gesture] {detected} sequence={pose.sequence}");
+                                if(Debug.isDebugBuild)Debug.Log($"[Gesture] {detected} pose={recognizer.ReferencePose} sequence={pose.sequence}");
                             }
                             if(input.Shield&&!held.Shield)
                             {
@@ -307,7 +307,7 @@ namespace UltramanGame.Runtime
             {
                 case "battle":caption="挥动拳头，守护火山基地！";break;
                 case "energy":caption="能量满了 · 双手向前推，停一下";break;
-                case "beam_help":caption="摆 L 形，或双手向前推 · 停一下";break;
+                case "beam_help":caption="双臂交叉成光线姿势 · 停一下";break;
                 case "beam_reset":caption="先收回双手，再摆光线姿势，停一下";break;
                 case "tutorial":caption="先把手收回来，再挥出去";break;
                 case "resume":caption="准备好了，继续！";break;

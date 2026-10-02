@@ -7,6 +7,7 @@ static class MotionChecks
     {
         public readonly GestureRecognizer Recognizer=new GestureRecognizer();
         public int Left,Right,Beams,Transforms,Forward;
+        public bool SawDefense,SawRightPunch,SawBeam;
         public PlayerInput Last;
         public string Stream="motion";
         public readonly int Fps;
@@ -19,6 +20,9 @@ static class MotionChecks
             Last=Recognizer.Update(frame,frame.capturedMs,beam,transform);
             if(Last.LeftPunch)Left++;if(Last.RightPunch)Right++;if(Last.Beam)Beams++;if(Last.Transform)Transforms++;
             if((Last.LeftPunch||Last.RightPunch)&&Recognizer.ForwardPunch)Forward++;
+            SawDefense|=Recognizer.ReferencePose=="P1-防御";
+            SawRightPunch|=Recognizer.ReferencePose=="P2-右拳";
+            SawBeam|=Recognizer.ReferencePose=="P3-哉佩利敖光线";
         }
         public void Hold(PosePoint[] points,float seconds=.6f,bool beam=false,bool transform=false)
         {for(int i=0;i<(int)Math.Ceiling(seconds*Fps);i++)Receive(Frame(points),beam,transform);}
@@ -46,6 +50,11 @@ static class MotionChecks
     {var p=Guard();p[right?16:15]=Point(right?.38f:.62f,.40f,-.48f);return p;}
     static PosePoint[] Beam()
     {var p=Guard();p[15]=Point(.60f,.30f,-.18f);p[16]=Point(.44f,.46f,-.20f);return p;}
+    // Geometry transcribed from the three child reference photos: crossed
+    // fists for P1, the photographed Tiga L/forearm pose for P3, and the
+    // camera-facing right-hand extension already used for P2.
+    static PosePoint[] PhotoDefense()
+    {var p=Guard();p[15]=Point(.42f,.27f,-.20f);p[16]=Point(.58f,.28f,-.20f);return p;}
     static PosePoint[] Push()
     {var p=Guard();p[15]=Point(.66f,.42f,-.47f);p[16]=Point(.34f,.42f,-.47f);return p;}
     static PosePoint[] Scale(PosePoint[] source,float factor)
@@ -73,6 +82,15 @@ static class MotionChecks
         }
         var trial=new Trial();trial.Hold(Guard());trial.Move(Guard(),Forward(true));trial.Hold(Forward(true));
         check(trial.Right==1&&trial.Left==0,"right-hand forward punch is independent");
+        trial=new Trial();trial.Hold(Guard(),.35f);trial.Hold(PhotoDefense(),.45f);
+        check(trial.Last.Shield&&trial.Left==0&&trial.Right==0&&trial.SawDefense,
+            "P1 crossed-fist photo pose owns defense without an attack");
+        trial=new Trial();trial.Hold(Guard(),.7f);trial.Hold(Beam(),.65f,true);
+        check(trial.Beams==1&&trial.Left==0&&trial.Right==0&&trial.SawBeam,
+            "P3 Tiga beam photo pose charges and fires once");
+        trial=new Trial();trial.Hold(Guard(),.35f);trial.Move(Guard(),Forward(true));trial.Hold(Forward(true));
+        check(trial.Right==1&&trial.Left==0&&trial.SawRightPunch,
+            "P2 photo pose awards only the right-hand punch");
         trial=new Trial();var highPunch=Forward();highPunch[15].y=.33f;
         trial.Hold(Guard(),beam:true);trial.Move(Guard(),highPunch,beam:true);trial.Hold(highPunch,1,true);
         check(trial.Left==1&&trial.Beams==0,"forward punch at shoulder height is not intercepted by a loose beam at full energy");

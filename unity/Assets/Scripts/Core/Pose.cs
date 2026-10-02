@@ -95,6 +95,10 @@ namespace UltramanGame.Core
         PosePoint guardLeft,guardRight;
         float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
+        // Stable labels are useful for the in-game guide and camera-pose
+        // diagnostics. They describe the reference pose that currently owns
+        // the frame, rather than claiming that an action was already awarded.
+        public string ReferencePose { get; private set; }="P0-准备";
         public int Difficulty {get;set;}
         int Level=>Math.Max(0,Math.Min(2,Difficulty));
         float TransformHold=>.45f+Level*.12f;
@@ -148,11 +152,13 @@ namespace UltramanGame.Core
             beamUnavailableSeen=beamNeutralSinceUnavailable=lastBeamAvailable=false;
             guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
             BeamNeedsRelease=false;
+            ReferencePose="P0-准备";
             beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
         }
         public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true,bool shieldPriority=false)
         {
             ForwardPunch=false;
+            ReferencePose="P0-准备";
             if (!PoseQuality.Present(frame,nowMs)) { Reset(); return default; }
             if (stream==frame.streamId && frame.sequence<=lastSequence) return default;
             // A delayed but still-fresh camera packet is not a new gesture
@@ -235,6 +241,22 @@ namespace UltramanGame.Core
             // one asymmetric sample cancel a finisher that is already being
             // held.
             bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<2.20f;
+            // P3 is the photographed Tiga beam pose: one forearm rises from
+            // its elbow while the other travels horizontally across the chest
+            // and crosses the torso centre line. This image-plane envelope is
+            // deliberately independent of monocular depth, so a held pose is
+            // not downgraded to a punch when the webcam depth estimate jumps.
+            bool beamReferencePose=beamWristsReady&&!raised&&
+                TigaBeamPose(frame.points[13],frame.points[14],blw,brw,bcx,bsy,bs);
+            // The reference pose may tolerate a moderate depth bias, but a
+            // large asymmetric jump still pauses charging so the existing
+            // uncertainty regression cannot silently speed up the finisher.
+            bool beamReferenceStable=beamReferencePose&&Math.Abs(leftDepth-rightDepth)<1.65f;
+            // P1 uses crossed fists/forearms in front of the face or upper
+            // chest. It is symmetric and compact, so it can own the frame
+            // before a stale one-arm punch trajectory is considered.
+            bool crossedFaceGuard=beamWristsReady&&!raised&&
+                CrossedFaceGuard(bl,br,frame.points[13],frame.points[14],blw,brw,bcx,bsy,bs);
             // A recognised L owns estimated depth from its first confirmed
             // frame. Waiting 100 ms to protect depth stranded early charges;
             // keep the stricter image-plane shape until the normal hold begins.
@@ -248,7 +270,8 @@ namespace UltramanGame.Core
                 BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs)||
                 ForwardPushEntry(fl,fr,flw,frw,fsy,fs)||
                 ForearmBeam(flw,frame.points[13],frw,frame.points[14],fcx,fsy,fs)||
-                ForearmBeam(frw,frame.points[14],flw,frame.points[13],fcx,fsy,fs));
+                ForearmBeam(frw,frame.points[14],flw,frame.points[13],fcx,fsy,fs)||
+                beamReferencePose);
             // Depth is the least stable signal on a laptop webcam. Keep a
             // separate two-dimensional entry shape so a real L reserves the
             // finisher before one noisy depth sample can become a punch. The
@@ -256,7 +279,8 @@ namespace UltramanGame.Core
             bool beamEntryShape=beamWristsReady &&
                 (BeamEntryShape(bl,blw,brw,beamPoints[13],bcx,bsy,bs)||BeamEntryShape(br,brw,blw,beamPoints[14],bcx,bsy,bs)||
                  ForwardPushEntry(bl,br,blw,brw,bsy,bs)||
-                 BeamEntryShape(fl,flw,frw,frame.points[13],fcx,fsy,fs)||BeamEntryShape(fr,frw,flw,frame.points[14],fcx,fsy,fs));
+                 BeamEntryShape(fl,flw,frw,frame.points[13],fcx,fsy,fs)||BeamEntryShape(fr,frw,flw,frame.points[14],fcx,fsy,fs)||
+                 beamReferencePose);
             // Reserve an unmistakable two-hand L/push from the punch path
             // even when one packet has noisy depth or a slightly shallow
             // elbow angle. It first protects the pose while depth settles;
@@ -264,12 +288,12 @@ namespace UltramanGame.Core
             // deliberate hold clock as the regular beam shape.
             bool beamVisualCandidate=beamWristsReady&&!raised&&
                 (BeamVisualCandidate(blw,brw,bcx,bsy,bs)||BeamVisualCandidate(brw,blw,bcx,bsy,bs)||
-                 ForwardVisualCandidate(bl,br,blw,brw,bsy,bs));
+                 ForwardVisualCandidate(bl,br,blw,brw,bsy,bs)||beamReferencePose);
             // The first few L-shape packets are where MediaPipe most often
             // swaps a wrist depth or drops an elbow. Remember a positively
             // observed beam shape before a charge exists, so that packet
             // cannot immediately become a punch while the child settles.
-            if(beamAvailable&&(beamShape||beamEntryShape||beamVisualCandidate))
+            if(beamAvailable&&(beamShape||beamEntryShape||beamVisualCandidate||beamReferencePose))
                 beamShapeGrace=Math.Max(beamShapeGrace,beamHold>=.10f?BeamChargedOwnershipGraceSeconds:BeamOwnershipGraceSeconds);
             bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
             bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
@@ -313,7 +337,7 @@ namespace UltramanGame.Core
             // A child-sized shield is often wider and slightly forward of the
             // torso. It remains defense while both wrists form a compact pair
             // and neither has the depth of a deliberate two-hand push.
-            guardShape|=guardEntry||defensivePair||faceCoverGuard||softGuard||balancedGuard;
+            guardShape|=guardEntry||defensivePair||faceCoverGuard||softGuard||balancedGuard||crossedFaceGuard;
             // A child-sized shield can sit farther from the torso than the
             // compact training pose. Require a balanced, low-depth pair so
             // this never treats one clearly extended fist as defense.
@@ -366,7 +390,7 @@ namespace UltramanGame.Core
             // punch after the first confirmation frame. Outside the warning,
             // retain the short chest-guard arbitration window so a deliberate
             // finisher can still take ownership normally.
-            bool earlyDefensePriority=(warningShieldPreferred&&shieldPriority) ||
+            bool earlyDefensePriority=(warningShieldPreferred&&shieldPriority) || crossedFaceGuard ||
                 ((chestGuardPreferred||warningShieldPreferred)&&beamHold<.12f&&!beamLocked);
             if(earlyDefensePriority)
             {
@@ -456,7 +480,9 @@ namespace UltramanGame.Core
             // input but still advanced beamGap, so a child could see the
             // gesture held while its progress silently expired and a depth
             // spike could be read as a punch on the next frame.
-            bool beamIntent=beamShape||beamEntryShape||beamVisualCandidate||beamMaintained||beamLatch||beamGrace;
+            bool beamIntent=beamShape||beamEntryShape||beamVisualCandidate||beamReferencePose||beamMaintained||beamLatch||beamGrace;
+            if(beamReferencePose)ReferencePose="P3-哉佩利敖光线";
+            else if(crossedFaceGuard)ReferencePose="P1-防御";
             bool becameBeamAvailable=beamAvailable&&!lastBeamAvailable;
             if(!beamAvailable)
             {
@@ -475,13 +501,16 @@ namespace UltramanGame.Core
             // Entry shape is allowed to carry ownership while depth settles.
             // A brief shape/depth wobble pauses the charge instead of handing
             // the same held pose to punch.
-            bool beamConfirmedShape=beamShape||beamMaintained||
+            bool beamConfirmedShape=beamShape||beamReferencePose||beamMaintained||
                 (beamEntryShape||beamVisualCandidate)&&beamLockAge>=.12f;
             // A depth anomaly pauses progress, but beamIntent/beamReserved
             // below keeps the gesture owned and prevents an attack from being
             // emitted during that pause. The next stable frame resumes the
             // existing charge instead of resetting it.
-            bool beam=beamAvailable&&beamConfirmedShape&&beamDepthStable;
+            // The photographed P3 envelope is strong enough in 2D to charge
+            // without trusting noisy webcam depth. Other relaxed candidates
+            // still require the normal depth stability gate.
+            bool beam=beamAvailable&&((beamConfirmedShape&&beamDepthStable)||beamReferenceStable);
             var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
             // Acquiring a shield still uses the original shape and hold. Once
             // established, a small visible drift at its boundary must not give
@@ -688,6 +717,8 @@ namespace UltramanGame.Core
                 else input.LeftPunch=false;
             }
             ForwardPunch=input.LeftPunch&&leftMotion.ForwardStrike || input.RightPunch&&rightMotion.ForwardStrike;
+            if(input.RightPunch)ReferencePose="P2-右拳";
+            else if(input.LeftPunch)ReferencePose="P2-左拳";
             if(input.LeftPunch||input.RightPunch)
             {
                 input.Shield=false;shieldHold=0;guardAnchored=false;
@@ -721,6 +752,34 @@ namespace UltramanGame.Core
             // Both hands may be slightly forward in a shield. A large
             // imbalance is the webcam signature of a single extended fist.
             return Math.Abs(leftForward-rightForward)<1.35f;
+        }
+        static bool CrossedFaceGuard(PosePoint ls,PosePoint rs,PosePoint le,PosePoint re,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            // The reference P1 places both fists above the sternum, with each
+            // wrist crossing to the opposite side of the shoulder that owns
+            // the arm. Keep the vertical band compact so the P3 high/low beam
+            // pose cannot be borrowed by this defense route.
+            if(Math.Min(left.y,right.y)<sy-.82f*scale||Math.Max(left.y,right.y)>sy+.42f*scale||
+                Math.Abs(left.y-right.y)>.72f*scale||Math.Abs(left.x-right.x)>1.72f*scale)
+                return false;
+            float leftSide=ls.x>=cx?1:-1;
+            bool leftCross=(left.x-cx)*leftSide<-.10f*scale;
+            bool rightCross=(right.x-cx)*-leftSide<-.10f*scale;
+            if(!leftCross||!rightCross)return false;
+            // Elbows stay near their own shoulder while the wrists cross. This
+            // distinguishes a compact guard from two arms pushed forward.
+            if(Math.Abs(le.x-ls.x)>.78f*scale||Math.Abs(re.x-rs.x)>.78f*scale)
+                return false;
+            float lf=(ls.z-left.z)/scale,rf=(rs.z-right.z)/scale;
+            return lf<1.05f&&rf<1.05f&&Math.Abs(lf-rf)<.72f;
+        }
+        static bool TigaBeamPose(PosePoint le,PosePoint re,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            // Reuse the forearm test used by the normal beam path, but expose
+            // it as a named reference profile so the P3 photo remains owned
+            // through depth noise and cannot fall into right-punch motion.
+            return ForearmBeam(left,le,right,re,cx,sy,scale)||
+                ForearmBeam(right,re,left,le,cx,sy,scale);
         }
         static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale,bool holding=false)
             =>Math.Abs(left.x-cx)<(holding?1.14f:1.06f)*scale&&Math.Abs(right.x-cx)<(holding?1.14f:1.06f)*scale&&
