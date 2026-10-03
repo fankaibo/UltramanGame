@@ -245,13 +245,17 @@ namespace UltramanGame.Runtime
             {
                 float angle=(i+seed*.37f)*Mathf.PI*2/count+time*(.16f+seed*.03f);
                 float wobble=.84f+.16f*Mathf.Sin(time*4.2f+i*1.7f+seed);
-                // Grow from a small contact tick to a controlled peripheral
-                // streak. A fixed .45*outer tail previously left long rays
-                // visible even when the impact was nearly finished.
+                // Grow from a small contact tick to a short, rounded ember
+                // fragment. Long fixed rays read like a debug overlay on a
+                // television; a tapered dash plus a hot endpoint keeps the
+                // same timing while leaving the actor and volcanic stage clear.
                 float start=inner*(.82f+.18f*wobble),end=outer*(.18f+.82f*pulse)*(.82f+.18f*wobble);
                 Vector2 direction=new Vector2(Mathf.Cos(angle),Mathf.Sin(angle));
-                float alpha=Mathf.Clamp01(pulse*(.12f+.05f*(i%3)));
-                hud.Line(center+direction*start,center+direction*(start+end),new Color(color.r,color.g,color.b,alpha),i%3==0?2:1);
+                float travel=end*.58f,alpha=Mathf.Clamp01(pulse*(.10f+.035f*(i%3)));
+                var fragment=new Color(color.r,color.g,color.b,alpha);
+                hud.Line(center+direction*start,center+direction*(start+travel),fragment,i%3==0?2:1);
+                hud.Dot(center+direction*(start+travel),1.8f+2.4f*pulse,
+                    new Color(Mathf.Min(1,color.r+.12f),Mathf.Min(1,color.g+.12f),color.b,alpha*.92f));
             }
         }
 
