@@ -27,6 +27,7 @@ namespace UltramanGame.Runtime
         // system or per-frame allocations, and stay behind the actors.
         const int MeteorCount=5;
         readonly LineRenderer[] meteors=new LineRenderer[MeteorCount];
+        readonly Transform[] meteorHeads=new Transform[MeteorCount];
         readonly Vector3[] meteorOrigins={
             // The ordinary battle lens is tighter than the wide introduction;
             // keep the streaks above Fuji's ridge but inside that lens instead
@@ -145,6 +146,8 @@ namespace UltramanGame.Runtime
             ashRenderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;ashRenderer.receiveShadows=false;
             meteorMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("SoftGlow")));
             meteorMaterial.color=new Color(.72f,.88f,1,1);
+            var meteorCoreMaterial=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("MeteorCore")));
+            meteorCoreMaterial.color=new Color(1,.94f,.78f,1);
             for(int i=0;i<MeteorCount;i++)
             {
                 var line=new GameObject("Fuji sky meteor "+i).AddComponent<LineRenderer>();
@@ -153,6 +156,12 @@ namespace UltramanGame.Runtime
                 line.widthMultiplier=.055f+.011f*(i%3);line.widthCurve=new AnimationCurve(
                     new Keyframe(0,0),new Keyframe(.16f,.36f),new Keyframe(.72f,1),new Keyframe(1,0));
                 line.enabled=false;meteors[i]=line;
+                // A short additive core keeps the leading end bright after the
+                // tail fades.  The reference cabinet reads a meteor as a hot
+                // object crossing the sky, not as a single neon line.
+                var head=GameWorld.Primitive("Fuji sky meteor core "+i,PrimitiveType.Quad,transform,
+                    meteorOrigins[i],Vector3.one*.08f,meteorCoreMaterial);
+                head.gameObject.SetActive(false);meteorHeads[i]=head;
             }
         }
         static void Surface(Material material,string asset,string colorMap,Color tint,float scale,bool face)
@@ -350,6 +359,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<MeteorCount;i++)
             {
                 var line=meteors[i];
+                var headObject=meteorHeads[i];
                 // Keep one or two streaks available during the opening and the
                 // battle intro; a very short 0.7 s window vanished between the
                 // review captures and made the dynamic sky look static.
@@ -360,6 +370,7 @@ namespace UltramanGame.Runtime
                 const float duration=3.0f;
                 bool visible=cycle<duration;
                 line.enabled=visible;
+                if(headObject)headObject.gameObject.SetActive(visible);
                 if(!visible)continue;
                 float p=Mathf.Clamp01(cycle/duration);
                 float travel=Mathf.SmoothStep(0,1,p);
@@ -376,6 +387,16 @@ namespace UltramanGame.Runtime
                 float fade=Mathf.Sin(p*Mathf.PI);
                 var color=new Color(.66f,.88f,1,fade*.86f);
                 line.startColor=color;line.endColor=new Color(1,.94f,.76f,fade);
+                if(headObject)
+                {
+                    headObject.position=head;
+                    var lens=Camera.main;
+                    if(lens)headObject.rotation=Quaternion.LookRotation(head-lens.transform.position,Vector3.up);
+                    // The core swells through the middle of the pass and
+                    // tapers at both ends, matching the changing tail speed.
+                    float glow=.055f+.12f*Mathf.Sin(p*Mathf.PI);
+                    headObject.localScale=Vector3.one*glow;
+                }
             }
         }
     }
