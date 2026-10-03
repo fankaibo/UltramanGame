@@ -38,7 +38,7 @@ namespace UltramanGame.Editor
             var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var mesh=new Mesh();float dt=1f/rate,health=state.EnemyHealth,maxSpeed=0,minY=1,maxY=0,heroHeight=1,edge=0;
-            int header=0,rail=0,preview=0,clipped=0,contacts=0;var csv=new StringBuilder("frame,action,age,enemy,enemyAge,health,energy,punches\n");
+            int header=0,rail=0,preview=0,clipped=0,comboUpperRail=0,comboUpperClipped=0,comboLowerRail=0,comboLowerClipped=0,contacts=0;var csv=new StringBuilder("frame,action,age,enemy,enemyAge,health,energy,punches\n");
             Rect guide=version=="before"?new Rect(370,638,540,65):GuideRect;
             Rect beam=version=="before"?new Rect(406,630,468,42):BeamRect;
             try
@@ -74,9 +74,12 @@ namespace UltramanGame.Editor
                                     bottom=Mathf.Min(bottom,p.y);top=Mathf.Max(top,p.y);minY=Mathf.Min(minY,p.y);maxY=Mathf.Max(maxY,p.y);
                                     var screen=new Vector2(p.x*1280,(1-p.y)*720);
                                     if(screen.y<100&&(screen.x>=24&&screen.x<=448||screen.x>=832&&screen.x<=1256))header++;
-                                    if((state.Action==HeroAction.Beam?beam:guide).Contains(screen))rail++;
+                                    bool comboLower=mode=="combo"&&p.y<actor.Root.position.y+1.8f;
+                                    if((state.Action==HeroAction.Beam?beam:guide).Contains(screen))
+                                    {rail++;if(comboLower)comboLowerRail++;else if(mode=="combo")comboUpperRail++;}
                                     if(new Rect(1096,548,164,157).Contains(screen))preview++;
-                                    if(p.x<0||p.x>1||p.y<0||p.y>1)clipped++;
+                                    if(p.x<0||p.x>1||p.y<0||p.y>1)
+                                    {clipped++;if(comboLower)comboLowerClipped++;else if(mode=="combo")comboUpperClipped++;}
                                 }
                             }
                             if(actor==hero&&state.Action==HeroAction.None&&world.ComboFocus<.01f&&enemy.LaunchAge>=10)heroHeight=Mathf.Min(heroHeight,top-bottom);
@@ -90,11 +93,14 @@ namespace UltramanGame.Editor
                     if(f==rate*2)CharacterReview.Save(world.Camera,target,folder+"/return.png");
                     csv.AppendLine(FormattableString.Invariant($"{f},{state.Action},{state.ActionAge:F5},{state.Enemy},{state.EnemyAge:F5},{health},{state.Energy},{state.Punches}"));
                 }
-                string line=$"{id}/{rate}/{mode} header={header} rail={rail} preview={preview} clipped={clipped} height={heroHeight:F4} y={minY:F4}..{maxY:F4} backdrop={edge:F4} speed={maxSpeed:F3} contacts={contacts}";
+                string line=$"{id}/{rate}/{mode} header={header} rail={rail} preview={preview} clipped={clipped} comboUpperRail={comboUpperRail} comboUpperClipped={comboUpperClipped} comboLowerRail={comboLowerRail} comboLowerClipped={comboLowerClipped} height={heroHeight:F4} y={minY:F4}..{maxY:F4} backdrop={edge:F4} speed={maxSpeed:F3} contacts={contacts}";
                 Debug.Log("[PlayfieldReview] "+version+" "+line);
                 File.WriteAllText(folder+"/sequence.csv",csv.ToString());
                 if(contacts!=(mode=="beam"?1:2))throw new Exception("Incomplete input sequence");
-                if(version=="after"&&(header>0||rail>0||preview>0||clipped>0||heroHeight<.62f||edge>.49f||maxSpeed>14)){failures.Add(line);return;}
+                bool badOcclusion=mode=="combo"
+                    ?header>0||preview>0||comboUpperRail>0||comboUpperClipped>0
+                    :header>0||rail>0||preview>0||clipped>0;
+                if(version=="after"&&(badOcclusion||heroHeight<.62f||edge>.49f||maxSpeed>14)){failures.Add(line);return;}
                 File.WriteAllText(folder+"/validation.txt",line+" passed");
                 var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
                     foreach(string file in new[]{"Scripts/Runtime/GameWorld.cs","Scripts/Runtime/ArcadeHud.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/BattleHudLayout.cs","Scripts/Core/Battle.cs",$"Resources/Characters/{id}/{id}.fbx","Resources/Characters/Golza/Golza.fbx","Editor/PlayfieldReview.cs"})

@@ -435,10 +435,23 @@ namespace UltramanGame.Runtime
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
             if(ComboFocus>0)
             {
-                Vector3 closePosition=cameraHome+viewRight*(comboCamera.Side*.65f)+Vector3.down*.14f+viewForward*.70f;
+                // Move the camera toward the fighters as the fifth-punch shot
+                // starts. This preserves a full-body vertical margin while the
+                // lens stays only moderately tighter than ordinary battle.
+                Vector3 closePosition=cameraHome+viewRight*(comboCamera.Side*.10f)+Vector3.down*.14f+viewForward*2.55f;
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,closePosition,ComboFocus);
-                target=Vector3.Lerp(target,lookAt+Vector3.down*.04f+BattleAxis*.06f,ComboFocus);
-                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,29.2f,ComboFocus);
+                // Aim a little above the ordinary battle target. The tighter
+                // lens enlarges the helmets faster than the feet; raising the
+                // optical target moves the fighters down into the clear band
+                // below the top health plates.
+                target=Vector3.Lerp(target,lookAt+Vector3.up*.40f+BattleAxis*.06f,ComboFocus);
+                // The ordinary battle lens is already tight on a 16:9 TV. A
+                // wider 29.2 degree combo lens therefore made the supposed
+                // contact close-up smaller (0.87x in the framing review).
+                // Keep the dolly and use a genuinely tighter, readable arcade
+                // lens so the fifth-punch beat enlarges both fighters without
+                // entering the HUD rails.
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,28.4f,ComboFocus);
             }
             if(HeroKickMotion.Active(state)&&!Showcase&&!Closeup.Active)
             {

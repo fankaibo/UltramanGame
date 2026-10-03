@@ -14,7 +14,10 @@ namespace UltramanGame.Core
         int lastOrdinal;
         Battle observed;
         static float Smooth(float t){t=Math.Max(0,Math.Min(1,t));return t*t*(3-2*t);}
-        public float Focus=>Age>=Duration?0:Smooth(Age/.16f)*(1-Smooth((Age-.30f)/.50f))*weight;
+        // Spread the dolly over a few more frames so the larger forward move
+        // used by the full-body close shot does not produce a TV-jarring jump
+        // at 30/60 Hz. The contact window and total shot duration stay intact.
+        public float Focus=>Age>=Duration?0:Smooth(Age/.27f)*(1-Smooth((Age-.30f)/.50f))*weight;
         public void Clear(){Age=10;weight=0;Side=0;}
         public void Tick(Battle state,float dt,bool suppressed)
         {
@@ -23,7 +26,12 @@ namespace UltramanGame.Core
             {Clear();return;}
             dt=Math.Max(0,dt);Age+=dt;
             bool available=!state.Shield&&(state.Enemy==EnemyPhase.Rest||state.Enemy==EnemyPhase.Recover);
-            if(!available)weight=Math.Max(0,weight-dt/.16f);
+            // A close shot may now dolly farther forward so the upper-body
+            // arcade framing is readable while the lower legs can fall below
+            // the TV's bottom rail. Return that offset over the same gentle
+            // envelope instead of snapping back when a guard or warning wins
+            // ownership.
+            if(!available)weight=Math.Max(0,weight-dt/.30f);
             if(available&&ComboStrikeMotion.Active(state)&&state.ActionAge<=Battle.PunchHitSeconds+.06f)
             {
                 int ordinal=state.Punches+(state.ActionAge<Battle.PunchHitSeconds?1:0);
