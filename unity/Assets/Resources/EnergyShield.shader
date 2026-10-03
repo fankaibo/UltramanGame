@@ -21,6 +21,13 @@ Shader "Training/EnergyShield" {
  }
  half4 frag(v2f i):SV_Target {
   float rim=pow(1-abs(dot(normalize(i.normal),normalize(_WorldSpaceCameraPos-i.world))),1.8);
+  // Keep a thin, animated perimeter so the shield reads as a deliberate
+  // energy barrier at the living-room distance.  The center remains quiet;
+  // the existing rim and impact wave still carry the actual contact.
+  float radial=length(i.local*float2(2.02,1.76));
+  float edgeBand=smoothstep(.66,.84,radial)*(1-smoothstep(.84,1.01,radial));
+  float arcPhase=.52+.48*sin(atan2(i.local.y,i.local.x)*4.0+_Clock*2.6);
+  float edgeGlow=edgeBand*(.48+.52*pow(saturate(arcPhase),2));
   // Object-plane cells avoid the doubled, stretched latitude grid that made
   // the old sphere look like a wireframe. Keep the center transparent at rest.
   float cells=hexEdge(i.local*float2(11,12.4));
@@ -31,8 +38,9 @@ Shader "Training/EnergyShield" {
   float core=exp(-d*d/ .013)*pow(saturate(1-age/.19),2);
   float localGlow=(wave+echo)*.85+core;
   float idlePulse=.86+.14*sin(_Clock*2.1);
-  float alpha=_Color.a*(rim*.88+cells*(.032+localGlow*.5)+localGlow*.66+.009)*idlePulse;
-  return half4(lerp(_Color.rgb*(1+rim*.6),float3(.76,.96,1),saturate(localGlow)),saturate(alpha));
+  float alpha=_Color.a*(rim*1.02+edgeGlow*.52+cells*(.032+localGlow*.5)+localGlow*.66+.009)*idlePulse;
+  float3 color=lerp(_Color.rgb*(1+rim*.72),float3(.76,.96,1),saturate(localGlow+edgeGlow*.32));
+  return half4(color,saturate(alpha));
  }
  ENDCG }
  }
