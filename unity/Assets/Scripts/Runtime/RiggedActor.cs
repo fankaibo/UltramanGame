@@ -1931,7 +1931,11 @@ namespace UltramanGame.Runtime
         void ApplyClawPose(Battle state,int preview,float time)
         {
             if(clawBones.Count==0)return;
-            float curl=.23f,spread=.8f;
+            // The imported mesh has long, thin fingers. A wide fan makes the
+            // support hand read as a rigid paddle at the 45-degree cabinet
+            // angle, so keep the fingers closer together and let the lead
+            // claw supply the silhouette.
+            float curl=.23f,spread=.56f;
             bool attack=false;
             int attackSide=1;
             if(preview>=0)
@@ -1980,12 +1984,12 @@ namespace UltramanGame.Runtime
                     var first=clawFingers[i,side,0];
                     if(first)
                     {
-                        float fan=sideSpread*(i-1.5f)*5f;
-                        first.rotation=Quaternion.AngleAxis(fan,palmUp)*Quaternion.AngleAxis(amount*(52+i*5),curlAxis)*first.rotation;
+                        float fan=sideSpread*(i-1.5f)*3.2f;
+                        first.rotation=Quaternion.AngleAxis(fan,palmUp)*Quaternion.AngleAxis(amount*(44+i*4),curlAxis)*first.rotation;
                     }
                     var tip=clawFingers[i,side,1];
                     if(tip)
-                        tip.rotation=Quaternion.AngleAxis(amount*(68+i*7),curlAxis)*tip.rotation;
+                        tip.rotation=Quaternion.AngleAxis(amount*(56+i*5),curlAxis)*tip.rotation;
                 }
                 var thumb=clawThumbs[side,0];
                 var thumbTip=clawThumbs[side,1];
