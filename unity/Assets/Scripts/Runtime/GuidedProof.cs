@@ -14,7 +14,7 @@ namespace UltramanGame.Runtime
         void CaptureGuidedProof()
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
-            if(!Debug.isDebugBuild||!proofInput||System.Array.IndexOf(System.Environment.GetCommandLineArgs(),"--guided-proof")<0||proofBusy)return;
+            if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
             if(HeroKickMotion.Active(battle))proofLastKickTime=Time.unscaledTime;
             else if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield&&
                 Time.unscaledTime-proofLastKickTime<.75f&&hero.FootPosition(true).y<.4f&&hero.FootPosition(false).y<.4f)

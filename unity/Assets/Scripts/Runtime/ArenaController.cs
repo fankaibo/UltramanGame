@@ -65,6 +65,12 @@ namespace UltramanGame.Runtime
             var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,option);
             return i>=0&&i+1<args.Length&&int.TryParse(args[i+1],out int port)&&port>0&&port<=65535?port:fallback;
         }
+        // A release player normally keeps diagnostic logging quiet. The guided
+        // replay passes an explicit flag, so expose only the small trace surface
+        // needed to verify cues and screenshots without turning diagnostics on
+        // for ordinary families playing the packaged game.
+        internal static bool GuidedProofRequested => Array.IndexOf(Environment.GetCommandLineArgs(),"--guided-proof")>=0;
+        internal static bool TraceEnabled => Debug.isDebugBuild||GuidedProofRequested;
         void Start()
         {
             Application.SetStackTraceLogType(LogType.Log,StackTraceLogType.None);
@@ -73,7 +79,7 @@ namespace UltramanGame.Runtime
             presentedPunches=presentedHits=comboCount=0;comboUntil=0;
             DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",0);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
-            if(Debug.isDebugBuild&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
+            if(TraceEnabled&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
             {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-linked")>=0);reviewFinisher=Array.IndexOf(Environment.GetCommandLineArgs(),"--review-finisher")>=0;keyboard=true;monsterHits=reviewFinisher?24:Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
             Application.runInBackground=true;Screen.sleepTimeout=SleepTimeout.NeverSleep;
             client=new PoseClient(LocalPort("--pose-port",8765));previewClient=new PreviewClient(LocalPort("--preview-port",8766));
@@ -150,8 +156,8 @@ namespace UltramanGame.Runtime
             if(Input.GetKeyDown(KeyCode.R))Restart();
             long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float rawDt=Time.unscaledDeltaTime,dt=Mathf.Min(rawDt,.1f);
             sampleAge+=rawDt;
-            if(Debug.isDebugBuild&&rawDt>.12f)Debug.Log($"[FrameTiming] age={sampleAge:F2} phase={battle.Phase} action={battle.Action} frameMs={rawDt*1000:F1}");
-            if(Debug.isDebugBuild&&sampleWindows<2&&sampleAge>3)
+            if(TraceEnabled&&rawDt>.12f)Debug.Log($"[FrameTiming] age={sampleAge:F2} phase={battle.Phase} action={battle.Action} frameMs={rawDt*1000:F1}");
+            if(TraceEnabled&&sampleWindows<2&&sampleAge>3)
             {
                 sampleSeconds+=rawDt;sampleFrames++;sampleWorst=Mathf.Max(sampleWorst,rawDt);
                 if(sampleSeconds>=10)
@@ -201,14 +207,14 @@ namespace UltramanGame.Runtime
                             if(detected.Length>0)
                             {
                                 gestureFeedback="已识别："+detected;gestureFeedbackUntil=Time.unscaledTime+1.3f;
-                                if(Debug.isDebugBuild)Debug.Log($"[Gesture] {detected} pose={recognizer.ReferencePose} sequence={pose.sequence}");
+                                if(TraceEnabled)Debug.Log($"[Gesture] {detected} pose={recognizer.ReferencePose} sequence={pose.sequence}");
                             }
                             if(input.Shield&&!held.Shield)
                             {
                                 gestureFeedback="护盾已展开";gestureFeedbackUntil=Time.unscaledTime+1.3f;
-                                if(Debug.isDebugBuild)Debug.Log($"[Gesture] 护盾已展开 sequence={pose.sequence}");
+                                if(TraceEnabled)Debug.Log($"[Gesture] 护盾已展开 sequence={pose.sequence}");
                             }
-                            if(Debug.isDebugBuild&&(input.GuardIntent!=lastGuardIntent||input.BeamIntent!=lastBeamIntent))
+                            if(TraceEnabled&&(input.GuardIntent!=lastGuardIntent||input.BeamIntent!=lastBeamIntent))
                                 Debug.Log($"[GestureIntent] guard={input.GuardIntent} beam={input.BeamIntent} shieldProgress={recognizer.ShieldProgress:F2} beamProgress={recognizer.BeamProgress:F2} energy={battle.Energy:F0}");
                             lastGuardIntent=input.GuardIntent;lastBeamIntent=input.BeamIntent;
                         }
@@ -223,7 +229,7 @@ namespace UltramanGame.Runtime
             {sound.Speak("arcade_ready",1,GamePhase.Waiting);waitingGuideAt=Time.unscaledTime+22;}
             if(paused||settings||showcase||music.Choosing)input.Tracking=false;
             if(input.Tracking!=lastTracking)
-            { lastTracking=input.Tracking;if(Debug.isDebugBuild)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
+            { lastTracking=input.Tracking;if(TraceEnabled)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
             if(battle.Phase==GamePhase.Waiting&&Time.unscaledTime-selectionChangedAt<.5f)input.Transform=false;
             battle.Tick(world.BattleDelta(dt,battle),input);
             if(battle.Punches>presentedPunches)
@@ -241,8 +247,8 @@ namespace UltramanGame.Runtime
             {
                 bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
-                if(Debug.isDebugBuild)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
-                if(battle.Finishing&&Debug.isDebugBuild)Debug.Log($"[FinalStrike] contact action={battle.Action} actionAge={battle.ActionAge:F3} health={battle.EnemyHealth}");
+                if(TraceEnabled)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
+                if(battle.Finishing&&TraceEnabled)Debug.Log($"[FinalStrike] contact action={battle.Action} actionAge={battle.ActionAge:F3} health={battle.EnemyHealth}");
                 sound.Hit(!special&&battle.Punches%5==0,special);
             }
             lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
@@ -302,7 +308,7 @@ namespace UltramanGame.Runtime
         void InstructionStarted(string key,float voiceSeconds)
         {
             battle.GiveInstructionTime(voiceSeconds,key=="warning");
-            if(Debug.isDebugBuild)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
+            if(TraceEnabled)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
             switch(key)
             {
                 case "battle":caption="挥动拳头，守护火山基地！";break;
@@ -318,7 +324,7 @@ namespace UltramanGame.Runtime
         }
         void PlayCue(GameCue cue)
         {
-            if(Debug.isDebugBuild)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
+            if(TraceEnabled)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
             if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
             world.Cue(cue,battle);
             switch(cue)
@@ -328,7 +334,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
                 case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
-                case GameCue.Victory:victoryAt=Time.unscaledTime;if(Debug.isDebugBuild)Debug.Log($"[FinalStrike] completed action={battle.Action} actionAge={battle.ActionAge:F3}");break;
+                case GameCue.Victory:victoryAt=Time.unscaledTime;if(TraceEnabled)Debug.Log($"[FinalStrike] completed action={battle.Action} actionAge={battle.ActionAge:F3}");break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;
             }
