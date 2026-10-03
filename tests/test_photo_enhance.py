@@ -128,6 +128,36 @@ class PhotoEnhancementTests(unittest.TestCase):
             self.assertGreater(float(delta.mean()),1.5)
             self.assertGreater(float(np.mean(np.any(delta>3,axis=2))),.20)
 
+    def test_scene_response_is_visible_but_retains_person_detail(self):
+        # Two different plate lights exercise the spatial response instead of
+        # a flat global colour wash. The checkerboard inside the person is a
+        # tiny stand-in for hair/clothing detail that must survive the pass.
+        height,width=180,300
+        plate=np.zeros((height,width,3),np.uint8)
+        plate[:,:150]=(95,55,28);plate[:,150:]=(35,65,105)
+        mask=np.zeros((height,width),np.uint8);mask[32:158,170:270]=255
+        image=plate.copy()
+        image[mask>0]=(150,120,90)
+        for y in range(50,150,20):
+            for x in range(180,260,20):
+                if ((x//20)+(y//20))%2:
+                    image[y:y+10,x:x+10]=(210,165,115)
+        recipe=dict(exposure_ev=0,red_gain=1,green_gain=1,blue_gain=1,
+                    saturation=1,edge_feather_px=1.0,light_wrap=.42,shadow_strength=0)
+        result=harmonise(image,plate,mask,recipe)
+        self.assertEqual(image.shape,result.shape)
+        # The fixed left scene/hero side is byte-for-byte untouched.
+        np.testing.assert_array_equal(image[:,:145],result[:,:145])
+        person=(mask==255)
+        delta=np.abs(result.astype(np.int16)-image.astype(np.int16))
+        self.assertGreater(float(delta[person].mean()),4.0)
+        self.assertGreater(float(np.mean(np.any(delta[person]>6,axis=1))),.75)
+        # Distinct foreground detail remains distinct after environment light.
+        dark=result[65,185].astype(int);light=result[55,185].astype(int)
+        self.assertGreater(float(np.abs(light-dark).mean()),12.0)
+        # The plate outside the narrow edge band remains unchanged.
+        np.testing.assert_array_equal(image[:,0:145],result[:,0:145])
+
     def test_local_fallback_creates_a_visible_but_bounded_variant(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'

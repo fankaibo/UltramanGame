@@ -175,6 +175,38 @@ def _soften_camera_crop(alpha, soft):
     return soft
 
 
+def _scene_response(plate_linear, alpha, corrected, strength):
+    """Apply a bounded, spatially varying scene response to the person.
+
+    The input is an already composited photo, so a flat colour wash is easy to
+    spot beside a detailed background.  Sample the low-frequency plate at the
+    person's actual position instead: its chroma supplies the cool moon/warm
+    lava direction and its luminance supplies a very small exposure gradient.
+    High-frequency detail from ``corrected`` is retained throughout.
+    """
+    import cv2
+    import numpy as np
+
+    height, width = alpha.shape
+    sigma=max(3.0, min(height, width)*.018)
+    scene=cv2.GaussianBlur(plate_linear,(0,0),sigma)
+    luma=np.sum(scene*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
+    scene_luma=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
+    scene_tint=scene/np.maximum(luma,.015)
+
+    # Keep the local plate light readable without allowing a dark mountain to
+    # turn a child's face into a silhouette.  A percentile from the plate
+    # (instead of its global mean) keeps the response stable across sky and
+    # lava compositions.
+    visible=alpha<.05
+    reference=float(np.percentile(luma[visible],65)) if np.any(visible) else float(np.mean(luma))
+    luminance_ratio=np.clip(luma/max(reference,.015),.76,1.16)
+    luminance_mix=.18*strength
+    lit=corrected*(1-luminance_mix)+corrected*luminance_ratio*luminance_mix
+    ambient=scene_luma*scene_tint
+    return np.clip(lit*(1-strength)+ambient*strength,0,1)
+
+
 def harmonise(composite, plate, mask, recipe):
     import cv2
     import numpy as np
@@ -196,45 +228,14 @@ def harmonise(composite, plate, mask, recipe):
     # readable.  This is deliberately a bounded optical integration pass, not
     # generative redrawing or identity editing.
     if recipe['light_wrap']>0:
-        scene=cv2.GaussianBlur(b,(0,0),max(2,composite.shape[0]/45))
-        scene_luma=np.sum(scene*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
-        person_luma=np.sum(corrected*np.array([.0722,.7152,.2126],np.float32),axis=2,keepdims=True)
-        scene_tint=scene/np.maximum(scene_luma,.015)
-        ambient=np.clip(person_luma*scene_tint,0,1)
-        # The gateway may return a technically valid near-zero wrap. A family
-        # preview needs a perceptible response from the Fuji moon/lava plate;
-        # keep it bounded, but large enough to prove that the edited image was
-        # actually composited instead of merely copied from the original.
-        # Keep the scene response visible in a family preview.  A very small
-        # wrap is technically valid, but it leaves the saved AI variant
-        # looking identical at normal viewing size.  The upper bound remains
-        # deliberately below a relight or face edit: this is still a bounded
-        # compositing pass.
-        # The gateway recipe is intentionally conservative, but the saved
-        # family preview must show the light response at normal TV size. Keep
-        # the face readable while allowing a clearly visible cool moon/lava
-        # wrap over the person instead of a near-identical copy.
-        # The first family preview was technically different but the change
-        # was easy to miss beside a bright hero.  Keep the identity and pose
-        # fixed, while making the environment response legible at normal TV
-        # size: a broader cool/warm wrap around the person and a softer matte
-        # transition.  This is still a bounded compositor, not image-to-image
-        # redrawing.
-        # Keep the environment response visible without turning a readable
-        # family face into a silhouette. The previous floor (.58 effective
-        # strength) made the AI version look like a dark exposure variant
-        # instead of a composited subject.
-        # The finished photo is shown beside the source at TV scale.  A
-        # near-zero gateway recipe previously produced a mathematically valid
-        # result whose environment response was hard to see.  Keep the face
-        # and clothing intact, but give the Fuji moon/lava plate a clearly
-        # readable, bounded response over the visible person area.
-        # Keep the environment response visible in the saved family preview.
-        # The model can still choose a milder value above this floor, but a
-        # near-zero recipe must not collapse into a visually identical copy.
-        strength=min(.50,max(.34,recipe['light_wrap']*1.20))
-        corrected=corrected*(1-strength)+ambient*strength
-    feather=max(.9,recipe['edge_feather_px'])*composite.shape[0]/1080
+        # Keep the change measurable beside a bright hero while preserving
+        # the child's face and clothing detail.
+        strength=min(.46,max(.30,recipe['light_wrap']*1.12))
+        corrected=_scene_response(b,a,corrected,strength)
+    # Keep the silhouette readable at TV distance.  Camera-frame crops get a
+    # separate short falloff below; a large Gaussian here makes the whole
+    # person look blurred when the gateway asks for a visible edge correction.
+    feather=min(2.2,max(.65,recipe['edge_feather_px']))*composite.shape[0]/1080
     soft=np.clip(cv2.GaussianBlur(a,(0,0),max(.5,feather)),0,1)
     # A cropped shoulder, head or torso can otherwise leave a visibly straight
     # camera-frame edge in the finished photo.  Keep the interior and the
@@ -248,7 +249,22 @@ def harmonise(composite, plate, mask, recipe):
     premult=corrected*a[:,:,None]
     edge_colour=cv2.GaussianBlur(premult,(0,0),max(.5,feather))
     corrected=np.where(soft[:,:,None]>.0001,edge_colour/np.maximum(soft[:,:,None],.0001),corrected)
-    alpha=soft
+    # Only a narrow exterior band is allowed to borrow the feathered alpha.
+    # Interior pixels retain the original matte exactly, preserving hair,
+    # clothing texture and facial detail.
+    alpha=np.where(a>.001,a,np.minimum(soft,.22))
+    # The source-frame crop falloff must also apply to opaque pixels that
+    # touch a camera edge.  Ordinary silhouette interiors keep the exact
+    # matte, so only these explicitly detected crop bands use ``soft``.
+    span=max(8,round(a.shape[0]*.018))
+    span=min(span,max(1,min(a.shape)//8))
+    def cropped(edge,limit):
+        occupied=float(np.mean(edge>.50))
+        return occupied>.005 and occupied<limit
+    if cropped(a[:,0],.98): alpha[:,:span]=np.minimum(alpha[:,:span],soft[:,:span])
+    if cropped(a[:,-1],.98): alpha[:,-span:]=np.minimum(alpha[:,-span:],soft[:,-span:])
+    if cropped(a[0,:],.35): alpha[:span,:]=np.minimum(alpha[:span,:],soft[:span,:])
+    if cropped(a[-1,:],.35): alpha[-span:,:]=np.minimum(alpha[-span:,:],soft[-span:,:])
     radius=max(1,round(2*composite.shape[0]/1080))
     edge=(1-cv2.erode(a,np.ones((radius*2+1,radius*2+1),np.uint8)))*alpha
     wrap=cv2.GaussianBlur(b,(0,0),max(2,composite.shape[0]/80))
@@ -277,12 +293,12 @@ def enhance(source, plate_path, mask_path):
     # Keep the model's composition and identity decisions bounded locally. A
     # near-zero recipe still gets a small, reviewable optical pass, while no
     # image-to-image redraw or face editing is permitted here.
-    recipe['edge_feather_px']=max(3.0,recipe['edge_feather_px'])
+    recipe['edge_feather_px']=max(1.8,recipe['edge_feather_px'])
     # A near-zero model recipe is technically valid but can be hard to judge
     # in a family preview. Use a bounded optical floor: cool scene wrap,
     # restrained contact shadow and a small colour-temperature correction.
     # Do not force the whole person darker; the face must remain readable.
-    recipe['light_wrap']=max(.34,recipe['light_wrap'])
+    recipe['light_wrap']=max(.36,recipe['light_wrap'])
     recipe['shadow_strength']=max(.20,min(.34,recipe['shadow_strength']))
     recipe['exposure_ev']=max(-.22,min(.04,recipe['exposure_ev']))
     recipe['red_gain']=max(.88,min(.98,recipe['red_gain']))
@@ -318,8 +334,8 @@ def local_fallback(source, plate_path, mask_path):
     source=Path(source)
     image=cv2.imread(str(source));plate=cv2.imread(str(plate_path));mask=cv2.imread(str(mask_path),0)
     if image is None or plate is None or mask is None:raise ValueError('missing_photo_layers')
-    recipe=dict(exposure_ev=-.28,red_gain=.92,green_gain=.95,blue_gain=1.32,
-                saturation=.70,edge_feather_px=18.0,light_wrap=.62,shadow_strength=.40,
+    recipe=dict(exposure_ev=-.24,red_gain=.93,green_gain=.96,blue_gain=1.18,
+                saturation=.84,edge_feather_px=2.4,light_wrap=.46,shadow_strength=.28,
                 scene_summary='本地备用：富士夜景的冷月光与远处暖色火山边缘光')
     result=harmonise(image,plate,mask,recipe)
     output=source.with_name(source.stem+'_AI.png')
