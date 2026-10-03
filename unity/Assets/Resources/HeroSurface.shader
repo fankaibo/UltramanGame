@@ -69,7 +69,21 @@ Shader "Training/HeroSurface" {
    float grainWave=(sin(grain.x*6.283185)+sin(grain.y*6.283185*1.17))*.5;
    float grainMask=saturate(1-silver)*_MicroDetail;
    c.rgb*=1+grainWave*.028*grainMask;
-   o.Albedo=c.rgb;o.Metallic=lerp(_Metallic,.42,silver);o.Smoothness=lerp(_Glossiness,.43,silver);
+   // The non-Tiga source suits have smooth low-resolution albedo maps. Add a
+   // second, filtered scale of breakup so they read as fabric/paint at the
+   // 45-degree arcade camera distance. The amplitude stays deliberately
+   // small: this improves material separation without pretending to add mesh
+   // detail or changing the measured Tiga finish below.
+   float2 detailUv=i.uv_MainTex*72;
+   float detailA=sin(detailUv.x*6.283185+sin(detailUv.y*2.1));
+   float detailB=sin(detailUv.y*6.283185*1.13+sin(detailUv.x*1.7));
+   float detailFilter=saturate(1-smoothstep(.18,.62,max(fwidth(detailUv.x),fwidth(detailUv.y))));
+   float micro=(detailA*.58+detailB*.42)*detailFilter;
+   float microMask=(1-silver)*_MicroDetail;
+   c.rgb*=1+micro*.022*microMask;
+   o.Albedo=c.rgb;o.Metallic=lerp(_Metallic,.42,silver);
+   o.Smoothness=lerp(_Glossiness,.43,silver)-abs(micro)*.035*microMask;
+   o.Normal=normalize(float3(micro*.028*microMask,micro*.021*microMask,1));
    if(_CostumeFinish>0) {
     // The original UV colors define the panels exactly. Calibrate their
     // reflectance as dyed costume fabric, rather than pure RGB paint.
