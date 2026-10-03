@@ -22,6 +22,7 @@ namespace UltramanGame.Runtime
             photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;
             PlayerPrefs.SetString("hero.selected",SelectedHero.Id);PlayerPrefs.Save();
             recognizer.Reset();held=default;selectionHint="";selectionChangedAt=Time.unscaledTime;
+            heroSelectionGesture.Consume();
             hero.Update(battle,world.Camera,0,Time.unscaledTime);
             sound.Effect("shield",.25f);sound.Speak("hero_"+SelectedHero.Id.ToLowerInvariant(),6,GamePhase.Waiting);
             Debug.Log($"[HeroSelection] id={SelectedHero.Id} name={SelectedHero.Name} rigged={hero.IsRigged}");
@@ -30,7 +31,7 @@ namespace UltramanGame.Runtime
         {
             if(battle.Phase!=GamePhase.Waiting)return;
             const float x=319,y=510,w=122,gap=10;
-            hud.Text(new Rect(x,475,642,24),selectionHint.Length>0?selectionHint:"←  左右方向键选择英雄  →",17,HudPainter.Cyan,TextAnchor.MiddleCenter);
+            hud.Text(new Rect(x,475,642,24),selectionHint.Length>0?selectionHint:"举左手/右手切换英雄 · 双手举高开始",17,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(x,499,642,18),SelectedHero.Name+" · "+SelectedHero.Form+" · "+SelectedHero.Beam,11,HudPainter.Muted,TextAnchor.MiddleCenter);
             for(int i=0;i<HeroRoster.Count;i++)
             {

@@ -11,6 +11,7 @@ namespace UltramanGame.Runtime
         bool showcase;int showcaseFrame;
         ReviewPlayback review;float reviewFinishedAt=-1;int reviewBeams;bool reviewPaused,reviewFinisher;
         readonly GestureRecognizer recognizer=new GestureRecognizer();
+        readonly HeroSelectionGesture heroSelectionGesture=new HeroSelectionGesture();
         readonly PlayerPresence presence=new PlayerPresence();
         PoseClient client;
         PreviewClient previewClient;
@@ -223,6 +224,18 @@ namespace UltramanGame.Runtime
                 }
                 if(!PoseQuality.Present(pose,now)) {input=default;recognizer.Reset();}
                 input.Tracking=presence.Update(pose,now);held=input;
+                if(!keyboard&&battle.Phase==GamePhase.Waiting&&!photo.Active&&!settings&&!showcase)
+                {
+                    int selection=heroSelectionGesture.Update(pose,now);
+                    if(selection!=0)
+                    {
+                        SelectHero(heroIndex+selection);
+                        // Selection owns the waiting frame. The existing half
+                        // second post-selection gate then prevents the same held
+                        // hand from being mistaken for transform.
+                        input.Transform=false;
+                    }
+                }
             }
             if(review!=null)input=review.Next(battle,dt);
             if(!keyboard&&battle.Phase==GamePhase.Waiting&&Time.unscaledTime>=waitingGuideAt&&!sound.VoicePlaying)
