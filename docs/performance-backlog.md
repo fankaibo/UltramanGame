@@ -114,3 +114,21 @@ python3 scripts/runtime_memory_profile.py --cycles 3 --interval 5 \
 脚本本身已用三次短命令循环和现有 Unity 可执行文件做有界启动探针验证；Unity 探针在 8 秒上限后按预期终止，首个有效启动样本约 149 MiB，加载阶段约 234–761 MiB RSS，VSZ 约 421 GiB，说明脚本能采到实际玩家进程且不会把 VSZ 当作内存。该探针没有进入战斗或合照，不能替代完整流程。完整三局证据仍采用同一源码的 Development Build：第一/二/三局 RSS 峰值约 950.6/948.7/774.2 MiB，结束约 442.4/388.0/410.0 MiB；96 个有效样本没有按局单调增长，见 [memory-cycles-20261002.tsv](../logs/memory-cycles-20261002.tsv)。
 
 验证：`python3 -m py_compile scripts/runtime_memory_profile.py`、`git diff --check` 通过；在允许本机回环和进程读取的环境执行 `bash scripts/check.sh`，39 个 Python 单元测试及完整规则检查共 **680 项**通过。受限沙箱中的同一命令曾因端口绑定和 `ps` 进程枚举 EPERM 产生环境错误，未计入代码失败。当前仍没有复现“单独游戏进程稳定占用 5 GB”；系统总内存读数继续按游戏、Unity、姿态服务、合照服务和审查缓存分项取证，P1 保留为待发行包三局/角色切换同进程复核。
+
+### 2026-10-04：ARCADE-90 发行包同进程完整回放采样
+
+为补上“采样器能运行但没有覆盖完整战斗”的证据边界，`scripts/guided_player_check.py` 增加可选的 `--memory-output` 和 `--memory-interval`。它在现有无键鼠回放的同一个 Unity 发行进程内每秒读取 macOS `ps` 的 RSS/VSZ，并写出带阶段、战斗相位、合照次数和命令行的 TSV；回放报告同时保存首个、峰值、末值和各阶段峰值。进程结束或 `ps` 暂时不可读时记为缺失，不把零值伪装成回收。
+
+当前发行包回放命令：
+
+```sh
+python3 scripts/guided_player_check.py \
+  --output artifacts/arcade90-release-memory \
+  --log logs/arcade90-release-memory.log \
+  --memory-output logs/arcade90-release-memory.tsv \
+  --memory-interval 1.0
+```
+
+结果：144.7 秒，键鼠事件 0，自动合照 2 次，重拍、合照/预览断流恢复和再开局通过，照片预览 p99 差异为 0。游戏进程 141 个有效样本的 RSS 峰值约 **663.3 MiB**、末值约 **320.6 MiB**；阶段峰值为战斗 **663.3 MiB**、合照倒数 **301.4 MiB**、合照预览 **314.6 MiB**、再开局 **367.0 MiB**。VSZ 峰值约 **421.43 GiB**，只表示虚拟地址空间，不能当作实际内存。该样本没有显示回合间 RSS 单调增长，也没有复现独立游戏进程稳定占用 5 GB，因此本轮不降低角色/背景纹理、不关闭特效、不加入全局强制卸载。
+
+验证：`python3 -m py_compile scripts/guided_player_check.py`、`git diff --check` 和允许本机回环环境的 `bash scripts/check.sh`（**680 项**）通过。原始采样见 [arcade90-release-memory.tsv](../logs/arcade90-release-memory.tsv)，摘要见 [arcade90-release-memory-summary.json](../logs/arcade90-release-memory-summary.json)，完整流程见 [guided-validation.json](../artifacts/arcade90-release-memory/guided-validation.json)。P1 仍保持 Review，下一步是同一进程三局连续、角色切换、Unity reserved/帧率和真实摄像头/小米电视现场采样。
