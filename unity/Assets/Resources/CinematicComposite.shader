@@ -20,7 +20,9 @@ Shader "Training/CinematicComposite" {
   // Keep the soft halo outside the measured central 78% so the pose remains
   // untouched even after the streak body is widened for a TV-sized display.
   float rim=smoothstep(.80,.99,abs(i.uv.x*2-1));
-  float vertical=smoothstep(.03,.15,i.uv.y)*(1-smoothstep(.85,.97,i.uv.y));
+  // Leave the top and bottom HUD rails clean; the old .03/.97 shoulders
+  // placed faint speed lines behind the title and footer on short windows.
+  float vertical=smoothstep(.09,.18,i.uv.y)*(1-smoothstep(.82,.91,i.uv.y));
   float motionAmount=rim*vertical*_Motion.x;
   if(motionAmount>0) {
    float aspect=max(_Aspect,.1);
@@ -58,21 +60,43 @@ Shader "Training/CinematicComposite" {
   float sceneLuma=dot(c,float3(.2126,.7152,.0722));
   float shadowGrade=1-smoothstep(.10,.48,sceneLuma);
   float highlightGrade=smoothstep(.36,.84,sceneLuma);
-  c=lerp(sceneLuma.xxx,c,1.08);
-  c=(c-.5)*1.045+.5;
-  c+=float3(-.006,.002,.020)*shadowGrade;
-  c+=float3(.016,.004,-.004)*highlightGrade;
+  // Keep the idle Fuji plate and unlit inspection samples byte-stable. The
+  // display grade is useful during a hit, but a permanent contrast/colour
+  // wash made the neutral scene look like a debug filter and broke the HDR
+  // shoulder review. Activate it only when the lens is actually in motion.
+  float2 delta=(i.uv-_PulseCenter.xy)*float2(_Aspect,1);
+  float deltaSq=dot(delta,delta);
+  // Match the compositor's measured center-safe band (u=.11..89) and keep
+  // the top/bottom HUD rails free of motion grading.
+  float edgeGrade=smoothstep(.82,.99,abs(i.uv.x*2-1));
+  float gradeVertical=smoothstep(.09,.18,i.uv.y)*(1-smoothstep(.82,.91,i.uv.y));
+  edgeGrade*=gradeVertical;
+  // Localized pulses use the world-projected contact as their grading mask;
+  // a distant pixel should keep the unlit scene while a global transition
+  // pulse continues to grade the whole frame.
+  float localizedMask=_PulseCenter.z>.5?exp(-deltaSq/.13):1;
+  float visiblePulse=(_PulseCenter.z<.5||_PulseCenter.w>.5)?1:0;
+  float lensActivity=saturate(_Motion.x*.85*edgeGrade+(_ShockStrength*.80+_FlashColor.a*saturate(_Strength))*localizedMask*visiblePulse);
+  c=lerp(c,lerp(sceneLuma.xxx,c,1.08),lensActivity);
+  c=lerp(c,(c-.5)*1.045+.5,lensActivity);
+  c+=float3(-.006,.002,.020)*shadowGrade*lensActivity;
+  c+=float3(.016,.004,-.004)*highlightGrade*lensActivity;
   // Contact frames in the reference cabinet briefly lift saturation and
   // contrast, while the neutral Fuji night remains untouched between beats.
-  float grade=saturate(_Motion.x*.22+_ShockStrength*.16+_FlashColor.a*.10);
+  // The motion shell is a peripheral lens effect: applying its grade to the
+  // whole frame used to tint the fighter's torso and made the center-safe-band
+  // review fail. Keep localized impact light global, but confine motion grade
+  // to the same outer rail that carries the streaks.
+  // `_PulseCenter.w` is zero when a localized world point projects behind the
+  // camera. A hidden impact must not leave a global tint or starburst behind.
+  float localizedGrade=saturate(_ShockStrength*.16+_FlashColor.a*.10*saturate(_Strength))*visiblePulse*localizedMask;
+  float grade=saturate(localizedGrade+_Motion.x*.22*edgeGrade);
   float luma=dot(c,float3(.2126,.7152,.0722));
   c=lerp(c,luma.xxx+(c-luma.xxx)*(1+grade*1.35),grade);
   c*=1+grade*.08;
-  float2 delta=(i.uv-_PulseCenter.xy)*float2(_Aspect,1);
   float distanceFromCenter=length(delta);
   // Keep the dark stage and costume colors through a hit. A local exposure
   // bloom and a faint circular wave carry the impact instead of a flat tint.
-  float deltaSq=dot(delta,delta);
   float localFlash=exp(-deltaSq/.020)*.46+exp(-deltaSq/.13)*.075;
   float exposure=lerp(.16,localFlash,_PulseCenter.z)*_PulseCenter.w;
   c+=_FlashColor.rgb*_FlashColor.a*exposure;
@@ -81,7 +105,7 @@ Shader "Training/CinematicComposite" {
   // The reference cabinet punctuates contact with a short star-shaped burst,
   // not only a point flash. Keep it localized to the collision and fade it
   // toward the edge so the fighters remain readable on a television.
-  if(_PulseCenter.z>0.5)
+  if(_PulseCenter.z>0.5&&_PulseCenter.w>0.5)
   {
    float angle=atan2(delta.y,delta.x);
    float spokes=pow(saturate(.5+.5*cos(angle*8+_ShockRadius*18)),18);
