@@ -52,9 +52,44 @@ namespace UltramanGame.Runtime
                 mesh.vertices=vertices;mesh.colors=colors;mesh.RecalculateBounds();
             }
         }
+        sealed class RushDust
+        {
+            public readonly Transform Root;
+            public readonly Material Material;
+            readonly float lane, phase, size, spin;
+            public RushDust(Transform parent,int index)
+            {
+                lane=(index%3-1)*.24f + ((index/3)%2==0?-.055f:.055f);
+                phase=(index%4)*.075f;
+                size=.42f+(index%3)*.09f;
+                spin=-18f+index*11f;
+                Material=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("ImpactCloud")));
+                Material.SetFloat("_Seed",index*13.17f+.8f);
+                Root=GameWorld.Primitive("Monster rush dust",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,Material);
+                Root.gameObject.SetActive(false);
+            }
+            public void Draw(Camera camera,Vector3 monster,Vector3 forward,Vector3 side,float progress,float fade)
+            {
+                float local=progress-phase;
+                if(local<0||local>.82f){Root.gameObject.SetActive(false);return;}
+                float age=Mathf.Clamp01(local/.82f);
+                float swell=Mathf.SmoothStep(0,1,Mathf.Clamp01(local/.20f));
+                float drift=Mathf.SmoothStep(0,1,age);
+                Root.gameObject.SetActive(true);
+                Root.position=monster-forward*(.18f+drift*(.62f+(lane<0?.16f:.08f)))
+                    +side*(lane*(.78f+.18f*drift))+Vector3.up*(.075f+size*.13f*swell+Mathf.Sin(age*Mathf.PI)*.07f);
+                Root.rotation=camera.transform.rotation*Quaternion.Euler(0,0,spin+age*34f);
+                Root.localScale=Vector3.one*size*(.32f+1.22f*swell);
+                Material.color=new Color(.34f,.29f,.25f,fade*(1-age)*(.52f+.25f*swell));
+                Material.SetFloat("_Age",Mathf.Lerp(.04f,.30f,age));
+                Material.SetFloat("_Hot",.14f*(1-age));
+            }
+            public void Hide(){Root.gameObject.SetActive(false);}
+        }
         readonly Vector3 home,target,forward;
         readonly LineRenderer charge,shock;
         readonly LineRenderer[] rushWakes=new LineRenderer[3];
+        readonly RushDust[] rushDust=new RushDust[8];
         readonly ClawSweep[] claws=new ClawSweep[3];
         readonly Material glow;
         static readonly Color Amber=new Color(1,.40f,.10f),Ice=new Color(.25f,.86f,1);
@@ -64,7 +99,7 @@ namespace UltramanGame.Runtime
         Vector3 hitPosition,previousHand,sweepDirection;
         int attackNumber=-1,impactAttack=-1;
         public bool SlashVisible => claws[0].Visible;
-        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled;
+        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled||rushDust[0].Root.gameObject.activeSelf;
         public MonsterAttackEffects(Transform parent,Vector3 monsterHome,Vector3 heroHome)
         {
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
@@ -73,6 +108,7 @@ namespace UltramanGame.Runtime
             shock=Line(parent,"Monster contact",48,.07f,true);
             for(int i=0;i<rushWakes.Length;i++)
                 rushWakes[i]=Line(parent,"Monster body rush wake "+i,7,.06f);
+            for(int i=0;i<rushDust.Length;i++)rushDust[i]=new RushDust(parent,i);
             var sweep=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("ClawSweep")));
             for(int i=0;i<3;i++)claws[i]=new ClawSweep(parent,sweep,i);
         }
@@ -93,7 +129,7 @@ namespace UltramanGame.Runtime
             }
         }
         public void Clear()
-        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var claw in claws)claw.Visible=false;}
+        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
         {hitAge=0;impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
@@ -159,8 +195,11 @@ namespace UltramanGame.Runtime
                     ColorLine(line,tint,launch*settle*(i==1?.78f:.43f));
                     line.widthMultiplier=(i==1?.095f:.052f)*(0.72f+.48f*progress);
                 }
+                float dustFade=launch*settle;
+                var dustSide=Vector3.Cross(Vector3.up,forward).normalized;
+                foreach(var dust in rushDust)dust.Draw(camera,monster,forward,dustSide,progress,dustFade);
             }
-            else foreach(var wake in rushWakes)wake.enabled=false;
+            else {foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();}
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
