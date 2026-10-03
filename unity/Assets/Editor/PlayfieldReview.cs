@@ -73,7 +73,7 @@ namespace UltramanGame.Editor
                                     var p=world.Camera.WorldToViewportPoint(skin.transform.TransformPoint(v));
                                     bottom=Mathf.Min(bottom,p.y);top=Mathf.Max(top,p.y);minY=Mathf.Min(minY,p.y);maxY=Mathf.Max(maxY,p.y);
                                     var screen=new Vector2(p.x*1280,(1-p.y)*720);
-                                    if(screen.y<100&&(screen.x>=24&&screen.x<=448||screen.x>=832&&screen.x<=1256))header++;
+                                    if(BattleHudLayout.HeroPlate.Contains(screen)||BattleHudLayout.EnemyPlate.Contains(screen))header++;
                                     bool comboLower=mode=="combo"&&p.y<actor.Root.position.y+1.8f;
                                     if((state.Action==HeroAction.Beam?beam:guide).Contains(screen))
                                     {rail++;if(comboLower)comboLowerRail++;else if(mode=="combo")comboUpperRail++;}

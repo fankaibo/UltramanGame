@@ -259,12 +259,12 @@ namespace UltramanGame.Runtime
                 hud.Fade(new Rect(0,0,1280,86),new Color(.004f,.014f,.035f,.74f));
                 BattlePlate(BattleHudLayout.HeroPlate,HudPainter.Cyan,false);
                 BattlePlate(BattleHudLayout.EnemyPlate,new Color(1,.47f,.21f),true);
-                hud.HeroPortrait(new Rect(26,10,58,58),SelectedHero.Id);
-                hud.Portrait(new Rect(1196,10,58,58),true);
-                hud.Text(new Rect(94,14,184,27),SelectedHero.Name,16,HudPainter.Ink,bold:true);
-                hud.Text(new Rect(284,19,140,20),ready?"必杀已就绪":$"光线 {battle.Energy:0} / 15",11,ready?HudPainter.Gold:HudPainter.Muted,TextAnchor.MiddleRight);
-                hud.Text(new Rect(1000,14,182,27),"哥尔赞",16,HudPainter.Ink,TextAnchor.MiddleRight,true);
-                hud.Text(new Rect(850,19,145,20),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",11,HudPainter.Muted);
+                hud.HeroPortrait(new Rect(28,12,46,46),SelectedHero.Id);
+                hud.Portrait(new Rect(1206,12,46,46),true);
+                hud.Text(new Rect(84,13,132,23),SelectedHero.Name,14,HudPainter.Ink,bold:true);
+                hud.Text(new Rect(212,17,130,17),ready?"必杀已就绪":$"光线 {battle.Energy:0} / 15",10,ready?HudPainter.Gold:HudPainter.Muted,TextAnchor.MiddleRight);
+                hud.Text(new Rect(1032,13,166,23),"哥尔赞",14,HudPainter.Ink,TextAnchor.MiddleRight,true);
+                hud.Text(new Rect(932,17,92,17),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",10,HudPainter.Muted);
                 if(!opening)
                 {
                     hud.Text(new Rect(485,11,310,19),"火山大决战",11,HudPainter.Muted,TextAnchor.MiddleCenter);
@@ -303,8 +303,8 @@ namespace UltramanGame.Runtime
             // when handing the closeup back to the two-fighter battle shot.
             float alpha=1-Mathf.SmoothStep(0,1,(battle.ActionAge-1.25f)/.25f);
             hud.Rounded(BattleHudLayout.BeamTitle,new Color(.006f,.02f,.055f,.80f*alpha),8);
-            hud.Line(new Vector2(438,710),new Vector2(842,710),new Color(.22f,.72f,1,.65f*alpha),2);
-            hud.Text(new Rect(432,686,416,24),$"{SelectedHero.Beam} · {SelectedHero.BeamJapanese}",17,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
+            hud.Line(new Vector2(438,716),new Vector2(842,716),new Color(.22f,.72f,1,.65f*alpha),1);
+            hud.Text(new Rect(432,700,416,14),$"{SelectedHero.Beam} · {SelectedHero.BeamJapanese}",12,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
         }
 
         // A short cabinet-style cut-in makes the transition out of the
@@ -350,12 +350,12 @@ namespace UltramanGame.Runtime
             // Keep the playfield dominant, as on the reference cabinet: the
             // instruction is a compact rail at the very bottom instead of a
             // large card covering the fighters' legs and effects.
-            hud.Fade(new Rect(0,680,1280,40),new Color(.005f,.015f,.035f,.10f));
+            hud.Fade(new Rect(0,690,1280,30),new Color(.005f,.015f,.035f,.12f));
             hud.Rounded(BattleHudLayout.Guide,new Color(.007f,.025f,.053f,.82f),8);
-            hud.Box(new Rect(370,686,3,22),accent);
-            hud.Figure(new Rect(384,680,34,32),gesture,Time.unscaledTime,accent);
-            hud.Text(new Rect(432,684,451,23),title,14,HudPainter.Ink,TextAnchor.MiddleCenter,true);
-            hud.Bar(new Rect(455,710,410,2),progress,accent);
+            hud.Box(new Rect(370,701,2,12),accent);
+            hud.Figure(new Rect(382,696,24,20),gesture,Time.unscaledTime,accent);
+            hud.Text(new Rect(414,700,480,14),title,12,HudPainter.Ink,TextAnchor.MiddleCenter,true);
+            hud.Bar(new Rect(456,716,410,1),progress,accent);
         }
         void DrawArcadePreview()
         {

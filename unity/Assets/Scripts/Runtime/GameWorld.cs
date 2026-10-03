@@ -342,7 +342,7 @@ namespace UltramanGame.Runtime
             // A slightly tighter ordinary lens gives the 16:9 living-room
             // shot more of that arcade scale while leaving the beam and fall
             // compositions in control of their own framing.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?24.8f:25.1f):37;
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?26.0f:27.0f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
@@ -378,6 +378,11 @@ namespace UltramanGame.Runtime
             // orientation back into the next strike/defence camera offset.
             Vector3 viewForward=(lookAt-cameraHome).normalized;
             Vector3 viewRight=Vector3.Cross(Vector3.up,viewForward).normalized;
+            // Leave a narrow breathing band above the helmets for the compact
+            // header. The slightly wider ordinary lens preserves the fighters'
+            // scale while moving their silhouette away from the top rail.
+            if(battleView&&!Showcase&&!Closeup.Active&&state.Action!=HeroAction.Beam)
+                target+=Vector3.up*0f;
             // One low approach at the start of the warning, then return with
             // two seconds left for the child to read the guard and incoming claw.
             // Follow the enemy clock; an instruction cancellation gets a short
@@ -444,7 +449,7 @@ namespace UltramanGame.Runtime
                 // lens enlarges the helmets faster than the feet; raising the
                 // optical target moves the fighters down into the clear band
                 // below the top health plates.
-                target=Vector3.Lerp(target,lookAt+Vector3.up*.40f+BattleAxis*.06f,ComboFocus);
+                target=Vector3.Lerp(target,lookAt+Vector3.up*.45f+BattleAxis*.06f,ComboFocus);
                 // The ordinary battle lens is already tight on a 16:9 TV. A
                 // wider 29.2 degree combo lens therefore made the supposed
                 // contact close-up smaller (0.87x in the framing review).

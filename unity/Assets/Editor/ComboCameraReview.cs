@@ -48,7 +48,7 @@ namespace UltramanGame.Editor
                             if(!peak){shots++;peak=true;CharacterReview.Save(world.Camera,target,$"{Folder}/poses/{id}-{rate}-peak-{n}.png");}
                             magnification=Mathf.Max(magnification,Size()/baseSize);
                             foreach(var actor in new[]{hero,enemy})foreach(var skin in actor.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
-                            {skin.BakeMesh(mesh,true);foreach(var vertex in mesh.vertices){Vector3 p=skin.transform.TransformPoint(vertex);if(p.y<actor.Root.position.y+1.8f)continue;var v=world.Camera.WorldToViewportPoint(p);minX=Mathf.Min(minX,v.x);maxX=Mathf.Max(maxX,v.x);top=Mathf.Max(top,v.y);float x=v.x*1280,y=(1-v.y)*720;if(y<100&&(x>=24&&x<=448||x>=832&&x<=1256))headerOverlap++;}}
+                            {skin.BakeMesh(mesh,true);foreach(var vertex in mesh.vertices){Vector3 p=skin.transform.TransformPoint(vertex);if(p.y<actor.Root.position.y+1.8f)continue;var v=world.Camera.WorldToViewportPoint(p);minX=Mathf.Min(minX,v.x);maxX=Mathf.Max(maxX,v.x);top=Mathf.Max(top,v.y);var screen=new Vector2(v.x*1280,(1-v.y)*720);if(BattleHudLayout.HeroPlate.Contains(screen)||BattleHudLayout.EnemyPlate.Contains(screen))headerOverlap++;}}
                             foreach(var hand in new[]{hero.HandPosition,hero.StrikeOrigin(HeroAction.LeftPunch),enemy.HandPosition,enemy.StrikeOrigin(HeroAction.LeftPunch)})
                             {var p=world.Camera.WorldToViewportPoint(hand);handLow=Mathf.Min(handLow,p.y);handHigh=Mathf.Max(handHigh,p.y);}
                         }
