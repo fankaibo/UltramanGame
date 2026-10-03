@@ -15,6 +15,7 @@ from mathutils import Vector, Quaternion
 
 CHARACTER_OBJECTS = ('Armature.001', 'TigaBody', 'TigaEyes', 'TigaEnergy',
                      'TigaEnergyContainer', 'Cube.002')
+LIVE_PUNCH_ADVANCE = 1.25
 
 
 def surface(name, color, metallic=0, roughness=.4, emission=0, texture=None):
@@ -78,6 +79,11 @@ def animate(rig, combat_sample=False, live_combat=False):
                 'fingerRot_R', 'fingerRot_L', 'Thumb1_R', 'Thumb2_R', 'Thumb3_R',
                 'Thumb1_L', 'Thumb2_L', 'Thumb3_L')
     idle = dict(right=(-.17, -.30, 1.30), left=(.20, -.30, 1.30), yaw=0, sink=0)
+    if live_combat:
+        # A forward lead hand and a higher rear guard give consecutive punches
+        # distinct silhouettes. Feet retain the existing contact solver below.
+        idle = dict(right=(-.20, -.23, 1.37), left=(.21, -.36, 1.30),
+                    yaw=-.065, sink=-.012, lean=.025)
     beam = dict(right=(-.16, -.29, 1.54), left=(-.10, -.31, 1.23), yaw=-.04, sink=-.018, open=1,
                 right_pole=(-.48, -.13, 1.12), left_pole=(.43, -.12, 1.13))
 
@@ -103,11 +109,21 @@ def animate(rig, combat_sample=False, live_combat=False):
         main = rig.pose.bones['Main']
         main_matrix = rest_matrices["Main"].copy()
         main_matrix.translation.z += pose['sink']
+        main_matrix.translation.x += pose.get('balance', 0)
         main.matrix = main_matrix
         hip = rig.pose.bones['hip']
         hip.rotation_mode = 'QUATERNION'
         hip.rotation_quaternion = baseline['hip'].to_quaternion() @ Quaternion((0, 0, 1), pose['yaw']) @ Quaternion((1, 0, 0), pose.get('lean', 0))
         bpy.context.view_layer.update()
+        if live_combat:
+            # The upper-body target follows the hip with a separately keyed
+            # offset. This produces a chest lead and delayed recovery instead
+            # of rotating a rigid upper body with the pelvis in one piece.
+            top = rig.pose.bones['TopCol']
+            matrix = top.matrix.copy()
+            matrix.translation += Vector(pose.get('chest', (0, 0, 0)))
+            top.matrix = matrix
+            bpy.context.view_layer.update()
         for name, target in (('armIK_R', pose['right']), ('armIK_L', pose['left']),
                              ('armIK_T_R', pose.get('right_pole', (-.6, .15, 1.05))),
                              ('armIK_T_L', pose.get('left_pole', (.65, .15, 1.05)))):
@@ -172,20 +188,50 @@ def animate(rig, combat_sample=False, live_combat=False):
                 foot_r=(0,-.10*math.sin(phase),.055*max(0,-math.cos(phase))))))
         clips['Walk']=walk
     if live_combat:
-        # Preserve Battle's .12 s contact and .38 s recovery. The rear foot
-        # offsets the .75-unit root advance; the lead foot lifts and plants.
-        for side in ('Left', 'Right'):
-            lead='foot_l' if side=='Left' else 'foot_r'
-            rear='foot_r' if side=='Left' else 'foot_l'
-            existing=clips[side+'Punch']
-            existing[1][1].update({lead:(0,.025,.065),rear:(0,.11,.01),'lean':-.045})
-            existing[2][1].update({lead:(0,0,0),rear:(0,.35,.04),'lean':.10})
-            existing[3][1].update({lead:(0,-.055,0),rear:(0,.30,.025),'lean':.075})
-            for _, pose in existing:
-                if 'yaw' in pose:pose['yaw']*=1.6
-            hand=side.lower();sign=1 if side=='Left' else -1
-            existing.insert(-1,(.27,{hand:(sign*.21,-.34,1.29),'yaw':sign*.08,'sink':-.025,'lean':.025,
-                                    lead:(0,-.10,.065),rear:(0,.11,0)}))
+        clips['Idle'] = [
+            (0, {}),
+            (.65, dict(sink=-.023, balance=.014, yaw=-.10,
+                       left=(.215,-.35,1.285), right=(-.20,-.23,1.355), chest=(.008,.007,0))),
+            (1.5, dict(sink=-.009, balance=-.009, yaw=-.045,
+                       left=(.20,-.375,1.31), right=(-.205,-.235,1.375), chest=(-.008,-.006,0))),
+            (2.4, dict(sink=-.019, balance=-.013, yaw=-.075,
+                       left=(.215,-.355,1.30), right=(-.195,-.22,1.36))),
+            (3.2, {}),
+        ]
+        # Fast lead jab versus a loaded rear cross. Both still contact at .12 s
+        # and finish at .38 s. Recover through a folded elbow before returning
+        # to guard; the support hand remains near the face throughout.
+        clips['LeftPunch'] = [
+            (0, {}),
+            (.04, dict(left=(.245,-.275,1.29), yaw=-.17, sink=-.027,
+                       lean=-.025, chest=(.015,.025,0))),
+            (.09, dict(left=(.16,-.58,1.29), right=(-.205,-.23,1.385),
+                       yaw=.075, sink=-.13, lean=.065, chest=(-.012,-.025,0))),
+            (.12, dict(left=(.105,-.71,1.27), right=(-.215,-.225,1.39),
+                        yaw=.20, sink=-.19, lean=.105, chest=(-.026,-.045,0))),
+            (.17, dict(left=(.115,-.665,1.28), right=(-.215,-.23,1.38),
+                        yaw=.17, sink=-.165, lean=.085, chest=(-.018,-.030,0))),
+            (.255, dict(left=(.235,-.29,1.32), right=(-.205,-.225,1.38),
+                         yaw=.015, sink=-.05, lean=.035, chest=(.008,.004,0))),
+            (.32, dict(left=(.22,-.33,1.30), yaw=-.08, sink=-.016)),
+            (.38, {}),
+        ]
+        clips['RightPunch'] = [
+            (0, {}),
+            (.045, dict(right=(-.265,-.145,1.32), left=(.22,-.335,1.35),
+                         yaw=.17, sink=-.035, lean=-.03, chest=(-.025,.026,0))),
+            (.09, dict(right=(-.165,-.55,1.29), left=(.225,-.28,1.385),
+                       yaw=-.14, sink=-.11, lean=.075, chest=(.012,-.028,0))),
+            (.12, dict(right=(-.10,-.715,1.27), left=(.235,-.265,1.395),
+                        yaw=-.28, sink=-.155, lean=.12, chest=(.033,-.05,0))),
+            (.175, dict(right=(-.115,-.655,1.28), left=(.23,-.27,1.39),
+                         yaw=-.24, sink=-.135, lean=.09, chest=(.026,-.033,0))),
+            (.26, dict(right=(-.265,-.255,1.355), left=(.22,-.305,1.36),
+                        yaw=-.11, sink=-.055, lean=.04, chest=(.015,.01,0))),
+            (.325, dict(right=(-.21,-.22,1.375), left=(.21,-.35,1.31),
+                         yaw=-.045, sink=-.016)),
+            (.38, {}),
+        ]
     actions = {}
     for name, keys in clips.items():
         action = bpy.data.actions.new(name)
@@ -199,6 +245,55 @@ def animate(rig, combat_sample=False, live_combat=False):
         actions[name] = action
     rig.animation_data.action = actions['Idle']
     scene.frame_set(1)
+    if live_combat:
+        # Match the runtime root curve throughout the step, not just at a few
+        # pose keys. The rear foot supports the whole punch; the lead foot lands
+        # at contact and stays there until the recovery step begins.
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        heights = []
+        for name in CHARACTER_OBJECTS:
+            obj = bpy.data.objects[name]
+            if obj.type != 'MESH':
+                continue
+            evaluated = obj.evaluated_get(depsgraph)
+            mesh = evaluated.to_mesh()
+            heights.extend((evaluated.matrix_world @ v.co).z for v in mesh.vertices)
+            evaluated.to_mesh_clear()
+        units = 3.45 / (max(heights)-min(heights)) * rig.matrix_world.to_scale().z
+
+        def smooth(t):
+            t = max(0, min(1, t))
+            return t*t*(3-2*t)
+
+        for side in ('Left', 'Right'):
+            action = actions[side+'Punch']
+            times = {i/60 for i in range(23)} | {.38}
+            for curve in list(action.fcurves):
+                if 'HeelIKC_' in curve.data_path:
+                    times.update((point.co.x-1)/60 for point in curve.keyframe_points)
+                    action.fcurves.remove(curve)
+            rig.animation_data.action = action
+            for t in sorted(times):
+                frame = 1+t*60
+                scene.frame_set(int(frame), subframe=frame-int(frame))
+                root = LIVE_PUNCH_ADVANCE*(smooth(t/.12) if t<.12 else 1-smooth((t-.12)/.26))
+                lead = LIVE_PUNCH_ADVANCE*(smooth(t/.12) if t<.12 else 1 if t<=.205 else 1-smooth((t-.205)/.175))
+                lift = .13*math.sin(math.pi*t/.12) if t<.12 else 0 if t<=.205 else .14*math.sin(math.pi*(t-.205)/.175)
+                for foot in ('L', 'R'):
+                    leading = foot == side[0]
+                    bone = rig.pose.bones['HeelIKC_'+foot]
+                    matrix = rest_matrices[bone.name].copy()
+                    matrix.translation += Vector((0, (root-(lead if leading else 0))/units, max(0,lift)/units if leading else 0))
+                    bone.matrix = matrix
+                    for channel in ('location', 'rotation_quaternion' if bone.rotation_mode=='QUATERNION' else 'rotation_euler', 'scale'):
+                        bone.keyframe_insert(channel, frame=frame, group=bone.name)
+            for curve in action.fcurves:
+                if 'HeelIKC_' in curve.data_path:
+                    for point in curve.keyframe_points:
+                        point.interpolation = 'LINEAR'
+        rig.animation_data.action = actions['Idle']
+        scene.frame_set(1)
+        print('PLANTED_STEP', json.dumps(dict(unity_units_per_rig_unit=units, advance=LIVE_PUNCH_ADVANCE, landing=.12, lift_off=.205, recovery=.38)))
     return actions
 
 
@@ -213,7 +308,7 @@ def export(rig, output, actions):
                              apply_scale_options='FBX_SCALE_ALL',
                              add_leaf_bones=False, use_armature_deform_only=False,
                              bake_anim=True, bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
-                             bake_anim_force_startend_keying=True, bake_anim_simplify_factor=.1,
+                             bake_anim_force_startend_keying=True, bake_anim_simplify_factor=0,
                              path_mode='RELATIVE', use_mesh_modifiers=True)
     (output / 'clips.json').write_text(json.dumps({name: (a.frame_range[1]-a.frame_range[0])/60
                                                  for name, a in actions.items()}, indent=2))
@@ -273,6 +368,8 @@ def main():
     actions = animate(rig, args.combat_sample, args.live_combat)
     if args.export:
         export(rig, args.output, actions)
+        if args.live_combat:
+            (args.output / 'motion.json').write_text(json.dumps({'punchAdvance': LIVE_PUNCH_ADVANCE}, indent=2))
     if args.review:
         render_review(args.output, rig, actions)
 

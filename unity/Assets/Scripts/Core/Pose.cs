@@ -67,6 +67,9 @@ namespace UltramanGame.Core
     public struct PlayerInput
     {
         public bool Tracking, Transform, LeftPunch, RightPunch, Shield, Beam;
+        // Continuous ownership while confirming a pose, not an awarded action.
+        // The battle queue must respect this before Shield/Beam can fire.
+        public bool GuardIntent, BeamIntent;
     }
 
     // New frames only. Each gesture requires its own visible joints; missing joints never attack.
@@ -79,49 +82,129 @@ namespace UltramanGame.Core
         readonly PosePoint[] beamPoints = new PosePoint[33];
         readonly bool[] beamReliable = new bool[33];
         readonly PunchMotion leftMotion=new PunchMotion(),rightMotion=new PunchMotion();
-        bool beamFired, transformFired;
-        float beamHold,beamGap,beamRelease,transformHold,shieldHold,steady;
+        bool beamFired, beamArmed, transformFired, transformReleaseRequired, guardAnchored, hadWristPair;
+        // Remember a neutral interval while energy is unavailable. This lets
+        // a pose that starts after the energy cue arm immediately, while a
+        // pose held before the cue still requires a deliberate release.
+        bool beamUnavailableSeen, beamNeutralSinceUnavailable, lastBeamAvailable;
+        // Camera pose estimates commonly spend one or two packets between the
+        // chest guard and the L-shaped finisher. Keep a short intent latch so
+        // that those packets cannot turn into a punch or erase a charge.
+        bool guardLocked, beamLocked;
+        float guardLockAge, guardLostAge, beamLockAge, beamLostAge;
+        PosePoint guardLeft,guardRight;
+        float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
-        public float TransformProgress => Math.Min(1,transformHold/.45f);
-        public const float BeamHoldSeconds=.30f, BeamGapSeconds=.25f;
-        public float BeamProgress => Math.Min(1,beamHold/BeamHoldSeconds);
+        // Stable labels are useful for the in-game guide and camera-pose
+        // diagnostics. They describe the reference pose that currently owns
+        // the frame, rather than claiming that an action was already awarded.
+        public string ReferencePose { get; private set; }="P0-准备";
+        public int Difficulty {get;set;}
+        int Level=>Math.Max(0,Math.Min(2,Difficulty));
+        float TransformHold=>.45f+Level*.12f;
+        // Chest defense should confirm quickly enough for a four-year-old, while
+        // the challenge setting still asks for a deliberate hold.
+        // Defense is a child safety action: confirm a readable chest guard
+        // sooner than a finisher, while higher difficulty still asks for a
+        // deliberate hold instead of a one-frame accidental pose.
+        // Keep the child-friendly quick confirmation used by the standard
+        // profile; the shape envelope and punch trajectory remain the actual
+        // defense/attack distinction.
+        float ShieldHold=>.05f+Level*.12f;
+        // The finisher should reward a readable hold, not punish a child for
+        // one noisy camera packet.  Standard difficulty now needs about .70s
+        // of a clear pose, with a longer grace window for temporary shape
+        // loss.  The recognizer still requires an explicit release before it
+        // can fire a second beam.
+        // The family/default profile should not require a perfectly frozen
+        // L for half a second. Keep the explicit Standard/Challenge profiles
+        // unchanged, while allowing the default child-friendly profile to
+        // complete after a shorter, still deliberate hold.
+        float BeamHold=>Level==0?.38f:BeamHoldSeconds+Level*.20f;
+        public float TransformProgress => Math.Min(1,transformHold/TransformHold);
+        public const float BeamHoldSeconds=.50f;
+        // A held finisher can lose the L angle for a few camera packets while
+        // the child is still clearly keeping both hands up. Let the intent
+        // survive that gap; deliberate hands-down release remains the reset.
+        public const float BeamGapSeconds=2.60f;
+        // A laptop camera can lose stable depth for several packets while the
+        // child is still visibly holding the finisher. Keep ownership longer
+        // than the charge gap so this uncertainty cannot become a punch.
+        const float BeamOwnershipGraceSeconds=2.20f;
+        const float BeamChargedOwnershipGraceSeconds=3.40f;
+        // Keep a confirmed chest guard through a longer front-camera shape
+        // wobble.  A deliberate reach still exits through the committed
+        // trajectory checks below.
+        const float GuardOwnershipGraceSeconds=1.10f;
+        public float BeamProgress => Math.Min(1,beamHold/BeamHold);
+        public float ShieldProgress => Math.Min(1,shieldHold/ShieldHold);
+        public bool BeamNeedsRelease {get;private set;}
 
         public void Reset()
+        { Reset(false); }
+        // A photo review can finish while the child is still holding both
+        // hands up.  The next round must observe a hands-down frame before the
+        // same pose can transform again; otherwise the waiting screen is
+        // skipped before the child can see or hear the hero selection.
+        public void Reset(bool requireTransformRelease)
         {
             stream=null; lastSequence=lastStamp=0;
+            transformReleaseRequired=requireTransformRelease;
             ClearGestures();
         }
         void ClearGestures()
         {
-            leftMotion.Reset();rightMotion.Reset();beamFired=transformFired=ForwardPunch=false;
-            beamHold=beamGap=beamRelease=transformHold=shieldHold=steady=0;
+            leftMotion.Reset();rightMotion.Reset();beamFired=beamArmed=transformFired=ForwardPunch=false;
+            guardAnchored=hadWristPair=false;wristLossAge=0;
+            beamUnavailableSeen=beamNeutralSinceUnavailable=lastBeamAvailable=false;
+            guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
+            BeamNeedsRelease=false;
+            ReferencePose="P0-准备";
+            beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
         }
-        public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true)
+        public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true,bool shieldPriority=false)
         {
             ForwardPunch=false;
-            if (!PoseQuality.Present(frame,nowMs)) { Reset(); return default; }
+            ReferencePose="P0-准备";
+            if (!PoseQuality.Present(frame,nowMs)) { ClearGestures(); return default; }
             if (stream==frame.streamId && frame.sequence<=lastSequence) return default;
-            bool fresh=stream!=frame.streamId || lastStamp==0 || frame.capturedMs-lastStamp>250 || frame.capturedMs<=lastStamp;
-            float dt=fresh ? 0 : Math.Min(.1f,(frame.capturedMs-lastStamp)/1000f);
-            if (fresh) ClearGestures();
+            // A delayed but still-fresh camera packet is not a new gesture
+            // stream. Under TV/Unity load several packets can arrive more than
+            // 250 ms apart; clearing beamHold there made a held finisher turn
+            // into a shield. PoseQuality.Present above already rejects truly
+            // stale frames, while a stream change or non-monotonic timestamp is
+            // the reliable boundary for resetting gesture state.
+            bool resetStream=stream!=frame.streamId || lastStamp==0 || frame.capturedMs<=lastStamp;
+            long gapMs=resetStream?0:frame.capturedMs-lastStamp;
+            float dt=resetStream ? 0 : Math.Min(.1f,gapMs/1000f);
+            if (resetStream) ClearGestures();
+            beamShapeGrace=Math.Max(0,beamShapeGrace-dt);
             stream=frame.streamId; lastSequence=frame.sequence; lastStamp=frame.capturedMs;
-            float alpha=fresh?1:(float)(1-Math.Exp(-dt/.035));
+            bool delayed=gapMs>250;
+            float alpha=resetStream||delayed?1:(float)(1-Math.Exp(-dt/.035));
+            bool pairedBefore=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
             for (int i=0;i<33;i++)
             {
                 bool reliable=PoseQuality.Reliable(frame.points[i]);
                 if(reliable)
                 {
-                    float blend=fresh||!wasReliable[i]?1:alpha;
+                    float blend=resetStream||!wasReliable[i]?1:alpha;
                     smoothed[i].x += (frame.points[i].x-smoothed[i].x)*blend;
                     smoothed[i].y += (frame.points[i].y-smoothed[i].y)*blend;
                     smoothed[i].z += (frame.points[i].z-smoothed[i].z)*blend;
                 }
                 wasReliable[i]=reliable;
                 // Beam-only tolerance: a partly occluded wrist need not alter working punch/guard input.
-                bool beamVisible=PoseQuality.Reliable(frame.points[i],.45f);
+                // Wrists are the first landmarks to lose confidence when a
+                // child raises both arms or turns sideways.  Use a slightly
+                // lower threshold for the two-hand gesture channel; punch
+                // motion still uses the stricter smoothed landmarks below.
+                // This keeps a readable shield/finisher alive without making
+                // a low-confidence wrist eligible for a punch.
+                bool beamVisible=PoseQuality.Reliable(frame.points[i],.35f);
                 if(beamVisible)
                 {
-                    float blend=fresh||!beamReliable[i]?1:alpha;
+                    float blend=resetStream||!beamReliable[i]?1:alpha;
                     beamPoints[i].x+=(frame.points[i].x-beamPoints[i].x)*blend;
                     beamPoints[i].y+=(frame.points[i].y-beamPoints[i].y)*blend;
                     beamPoints[i].z+=(frame.points[i].z-beamPoints[i].z)*blend;
@@ -138,61 +221,728 @@ namespace UltramanGame.Core
             bool leftReady=shouldersReady&&wasReliable[15];
             bool rightReady=shouldersReady&&wasReliable[16];
             bool wristsReady=shouldersReady&&wasReliable[15]&&wasReliable[16];
-            bool raised=wristsReady && lw.y<sy-.30f*scale && rw.y<sy-.30f*scale;
+            // The old shoulder-line cutoff treated a normal chest/face guard
+            // as the opening transform pose. A child only needs both hands
+            // clearly above the head area to count as "raise hands"; hands
+            // near the shoulders must remain available to the shield path.
+            bool raised=wristsReady && lw.y<sy-.55f*scale && rw.y<sy-.55f*scale;
             bool beamWristsReady=beamReliable[11]&&beamReliable[12]&&beamReliable[15]&&beamReliable[16];
+            bool firstWristLoss=!resetStream&&pairedBefore&&!beamWristsReady;
+            if(beamWristsReady){hadWristPair=true;wristLossAge=0;}
+            else wristLossAge=firstWristLoss?0:wristLossAge+dt;
             var bl=beamPoints[11];var br=beamPoints[12];var blw=beamPoints[15];var brw=beamPoints[16];
             float bdx=bl.x-br.x,bdy=bl.y-br.y,bdz=bl.z-br.z;
-            float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy+bdz*bdz)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
-            bool beamShape=beamWristsReady && (BeamArms(bl,blw,brw,bcx,bsy,bs) || BeamArms(br,brw,blw,bcx,bsy,bs) ||
-                ForwardPalms(bl,br,blw,brw,bsy,bs));
-            bool beam=beamAvailable&&beamShape;
-            bool shield=wristsReady && !beam && !raised && Math.Abs((l.z-lw.z)-(r.z-rw.z))<.75f*scale &&
-                Math.Abs(lw.x-cx)<.65f*scale && Math.Abs(rw.x-cx)<.65f*scale &&
-                Math.Abs(lw.x-rw.x)<.65f*scale && lw.y>sy-.25f*scale && rw.y>sy-.25f*scale &&
-                lw.y<sy+.85f*scale && rw.y<sy+.85f*scale;
-            if (steady<.25f) return input;
+            // Guard and L-shape geometry use image-plane shoulders; noisy inferred depth must not shrink their target.
+            float bs=Math.Max(.08f,(float)Math.Sqrt(bdx*bdx+bdy*bdy)),bcx=(bl.x+br.x)/2,bsy=(bl.y+br.y)/2;
+            var fl=frame.points[11];var fr=frame.points[12];var flw=frame.points[15];var frw=frame.points[16];
+            float fs=Math.Max(.08f,PoseQuality.Distance(fl,fr)),fcx=(fl.x+fr.x)/2,fsy=(fl.y+fr.y)/2;
+            float leftDepth=(bl.z-blw.z)/bs,rightDepth=(br.z-brw.z)/bs;
+            float rawLeftDepth=(fl.z-flw.z)/fs,rawRightDepth=(fr.z-frw.z)/fs;
+            // A single wildly jumping wrist depth is the camera's common
+            // false-positive during a held L. It may reserve the action, but
+            // it must not advance the charge until the estimate settles.
+            // Keep a clearly asymmetric depth jump from advancing the charge;
+            // the ownership grace below still pauses and protects the gesture.
+            // Webcam depth is especially noisy when both hands are in front of
+            // the chest. Keep the depth check for acquisition, but do not make
+            // one asymmetric sample cancel a finisher that is already being
+            // held.
+            bool beamDepthStable=Math.Abs(leftDepth-rightDepth)<2.20f;
+            // P3 is the photographed Tiga beam pose: one forearm rises from
+            // its elbow while the other travels horizontally across the chest
+            // and crosses the torso centre line. This image-plane envelope is
+            // deliberately independent of monocular depth, so a held pose is
+            // not downgraded to a punch when the webcam depth estimate jumps.
+            bool beamReferencePose=beamWristsReady&&!raised&&
+                TigaBeamPose(frame.points[13],frame.points[14],blw,brw,bcx,bsy,bs);
+            // The reference pose may tolerate a moderate depth bias, but a
+            // large asymmetric jump still pauses charging so the existing
+            // uncertainty regression cannot silently speed up the finisher.
+            bool beamReferenceStable=beamReferencePose&&Math.Abs(leftDepth-rightDepth)<1.65f;
+            // P1 uses crossed fists/forearms in front of the face or upper
+            // chest. It is symmetric and compact, so it can own the frame
+            // before a stale one-arm punch trajectory is considered.
+            bool crossedFaceGuard=beamWristsReady&&!raised&&
+                CrossedFaceGuard(bl,br,frame.points[13],frame.points[14],blw,brw,bcx,bsy,bs);
+            // A recognised L owns estimated depth from its first confirmed
+            // frame. Waiting 100 ms to protect depth stranded early charges;
+            // keep the stricter image-plane shape until the normal hold begins.
+            bool beamShape=beamWristsReady && beamDepthStable && (BeamArms(bl,blw,brw,bcx,bsy,bs,preserveDepth:beamHold>0) || BeamArms(br,brw,blw,bcx,bsy,bs,preserveDepth:beamHold>0) ||
+                ForwardPalms(bl,br,blw,brw,bsy,bs) ||
+                ForwardPushEntry(bl,br,blw,brw,bsy,bs) ||
+                // The first complete camera pose reserves the action before
+                // smoothing catches up from hands-down or a previous punch.
+                // Raw entry uses strict shape/depth; the usual timer still
+                // requires a sustained pose before it can fire.
+                BeamArms(fl,flw,frw,fcx,fsy,fs)||BeamArms(fr,frw,flw,fcx,fsy,fs)||ForwardPalms(fl,fr,flw,frw,fsy,fs)||
+                ForwardPushEntry(fl,fr,flw,frw,fsy,fs)||
+                ForearmBeam(flw,frame.points[13],frw,frame.points[14],fcx,fsy,fs)||
+                ForearmBeam(frw,frame.points[14],flw,frame.points[13],fcx,fsy,fs)||
+                beamReferencePose);
+            // Depth is the least stable signal on a laptop webcam. Keep a
+            // separate two-dimensional entry shape so a real L reserves the
+            // finisher before one noisy depth sample can become a punch. The
+            // charge clock below still requires stable depth.
+            bool beamEntryShape=beamWristsReady &&
+                (BeamEntryShape(bl,blw,brw,beamPoints[13],bcx,bsy,bs)||BeamEntryShape(br,brw,blw,beamPoints[14],bcx,bsy,bs)||
+                 ForwardPushEntry(bl,br,blw,brw,bsy,bs)||
+                 BeamEntryShape(fl,flw,frw,frame.points[13],fcx,fsy,fs)||BeamEntryShape(fr,frw,flw,frame.points[14],fcx,fsy,fs)||
+                 beamReferencePose);
+            // Reserve an unmistakable two-hand L/push from the punch path
+            // even when one packet has noisy depth or a slightly shallow
+            // elbow angle. It first protects the pose while depth settles;
+            // after the short ownership latch it may also advance the same
+            // deliberate hold clock as the regular beam shape.
+            bool beamVisualCandidate=beamWristsReady&&!raised&&
+                (BeamVisualCandidate(blw,brw,bcx,bsy,bs)||BeamVisualCandidate(brw,blw,bcx,bsy,bs)||
+                 ForwardVisualCandidate(bl,br,blw,brw,bsy,bs)||beamReferencePose);
+            // The first few L-shape packets are where MediaPipe most often
+            // swaps a wrist depth or drops an elbow. Remember a positively
+            // observed beam shape before a charge exists, so that packet
+            // cannot immediately become a punch while the child settles.
+            if(beamAvailable&&(beamShape||beamEntryShape||beamVisualCandidate||beamReferencePose))
+                beamShapeGrace=Math.Max(beamShapeGrace,beamHold>=.10f?BeamChargedOwnershipGraceSeconds:BeamOwnershipGraceSeconds);
+            bool rawGuard=beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(flw,frw,fcx,fsy,fs);
+            bool guardShape=rawGuard||beamWristsReady&&!(transformAvailable&&raised)&&GuardArms(blw,brw,bcx,bsy,bs);
+            // Front cameras often spread the wrists a little farther apart
+            // than the strict chest envelope, especially for a small child.
+            // Accept that readable chest/face guard as an entry pose, while
+            // keeping the old envelope for acquisition and keeping any L
+            // shape or forward-palms pose owned by the finisher path.
+            bool defensivePair=beamWristsReady&&!(transformAvailable&&raised)&&
+                DefensivePair(fl,fr,flw,frw,fcx,fsy,fs);
+            // A child often protects the eyes or cheeks instead of placing
+            // both wrists exactly on the sternum. Treat that compact, shallow
+            // face-cover pose as defense too. It is deliberately bounded by
+            // paired wrists and low depth so one reaching fist cannot borrow
+            // this route; the L/forward-push routes still retain finisher
+            // ownership when the pose is unmistakable.
+            bool faceCoverGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                !(flw.y<fsy-.55f*fs&&frw.y<fsy-.55f*fs)&&
+                !beamShape&&!beamEntryShape&&FaceCoverGuard(fl,fr,flw,frw,fcx,fsy,fs);
+            bool guardEntry=beamWristsReady&&!(transformAvailable&&raised)&&!beamShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                Math.Abs(fl.z-flw.z)<1.15f*fs&&Math.Abs(fr.z-frw.z)<1.15f*fs&&
+                GuardEntryArms(flw,frw,fcx,fsy,fs);
+            // A small child often holds both forearms diagonally in front of
+            // the chest. MediaPipe can report one wrist noticeably forward in
+            // that pose, which used to hand the frame to punch recognition.
+            // This safety envelope is intentionally symmetric and excludes a
+            // two-hand push; a one-arm reach still has to leave the anchor
+            // before it can attack.
+            bool softGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                !beamShape&&!beamEntryShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                SoftGuard(fl,fr,flw,frw,fcx,fsy,fs);
+            // A real child-sized shield often has both hands a little farther
+            // forward than the strict chest envelope. If the pair remains
+            // centred, level and balanced, depth is too noisy to decide that
+            // it is a punch. Give this symmetric pose ownership before the
+            // one-arm motion channel runs; a raised/lower L or a two-hand push
+            // is excluded and remains available to the finisher path.
+            bool balancedGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                !beamShape&&!beamEntryShape&&!ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                BalancedGuard(fl,fr,flw,frw,fcx,fsy,fs);
+            // A child-sized shield is often wider and slightly forward of the
+            // torso. It remains defense while both wrists form a compact pair
+            // and neither has the depth of a deliberate two-hand push.
+            guardShape|=guardEntry||defensivePair||faceCoverGuard||softGuard||balancedGuard||crossedFaceGuard;
+            // A child-sized shield can sit farther from the torso than the
+            // compact training pose. Require a balanced, low-depth pair so
+            // this never treats one clearly extended fist as defense.
+            float forgivingLeftForward=(fl.z-flw.z)/fs,forgivingRightForward=(fr.z-frw.z)/fs;
+            bool forgivingGuard=beamWristsReady&&!(transformAvailable&&raised)&&
+                Math.Abs(flw.x-fcx)<1.52f*fs&&Math.Abs(frw.x-fcx)<1.52f*fs&&
+                Math.Abs(flw.x-frw.x)<2.28f*fs&&Math.Abs(flw.y-frw.y)<.92f*fs&&
+                flw.y>fsy-1.16f*fs&&frw.y>fsy-1.16f*fs&&
+                flw.y<fsy+1.18f*fs&&frw.y<fsy+1.18f*fs&&
+                Math.Max(flw.y,frw.y)>fsy-.72f*fs&&
+                Math.Max(flw.y,frw.y)<fsy+.82f*fs&&
+                Math.Min(flw.y,frw.y)<fsy+.62f*fs&&
+                forgivingLeftForward<1.15f&&forgivingRightForward<1.15f&&
+                Math.Abs(forgivingLeftForward-forgivingRightForward)<.55f;
+            guardShape|=forgivingGuard;
+            // A compact, level pair at the chest is an intentional shield. It
+            // is visually distinct from the one-high/one-low L used by the
+            // beam, yet the two envelopes overlap on a webcam. Give this pose
+            // ownership before a noisy depth sample can route it to attack.
+            // During an enemy wind-up/attack the child is responding to a
+            // spoken defense cue.  A webcam can make the same chest pose look
+            // like a shallow L for one or two packets; use the elbows as a
+            // second image-plane check and give that readable shield pose
+            // ownership before punch/beam arbitration.  A real L still has a
+            // raised forearm and therefore keeps the finisher route.
+            bool elbowsStayAtChest=Math.Abs(frame.points[13].y-flw.y)<.24f*fs&&
+                Math.Abs(frame.points[14].y-frw.y)<.24f*fs;
+            bool warningShieldPose=shieldPriority&&beamWristsReady&&!(transformAvailable&&raised)&&
+                WarningShieldPose(fl,fr,flw,frw,fcx,fsy,fs);
+            bool warningShieldPreferred=shieldPriority&&
+                ((guardShape&&elbowsStayAtChest&&
+                  !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&!ForwardPushEntry(fl,fr,flw,frw,fsy,fs)&&
+                  Math.Abs(flw.y-frw.y)<.70f*fs)||warningShieldPose);
+            // The warning cue is a deliberate defense window. If both hands
+            // are still in the compact chest envelope, let that cue own the
+            // packet before a noisy single-arm trajectory can become a punch.
+            guardShape|=warningShieldPreferred;
+            bool chestGuardPreferred=(defensivePair||balancedGuard)&&
+                Math.Abs(flw.y-frw.y)<.44f*fs&&
+                Math.Abs(fl.z-flw.z)<.55f*fs&&Math.Abs(fr.z-frw.z)<.55f*fs&&
+                !ForwardPalms(fl,fr,flw,frw,fsy,fs)&&
+                !ForwardPushEntry(fl,fr,flw,frw,fsy,fs);
+            // A chest guard should win immediately over a stale visual beam
+            // candidate. Otherwise the child can hold a perfectly readable
+            // shield while the previous packet's L-shape grace suppresses it.
+            // During a telegraphed enemy warning, the child is answering a
+            // defense cue rather than trying to win a finisher race. Keep the
+            // warning shield owner active for the whole readable pose; the
+            // previous .12 s handoff let a shallow L/depth wobble become a
+            // punch after the first confirmation frame. Outside the warning,
+            // retain the short chest-guard arbitration window so a deliberate
+            // finisher can still take ownership normally.
+            bool earlyDefensePriority=(warningShieldPreferred&&shieldPriority) || crossedFaceGuard ||
+                ((chestGuardPreferred||warningShieldPreferred)&&beamHold<.12f&&!beamLocked);
+            if(earlyDefensePriority)
+            {
+                beamShape=false;beamEntryShape=false;beamVisualCandidate=false;beamShapeGrace=0;
+                beamLocked=false;beamLockAge=0;beamLostAge=0;
+            }
+            // A visible L is a stronger finisher signal than a loose chest
+            // envelope. Do not acquire the guard latch from the same packet.
+            bool guardCandidate=guardShape&&!beamShape;
+            if(guardCandidate)
+            {
+                guardLockAge=Math.Min(.5f,guardLockAge+dt);guardLostAge=0;
+                if(guardLockAge>=.10f)guardLocked=true;
+            }
+            else if(guardLocked)
+            {
+                guardLostAge+=dt;
+                // A clear single-arm reach is handled below and exits the
+                // latch immediately; ordinary camera wobble gets 280 ms.
+                if(guardLostAge>GuardOwnershipGraceSeconds){guardLocked=false;guardLockAge=0;}
+            }
+            // Acquire defense with the stricter chest shape so a moving punch
+            // cannot create a false shield. Once it has been held for the
+            // confirmation interval, the wider envelope below absorbs jitter.
+            bool guardEnvelope=guardShape;
+            // Once intent is established, keep a wider pose envelope. Inferred
+            // wrist depth often jumps while the child is holding an L; it must
+            // not convert the same held action into a new forward punch.
+            bool rawBeamReleasePose=beamWristsReady&&!raised&&
+                flw.y>fsy+.16f*fs&&frw.y>fsy+.16f*fs;
+            // A webcam can dip both wrists for one or two packets while a
+            // child is still holding the finisher. Do not erase the charge
+            // on that transient low sample; require a deliberate, continuous
+            // hands-down release. The existing 1.45 s gap remains the outer
+            // safety timeout for a genuinely lost pose.
+            beamReleaseHold=rawBeamReleasePose?Math.Min(.6f,beamReleaseHold+dt):0;
+            bool beamMaintained=beamHold>=.10f&&beamWristsReady&&!rawBeamReleasePose &&
+                (BeamImageShape(blw,brw,bcx,bsy,bs,true)||BeamImageShape(brw,blw,bcx,bsy,bs,true)||
+                 ForwardImageShape(blw,brw,bsy,bs,true)||
+                 // Once the finisher has acquired a little charge, do not
+                 // hand it to the punch channel just because one wrist depth
+                 // or elbow angle flickers. The child still has both wrists
+                 // visible and has not performed the explicit hands-down
+                 // release, so the correct action is to keep charging.
+                 beamLocked||beamHold>=.12f);
+            // Once the child has held a valid finisher for a few packets,
+            // retain ownership through the common false-negative where one
+            // arm is briefly read as a forward punch. A neutral, lowered
+            // release or a deliberate chest guard still ends the gesture.
+            bool beamReleasePose=beamReleaseHold>=.22f;
+            if(beamShape||beamEntryShape||beamVisualCandidate)
+            {
+                beamLockAge=Math.Min(.6f,beamLockAge+dt);beamLostAge=0;
+                if(beamLockAge>=.12f)beamLocked=true;
+            }
+            else if(beamLocked)
+            {
+                beamLostAge+=dt;
+                // A deliberate low-hand release is the only immediate cancel;
+                // otherwise tolerate a short estimator wobble during charge.
+                if(beamReleasePose||beamLostAge>BeamOwnershipGraceSeconds){beamLocked=false;beamLockAge=0;}
+            }
+            bool beamLatch=beamLocked&&beamWristsReady&&!raised&&!beamReleasePose&&beamLostAge<=BeamOwnershipGraceSeconds;
+            // After a finisher has started, its ownership survives a short
+            // frame where the estimator resembles a chest guard.  Without
+            // this exception a depth jump can hand the same pose to the
+            // punch recognizer and the child's charge appears to reset.
+            // A stale shape grace from a previous beam must not swallow a
+            // brand-new chest guard. Once this beam has either locked or
+            // accumulated a short charge, however, the same guard-shaped
+            // wobble remains owned by the finisher.
+            bool beamGrace=(beamLocked||beamHold>=.04f||beamShapeGrace>0)&&beamWristsReady&&!raised&&!beamReleasePose&&
+                // The first valid L/push packet can be followed by a depth
+                // wobble before the lock reaches 120 ms.  Keep ownership from
+                // that first positive packet so the wobble cannot become a
+                // punch or cancel the visible hold.  A normal chest guard has
+                // no beam shape grace and therefore is unaffected.
+                (!guardEnvelope||beamLocked||beamHold>=.06f||beamLockAge>=.02f);
+            // Grace owns the gesture and blocks punch/guard handoff, but it
+            // pauses the charge clock. Only a positively observed beam shape
+            // advances progress; this prevents a noisy frame from speeding up
+            // the finisher while still protecting the in-progress hold.
+            // The latch reserves the finisher against punch/guard handoff, but
+            // only a positively observed shape advances its charge clock.
+            // Once a finisher has accumulated a little charge, keep ownership
+            // through a short camera wobble. The previous code reserved the
+            // input but still advanced beamGap, so a child could see the
+            // gesture held while its progress silently expired and a depth
+            // spike could be read as a punch on the next frame.
+            bool beamIntent=beamShape||beamEntryShape||beamVisualCandidate||beamReferencePose||beamMaintained||beamLatch||beamGrace;
+            if(beamReferencePose)ReferencePose="P3-哉佩利敖光线";
+            else if(crossedFaceGuard)ReferencePose="P1-防御";
+            bool becameBeamAvailable=beamAvailable&&!lastBeamAvailable;
+            if(!beamAvailable)
+            {
+                beamUnavailableSeen=true;
+                if(!beamIntent)beamNeutralSinceUnavailable=true;
+            }
+            // EnergyReady is an explicit cue. If the child was neutral while
+            // waiting for it, let the first clear pose arm without forcing a
+            // second hands-down reset. A pose that was already held before
+            // the cue remains disarmed and cannot auto-fire.
+            if(becameBeamAvailable&&beamUnavailableSeen&&beamNeutralSinceUnavailable&&!beamFired)
+                beamArmed=true;
+            lastBeamAvailable=beamAvailable;
+            // Only stable depth advances the charge. An entry/maintained image
+            // shape still owns the gesture and pauses the timer.
+            // Entry shape is allowed to carry ownership while depth settles.
+            // A brief shape/depth wobble pauses the charge instead of handing
+            // the same held pose to punch.
+            bool beamConfirmedShape=beamShape||beamReferencePose||beamMaintained||
+                (beamEntryShape||beamVisualCandidate)&&beamLockAge>=.12f;
+            // A depth anomaly pauses progress, but beamIntent/beamReserved
+            // below keeps the gesture owned and prevents an attack from being
+            // emitted during that pause. The next stable frame resumes the
+            // existing charge instead of resetting it.
+            // The photographed P3 envelope is strong enough in 2D to charge
+            // without trusting noisy webcam depth. Other relaxed candidates
+            // still require the normal depth stability gate.
+            bool beam=beamAvailable&&((beamConfirmedShape&&beamDepthStable)||beamReferenceStable);
+            var leftOffset=GuardOffset(fl,flw,fs);var rightOffset=GuardOffset(fr,frw,fs);
+            // Acquiring a shield still uses the original shape and hold. Once
+            // established, a small visible drift at its boundary must not give
+            // a noisy wrist-depth trajectory back to the punch recognizer.
+            // Deliberate reach, a beam pose, lowered hands and tracking loss
+            // retain their existing exit rules below.
+            if(shieldHold>=ShieldHold&&beamWristsReady&&!(transformAvailable&&raised))
+            {
+                bool heldGuard=GuardArms(flw,frw,fcx,fsy,fs,true)||GuardArms(blw,brw,bcx,bsy,bs,true);
+                guardShape|=heldGuard;guardEnvelope|=heldGuard;
+            }
+            // Acquire the reference before the shield's hold timer. Otherwise a
+            // static depth bias could forbid defense forever at first entry.
+            // An accepted extended punch must retract before it can reacquire
+            // this reference, or the same held fist would turn into a shield.
+            float side=l.x>=r.x?1:-1;
+            bool leftReturned=!leftMotion.HoldingStrike||leftMotion.RetractedForGuard(fl,flw,scale,side);
+            bool rightReturned=!rightMotion.HoldingStrike||rightMotion.RetractedForGuard(fr,frw,scale,-side);
+            float observedHandSpread=Math.Abs(flw.x-frw.x)/fs;
+            bool compactGuard=observedHandSpread<.65f;
+            bool guardAnchorShape=rawGuard||forgivingGuard;
+            if(guardAnchorShape&&(!guardAnchored||!guardLocked&&compactGuard)&&leftReturned&&rightReturned)
+            {guardLeft=leftOffset;guardRight=rightOffset;guardAnchored=true;}
+            bool leftOutward=(flw.x-fl.x)*side>=-.03f*fs&&flw.y<fsy-.04f*fs;
+            bool rightOutward=(frw.x-fr.x)*-side>=-.03f*fs&&frw.y<fsy-.04f*fs;
+            bool leftCommitted=(leftDepth>1.00f||rawLeftDepth>1.00f)&&(leftDepth-rightDepth>.75f||rawLeftDepth-rawRightDepth>.75f) &&
+                (!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f||leftOutward);
+            bool rightCommitted=(rightDepth>1.00f||rawRightDepth>1.00f)&&(rightDepth-leftDepth>.75f||rawRightDepth-rawLeftDepth>.75f) &&
+                (!guardAnchored||PoseQuality.Distance(rightOffset,guardRight)>.16f||rightOutward);
+            // Depth alone is not a guard exit. Require the hand to leave its
+            // chest anchor (or visibly point outward) before a noisy depth
+            // estimate is allowed to hand ownership to the punch recognizer.
+            // A wide, symmetric guard can be farther from an old punch anchor;
+            // use the pair's spread as a second test so that shape noise does
+            // not release defense while a one-arm reach still can.
+            float guardHandSpread=observedHandSpread;
+            bool guardBreakSpread=guardHandSpread<1.45f;
+            float leftGuardDrift=GuardImageDistance(leftOffset,guardLeft);
+            float rightGuardDrift=GuardImageDistance(rightOffset,guardRight);
+            // Keep a confirmed shield through a symmetric wide-camera wobble,
+            // while allowing a single arm to leave the chest and hand
+            // ownership back to punch recognition. A one-arm departure is
+            // deliberately measured in the image plane because a side punch
+            // may have no reliable depth at all.
+            // Both wrists can move by different amounts after a camera
+            // packet is skipped.  Treat a roughly symmetric departure as
+            // estimator wobble; a real punch still has one arm leaving first
+            // and is handled by the single-arm break checks below.
+            bool symmetricGuardWobble=leftGuardDrift>.30f&&rightGuardDrift>.30f&&
+                Math.Abs(leftGuardDrift-rightGuardDrift)<.58f;
+            bool oneArmGuardDeparture=(leftGuardDrift>.34f&&rightGuardDrift<.22f)||
+                (rightGuardDrift>.34f&&leftGuardDrift<.22f);
+            bool handsLowered=flw.y>fsy+.45f*fs&&frw.y>fsy+.45f*fs;
+            bool guardMoved=guardAnchored&&
+                (handsLowered||((leftGuardDrift>.80f||rightGuardDrift>.80f||oneArmGuardDeparture)&&
+                !symmetricGuardWobble));
+            bool leftBreakingCandidate=leftCommitted&&
+                guardBreakSpread&&(GuardImageDistance(leftOffset,guardLeft)>.16f||leftOutward);
+            bool rightBreakingCandidate=rightCommitted&&
+                guardBreakSpread&&(GuardImageDistance(rightOffset,guardRight)>.16f||rightOutward);
+            // Do not clear an established shield merely because both wrists
+            // drifted together.  Only a hands-down release or an unmistakable
+            // one-arm departure may end the latch immediately; the normal
+            // ownership grace still handles a genuinely missing pose.
+            bool hardGuardBreak=leftBreakingCandidate||rightBreakingCandidate||handsLowered||
+                (oneArmGuardDeparture&&!symmetricGuardWobble);
+            if(hardGuardBreak)
+            {
+                // A clear one-arm reach is the intentional exit from a held
+                // shield; only camera wobble remains protected by the latch.
+                guardLocked=false;guardLockAge=0;guardLostAge=.29f;
+            }
+            // The first camera packets are already useful for a chest guard.
+            // Waiting a quarter second made a child hold the defense pose while
+            // the punch recognizer accumulated a competing trajectory. Keep a
+            // short settle window, but let the explicit two-hand safety pose
+            // own input after the camera has delivered a few fresh frames.
+            if (steady<.12f) return input;
             transformHold=transformAvailable&&raised?transformHold+dt:0;
-            if (wristsReady && !raised) transformFired=false;
-            if (transformHold>=.45f && !transformFired) { input.Transform=true; transformFired=true; }
-            if(beam) {beamHold+=dt;beamGap=0;} else
-            {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
-            // A brief imperfect pose pauses progress; it neither adds charge nor rearms a held beam.
-            if(beamWristsReady&&!beamShape)beamRelease+=dt;else beamRelease=0;
-            if(beamRelease>=.35f)beamFired=false;
-            if (beam && beamHold>=BeamHoldSeconds && !beamFired) { input.Beam=true; beamFired=true; }
-            shieldHold=shield?shieldHold+dt:0;
-            input.Shield=shieldHold>=.08f;
-            if (beam || raised)
+            if (wristsReady && !raised) {transformFired=false;transformReleaseRequired=false;}
+            if (!transformReleaseRequired&&transformHold>=TransformHold&&!transformFired) { input.Transform=true; transformFired=true; }
+            // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
+            if(beamReleasePose&&!beamIntent)beamRelease=Math.Max(.25f,beamRelease);
+            else if(beamWristsReady&&!beamIntent)beamRelease+=dt;else beamRelease=0;
+            // Rearming a finished beam and tolerating an unfinished hold have
+            // different time limits. A 250 ms release must not clear a charge
+            // still inside its half-second uncertainty grace period.
+            if(beamRelease>=.25f && (beamHold<=0||beamFired||beamGap>BeamGapSeconds))
+            {beamFired=false;beamArmed=true;beamHold=0;}
+            if(!beamAvailable) {beamArmed=beamRelease>=.25f;beamHold=0;}
+            // Once a real finisher has accumulated a little charge, retain a
+            // fraction of progress through a short depth wobble. The wrists,
+            // beam ownership and release rules still have to remain visible;
+            // this only stops one noisy depth packet from restarting the pose.
+            bool beamChargeGrace=beamAvailable&&beamArmed&&beamIntent&&beamHold>=.08f&&
+                beamWristsReady&&!raised&&!beamReleasePose&&(!guardEnvelope||beamHold>=.06f);
+            if((beam||beamChargeGrace)&&beamArmed&&!beamFired)
+            {beamHold+=dt*(beam?1f:.68f);beamGap=0;} else
+            {
+                // A recognised L that temporarily loses depth stability is
+                // still the same held gesture. Pause its clock instead of
+                // resetting it and allowing the next frame to be a punch.
+                if(beamReleasePose&&!beamIntent)
+                {
+                    // Hands deliberately lowered are an explicit release,
+                    // even though ordinary estimator wobble gets the longer
+                    // grace interval above.
+                    beamHold=0;beamGap=0;
+                }
+                else if(beamIntent)beamGap=0;
+                else {beamGap+=dt;if(beamGap>BeamGapSeconds || !beamAvailable)beamHold=0;}
+            }
+            if (beam && beamArmed && beamHold>=BeamHold && !beamFired)
+            { input.Beam=true;beamFired=true;beamArmed=false; }
+            BeamNeedsRelease=beam&&!beamArmed&&!beamFired;
+            // Reserve the action during a brief uncertain interval. Missing
+            // wrists pause progress; they neither advance it nor enable attacks.
+            bool beamRetain=beamHold>=.10f&&beamWristsReady&&!raised&&!beamReleasePose;
+            bool beamReserved=beamAvailable&&(beamIntent||beamHold>0||beamGrace||beamRetain);
+            // Once the chest guard has been held, retain ownership through a
+            // brief depth/visibility wobble. A beam latch still has priority.
+            bool guardedEnvelope=guardEnvelope||guardLocked&&guardLostAge<=GuardOwnershipGraceSeconds;
+            bool shield=guardedEnvelope&&!beamReserved&&!leftBreakingCandidate&&!rightBreakingCandidate&&!guardMoved;
+            if(shield) {shieldHold+=dt;shieldGap=0;}
+            else
+            {
+                // A latest-packet receiver can skip visible samples before an
+                // overlap. Do not count that unknown preceding interval as
+                // observed occlusion and spend the grace before it begins.
+                shieldGap=firstWristLoss?0:shieldGap+dt;
+                // Only bridge short wrist occlusion after a real guard, never an observed different action.
+                if(beamWristsReady||shieldGap>.20f)shieldHold=0;
+            }
+            input.Shield=shieldHold>=ShieldHold;
+            // A partly confirmed guard already owns the gesture. Its existing
+            // 200 ms wrist-occlusion grace pauses confirmation; it must also
+            // prevent the visible hand's depth noise from becoming a punch.
+            input.GuardIntent=shield||shieldHold>0||guardLocked&&guardLostAge<=GuardOwnershipGraceSeconds&&!beamReserved;
+            input.BeamIntent=beamReserved;
+            if(input.Shield)
+            {
+                // Follow an arm that is still retracting into its guard, but
+                // do not move the anchor forward with an outgoing punch.
+                if(!guardAnchored||leftOffset.z<guardLeft.z)guardLeft=leftOffset;
+                if(!guardAnchored||rightOffset.z<guardRight.z)guardRight=rightOffset;
+                guardAnchored=true;
+            }
+            if(!guardEnvelope&&shieldGap>.20f)guardAnchored=false;
+            if(!beamWristsReady&&wristLossAge>.20f)
+            {
+                // A real camera loss is different from one noisy packet: do
+                // not let either intent latch claim a pose without wrists.
+                guardLocked=false;guardLockAge=0;guardLostAge=.29f;
+                beamLocked=false;beamLockAge=0;beamLostAge=.37f;
+                input.Shield=false;input.GuardIntent=false;input.BeamIntent=false;
+            }
+            // A held shield already bridges a brief hidden wrist. Preserve
+            // that ownership too: the other wrist's noisy depth must not
+            // become a punch merely because two-hand geometry is unavailable.
+            // Discard those trajectories so they cannot fire when grace ends.
+            // The receiver may skip the first complete pose and deliver its
+            // overlapping wrists first. Briefly discard motion across a new
+            // wrist-visibility loss, even before guard intent can be known.
+            // This never awards defense; a persistently visible single arm
+            // can still punch after the transition with a fresh trajectory.
+            if(!beamWristsReady&&(input.GuardIntent||hadWristPair&&wristLossAge<=.20f))
             {
                 leftMotion.Reset();rightMotion.Reset();
                 return input;
             }
-            float side=l.x>=r.x?1:-1;
-            bool left=leftReady&&leftMotion.Update(l,lw,wasReliable[13],scale,side,frame.capturedMs,dt);
-            bool right=rightReady&&rightMotion.Update(r,rw,wasReliable[14],scale,-side,frame.capturedMs,dt);
+            if (beamReserved || (raised&&transformAvailable))
+            {
+                guardAnchored=false;
+                leftMotion.Reset();rightMotion.Reset();
+                return input;
+            }
+            bool left=leftReady&&leftMotion.Update(l,lw,wasReliable[13],scale,side,frame.capturedMs,dt,Level);
+            bool right=rightReady&&rightMotion.Update(r,rw,wasReliable[14],scale,-side,frame.capturedMs,dt,Level);
             if(!leftReady)leftMotion.Reset();if(!rightReady)rightMotion.Reset();
-            // A forward punch can begin in a guard. Do not confuse its foreshortened arm with a held shield.
-            float depthDifference=((l.z-lw.z)-(r.z-rw.z))/scale;
-            input.LeftPunch=left&&(!shield || leftMotion.ForwardStrike&&depthDifference>.25f);
-            input.RightPunch=right&&(!shield || rightMotion.ForwardStrike&&depthDifference<-.25f);
+            // Chest/face defense owns small asymmetric depth movement. Leaving
+            // it requires an unmistakable single-arm reach plus motion history.
+            // While a strict chest guard is already confirmed, discard a
+            // stale strike candidate from the preceding punch. The guard is
+            // released on the first clear reach, so a deliberate next punch
+            // still starts normally rather than being swallowed.
+            // A visible chest guard owns the gesture from its first frame.
+            // Previously punch history could win during latch acquisition,
+            // making a child see “attack” before the shield confirmation.
+            bool guardAcquiring=guardShape&&guardLockAge<.12f;
+            bool shieldOwnsGesture=(guardAcquiring||shieldHold>0||guardLocked&&guardLostAge<=GuardOwnershipGraceSeconds)&&guardedEnvelope&&!leftBreakingCandidate&&!rightBreakingCandidate&&!guardMoved;
+            // A guard-shaped frame must leave the chest by a visible amount
+            // before a noisy depth spike can turn it into an attack.
+            bool leftBreakingGuard=leftCommitted&&(!guardAnchored||PoseQuality.Distance(leftOffset,guardLeft)>.16f);
+            bool rightBreakingGuard=rightCommitted&&(!guardAnchored||PoseQuality.Distance(rightOffset,guardRight)>.16f);
+            input.LeftPunch=left&&!shieldOwnsGesture&&(!guardShape || leftMotion.ForwardStrike&&(leftBreakingGuard||leftOutward));
+            input.RightPunch=right&&!shieldOwnsGesture&&(!guardShape || rightMotion.ForwardStrike&&(rightBreakingGuard||rightOutward));
+            if(left&&!input.LeftPunch)leftMotion.RejectCandidate();
+            if(right&&!input.RightPunch)rightMotion.RejectCandidate();
+            if(input.LeftPunch&&input.RightPunch)
+            {
+                // One frame can contain two noisy wrist trajectories. Keep the
+                // stronger arm so a child never gets a double or ambiguous punch.
+                if(leftMotion.LastScore>=rightMotion.LastScore) input.RightPunch=false;
+                else input.LeftPunch=false;
+            }
             ForwardPunch=input.LeftPunch&&leftMotion.ForwardStrike || input.RightPunch&&rightMotion.ForwardStrike;
-            if(input.LeftPunch||input.RightPunch) {input.Shield=false;shieldHold=0;}
+            if(input.RightPunch)ReferencePose="P2-右拳";
+            else if(input.LeftPunch)ReferencePose="P2-左拳";
+            if(input.LeftPunch||input.RightPunch)
+            {
+                input.Shield=false;shieldHold=0;guardAnchored=false;
+                // Only a confirmed, visible reach can break the guard latch.
+                // This prevents one noisy depth packet from stealing defense.
+                if(leftCommitted||rightCommitted){guardLocked=false;guardLockAge=0;guardLostAge=.29f;}
+            }
             return input;
         }
-        static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale)
+        static PosePoint GuardOffset(PosePoint shoulder,PosePoint wrist,float scale)
+            =>new PosePoint((wrist.x-shoulder.x)/scale,(wrist.y-shoulder.y)/scale){z=(shoulder.z-wrist.z)/scale};
+        static float GuardImageDistance(PosePoint a,PosePoint b)
+        {float x=a.x-b.x,y=a.y-b.y;return (float)Math.Sqrt(x*x+y*y);}
+        static bool WarningShieldPose(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            // During the monster warning the child is answering an explicit
+            // shield cue. Keep the acquisition envelope broad enough for a
+            // small child and a laptop camera, but reject a clear one-arm
+            // lateral reach so an intentional punch still wins after the
+            // warning has been answered.
+            if(Math.Abs(left.x-cx)>1.78f*scale||Math.Abs(right.x-cx)>1.78f*scale||
+                Math.Abs(left.x-right.x)>2.55f*scale||Math.Abs(left.y-right.y)>1.08f*scale)
+                return false;
+            if(left.y<sy-1.36f*scale||right.y<sy-1.36f*scale||
+                left.y>sy+1.28f*scale||right.y>sy+1.28f*scale)
+                return false;
+            bool leftReach=Math.Abs(left.x-ls.x)>1.05f*scale&&Math.Abs(right.x-rs.x)<.92f*scale;
+            bool rightReach=Math.Abs(right.x-rs.x)>1.05f*scale&&Math.Abs(left.x-ls.x)<.92f*scale;
+            if(leftReach||rightReach)return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // Both hands may be slightly forward in a shield. A large
+            // imbalance is the webcam signature of a single extended fist.
+            return Math.Abs(leftForward-rightForward)<1.35f;
+        }
+        static bool CrossedFaceGuard(PosePoint ls,PosePoint rs,PosePoint le,PosePoint re,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            // The reference P1 places both fists above the sternum, with each
+            // wrist crossing to the opposite side of the shoulder that owns
+            // the arm. Keep the vertical band compact so the P3 high/low beam
+            // pose cannot be borrowed by this defense route.
+            if(Math.Min(left.y,right.y)<sy-.82f*scale||Math.Max(left.y,right.y)>sy+.42f*scale||
+                Math.Abs(left.y-right.y)>.72f*scale||Math.Abs(left.x-right.x)>1.72f*scale)
+                return false;
+            float leftSide=ls.x>=cx?1:-1;
+            bool leftCross=(left.x-cx)*leftSide<-.10f*scale;
+            bool rightCross=(right.x-cx)*-leftSide<-.10f*scale;
+            if(!leftCross||!rightCross)return false;
+            // Elbows stay near their own shoulder while the wrists cross. This
+            // distinguishes a compact guard from two arms pushed forward.
+            if(Math.Abs(le.x-ls.x)>.78f*scale||Math.Abs(re.x-rs.x)>.78f*scale)
+                return false;
+            float lf=(ls.z-left.z)/scale,rf=(rs.z-right.z)/scale;
+            return lf<1.05f&&rf<1.05f&&Math.Abs(lf-rf)<.72f;
+        }
+        static bool TigaBeamPose(PosePoint le,PosePoint re,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            // Reuse the forearm test used by the normal beam path, but expose
+            // it as a named reference profile so the P3 photo remains owned
+            // through depth noise and cannot fall into right-punch motion.
+            return ForearmBeam(left,le,right,re,cx,sy,scale)||
+                ForearmBeam(right,re,left,le,cx,sy,scale);
+        }
+        static bool GuardArms(PosePoint left,PosePoint right,float cx,float sy,float scale,bool holding=false)
+            =>Math.Abs(left.x-cx)<(holding?1.14f:1.06f)*scale&&Math.Abs(right.x-cx)<(holding?1.14f:1.06f)*scale&&
+                // Keep the acquisition envelope centered on the chest, but
+                // allow natural child-sized asymmetry and crossed forearms.
+                // A fully extended fist still exits through left/right
+                // committed motion below, so this does not turn a punch into
+                // a shield merely because its idle hand is near the torso.
+                Math.Abs(left.x-right.x)<(holding?1.95f:1.58f)*scale&&Math.Abs(left.y-right.y)<(holding?.95f:.82f)*scale&&
+                left.y>sy-(holding?.98f:.88f)*scale&&right.y>sy-(holding?.98f:.88f)*scale&&
+                left.y<sy+(holding?1.10f:1f)*scale&&right.y<sy+(holding?1.10f:1f)*scale;
+        static bool GuardEntryArms(PosePoint left,PosePoint right,float cx,float sy,float scale)
+            =>Math.Abs(left.x-cx)<1.34f*scale&&Math.Abs(right.x-cx)<1.34f*scale&&
+                Math.Abs(left.x-right.x)<2.16f*scale&&Math.Abs(left.y-right.y)<1.12f*scale&&
+                left.y>sy-.98f*scale&&right.y>sy-.98f*scale&&
+                left.y<sy+1.08f*scale&&right.y<sy+1.08f*scale&&
+                Math.Min(left.y,right.y)<sy+.52f*scale;
+        static bool DefensivePair(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(!GuardEntryArms(left,right,cx,sy,scale))return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // The forward-push routes require a larger symmetric depth gap.
+            // This compact low-depth pair gives a real chest guard priority
+            // over a stale one-arm punch trajectory.
+            return leftForward<.38f&&rightForward<.38f&&Math.Abs(left.x-right.x)<1.92f*scale;
+        }
+        static bool BalancedGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(Math.Abs(left.x-cx)>1.62f*scale||Math.Abs(right.x-cx)>1.62f*scale||
+                Math.Abs(left.x-right.x)>2.36f*scale||Math.Abs(left.y-right.y)>.62f*scale)
+                return false;
+            // Both wrists must still be near their own shoulder line. This
+            // keeps a one-arm lateral reach from borrowing the symmetric
+            // safety route while allowing a broad child-sized chest guard.
+            if(Math.Abs(left.x-ls.x)>.92f*scale||Math.Abs(right.x-rs.x)>.92f*scale)
+                return false;
+            if(left.y<sy-1.28f*scale||right.y<sy-1.28f*scale||
+                left.y>sy+1.22f*scale||right.y>sy+1.22f*scale||
+                Math.Max(left.y,right.y)<sy-.74f*scale)
+                return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // Permit a moderate, symmetric forward offset from webcam depth;
+            // reject the characteristic one-fist reach and a two-hand push.
+            return leftForward<1.46f&&rightForward<1.46f&&
+                Math.Abs(leftForward-rightForward)<.92f&&
+                !(leftForward>.38f&&rightForward>.38f&&Math.Abs(left.y-right.y)<.52f*scale);
+        }
+        static bool FaceCoverGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(Math.Abs(left.x-cx)>1.46f*scale||Math.Abs(right.x-cx)>1.46f*scale||
+                Math.Abs(left.x-right.x)>1.88f*scale||Math.Abs(left.y-right.y)>.78f*scale)
+                return false;
+            if(left.y<sy-1.34f*scale||right.y<sy-1.34f*scale||
+                left.y>sy+.62f*scale||right.y>sy+.62f*scale)
+                return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            return leftForward<.72f&&rightForward<.72f&&Math.Abs(leftForward-rightForward)<.42f;
+        }
+        static bool SoftGuard(PosePoint ls,PosePoint rs,PosePoint left,PosePoint right,float cx,float sy,float scale)
+        {
+            if(Math.Abs(left.x-cx)>1.35f*scale||Math.Abs(right.x-cx)>1.35f*scale||
+                Math.Abs(left.x-right.x)>2.02f*scale||Math.Abs(left.y-right.y)>1.02f*scale)
+                return false;
+            if(left.y<sy-1.12f*scale||right.y<sy-1.12f*scale||
+                left.y>sy+1.24f*scale||right.y>sy+1.24f*scale||
+                Math.Max(left.y,right.y)<sy-.78f*scale)
+                return false;
+            float leftForward=(ls.z-left.z)/scale,rightForward=(rs.z-right.z)/scale;
+            // One forward wrist is tolerated, but two forward level wrists are
+            // reserved for the beam/push classifier above.
+            return leftForward<1.18f&&rightForward<1.18f&&
+                Math.Abs(leftForward-rightForward)<.72f&&
+                !(leftForward>.34f&&rightForward>.34f&&Math.Abs(left.y-right.y)<.72f*scale);
+        }
+        static bool BeamArms(PosePoint shoulder,PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false,bool preserveDepth=false)
         {
             // The hands describe the intent. Exact right angles and two unoccluded elbows are unnecessary.
             // A deeply extended single fist is a punch, even when the other wrist is lower like an L.
-            return shoulder.z-high.z<.9f*scale && low.y-high.y>.22f*scale && high.y<sy+.45f*scale && high.y>sy-1.3f*scale &&
-                low.y>sy-.25f*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<1.25f*scale &&
-                Math.Abs(low.x-cx)<.85f*scale && Math.Abs(high.x-low.x)<1.35f*scale;
+            return shoulder.z-high.z<(holding||preserveDepth?1.6f:.9f)*scale && BeamHandShape(high,low,cx,sy,scale,holding);
         }
-        static bool ForwardPalms(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale)
+        static bool BeamHandShape(PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false)
+            =>low.y-high.y>(holding?.28f:.45f)*scale && high.y<sy+(holding?.25f:.10f)*scale && high.y>sy-1.3f*scale &&
+                low.y>sy+(holding?.08f:.20f)*scale && low.y<sy+1.1f*scale && Math.Abs(high.x-cx)<(holding?1.1f:.90f)*scale &&
+                Math.Abs(low.x-cx)<(holding?1.05f:.85f)*scale && Math.Abs(high.x-low.x)<(holding?1.15f:.90f)*scale;
+        static bool BeamImageShape(PosePoint high,PosePoint low,float cx,float sy,float scale,bool holding=false)
+            =>BeamHandShape(high,low,cx,sy,scale,holding);
+        static bool BeamEntryShape(PosePoint shoulder,PosePoint high,PosePoint low,PosePoint elbow,float cx,float sy,float scale)
+        {
+            if(!BeamEntryHandShape(high,low,cx,sy,scale))return false;
+            // A one-arm forward punch can look like an L in the image plane.
+            // Accept a large depth offset only when the high forearm visibly
+            // rises from its elbow, which is the stable distinction in that
+            // ambiguous packet. If the elbow is hidden, only a small depth
+            // offset is accepted so a deep single-arm punch cannot reserve it.
+            float depth=(shoulder.z-high.z)/scale;
+            if(PoseQuality.Reliable(elbow,.45f))
+                return elbow.y-high.y>.28f*scale&&Math.Abs(high.x-elbow.x)<.75f*scale;
+            return depth<.75f;
+        }
+        static bool BeamEntryHandShape(PosePoint high,PosePoint low,float cx,float sy,float scale)
+            =>low.y-high.y>.40f*scale && high.y<sy+.20f*scale && high.y>sy-1.35f*scale &&
+              low.y>sy+.08f*scale && low.y<sy+1.15f*scale && Math.Abs(high.x-cx)<1.02f*scale &&
+              Math.Abs(low.x-cx)<1.02f*scale && Math.Abs(high.x-low.x)<1.20f*scale;
+        static bool BeamVisualCandidate(PosePoint high,PosePoint low,float cx,float sy,float scale)
+            =>low.y-high.y>.24f*scale && high.y<sy+.28f*scale && high.y>sy-1.42f*scale &&
+              low.y>sy-.02f*scale && low.y<sy+1.20f*scale && Math.Abs(high.x-cx)<1.18f*scale &&
+              Math.Abs(low.x-cx)<1.18f*scale && Math.Abs(high.x-low.x)<1.42f*scale &&
+              // A deep, single-arm reach is the ordinary punch route. Let
+              // the stricter depth-aware L classifier own that case instead
+              // of reserving it as a finisher from image shape alone. The
+              // modestly wider bound absorbs a noisy wrist estimate, while
+              // the vertical L shape still excludes a horizontal punch.
+              Math.Abs(high.z-low.z)<.55f*scale;
+        static bool ForwardVisualCandidate(PosePoint leftShoulder,PosePoint rightShoulder,PosePoint left,PosePoint right,float sy,float scale)
+        {
+            float separation=Math.Abs(left.x-right.x)/scale;
+            return separation>.70f&&separation<2.20f&&Math.Abs(left.y-right.y)<.88f*scale&&
+                left.y>sy-.58f*scale&&right.y>sy-.58f*scale&&left.y<sy+.68f*scale&&right.y<sy+.68f*scale&&
+                Math.Abs(left.z-right.z)<.35f*scale&&
+                leftShoulder.z-left.z>.42f*scale&&rightShoulder.z-right.z>.42f*scale;
+        }
+        static bool ForwardImageShape(PosePoint left,PosePoint right,float sy,float scale,bool holding=false)
+            =>Math.Abs(left.y-right.y)<.78f*scale && left.y>sy-(holding?.55f:.45f)*scale &&
+              left.y<sy+(holding?1.10f:1f)*scale && Math.Abs(left.x-right.x)>(holding?.42f:.52f)*scale &&
+              Math.Abs(left.x-right.x)<2.1f*scale;
+        static bool ForearmBeam(PosePoint high,PosePoint highElbow,PosePoint low,PosePoint lowElbow,float cx,float sy,float scale)
+        {
+            // Monocular depth may be biased from the very first held frame.
+            // Two visible forearms provide independent image-plane evidence:
+            // one rises above its elbow/shoulder, the other crosses the chest.
+            // This is an additional entry route, not an elbow requirement for
+            // the existing wrist-only gesture or its occlusion tolerance.
+            if(!PoseQuality.Reliable(highElbow,.55f)||!PoseQuality.Reliable(lowElbow,.55f)||
+                !BeamHandShape(high,low,cx,sy,scale)||high.y>=sy-.10f*scale)return false;
+            float rise=highElbow.y-high.y,across=Math.Abs(low.x-lowElbow.x);
+            bool crossesCenter=Math.Abs(low.x-cx)<Math.Abs(lowElbow.x-cx);
+            return rise>.30f*scale&&Math.Abs(high.x-highElbow.x)<rise*.70f+.10f*scale&&
+                across>.25f*scale&&Math.Abs(low.y-lowElbow.y)<across*.45f+.10f*scale&&crossesCenter;
+        }
+        static bool ForwardPalms(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale,bool holding=false)
         {
             float separation=Math.Abs(lw.x-rw.x)/scale;
-            return (l.z-lw.z)>.55f*scale && (r.z-rw.z)>.55f*scale && separation>.60f && separation<2.1f &&
+            return (l.z-lw.z)>(holding?.30f:.55f)*scale && (r.z-rw.z)>(holding?.30f:.55f)*scale && separation>(holding?.50f:.60f) && separation<2.1f &&
                 Math.Abs(lw.y-rw.y)<.7f*scale && lw.y>sy-.45f*scale && rw.y>sy-.45f*scale &&
                 lw.y<sy+1f*scale && rw.y<sy+1f*scale;
+        }
+        static bool ForwardPushEntry(PosePoint l,PosePoint r,PosePoint lw,PosePoint rw,float sy,float scale)
+        {
+            // A child pushing both hands forward often produces a weaker but
+            // symmetric depth signal than the strict palm test. Require both
+            // wrists to clear the shoulders and keep a visibly wide, level
+            // pair so an ordinary chest guard cannot claim this route.
+            float separation=Math.Abs(lw.x-rw.x)/scale;
+            return (l.z-lw.z)>.42f*scale&&(r.z-rw.z)>.42f*scale&&
+                separation>.62f&&separation<2.1f&&Math.Abs(lw.y-rw.y)<.65f*scale&&
+                lw.y>sy-.35f*scale&&rw.y>sy-.35f*scale&&lw.y<sy+1f*scale&&rw.y<sy+1f*scale;
         }
     }
 }

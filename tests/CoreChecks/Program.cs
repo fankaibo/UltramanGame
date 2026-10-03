@@ -34,7 +34,7 @@ static class Program
     static Battle Started()
     {
         var b=new Battle();b.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});
-        Advance(b,2.4f);return b;
+        Advance(b,Battle.TransformationSeconds+.2f);return b;
     }
     static void Advance(Battle b,float seconds,bool shield=false)
     {for(int i=0;i<(int)Math.Ceiling(seconds/.02f);i++)b.Tick(.02f,new PlayerInput{Tracking=true,Shield=shield});}
@@ -48,7 +48,14 @@ static class Program
             PreviewChecks.Run(Check);
             PhotoChecks.Run(Check);
             BeamCloseupChecks.Run(Check);
-            ImpactTimingChecks.Run(Check);
+        ImpactTimingChecks.Run(Check);
+        PunchLinkChecks.Run(Check);
+        ClawReactionChecks.Run(Check);
+        GuidedPhotoChecks.Run(Check);
+        GuardBeamChecks.Run(Check);
+        GestureIntentChecks.Run(Check);
+        GestureBattleChecks.Run(Check);
+        PhotoLayoutChecks.Run(Check);
             var pose=Pose();Check(PoseQuality.Valid(pose,stamp),"complete fresh pose accepted");
             Check(!PoseQuality.Valid(pose,stamp+351),"stale capture rejected");
             Check(!PoseQuality.Valid(pose,stamp-51),"future capture rejected");
@@ -67,14 +74,22 @@ static class Program
             Check(Holds(r,"shield",20,x=>x.LeftPunch||x.RightPunch||x.Beam)==0,"shield cannot generate attacks");
             Holds(r,"neutral",20,x=>false);
             Check(Holds(r,"raised",50,x=>x.Transform)==1,"transform pose triggers once");
+            r.Reset(requireTransformRelease:true);
+            Check(Holds(r,"raised",50,x=>x.Transform)==0,"new round cannot reuse the photo hands-up pose");
+            Holds(r,"neutral",20,x=>false);
+            Check(Holds(r,"raised",50,x=>x.Transform)==1,"new round transforms after a fresh hands-down release");
             r.Update(null,stamp);Check(!Feed(r,"beam").Beam,"tracking loss clears held gesture");
             TrackingRegressions();
             FriendlyMotionRegressions();
             MotionChecks.Run(Check);
             BattleBalanceChecks.Run(Check);
             EnemyAttackChecks.Run(Check);
+            KnockdownChecks.Run(Check);
             InstructionChecks.Run(Check);
-            RecoveryChecks.Run(Check);
+            EntranceChecks.Run(Check);
+            FinalStrikeChecks.Run(Check);
+            bool offline=Array.IndexOf(args,"--offline")>=0;
+            RecoveryChecks.Run(Check,!offline);
             var b=Started();Check(b.Phase==GamePhase.Battle,"transform enters battle");
             b.Tick(.02f,new PlayerInput {Tracking=true,Beam=true});Check(b.Action==HeroAction.None,"beam requires energy");
             Punch(b);Check(b.EnemyHealth==b.MaxHealth-1 && b.Punches==1,"one punch applies one hit");
@@ -96,7 +111,7 @@ static class Program
             int hits=b.HitsTaken;Advance(b,30);Check(b.HitsTaken==hits,"victory stops enemy attacks");
             if(args.Length>0 && args[0]=="--bridge") BridgeCheck(args.Length>1?int.Parse(args[1]):8765);
             if(args.Length>2 && args[0]=="--bridge") PreviewChecks.Bridge(int.Parse(args[2]),Check);
-            Console.WriteLine($"{count} checks passed");return 0;
+            Console.WriteLine($"{count} checks passed"+(offline?" (offline; 3 socket recovery checks skipped)":""));return 0;
         }
         catch(Exception e) { Console.Error.WriteLine("FAIL "+e);return 1; }
     }
@@ -114,7 +129,7 @@ static class Program
         int beams=0;
         for(int i=0;i<30;i++)
         {
-            var p=Pose();p.points[13]=new PosePoint(.57f,.49f);p.points[15]=new PosePoint(.51f,.36f);
+            var p=Pose();p.points[13]=new PosePoint(.57f,.49f);p.points[15]=new PosePoint(.51f,.28f);
             p.points[14]=new PosePoint(.28f,.43f);p.points[16]=new PosePoint(.45f,.46f);
             if(r.Update(p,p.capturedMs).Beam)beams++;
         }

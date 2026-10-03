@@ -48,7 +48,7 @@ namespace UltramanGame.Core
 
     public sealed class PhotoFrame
     {
-        public const int MaxBytes=2*1024*1024;
+        public const int MaxBytes=8*1024*1024;
         public long CapturedMs;
         public bool Synthetic,Present;
         public byte[] Png;
@@ -67,7 +67,7 @@ namespace UltramanGame.Core
             byte[] signature={137,80,78,71,13,10,26,10};
             for(int i=0;i<8;i++)if(png[i]!=signature[i])throw new IOException("Invalid PNG");
             uint w=UInt(png,16),height=UInt(png,20);
-            if(UInt(png,8)!=13||png[12]!='I'||png[13]!='H'||png[14]!='D'||png[15]!='R'||w<1||w>640||height<1||height>480||png[24]!=8||png[25]!=6)
+            if(UInt(png,8)!=13||png[12]!='I'||png[13]!='H'||png[14]!='D'||png[15]!='R'||w<1||w>1280||height<1||height>960||png[24]!=8||png[25]!=6)
                 throw new IOException("Invalid photo PNG dimensions or channels");
             return new PhotoFrame {CapturedMs=stamp,Synthetic=h[16]==1,Present=h[17]==1,Png=png};
         }
@@ -81,6 +81,7 @@ namespace UltramanGame.Core
         volatile bool stopping;
         TcpClient connection;
         PhotoFrame latest;
+        public string Status {get;private set;}="连接中";
         public PhotoClient(int port)
         {this.port=port;worker=new Thread(Run){IsBackground=true,Name="Local photo cutout"};worker.Start();}
         public PhotoFrame TakeLatest()=>Interlocked.Exchange(ref latest,null);
@@ -92,13 +93,15 @@ namespace UltramanGame.Core
                 {
                     using(var client=new TcpClient())
                     {
-                        connection=client;client.NoDelay=true;client.ReceiveTimeout=4000;
+                        connection=client;client.NoDelay=true;client.ReceiveTimeout=15000;
                         client.Connect("127.0.0.1",port);
                         if(stopping)break;
-                        using(var stream=client.GetStream())while(!stopping)Interlocked.Exchange(ref latest,PhotoFrame.Read(stream));
+                        Status="已连接，等待人像";
+                        using(var stream=client.GetStream())while(!stopping)
+                        {Interlocked.Exchange(ref latest,PhotoFrame.Read(stream));Status="人像流正常";}
                     }
                 }
-                catch(Exception e) when(e is IOException||e is SocketException||e is ObjectDisposedException) {}
+                catch(Exception e) when(e is IOException||e is SocketException||e is ObjectDisposedException) {Status="正在重连人像流";}
                 finally {connection=null;Interlocked.Exchange(ref latest,null);}
                 for(int i=0;i<10&&!stopping;i++)Thread.Sleep(50);
             }

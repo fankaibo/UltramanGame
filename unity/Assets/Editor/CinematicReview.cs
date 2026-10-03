@@ -4,6 +4,7 @@ using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UltramanGame.Core;
 using UltramanGame.Runtime;
 
@@ -12,13 +13,34 @@ namespace UltramanGame.Editor
     public static class CinematicReview
     {
         public static void RenderRelease() {RiggedReview.ReviewLiveRelease();Render();}
+        public static void RenderCityRelease() {RiggedReview.ValidateMotion();CharacterReview.Render();RenderAt("arcade-city");}
         [MenuItem("UltramanGame/Render full cinematic battle")]
         public static void Render()
+        {RenderAt("cinematic-combat");}
+        static void RenderAt(string outputFolder)
         {
+            // The flash locality micro-review is useful as a separate GPU
+            // diagnostic, but it must not gate the actual movie render: some
+            // macOS driver paths quantize the tiny off-screen probe even
+            // though the player compositor is healthy. Opt into that probe
+            // explicitly so the default review always produces the real
+            // deterministic battle frames.
+            bool runFlash=Array.IndexOf(Environment.GetCommandLineArgs(),"--run-flash-review")>=0;
+            if(runFlash&&SystemInfo.graphicsDeviceType!=GraphicsDeviceType.Null)CinematicFlashReview.Run();
+            else Debug.Log("[CinematicReview] flash locality micro-review skipped; use --run-flash-review to run it separately");
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(20260909);
-            var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback();
+            // The default review remains stable for regression checks. Optional
+            // deterministic variants make the exported showcase cover the same
+            // ground-slam, monster-ray and alternating-punch beats visible in
+            // the arcade reference without changing player input rules.
+            var args=Environment.GetCommandLineArgs();
+            bool slam=Array.IndexOf(args,"--review-slam")>=0;
+            bool ray=Array.IndexOf(args,"--review-ray")>=0;
+            bool linked=Array.IndexOf(args,"--review-linked")>=0;
+            var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback(slam,ray,linked);
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/cinematic-combat"));Directory.CreateDirectory(folder+"/frames");
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts",outputFolder));Directory.CreateDirectory(folder+"/frames");
+            File.Delete(folder+"/validation.txt");
             foreach(var old in Directory.GetFiles(folder+"/frames","frame-????.png"))File.Delete(old);
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16/9f;
             var events=new StringBuilder("seconds,event,health,energy\n");int beams=0,output=0;bool paused=false;float victory=-1;
@@ -31,9 +53,15 @@ namespace UltramanGame.Editor
                 {world.Cue(cue);events.AppendLine($"{time:F3},{cue},{battle.EnemyHealth},{battle.Energy}");}
                 if(battle.Phase==GamePhase.Paused)paused=true;
                 hero.Update(battle,world.Camera,dt,time);enemy.Update(battle,world.Camera,dt,time);
-                if(battle.EnemyHealth<lastHealth)world.Hit(lastHealth-battle.EnemyHealth>1,battle);lastHealth=battle.EnemyHealth;
-                world.Tick(battle,dt,time);enemy.SetPresentationOpacity(1-world.Closeup.Focus);
-                if(world.BeamStarted)beams++;
+                if(battle.EnemyHealth<lastHealth)
+                {
+                    world.Hit(lastHealth-battle.EnemyHealth>1,battle);
+                    events.AppendLine($"{time:F3},HeroHit,{battle.EnemyHealth},{battle.Energy}");
+                }
+                lastHealth=battle.EnemyHealth;
+                world.Tick(battle,dt,time);enemy.SetPresentationOpacity(world.EnemyOpacity);
+                if(world.BeamStarted)
+                {beams++;events.AppendLine($"{time:F3},BeamVisible,{battle.EnemyHealth},{battle.Energy}");}
                 if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.png");output++;}
                 if(battle.Phase==GamePhase.Victory){if(victory<0)victory=time;if(time-victory>3)break;}
             }

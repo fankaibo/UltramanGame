@@ -5,10 +5,12 @@ namespace UltramanGame.Core
     // A short presentation hold. Battle still receives tracking/pause input with a zero delta.
     public sealed class BeamCloseup
     {
-        public const float Duration=.98f;
+        // Long enough to read the charge pose and beam release on a TV, while
+        // remaining inside the existing 1.5 s beam action window.
+        public const float Duration=1.35f;
         public bool Active { get; private set; }
         public float Age { get; private set; }
-        public float Focus => !Active?0:Math.Min(Smooth(Age/.16f),Smooth((Duration-Age)/.24f));
+        public float Focus => !Active?0:Math.Min(Smooth(Age/.22f),Smooth((Duration-Age)/.34f));
         static float Smooth(float value)
         { value=Math.Max(0,Math.Min(1,value));return value*value*(3-2*value); }
         public void Begin() { Active=true;Age=0; }

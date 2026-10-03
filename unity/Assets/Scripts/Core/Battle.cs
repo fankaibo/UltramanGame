@@ -6,7 +6,7 @@ namespace UltramanGame.Core
     public enum GamePhase { Waiting, Transforming, Battle, Paused, Victory }
     public enum EnemyPhase { Rest, Windup, Attack, Recover }
     public enum HeroAction { None, LeftPunch, RightPunch, Beam, Hurt }
-    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack }
+    public enum GameCue { Transform, BattleStart, Warning, Punch, Beam, Block, Hurt, EnergyReady, Victory, Resume, EnemyAttack, HeroLanded }
 
     // Unity-free deterministic rules. The renderer observes state; it never awards damage.
     public sealed class Battle
@@ -14,26 +14,39 @@ namespace UltramanGame.Core
         public GamePhase Phase { get; private set; } = GamePhase.Waiting;
         public EnemyPhase Enemy { get; private set; }
         public HeroAction Action { get; private set; }
+        // Damage is settled once, then the accepted last strike finishes before
+        // victory guidance and the automatic photo timer take ownership.
+        public bool Finishing=>finishing&&Phase==GamePhase.Battle;
+        // Presentation may anticipate an already accepted next fist. It never
+        // creates an input, shortens recovery or applies damage on its own.
+        public HeroAction BufferedPunch=>Phase==GamePhase.Battle?queuedPunch:HeroAction.None;
         public int MaxHealth { get; }
         public float EnemyHealth { get; private set; }
         public float Energy { get; private set; }
         public float ActionAge { get; private set; }
+        public float TransformationAge=>Phase==GamePhase.Transforming?phaseAge:0;
         public float EnemyAge { get; private set; }
         public float WarningDuration { get; private set; } = WindupSeconds;
         public float InstructionRemaining { get; private set; }
         public float ResumeProgress { get; private set; }
         public bool Shield { get; private set; }
         public int Punches { get; private set; }
+        // Increments at the start of each telegraphed rush so presentation can
+        // alternate the monster's lead claw without changing combat timing.
+        public int EnemyAttackCount { get; private set; }
         public int Blocks { get; private set; }
         public int HitsTaken { get; private set; }
         public const int DefaultMonsterHits=50, MinMonsterHits=10, MaxMonsterHits=200, MaxEnergy=15;
         public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
+        public const float TransformationSeconds=MonsterEntranceMotion.End;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
+        public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
         GamePhase resumePhase;
         float phaseAge, immunity;
         bool hitApplied;
+        bool finishing;
         bool enemyHitApplied;
         HeroAction queuedPunch;
         float queuedAge;
@@ -53,7 +66,7 @@ namespace UltramanGame.Core
         {
             if(float.IsNaN(voiceSeconds)||float.IsInfinity(voiceSeconds)||voiceSeconds<0)
                 throw new ArgumentOutOfRangeException(nameof(voiceSeconds));
-            if(Phase!=GamePhase.Battle)return;
+            if(Phase!=GamePhase.Battle||finishing)return;
             float duration=Math.Min(voiceSeconds,20)+InstructionReactionSeconds;
             if(warning)
             {
@@ -68,7 +81,8 @@ namespace UltramanGame.Core
         {
             if(Phase==GamePhase.Paused || Phase==GamePhase.Waiting || Phase==GamePhase.Victory) return;
             resumePhase=Phase; Phase=GamePhase.Paused; ResumeProgress=0;
-            Action=HeroAction.None; Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
+            if(!finishing)Action=HeroAction.None;
+            Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
             queuedPunch=HeroAction.None;queuedAge=0;
             queuedBeamAge=0;InstructionRemaining=0;WarningDuration=WindupSeconds;
             enemyHitApplied=false;
@@ -94,17 +108,44 @@ namespace UltramanGame.Core
             }
             if(Phase==GamePhase.Transforming)
             {
-                if(phaseAge>=2.2f) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
+                if(phaseAge>=TransformationSeconds) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
+                return;
+            }
+            if(finishing)
+            {
+                // Pose changes during the final hit cannot cancel its release,
+                // enqueue another fist or let a defeated enemy retaliate.
+                ActionAge+=dt;
+                if(ActionAge>=(Action==HeroAction.Beam?BeamSeconds:PunchSeconds))CompleteVictory();
                 return;
             }
             immunity=Math.Max(0,immunity-dt);
             InstructionRemaining=Math.Max(0,InstructionRemaining-dt);
             queuedBeamAge=Math.Max(0,queuedBeamAge-dt);
             if(input.Beam&&Energy>=MaxEnergy&&Action!=HeroAction.Beam)queuedBeamAge=.8f;
+            bool poseOwnsInput=input.Shield||input.GuardIntent||input.BeamIntent;
+            if(input.Shield)
+            {
+                queuedBeamAge=0;
+            }
+            // Recognizer ownership begins before the pose's hold completes.
+            // Drop buffered fists and finish an already-landed punch recovery;
+            // this does not grant a shield or consume beam energy early.
+            if((input.GuardIntent||input.BeamIntent)&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))
+            {
+                // A readable guard/finisher intent owns the player immediately.
+                // This cancels a punch that has not reached contact yet, so a
+                // child can raise a shield during the short enemy warning
+                // without being trapped by the previous attack animation.
+                if(!hitApplied){Action=HeroAction.None;ActionAge=0;}
+                else Action=HeroAction.None;
+                queuedPunch=HeroAction.None;queuedAge=0;
+            }
+            else if(poseOwnsInput&&hitApplied&&(Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch))Action=HeroAction.None;
             queuedAge-=dt;
-            if(queuedAge<=0 || input.Shield || queuedBeamAge>0) queuedPunch=HeroAction.None;
+            if(queuedAge<=0 || poseOwnsInput || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&
-                ActionAge>=PunchSeconds-.18f && !input.Shield && !input.Beam && (input.LeftPunch || input.RightPunch))
+                ActionAge>=PunchSeconds-.18f && !poseOwnsInput && !input.Beam && (input.LeftPunch || input.RightPunch))
             { queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=.20f; }
             Shield=input.Shield && (Action==HeroAction.None);
             if(Action==HeroAction.None)
@@ -115,7 +156,7 @@ namespace UltramanGame.Core
                     Energy=0;Begin(HeroAction.Beam);Shield=false;
                     Enemy=EnemyPhase.Rest;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.Beam);
                 }
-                else if(!Shield && (input.LeftPunch || input.RightPunch || queuedPunch!=HeroAction.None))
+                else if(!poseOwnsInput && (input.LeftPunch || input.RightPunch || queuedPunch!=HeroAction.None))
                 {
                     var next=input.LeftPunch?HeroAction.LeftPunch:input.RightPunch?HeroAction.RightPunch:queuedPunch;
                     queuedPunch=HeroAction.None;Begin(next);Cue(GameCue.Punch);
@@ -123,16 +164,24 @@ namespace UltramanGame.Core
             }
             if(Action!=HeroAction.None)
             {
+                float previousActionAge=ActionAge;
                 ActionAge+=dt;
-                float hitTime=Action==HeroAction.Beam?.45f:PunchHitSeconds;
+                if(Action==HeroAction.Hurt&&previousActionAge<KnockdownMotion.LandingSeconds&&ActionAge>=KnockdownMotion.LandingSeconds)
+                    Cue(GameCue.HeroLanded);
+                float hitTime=Action==HeroAction.Beam?BeamHitSeconds:PunchHitSeconds;
                 if(!hitApplied && Action!=HeroAction.Hurt && ActionAge>=hitTime)
                 {
                     hitApplied=true;
                     if(Action==HeroAction.Beam) EnemyHealth=Math.Max(0,EnemyHealth-9);
                     else { EnemyHealth=Math.Max(0,EnemyHealth-1); Punches++; AddEnergy(1); }
-                    if(EnemyHealth<=0) { Phase=GamePhase.Victory; Shield=false; Cue(GameCue.Victory); return; }
+                    if(EnemyHealth<=0)
+                    {
+                        finishing=true;Shield=false;Enemy=EnemyPhase.Rest;EnemyAge=0;
+                        queuedPunch=HeroAction.None;queuedAge=queuedBeamAge=0;
+                        return;
+                    }
                 }
-                float duration=Action==HeroAction.Beam?1.5f:Action==HeroAction.Hurt?.55f:PunchSeconds;
+                float duration=Action==HeroAction.Beam?BeamSeconds:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
                 if(ActionAge>=duration) Action=HeroAction.None;
             }
             // Special move provides an obvious window of protection.
@@ -142,7 +191,7 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Windup; EnemyAge=0;WarningDuration=WindupSeconds; Cue(GameCue.Warning); }
             else if(Enemy==EnemyPhase.Windup && EnemyAge>=WarningDuration)
             {
-                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;Cue(GameCue.EnemyAttack);
+                Enemy=EnemyPhase.Attack;EnemyAge=0;enemyHitApplied=false;EnemyAttackCount++;Cue(GameCue.EnemyAttack);
             }
             else if(Enemy==EnemyPhase.Attack)
             {
@@ -158,11 +207,12 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Rest; EnemyAge=0; }
         }
         void Begin(HeroAction action) { Action=action; ActionAge=0; hitApplied=false; }
+        void CompleteVictory(){finishing=false;Phase=GamePhase.Victory;Shield=false;Cue(GameCue.Victory);}
         void AddEnergy(float amount)
         {
             float before=Energy;
             Energy=Math.Min(MaxEnergy,Energy+amount);
-            if(before<MaxEnergy && Energy>=MaxEnergy) {GiveInstructionTime(0);Cue(GameCue.EnergyReady);}
+            if(before<MaxEnergy && Energy>=MaxEnergy && EnemyHealth>0) {GiveInstructionTime(0);Cue(GameCue.EnergyReady);}
         }
     }
 }

@@ -1,0 +1,57 @@
+{
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "assets": [
+    {
+      "id": "rocks_ground_02",
+      "author": "Rob Tuytel",
+      "url": "https://polyhaven.com/a/rocks_ground_02"
+    },
+    {
+      "id": "rock_face_03",
+      "authors": [
+        "Dario Barresi",
+        "Rico Cilliers"
+      ],
+      "url": "https://polyhaven.com/a/rock_face_03"
+    }
+  ],
+  "files": [
+    {
+      "file": "rocks_ground_02_col_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rocks_ground_02/rocks_ground_02_col_2k.jpg",
+      "sha256": "a2a4fc4e10a307ca6e345e0df50d6115ba1058174de915bfcfdd5ff3f49dc2fa",
+      "bytes": 3224700
+    },
+    {
+      "file": "rocks_ground_02_nor_gl_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rocks_ground_02/rocks_ground_02_nor_gl_2k.jpg",
+      "sha256": "bde35636a0c548e57006917287e067d11abf3bfac2d70373162deb171ca9a4ef",
+      "bytes": 5387529
+    },
+    {
+      "file": "rocks_ground_02_arm_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rocks_ground_02/rocks_ground_02_arm_2k.jpg",
+      "sha256": "dc327dd84c9526d8accb821bedc5d38cf573ae208737639037359d0f29246ea1",
+      "bytes": 1098966
+    },
+    {
+      "file": "rock_face_03_diff_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rock_face_03/rock_face_03_diff_2k.jpg",
+      "sha256": "644ee79df7ffbf5f6afc330b64dd3f33794bab8820915fe61ffe0c88ecfd7ece",
+      "bytes": 3814362
+    },
+    {
+      "file": "rock_face_03_nor_gl_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rock_face_03/rock_face_03_nor_gl_2k.jpg",
+      "sha256": "a498cef4ba6191f6959b6d03fb835263c77271948264a289af24497ab7111dec",
+      "bytes": 4473242
+    },
+    {
+      "file": "rock_face_03_arm_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rock_face_03/rock_face_03_arm_2k.jpg",
+      "sha256": "1921303981d12bccf72dd29d8a8daf823f1d9bb60400b447c64757203c1e2dad",
+      "bytes": 3215097
+    }
+  ]
+}

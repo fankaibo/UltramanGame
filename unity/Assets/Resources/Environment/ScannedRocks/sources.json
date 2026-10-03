@@ -1,0 +1,74 @@
+{
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "assets": [
+    {
+      "id": "rock_07",
+      "author": "Jenelle van Heerden",
+      "url": "https://polyhaven.com/a/rock_07"
+    },
+    {
+      "id": "rock_09",
+      "author": "Jenelle van Heerden",
+      "url": "https://polyhaven.com/a/rock_09"
+    }
+  ],
+  "files": [
+    {
+      "file": "rock_07_2k.fbx",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/fbx/2k/rock_07/rock_07_2k.fbx",
+      "bytes": 1160220,
+      "sha256": "a49a0fce3da2a976013aac8be3899817b0fe03a1f19628ea0677820df3bdbae1",
+      "source_md5": "0ca9c8e264519eec3dd07ddc72177b0a"
+    },
+    {
+      "file": "rock_07_arm_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_07/rock_07_arm_2k.jpg",
+      "bytes": 829879,
+      "sha256": "d083f995ad460c53f436b335493e66d08d911df67a3106293a62521f49131fa6",
+      "source_md5": "b61dd56e72420bd1e08cc8f63c5e7e0e"
+    },
+    {
+      "file": "rock_07_diff_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_07/rock_07_diff_2k.jpg",
+      "bytes": 2227207,
+      "sha256": "f83d8439faccbda1c74a37421ef9bada9719eff790db000d87ba34c21bce6f72",
+      "source_md5": "21dec6e230e78a4a3758a93f1963e6a1"
+    },
+    {
+      "file": "rock_07_nor_gl_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_07/rock_07_nor_gl_2k.jpg",
+      "bytes": 2781907,
+      "sha256": "9d5c4dc97891ceb04861ae1194caad64b99b0b486e59572d84537e4e0df4183f",
+      "source_md5": "a0842c476bfbb004d6e1a1f479f4512c"
+    },
+    {
+      "file": "rock_09_2k.fbx",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/fbx/2k/rock_09/rock_09_2k.fbx",
+      "bytes": 890732,
+      "sha256": "a04920ea816c4a3ca88c57ce8cbe2a9ba9315130df1c32b589640819d5096333",
+      "source_md5": "f779090f18fee85e2a1af805fc037776"
+    },
+    {
+      "file": "rock_09_nor_gl_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_09/rock_09_nor_gl_2k.jpg",
+      "bytes": 2565303,
+      "sha256": "944b7763b6431671e07b4e7ebe082cf747e791513e27c830a3bb2dbee0246614",
+      "source_md5": "3af48ac431dd3a8ea323772a51553f63"
+    },
+    {
+      "file": "rock_09_diff_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_09/rock_09_diff_2k.jpg",
+      "bytes": 2102702,
+      "sha256": "657406a77530db692061b475681f98cbf1c67be81a5c422830dbe6eb36df813a",
+      "source_md5": "7e40809bf4257cc23795d18b349fbfe9"
+    },
+    {
+      "file": "rock_09_arm_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_09/rock_09_arm_2k.jpg",
+      "bytes": 863180,
+      "sha256": "eaedeb8428079a27bc5e290a61375454035b5fcfb1e9c7d16ce4bc85313789da",
+      "source_md5": "4c994d22563b80849454e86bd4dfb6e4"
+    }
+  ]
+}

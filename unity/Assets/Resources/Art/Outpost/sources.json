@@ -1,0 +1,27 @@
+{
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "asset": "rebar_reinforced_concrete",
+  "author": "Amal Kumar",
+  "url": "https://polyhaven.com/a/rebar_reinforced_concrete",
+  "files": [
+    {
+      "file": "rebar_reinforced_concrete_diff_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rebar_reinforced_concrete/rebar_reinforced_concrete_diff_2k.jpg",
+      "sha256": "133c4a1e5a5a6344bd646ec83bb2b53fe284b93edb08eb8ceb4e9ec3bd84d438",
+      "bytes": 2847152
+    },
+    {
+      "file": "rebar_reinforced_concrete_nor_gl_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rebar_reinforced_concrete/rebar_reinforced_concrete_nor_gl_2k.jpg",
+      "sha256": "abc79df5f9587bab4ae592c1b58bbd739318b13ea5e28dbd933d4bddb81e8a56",
+      "bytes": 3942692
+    },
+    {
+      "file": "rebar_reinforced_concrete_arm_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rebar_reinforced_concrete/rebar_reinforced_concrete_arm_2k.jpg",
+      "sha256": "db02126ecc275b9f2432d6e4b38fb7a5e9e5b5e373a4dc47c648f82f49b59321",
+      "bytes": 2225794
+    }
+  ]
+}
