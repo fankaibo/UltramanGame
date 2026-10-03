@@ -58,8 +58,13 @@ namespace UltramanGame.Editor
                 Debug.Log("[KnockdownBoundary] "+name+" pause=passed resumeGuard=passed counterpunch=passed newRound=passed");
             }
         }
-        static Transform Bone(Transform root,string a,string b)
-        {foreach(var joint in root.GetComponentsInChildren<Transform>())if(joint.name==a||joint.name==b)return joint;throw new Exception("Missing "+a);}
+        static Transform Bone(Transform root,params string[] names)
+        {
+            foreach(var joint in root.GetComponentsInChildren<Transform>())
+                foreach(var name in names)
+                    if(joint.name==name)return joint;
+            throw new Exception("Missing "+string.Join(" or ",names));
+        }
         static void RenderAt(string destination,bool grounded,int rate=60)
         {
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/"+destination));
@@ -91,7 +96,11 @@ namespace UltramanGame.Editor
                 float leftRest=hero.FootPosition(true).y,rightRest=hero.FootPosition(false).y,unsupported=0,rearGap=0,repeatError=0;
                 string repeatDetails="";
                 var axis=(world.EnemyHome-world.HeroHome).normalized;
-                var palm=Bone(hero.Root,"HandBase_L","bip_hand_L");
+                // Zeta/Decker may still use the authored atlas fallback while
+                // their skeletal resources are unavailable. Keep the review
+                // useful for both paths: a rigged actor gets a wrist stability
+                // check, while the fallback is checked through HandPosition.
+                var palm=hero.IsRigged?Bone(hero.Root,"HandBase_L","bip_hand_L","hand_L","Hand_L","LeftHand","wrist_L","Wrist_L"):null;
                 var csv=new StringBuilder("frame,action,age,hits,landings,hipX,hipY,hipZ,leftX,leftY,leftZ,rightX,rightY,rightZ,palmX,palmY,palmZ\n");
                 var baked=new Mesh();
                 try
@@ -102,7 +111,7 @@ namespace UltramanGame.Editor
                         state.Tick(world.BattleDelta(dt,state),new PlayerInput{Tracking=true});
                         while(state.TryCue(out var cue)){world.Cue(cue,state);if(cue==GameCue.HeroLanded)landings++;}
                         hero.Update(state,world.Camera,dt,time);
-                        var hip=hero.GroundContactPosition;var left=hero.FootPosition(true);var right=hero.FootPosition(false);var hand=palm.position;
+                        var hip=hero.GroundContactPosition;var left=hero.FootPosition(true);var right=hero.FootPosition(false);var hand=palm? palm.position:hero.HandPosition;
                         if(grounded)
                         {
                             // The other actor's skin is an arm target. Repeat
@@ -110,7 +119,8 @@ namespace UltramanGame.Editor
                             Vector3 origin=hero.Root.position;
                             hero.Update(state,world.Camera,0,time);
                             float error=Mathf.Max(Vector3.Distance(origin,hero.Root.position),Vector3.Distance(hip,hero.GroundContactPosition),
-                                Vector3.Distance(left,hero.FootPosition(true)),Vector3.Distance(right,hero.FootPosition(false)),Vector3.Distance(hand,palm.position));
+                                Vector3.Distance(left,hero.FootPosition(true)),Vector3.Distance(right,hero.FootPosition(false)));
+                            if(palm)error=Mathf.Max(error,Vector3.Distance(hand,palm.position));
                             if(error>repeatError){repeatError=error;repeatDetails=$"frame={frame} action={state.Action} age={state.ActionAge:F5} root={Vector3.Distance(origin,hero.Root.position):F6} hip={Vector3.Distance(hip,hero.GroundContactPosition):F6} left={Vector3.Distance(left,hero.FootPosition(true)):F6} right={Vector3.Distance(right,hero.FootPosition(false)):F6} hand={Vector3.Distance(hand,palm.position):F6}";}
                         }
                         enemy.Update(state,world.Camera,dt,time);world.Tick(state,dt,time);
