@@ -22,11 +22,19 @@ namespace UltramanGame.Core
         public float Air=>Active&&Age<Landing?(float)Math.Sin(Math.PI*Age/Landing):0;
         // The hips begin turning after contact, then square up before landing.
         // Unlike the vertical arc, this has zero angular speed at both ends.
-        public float Tumble=>Active?Smooth(Age/.24f)*(1-Smooth((Age-.28f)/(Landing-.28f))):0;
-        public float TailFollow=>Active?Smooth((Age-.055f)/.24f)*(1-Smooth((Age-.30f)/(Landing-.30f))):0;
-        public float Lift=>Active&&Age<Landing?.72f*4*(Age/Landing)*(1-Age/Landing):0;
-        public float Travel=>Active?Smooth(Age/.30f)*(1-Smooth((Age-Recovery)/(Duration-Recovery))):0;
-        public float FootTravel(bool left)=>Active?Smooth(Age/.30f)*(1-Smooth((Age-Recovery-(left==Left?0:StepSeconds))/StepSeconds)):0;
+        // Spread the hip roll over the airborne beat.  The old narrow pulse
+        // peaked before the feet had left the floor, then went flat just as
+        // the torso landed; a wider smooth envelope keeps the chest,
+        // knees and tail in one readable arc without changing the contact
+        // timestamp.
+        public float Tumble=>Active?Smooth(Age/.28f)*(1-Smooth((Age-.34f)/(Landing-.34f))):0;
+        public float TailFollow=>Active?Smooth((Age-.055f)/.27f)*(1-Smooth((Age-.32f)/(Landing-.32f))):0;
+        public float Lift=>Active&&Age<Landing?.82f*4*(Age/Landing)*(1-Age/Landing):0;
+        // The root solver applies a small multiplier to Travel.  A restrained
+        // 10% increase makes the uppercut read as a forward launch while
+        // retaining the authored landing and the hero's chase handoff.
+        public float Travel=>Active?1.10f*Smooth(Age/.30f)*(1-Smooth((Age-Recovery)/(Duration-Recovery))):0;
+        public float FootTravel(bool left)=>Active?1.10f*Smooth(Age/.30f)*(1-Smooth((Age-Recovery-(left==Left?0:StepSeconds))/StepSeconds)):0;
         public float FootLift(bool left)
         {
             float t=(Age-Recovery-(left==Left?0:StepSeconds))/StepSeconds;

@@ -13,7 +13,10 @@ namespace UltramanGame.Core
             return number>0&&number%5==0;
         }
         static float Smooth(float value){value=Math.Max(0,Math.Min(1,value));return value*value*(3-2*value);}
-        public static float Reach(float age)=>age<Battle.PunchHitSeconds?Smooth(age/Battle.PunchHitSeconds):1-Smooth((age-.15f)/(Battle.PunchSeconds-.15f));
-        public static float Blend(float age)=>Smooth(age/.045f)*(1-Smooth((age-.24f)/(Battle.PunchSeconds-.24f)));
+        // Hold a small post-contact follow-through before returning to guard.
+        // The contact remains at Battle.PunchHitSeconds; this only keeps the
+        // fifth-hit silhouette connected to its recoil camera beat.
+        public static float Reach(float age)=>age<Battle.PunchHitSeconds?Smooth(age/Battle.PunchHitSeconds):1-Smooth((age-.17f)/(Battle.PunchSeconds-.17f));
+        public static float Blend(float age)=>Smooth(age/.05f)*(1-Smooth((age-.25f)/(Battle.PunchSeconds-.25f)));
     }
 }
