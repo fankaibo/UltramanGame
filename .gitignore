@@ -32,3 +32,6 @@ unity/Assets/Plugins/macOS/*.dylib
 music/
 unity/Assets/Resources/Voice/*.aiff
 unity/Assets/Resources/Voice/*.aiff.meta
+# User-provided music stays local and is never redistributed with the public repo.
+unity/Assets/Resources/Audio/miracle_reappearance.mp3
+unity/Assets/Resources/Audio/miracle_reappearance.mp3.meta

@@ -30,6 +30,7 @@ namespace UltramanGame.Runtime
         public event System.Action<string,float> InstructionStarted;
         public string HeroId="Tiga";
         public string MusicSource {get;private set;}="内置原创战斗循环（未包含《奇迹再现》）";
+        public bool ProjectMusicLoaded {get;private set;}
         public bool HasOriginalBeamVoice => clips.TryGetValue("Voice/beam_original",out var original) && original!=null;
         public string RequestedBeamVoiceKey {get;private set;}="beam";
         public string ResolvedBeamVoiceKey {get;private set;}="beam";
@@ -59,7 +60,13 @@ namespace UltramanGame.Runtime
             foreach(var clip in Resources.LoadAll<AudioClip>("Audio"))clips["Audio/"+clip.name]=clip;
             foreach(var clip in Resources.LoadAll<AudioClip>("Voice"))clips["Voice/"+clip.name]=clip;
             calm.clip=Clip("Audio/music_ready");battle.clip=Clip("Audio/music_battle");
-            MusicSource="内置原创战斗循环（未包含《奇迹再现》）";
+            var projectMusic=Clip("Audio/miracle_reappearance");
+            if(projectMusic)
+            {
+                calm.clip=projectMusic;battle.clip=projectMusic;ProjectMusicLoaded=true;
+                MusicSource="项目内导入《奇迹再现》";
+            }
+            else MusicSource="内置原创战斗循环（未包含《奇迹再现》）";
             calm.loop=battle.loop=true;calm.volume=battle.volume=0;calm.Play();battle.Play();
             Volume=PlayerPrefs.GetFloat("sound.master",.75f);MusicVolume=PlayerPrefs.GetFloat("sound.music",.45f);
             MusicEnabled=PlayerPrefs.GetInt("sound.musicEnabled",1)==1;
@@ -251,8 +258,16 @@ namespace UltramanGame.Runtime
         }
         public void UseLocalMusic(AudioClip clip,string sourceName=null)
         {
-            battle.Stop();var previous=localMusic;localMusic=clip;
-            battle.clip=clip?clip:Clip("Audio/music_battle");battle.loop=true;battle.Play();
+            calm.Stop();battle.Stop();var previous=localMusic;localMusic=clip;
+            if(clip)
+            {
+                calm.clip=clip;battle.clip=clip;ProjectMusicLoaded=false;
+            }
+            else
+            {
+                calm.clip=Clip("Audio/music_ready");battle.clip=Clip("Audio/music_battle");ProjectMusicLoaded=false;
+            }
+            calm.loop=battle.loop=true;calm.Play();battle.Play();
             if(previous)Object.Destroy(previous);
             MusicSource=clip?(sourceName??clip.name):"内置原创战斗循环（未包含《奇迹再现》）";
             if(Debug.isDebugBuild)Debug.Log($"[Audio] music source={MusicSource} local={(clip!=null)}");

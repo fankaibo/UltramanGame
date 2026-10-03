@@ -26,6 +26,12 @@ namespace UltramanGame.Runtime
         public void Initialize(GameAudio audio)
         {
             sound=audio;
+            if(sound.ProjectMusicLoaded)
+            {
+                SelectedName="奇迹再现（项目内音乐）";
+                HasSelection=true;
+                Status="项目内音乐自动循环播放 · 语音时自动降低音乐音量";
+            }
             var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,"--music");
             string path=i>=0&&i+1<args.Length?args[i+1]:PlayerPrefs.GetString(Preference,"");
             if(!string.IsNullOrEmpty(path))
