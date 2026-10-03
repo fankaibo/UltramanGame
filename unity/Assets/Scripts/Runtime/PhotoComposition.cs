@@ -121,10 +121,13 @@ namespace UltramanGame.Runtime
             else
             {
                 // Keep deliberate distance changes responsive while rejecting
-                // the large one-frame jumps caused by a noisy silhouette.
-                stablePersonScale=Mathf.Lerp(stablePersonScale,layout.PersonScale,.20f);
-                stablePersonX=Mathf.Lerp(stablePersonX,layout.PersonX,.24f);
-                stableShoulderY=Mathf.Lerp(stableShoulderY,layout.ShoulderY,.24f);
+                // the large one-frame jumps caused by a noisy silhouette. Do
+                // the response interpolation first, then cap the actual step;
+                // clamping the target before interpolation still lets a single
+                // bad matte move most of the way in one 8 FPS delivery.
+                stablePersonScale=BoundedLayoutStep(stablePersonScale,layout.PersonScale,.20f,.065f);
+                stablePersonX=BoundedLayoutStep(stablePersonX,layout.PersonX,.24f,.11f);
+                stableShoulderY=BoundedLayoutStep(stableShoulderY,layout.ShoulderY,.24f,.10f);
                 layout.PersonScale=stablePersonScale;layout.PersonX=stablePersonX;layout.ShoulderY=stableShoulderY;
             }
             FullBody=layout.FullBody;
@@ -132,6 +135,11 @@ namespace UltramanGame.Runtime
             PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,layout.PersonX,layout.ShoulderY);
             // Hero placement, crop and scale stay exactly as constructed, across every camera frame and retake.
             return true;
+        }
+        static float BoundedLayoutStep(float current,float target,float response,float maxStep)
+        {
+            float proposed=Mathf.Lerp(current,target,response);
+            return Mathf.MoveTowards(current,proposed,maxStep);
         }
         static float HeadTop(Texture2D texture,RectInt bounds,float center,float nose,float span)
         {
