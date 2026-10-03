@@ -21,6 +21,7 @@ namespace UltramanGame.Runtime
             if(!waiting&&!transforming&&!victory)
             {
                 DrawBattleHeader(ready,opening,cinematic);
+                if(cinematic)DrawFinisherCallout(time);
                 if(battle.Punches>0&&!cinematic)
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
@@ -312,6 +313,31 @@ namespace UltramanGame.Runtime
             hud.Rounded(BattleHudLayout.BeamTitle,new Color(.006f,.02f,.055f,.80f*alpha),8);
             hud.Line(new Vector2(438,716),new Vector2(842,716),new Color(.22f,.72f,1,.65f*alpha),1);
             hud.Text(new Rect(432,700,416,14),$"{SelectedHero.Beam} · {SelectedHero.BeamJapanese}",12,new Color(.77f,.94f,1,alpha),TextAnchor.MiddleCenter,true);
+        }
+
+        void DrawFinisherCallout(float time)
+        {
+            // The cabinet reference uses a compact character/skill cut-in when
+            // the finisher takes over the screen. Keep it in the clear left
+            // rail so the hero's hands, beam lane and monster reaction remain
+            // unobstructed in the dedicated close-up.
+            float age=Mathf.Max(0,battle.ActionAge);
+            float intro=Mathf.SmoothStep(0,1,Mathf.Clamp01(age/.16f));
+            float outro=1-Mathf.SmoothStep(0,1,Mathf.Clamp01((age-1.55f)/.32f));
+            float alpha=Mathf.Clamp01(intro*outro);
+            float x=Mathf.Lerp(-228,28,intro),y=142,w=226,h=148;
+            var cyan=new Color(.24f,.86f,1,alpha*.92f);
+            var gold=new Color(1,.72f,.30f,alpha*.94f);
+            hud.Rounded(new Rect(x+4,y+5,w,h),new Color(0,0,0,.24f*alpha),12);
+            hud.Rounded(new Rect(x,y,w,h),new Color(.008f,.026f,.060f,.88f*alpha),12);
+            hud.Line(new Vector2(x+14,y+13),new Vector2(x+78,y+13),cyan,2);
+            hud.Line(new Vector2(x+w-78,y+13),new Vector2(x+w-14,y+13),gold,2);
+            hud.HeroPortrait(new Rect(x+14,y+28,74,104),SelectedHero.Id);
+            hud.Text(new Rect(x+99,y+29,110,18),"必杀技",12,gold,TextAnchor.MiddleLeft,true);
+            hud.Text(new Rect(x+99,y+51,112,42),SelectedHero.Beam,17,HudPainter.Ink,TextAnchor.MiddleLeft,true);
+            hud.Text(new Rect(x+99,y+96,112,25),SelectedHero.BeamJapanese,10,new Color(.56f,.86f,1,alpha),TextAnchor.MiddleLeft);
+            float pulse=.52f+.48f*Mathf.Sin(time*8.5f);
+            hud.Line(new Vector2(x+99,y+126),new Vector2(x+202,y+126),new Color(.24f,.72f,1,alpha*(.45f+.35f*pulse)),2);
         }
 
         // A short cabinet-style cut-in makes the transition out of the
