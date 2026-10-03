@@ -5,6 +5,7 @@ edits; the actual game writes TEST photos to Downloads, which are moved into the
 ignored proof directory after validation.
 """
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -28,15 +29,57 @@ from vision.photo import GamePhoto
 from vision.supervision import stop_process
 
 
+def read_process_memory(pid):
+    """Read one macOS process sample without turning a missing process into zero."""
+    try:
+        result=subprocess.run(['ps','-o','rss=','-o','vsz=','-o','command=','-p',str(pid)],
+            check=False,capture_output=True,text=True)
+    except OSError:
+        return None,None,''
+    line=result.stdout.strip()
+    if result.returncode!=0 or not line:return None,None,''
+    fields=line.split(maxsplit=2)
+    if len(fields)<3:return None,None,''
+    try:return int(fields[0]),int(fields[1]),fields[2]
+    except ValueError:return None,None,fields[2]
+
+
+def summarize_memory(rows):
+    valid=[row for row in rows if row['rss_kib'] is not None]
+    if not valid:
+        return {'samples':0,'rss_mib':{},'vsz_gib':{},'stage_peaks_mib':{}}
+    rss=[row['rss_kib'] for row in valid];vsz=[row['vsz_kib'] for row in valid if row['vsz_kib'] is not None]
+    stages={}
+    for row in valid:
+        stages[row['stage']]=max(stages.get(row['stage'],0),row['rss_kib'])
+    return {'samples':len(valid),
+        'rss_mib':{'first':round(rss[0]/1024,1),'peak':round(max(rss)/1024,1),'last':round(rss[-1]/1024,1),
+                   'delta_last_minus_first':round((rss[-1]-rss[0])/1024,1)},
+        'vsz_gib':{'first':round(vsz[0]/1024/1024,2),'peak':round(max(vsz)/1024/1024,2),'last':round(vsz[-1]/1024/1024,2)} if vsz else {},
+        'stage_peaks_mib':{stage:round(value/1024,1) for stage,value in stages.items()}}
+
+
+def write_memory_report(path,rows):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    with path.open('w',newline='') as handle:
+        writer=csv.DictWriter(handle,fieldnames=['elapsed_s','stage','phase','photos_seen','rss_kib','vsz_kib','command'],delimiter='\t')
+        writer.writeheader();writer.writerows(rows)
+    summary_path=path.with_name(path.stem+'-summary.json')
+    summary_path.write_text(json.dumps(summarize_memory(rows),ensure_ascii=False,indent=2)+'\n')
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--output',type=Path,default=ROOT/'artifacts/guided-arcade')
     parser.add_argument('--log',type=Path,default=ROOT/'logs/guided-player.log')
+    parser.add_argument('--memory-output',type=Path,help='Write same-process RSS/VSZ samples as TSV and a summary JSON')
+    parser.add_argument('--memory-interval',type=float,default=1.0,help='Seconds between process memory samples')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
     options=parser.parse_args()
+    if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     if options.gesture_shape_noise and not options.gesture_wobble:parser.error('--gesture-shape-noise requires --gesture-wobble')
     if options.gesture_startup_noise and not options.gesture_entry_noise:parser.error('--gesture-startup-noise requires --gesture-entry-noise')
@@ -44,13 +87,17 @@ def main():
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
     log=options.log.resolve();log.parent.mkdir(parents=True,exist_ok=True);log.write_text('')
     folder=options.output.resolve();folder.mkdir(parents=True,exist_ok=True)
+    memory_output=options.memory_output.resolve() if options.memory_output else None
+    if memory_output:
+        memory_output.unlink(missing_ok=True)
+        memory_output.with_name(memory_output.stem+'-summary.json').unlink(missing_ok=True)
     def build_hashes():
         data=app/'Contents/Resources/Data'
         return {key:hashlib.sha256((data/file).read_bytes()).hexdigest()
                 for key,file in [('assembly_sha256','Managed/Assembly-CSharp.dll'),('resources_sha256','resources.assets')]}
     build={'started_utc':datetime.now(timezone.utc).isoformat(),'before':build_hashes()}
     for name in ('guided-validation.json','build.json'):(folder/name).unlink(missing_ok=True)
-    factory=FrameFactory(source='synthetic');process=None;photos=[];pose_trace=[]
+    factory=FrameFactory(source='synthetic');process=None;photos=[];pose_trace=[];memory_rows=[]
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
@@ -64,6 +111,7 @@ def main():
             guard_entries=beam_entry_noise_frames=0
             guard_shape_frames=guard_reacquisitions=0;guard_confirmed=False
             guard_startup_overlap_frames=beam_startup_frames=0
+            next_memory_sample=0.0
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -99,6 +147,11 @@ def main():
                         photos_seen+=1;stage='review';review_at=now
                     if '[Photo] gesture=play-again' in line:
                         stage='replay';replay_started_at=now
+                if memory_output and age>=next_memory_sample:
+                    rss_kib,vsz_kib,command=read_process_memory(process.pid)
+                    memory_rows.append({'elapsed_s':round(age,3),'stage':stage,'phase':phase,
+                        'photos_seen':photos_seen,'rss_kib':rss_kib,'vsz_kib':vsz_kib,'command':command})
+                    next_memory_sample=age+options.memory_interval
                 if options.gesture_startup_noise and unwanted_attacks:
                     raise RuntimeError(f'Gesture startup attack: count={unwanted_attacks} protected={protected}')
                 if options.gesture_shape_noise and guard_reacquisitions:
@@ -229,12 +282,14 @@ def main():
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
             if options.gesture_startup_noise:result['gesture_startup_noise']={'guard_overlap_frames':guard_startup_overlap_frames,'beam_bias_frames':beam_startup_frames}
+            if memory_output:result['memory']=summarize_memory(memory_rows)
             (folder/'guided-validation.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:
             stop_process(process)
             if options.gesture_startup_noise:
                 (folder/'synthetic-poses.jsonl').write_text(''.join(json.dumps(row,separators=(',',':'))+'\n' for row in pose_trace))
+            if memory_output:write_memory_report(memory_output,memory_rows)
             build['after']=build_hashes()
             (folder/'build.json').write_text(json.dumps(build,indent=2)+'\n')
 
