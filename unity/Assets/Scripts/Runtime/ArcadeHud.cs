@@ -222,15 +222,19 @@ namespace UltramanGame.Runtime
             float rushPulse=battle.Enemy==EnemyPhase.Attack?Mathf.Sin(Mathf.Clamp01(battle.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI):0;
             float hurtPulse=battle.Action==HeroAction.Hurt?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/KnockdownMotion.Duration)*Mathf.PI):0;
             if(punchPulse>.015f)
-                ScreenBurst(new Vector2(642,380),punchPulse,new Color(.26f,.84f,1),time,0,8,74,190);
+                // The old eight-ray burst reached well into both actors and
+                // read like a debug overlay on a television. Keep a compact
+                // six-ray accent at the contact lane; the world-space flash,
+                // hand wake and sparks still carry the actual hit.
+                ScreenBurst(new Vector2(642,380),punchPulse,new Color(.26f,.84f,1),time,0,6,10,128);
             if(rushPulse>.015f)
-                ScreenBurst(new Vector2(1010,350),rushPulse,new Color(1,.34f,.12f),time,1,7,88,210);
+                ScreenBurst(new Vector2(1010,350),rushPulse,new Color(1,.34f,.12f),time,1,6,12,146);
             if(hurtPulse>.015f)
-                ScreenBurst(new Vector2(438,420),hurtPulse,new Color(1,.18f,.12f),time,2,6,72,170);
+                ScreenBurst(new Vector2(438,420),hurtPulse,new Color(1,.18f,.12f),time,2,5,10,122);
             if(warning&&!punch&&rushPulse<=.015f)
             {
                 float pulse=.18f+.12f*(.5f+.5f*Mathf.Sin(time*7.2f));
-                ScreenBurst(new Vector2(1020,350),pulse,new Color(1,.46f,.15f),time,3,4,96,150);
+                ScreenBurst(new Vector2(1020,350),pulse,new Color(1,.46f,.15f),time,3,4,12,112);
             }
         }
 
@@ -240,9 +244,12 @@ namespace UltramanGame.Runtime
             {
                 float angle=(i+seed*.37f)*Mathf.PI*2/count+time*(.16f+seed*.03f);
                 float wobble=.84f+.16f*Mathf.Sin(time*4.2f+i*1.7f+seed);
-                float start=inner*(.82f+.18f*wobble),end=outer*(.82f+.18f*wobble)*pulse+.45f*outer;
+                // Grow from a small contact tick to a controlled peripheral
+                // streak. A fixed .45*outer tail previously left long rays
+                // visible even when the impact was nearly finished.
+                float start=inner*(.82f+.18f*wobble),end=outer*(.18f+.82f*pulse)*(.82f+.18f*wobble);
                 Vector2 direction=new Vector2(Mathf.Cos(angle),Mathf.Sin(angle));
-                float alpha=Mathf.Clamp01(pulse*(.18f+.07f*(i%3)));
+                float alpha=Mathf.Clamp01(pulse*(.12f+.05f*(i%3)));
                 hud.Line(center+direction*start,center+direction*(start+end),new Color(color.r,color.g,color.b,alpha),i%3==0?2:1);
             }
         }
