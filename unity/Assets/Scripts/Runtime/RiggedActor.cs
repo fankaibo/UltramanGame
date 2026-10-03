@@ -1969,7 +1969,11 @@ namespace UltramanGame.Runtime
                 bool lead=attack&&((side==0&&attackSide<0)||(side==1&&attackSide>0));
                 float idlePulse=!attack&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Rest
                     ?Mathf.Sin(time*2.35f+side*1.15f)*.045f:0;
-                float amount=Mathf.Max(.04f,curl*(lead?1.08f:.86f)+idlePulse);
+                // Keep the support claw visibly open. The imported attack clip
+                // folds that hand into a fist when the palm is edge-on; a
+                // smaller curl leaves a readable gap between the fingers while
+                // the lead claw still carries the contact action.
+                float amount=Mathf.Max(.04f,curl*(lead?1.08f:.62f)+idlePulse);
                 float sideSpread=(side==0?-1:1)*spread;
                 for(int i=0;i<ClawFingerNames.Length;i++)
                 {
@@ -2047,7 +2051,13 @@ namespace UltramanGame.Runtime
                 Vector3 axis=(wrist.position-lower.position).normalized;
                 bool lead=attack&&(side==0)==leadLeft;
                 float outward=Mathf.Lerp(.95f,lead?.35f:.80f,reach);
-                Vector3 desired=Root.up*.30f+Root.right*((side==0?-1:1)*outward);
+                // Aim the palm partly down the battle lane as well as outward.
+                // The old outward-only roll exposed the edge of the support
+                // palm, making its fingers overlap into one dark blob in the
+                // 45-degree camera. A forward component keeps the hand readable
+                // without changing its wrist position or arm endpoint.
+                Vector3 palmLane=forward*(lead?.30f:.20f);
+                Vector3 desired=palmLane+Root.up*.18f+Root.right*((side==0?-1:1)*outward*.36f);
                 Vector3 source=Vector3.ProjectOnPlane(wrist.TransformDirection(palmUpLocal[side]),axis);
                 desired=Vector3.ProjectOnPlane(desired,axis);
                 if(source.sqrMagnitude<.001f||desired.sqrMagnitude<.001f)continue;
