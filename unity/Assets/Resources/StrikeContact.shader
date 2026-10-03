@@ -20,14 +20,21 @@ Shader "Training/StrikeContact" {
   float tip=.43+.48*hash(n+3);
   float width=pow(saturate(1-across),1.4+hash(n+8)*2.3);
   float tongue=width*(1-smoothstep(tip-.12,tip,r))*smoothstep(.05,.19,r);
+  // The cabinet contact reads as a hot core followed by a thin expanding
+  // shock ring.  Keep the irregular tongues, then add the two temporal
+  // layers so a hit is still readable when the fist overlaps a dark mesh.
   float split=smoothstep(_Age*.34-.08,_Age*.34+.06,r);
   float fine=pow(saturate(1-across),18)*(1-smoothstep(tip-.08,tip+.08,r));
-  float core=exp(-r*r*95)*pow(saturate(1-_Age*1.45),1.3);
-  float haze=exp(-r*r*8)*.12;
-  float fade=pow(saturate(1-_Age),1.5);
-  float alpha=saturate((tongue*split+fine*.4+core*2+haze)*fade)*_Power;
-  float hot=saturate(core*2+pow(saturate(1-r*1.9),3)*.75);
-  float3 color=lerp(float3(1.7,.36,.055),float3(2.1,1.8,1.35),hot);
+  float core=exp(-r*r*120)*pow(saturate(1-_Age*1.65),1.25);
+  float bloom=exp(-r*r*15)*pow(saturate(1-_Age*1.18),1.10);
+  float ringRadius=lerp(.10,.72,smoothstep(.02,.60,_Age));
+  float ring=exp(-pow((r-ringRadius)*19,2))*pow(saturate(1-_Age),1.18);
+  float ringGlow=exp(-pow((r-ringRadius)*7,2))*.23*pow(saturate(1-_Age),1.35);
+  float haze=exp(-r*r*5.8)*.17;
+  float fade=pow(saturate(1-_Age),1.34);
+  float alpha=saturate((tongue*split+fine*.5+core*2.8+bloom*.58+ring*.72+ringGlow+haze)*fade)*_Power;
+  float hot=saturate(core*2.6+bloom*.85+ring*.65+pow(saturate(1-r*1.9),3)*.6);
+  float3 color=lerp(float3(1.62,.27,.035),float3(2.25,1.95,1.48),hot);
   return half4(color,alpha*(1-smoothstep(.87,1,r)));
  }
  ENDCG }

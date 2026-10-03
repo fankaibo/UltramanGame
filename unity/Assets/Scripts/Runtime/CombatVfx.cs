@@ -106,7 +106,7 @@ namespace UltramanGame.Runtime
                 shieldHitAge=0;
                 shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(position));
             }
-            atmosphere.Hit(position,special,blocked,!volumetric);
+            atmosphere.Hit(position,special,blocked,!volumetric,combo);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
             Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special));
             bool punch=!special&&!blocked&&!hurt;

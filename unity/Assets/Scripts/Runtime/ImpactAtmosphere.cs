@@ -20,21 +20,21 @@ namespace UltramanGame.Runtime
             for(int i=0;i<chips.Length;i++)
             {chips[i]=new Chip{Root=GameWorld.Primitive("Small impact fragment",PrimitiveType.Cube,parent,Vector3.zero,new Vector3(.032f,.023f,.042f),stone)};chips[i].Root.gameObject.SetActive(false);}
         }
-        public void Hit(Vector3 position,bool special,bool blocked,bool billboards=true)
+        public void Hit(Vector3 position,bool special,bool blocked,bool billboards=true,bool combo=false)
         {
             if(blocked)return;
-            int count=billboards?(special?9:4):0;
+            int count=billboards?(special?12:combo?9:7):0;
             for(int i=0;i<count;i++)
             {
-                var p=puffs[index++%puffs.Length];p.Age=0;p.Life=special?1.25f:.65f;p.Size=special?.65f:.3f;
-                p.Velocity=Random.onUnitSphere*(special?.8f:.4f)+Vector3.up*.3f;
-                p.Root.position=position+Random.insideUnitSphere*.16f;p.Root.gameObject.SetActive(true);p.Spin=Random.Range(-70,70);
-                p.Mat.color=new Color(.48f,.55f,.66f,special?.66f:.4f);p.Mat.SetFloat("_Hot",special?1:.65f);
+                var p=puffs[index++%puffs.Length];p.Age=0;p.Life=special?1.35f:combo?.86f:.72f;p.Size=special?.72f:combo?.40f:.34f;
+                p.Velocity=Random.onUnitSphere*(special?1.0f:combo?.62f:.48f)+Vector3.up*(special?.38f:combo?.42f:.34f);
+                p.Root.position=position+Random.insideUnitSphere*(special?.19f:combo?.15f:.13f);p.Root.gameObject.SetActive(true);p.Spin=Random.Range(-70,70);
+                p.Mat.color=new Color(.48f,.55f,.66f,special?.72f:combo?.54f:.48f);p.Mat.SetFloat("_Hot",special?1:combo?.90f:.78f);
             }
-            for(int i=0;i<(special?10:3);i++)
+            for(int i=0;i<(special?14:combo?8:5);i++)
             {
                 var c=chips[chipIndex++%chips.Length];c.Age=0;c.Root.position=new Vector3(position.x,.1f,position.z);
-                c.Velocity=Random.onUnitSphere*(special?1.4f:.65f)+Vector3.up*1.3f;c.Spin=Random.onUnitSphere*300;c.Root.gameObject.SetActive(true);
+                c.Velocity=Random.onUnitSphere*(special?1.4f:combo?.82f:.70f)+Vector3.up*(special?1.3f:combo?1.45f:1.35f);c.Spin=Random.onUnitSphere*300;c.Root.gameObject.SetActive(true);
             }
         }
         public void GroundBurst(Vector3 position,Vector3 direction,bool heavy)
