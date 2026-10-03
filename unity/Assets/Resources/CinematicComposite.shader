@@ -17,7 +17,9 @@ Shader "Training/CinematicComposite" {
   // Keep the central 64% of the image clean so the child can read the pose,
   // while the outer thirds carry the fast cabinet-style travel smear seen in
   // the reference footage.
-  float rim=smoothstep(.64,.98,abs(i.uv.x*2-1));
+  // Keep the soft halo outside the measured central 78% so the pose remains
+  // untouched even after the streak body is widened for a TV-sized display.
+  float rim=smoothstep(.80,.99,abs(i.uv.x*2-1));
   float vertical=smoothstep(.03,.15,i.uv.y)*(1-smoothstep(.85,.97,i.uv.y));
   float motionAmount=rim*vertical*_Motion.x;
   if(motionAmount>0) {
@@ -34,13 +36,17 @@ Shader "Training/CinematicComposite" {
    [unroll] for(int n=0;n<3;n++) {
     float slope=(n-1)*.38+side*.035+sin(_Motion.y*6+n*2.1)*.025;
     float separation=abs(d.y-slope*abs(d.x));
-    float width=.0012+rim*.0025;
-    float filament=exp(-pow(separation/width,2));
-    float halo=exp(-pow(separation/(width*3.5),2))*.14;
-    streak+=(filament+halo)*(.64+.36*sin(_Motion.y*9+n*2.1+side));
+    // The previous 1–3 px filaments read as hard debug lines on a TV.  Keep
+    // the same three directional bands, but give each a wide energy body and
+    // a softer falloff so the lens feels like a photographed light streak.
+    float width=.0038+rim*.0052;
+    float filament=exp(-pow(separation/width,2))*.34;
+    float halo=exp(-pow(separation/(width*5.2),2))*.30;
+    float shimmer=.82+.18*sin(_Motion.y*9+n*2.1+side);
+    streak+=(filament+halo)*shimmer;
    }
    float lead=_Motion.z==0?1:lerp(.60,1,step(0,side*_Motion.z));
-   c+=_MotionColor.rgb*streak*motionAmount*.44*lead;
+   c+=_MotionColor.rgb*streak*motionAmount*.30*lead;
   }
   c+=tex2D(_Bloom,i.uv).rgb*_Strength;
   // Keep the Fuji plate realistic, but give the whole combat lens the
