@@ -10,6 +10,19 @@ namespace UltramanGame.Runtime
         float selectionChangedAt;
         static bool HeroAvailable(int index)
         {var id=HeroRoster.At(index).Id;return Resources.Load<GameObject>("Characters/"+id+"/"+id)!=null;}
+        void SelectAdjacent(int direction)
+        {
+            direction=direction<0?-1:1;
+            // Keep the carousel usable while Zeta/Decker are still waiting
+            // for their real model files.  A future resource becomes
+            // selectable automatically without changing the roster order.
+            for(int step=1;step<=HeroRoster.Count;step++)
+            {
+                int candidate=HeroRoster.Wrap(heroIndex+direction*step);
+                if(HeroAvailable(candidate)){SelectHero(candidate);return;}
+            }
+            selectionHint="暂无可用英雄";
+        }
         void SelectHero(int index)
         {
             if(battle.Phase!=GamePhase.Waiting||photo.Active||settings||showcase)return;

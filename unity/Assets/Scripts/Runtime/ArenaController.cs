@@ -148,8 +148,8 @@ namespace UltramanGame.Runtime
             if(showcase)showcaseFrame=(showcaseFrame+8+(Input.GetKeyDown(KeyCode.RightArrow)?1:0)-(Input.GetKeyDown(KeyCode.LeftArrow)?1:0))%8;
             if(!showcase&&battle.Phase==GamePhase.Waiting)
             {
-                if(Input.GetKeyDown(KeyCode.LeftArrow))SelectHero(heroIndex-1);
-                if(Input.GetKeyDown(KeyCode.RightArrow))SelectHero(heroIndex+1);
+                if(Input.GetKeyDown(KeyCode.LeftArrow))SelectAdjacent(-1);
+                if(Input.GetKeyDown(KeyCode.RightArrow))SelectAdjacent(1);
             }
             if(Input.GetKeyDown(KeyCode.F6)) {showcase=false;OpenSettings(true);music.Choose();}
             if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
@@ -229,7 +229,7 @@ namespace UltramanGame.Runtime
                     int selection=heroSelectionGesture.Update(pose,now);
                     if(selection!=0)
                     {
-                        SelectHero(heroIndex+selection);
+                        SelectAdjacent(selection);
                         // Selection owns the waiting frame. The existing half
                         // second post-selection gate then prevents the same held
                         // hand from being mistaken for transform.
