@@ -1756,8 +1756,12 @@ namespace UltramanGame.Runtime
             // The outside leg extends to catch the fall while the nearer leg
             // folds under the pelvis.  Staggered targets are what make the
             // landing read as a fall rather than two knees bending together.
+            // Keep the two ankles on different forward planes: the extended
+            // leg gives the eye a clear line of impact while the tucked leg
+            // stays under the pelvis as a believable brace.
             float outsideReach=Mathf.Lerp(.48f,.68f,RiseStep(age,.12f,.42f));
-            Vector3 left=feet-side*outsideReach-forward*.18f,right=feet+side*.18f+forward*.12f;
+            float extension=Mathf.Lerp(.08f,.38f,RiseStep(age,.18f,.48f));
+            Vector3 left=feet-side*outsideReach-forward*.05f,right=feet+side*.22f+forward*(.30f+extension);
             left.y=home.y+leftFootClearance;right.y=home.y+rightFootClearance;
             // First bring the right foot beneath the hips while the left boot
             // and hand carry the body. Then step the left boot back as the
