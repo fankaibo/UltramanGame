@@ -474,11 +474,20 @@ namespace UltramanGame.Runtime
             {
                 float side=exchangeCamera.Side,travel=exchangeCamera.Travel;
                 float hurt=state.Action==HeroAction.Hurt?KnockdownMotion.Weight(state.ActionAge):0;
-                Vector3 position=cameraHome+viewRight*(side*Mathf.Lerp(.18f,.58f,travel))-viewForward*.08f;
-                Vector3 exchangeTarget=lookAt+viewRight*(side*.06f-.20f*hurt)+Vector3.up*(-.035f-.10f*hurt);
+                // Let the incoming monster carry the lens toward the contact.
+                // ExchangeFocus already owns the two-fighter composition; this
+                // small BattleAxis dolly makes the existing foot advance read
+                // as a real rush on a TV instead of a lateral pose change. It
+                // follows EnemyExchangeMotion.Travel, so the camera is back in
+                // the neutral shot during recovery and never changes gameplay
+                // timing or gesture recognition.
+                Vector3 position=cameraHome+viewRight*(side*Mathf.Lerp(.18f,.58f,travel))
+                    +BattleAxis*(.20f*travel)-viewForward*.08f;
+                Vector3 exchangeTarget=lookAt+BattleAxis*(.10f+.10f*travel)
+                    +viewRight*(side*.06f-.20f*hurt)+Vector3.up*(-.035f-.10f*hurt);
                 Camera.transform.position=Vector3.Lerp(Camera.transform.position,position,ExchangeFocus);
                 target=Vector3.Lerp(target,exchangeTarget,ExchangeFocus);
-                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,28.5f+1.7f*hurt,ExchangeFocus);
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,27.8f+1.7f*hurt,ExchangeFocus);
             }
             float launchFocus=enemy?.LaunchCamera??0;
             if(!Showcase&&MonsterRayMotion.Active(state)&&!Closeup.Active)
