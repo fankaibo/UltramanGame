@@ -43,5 +43,25 @@ static class PhotoLayoutChecks
         check(!PhotoLayout.TryFit(invalid,hero,out _),"zero body reference cannot create infinite photo scaling");
         invalid=hero;invalid.Center=float.NaN;
         check(!PhotoLayout.TryFit(invalid,hero,out _),"non-finite framing landmarks are rejected");
+
+        float scale=.82f,maxScaleStep=0;
+        for(int i=0;i<36;i++)
+        {
+            float next=PhotoLayout.Smooth(scale,1.62f,.20f,.028f);
+            maxScaleStep=Math.Max(maxScaleStep,Math.Abs(next-scale));scale=next;
+        }
+        check(maxScaleStep<=.028001f,"photo scale rejects one-frame matte jumps");
+        check(scale>1.60f,"photo scale still converges during sustained real movement");
+        float x=3.7f,maxPositionStep=0;
+        foreach(float target in new[]{2.1f,4.9f,2.1f,4.9f,2.1f,4.9f})
+        {
+            float next=PhotoLayout.Smooth(x,target,.24f,.050f);
+            maxPositionStep=Math.Max(maxPositionStep,Math.Abs(next-x));x=next;
+        }
+        check(maxPositionStep<=.050001f,"photo position rejects alternating matte noise");
+        float invalidCurrent=0;check(Math.Abs(PhotoLayout.Smooth(float.NaN,2,.2f,.1f)-2)<.0001f,
+            "photo smoothing recovers from an invalid initial state");
+        check(Math.Abs(PhotoLayout.Smooth(invalidCurrent,float.NaN,.2f,.1f))<.0001f,
+            "photo smoothing ignores an invalid target");
     }
 }

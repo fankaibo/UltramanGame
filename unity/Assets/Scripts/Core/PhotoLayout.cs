@@ -16,6 +16,21 @@ namespace UltramanGame.Core
     {
         public float PersonScale,PersonX,HeroScale,ShoulderY,HeroShoulderY,HeroBottom;
         public bool FullBody;
+        // Camera cutouts arrive much more slowly than the render loop.  Smooth
+        // the accepted target first, then cap the single-delivery delta so a
+        // noisy matte cannot make the person visibly jump in size or position.
+        public static float Smooth(float current,float target,float response,float maxStep)
+        {
+            if(float.IsNaN(current)||float.IsInfinity(current))return target;
+            if(float.IsNaN(target)||float.IsInfinity(target))return current;
+            float mix=Math.Max(0,Math.Min(1,response));
+            float cap=Math.Max(0,maxStep);
+            float proposed=current+(target-current)*mix;
+            float delta=proposed-current;
+            if(delta>cap)return current+cap;
+            if(delta<-cap)return current-cap;
+            return proposed;
+        }
         public static bool TryFit(PhotoBody person,PhotoBody hero,out PhotoLayout result,bool? fullBodyHint=null)
         {
             result=default;if(!person.Valid||!hero.Valid)return false;
