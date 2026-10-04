@@ -132,3 +132,9 @@ python3 scripts/guided_player_check.py \
 结果：144.7 秒，键鼠事件 0，自动合照 2 次，重拍、合照/预览断流恢复和再开局通过，照片预览 p99 差异为 0。游戏进程 141 个有效样本的 RSS 峰值约 **663.3 MiB**、末值约 **320.6 MiB**；阶段峰值为战斗 **663.3 MiB**、合照倒数 **301.4 MiB**、合照预览 **314.6 MiB**、再开局 **367.0 MiB**。VSZ 峰值约 **421.43 GiB**，只表示虚拟地址空间，不能当作实际内存。该样本没有显示回合间 RSS 单调增长，也没有复现独立游戏进程稳定占用 5 GB，因此本轮不降低角色/背景纹理、不关闭特效、不加入全局强制卸载。
 
 验证：`python3 -m py_compile scripts/guided_player_check.py`、`git diff --check` 和允许本机回环环境的 `bash scripts/check.sh`（**680 项**）通过。原始采样见 [arcade90-release-memory.tsv](../logs/arcade90-release-memory.tsv)，摘要见 [arcade90-release-memory-summary.json](../logs/arcade90-release-memory-summary.json)，完整流程见 [guided-validation.json](../artifacts/arcade90-release-memory/guided-validation.json)。P1 仍保持 Review，下一步是同一进程三局连续、角色切换、Unity reserved/帧率和真实摄像头/小米电视现场采样。
+
+### 2026-10-04：背景音乐导入的低风险内存优化
+
+用户提供的《奇迹再现》MP3 原先按 `DecompressOnLoad` 导入，长达 236.095 秒的双声道文件会在 Unity 启动时扩展为 PCM；这不是已复现的 5 GB 泄漏，但会制造没有必要的常驻峰值。本轮增加 `UserMusicImportSettings`，每次重新导入同名文件时强制使用 `CompressedInMemory`、Vorbis、后台加载和 44.1 kHz；`GameAudio` 的音乐 `AudioSource` 本来就是 2D，运行时诊断同时记录 `musicProject=True` 和来源字符串。
+
+Unity `AudioMixReview.ProjectMusic` 报告 `result=passed`，实际资源为 236.095 秒、双声道、44.1 kHz；15 秒混音录制和静音/暂停清理通过。Release 完整回放 `artifacts/arcade60-music-compressed-release/guided-validation.json` 通过，154.6 秒、键鼠事件 0、自动合照 2 次、重拍/再开局通过；日志记录 `musicProject=True musicSource=项目内导入《奇迹再现》`。这项改动只降低背景音乐的导入驻留方式，没有降低角色或场景画质；P1 仍需要同一进程角色切换、Unity reserved 和现场采样后才能关闭。
