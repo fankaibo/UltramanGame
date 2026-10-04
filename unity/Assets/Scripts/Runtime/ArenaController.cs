@@ -357,6 +357,12 @@ namespace UltramanGame.Runtime
         {
             photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
             battle=new Battle(monsterHits);recognizer.Reset(requireTransformRelease:true);presence.Reset();pose=null;held=default;
+            // Photo replay starts a fresh waiting screen.  The previous round
+            // may have consumed the one-hand selection latch, so clear it as
+            // well; otherwise the child can no longer change heroes after the
+            // first automatic photo.  Both recognizers still require the
+            // hands-down release before the same raised pose can transform.
+            heroSelectionGesture.Reset();
             // A photo round can leave the native worker on the same camera stream.
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.

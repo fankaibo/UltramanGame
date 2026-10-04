@@ -29,5 +29,8 @@ static class HeroSelectionChecks
         for(int i=0;i<5;i++){var f=Frame("neutral",ref stamp,ref sequence);g.Update(f,stamp);}
         check(g.Armed,"hands-down release rearms selection after a change");
         var stale=Frame("right",ref stamp,ref sequence);check(g.Update(stale,stamp+400)==0,"stale selection pose is ignored");
+        g.Reset();
+        int afterReset=0;for(int i=0;i<10;i++){var f=Frame("left",ref stamp,ref sequence);if(g.Update(f,stamp)<0)afterReset++;}
+        check(afterReset==1,"selection latch resets for a new round after photo replay");
     }
 }

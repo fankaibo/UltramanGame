@@ -29,6 +29,16 @@ from vision.photo import GamePhoto
 from vision.supervision import stop_process
 
 
+def selection_landmarks(direction):
+    """Return a single raised hand pose for the waiting-page hero carousel."""
+    points=landmarks_at(0)
+    if direction=='left':
+        points[15].x,points[15].y=.90,.02
+    else:
+        points[16].x,points[16].y=.10,.02
+    return points
+
+
 def read_process_memory(pid):
     """Read one macOS process sample without turning a missing process into zero."""
     try:
@@ -106,6 +116,7 @@ def main():
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
+            initial_selection_done=False;replay_selection_sent=False;replay_selection_seen=False
             beam_release_until=0
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
@@ -147,6 +158,8 @@ def main():
                         photos_seen+=1;stage='review';review_at=now
                     if '[Photo] gesture=play-again' in line:
                         stage='replay';replay_started_at=now
+                    if '[HeroSelection]' in line:
+                        if stage=='replay':replay_selection_seen=True
                 if memory_output and age>=next_memory_sample:
                     rss_kib,vsz_kib,command=read_process_memory(process.pid)
                     memory_rows.append({'elapsed_s':round(age,3),'stage':stage,'phase':phase,
@@ -175,11 +188,29 @@ def main():
                     # hands-down release and the spoken "举起双手" cue. Keep
                     # the synthetic player neutral until the audio window has
                     # elapsed; holding the transform pose from the photo review
-                    # would correctly be rejected as stale input.
-                    if replay_started_at and now-replay_started_at>7.0:
+                    # would correctly be rejected as stale input. Then exercise
+                    # one deliberate carousel gesture before transforming, so
+                    # the release path proves that a photo replay restores
+                    # selection ownership as well as the transform gate.
+                    replay_age=now-replay_started_at if replay_started_at else 0
+                    if replay_age<6.4:
+                        points=landmarks_at(0)
+                    elif replay_age<7.4:
+                        replay_selection_sent=True;points=selection_landmarks('right')
+                    elif replay_age<8.1:
+                        points=landmarks_at(0)
+                    else:
                         points=landmarks_at(2.5)
                 elif phase=='Waiting':
-                    if age>3:points=landmarks_at(2.5)
+                    # Consume the initial selection latch once, then release
+                    # before the first transform. This makes the later
+                    # post-photo reset assertion meaningful in the same run.
+                    if not initial_selection_done:
+                        if age<4.1:points=selection_landmarks('left')
+                        elif age<4.8:points=landmarks_at(0)
+                        else:
+                            initial_selection_done=True;points=landmarks_at(2.5)
+                    elif age>3:points=landmarks_at(2.5)
                 elif phase=='Battle' and stage=='battle':
                     if beam and now<beam_release_until:
                         # A short neutral/retract window arms the next beam.
@@ -244,6 +275,8 @@ def main():
                 time.sleep(1/30)
             if not replay_battle_at:raise RuntimeError('Guided loop did not complete within 240 seconds')
             if not review_loss_start:raise RuntimeError('Second-review pose dropout was not exercised')
+            if not replay_selection_sent or not replay_selection_seen:
+                raise RuntimeError(f'Photo replay did not restore hero selection: sent={replay_selection_sent} seen={replay_selection_seen}')
             required=['live cutout displayed','countdown interrupted','gesture=retake','gesture=play-again','automatic capture complete']
             for marker in required:
                 if marker not in output:raise RuntimeError('Missing '+marker)
@@ -277,7 +310,8 @@ def main():
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
-                'replay_battle_started':True,'photo_preview_p99_error':preview_error,'photos':photos}
+                'replay_battle_started':True,'replay_selection_reset':True,
+                'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
