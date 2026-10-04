@@ -342,7 +342,13 @@ namespace UltramanGame.Runtime
             // A slightly tighter ordinary lens gives the 16:9 living-room
             // shot more of that arcade scale while leaving the beam and fall
             // compositions in control of their own framing.
-            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?26.0f:27.0f):37;
+            // The portrait reference keeps both fighters visually dominant. On
+            // a 16:9 TV the previous 27° ordinary lens left too much empty
+            // sky and floor around the exchange. Tighten only the ordinary
+            // and shield lenses; beam, threat, combo and fall compositions
+            // retain their dedicated framing and the playfield review still
+            // guards the feet, HUD rails and camera-preview safe area.
+            float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?25.0f:25.5f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
             if(!ReferenceEquals(threatBattle,state)){threatBattle=state;ThreatFocus=0;}
