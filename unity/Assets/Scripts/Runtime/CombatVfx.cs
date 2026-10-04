@@ -39,6 +39,8 @@ namespace UltramanGame.Runtime
         public string GroundContactCause=>groundImpact.LastCause;
         int sparkIndex,flashIndex,hitRayIndex;
         float hitLightAge=10,hitLightPower=3,hitLightDuration=.22f,shieldHitAge=10,clock,beamBurstAge;
+        Vector3 shieldHitWorld;
+        bool shieldHitPending;
         float previousEnemyAge;
         int previousAttack,previousPunches;
         bool motionInitialized;
@@ -104,7 +106,12 @@ namespace UltramanGame.Runtime
             if(blocked)
             {
                 shieldHitAge=0;
-                shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(position));
+                // The shield is repositioned and compressed in Tick below. Keep
+                // the world-space contact until that transform is final, then
+                // project it into the current shield space. This avoids a one
+                // frame stale ripple when the incoming claw and camera are
+                // moving at the same time.
+                shieldHitWorld=position;shieldHitPending=true;
             }
             atmosphere.Hit(position,special,blocked,!volumetric,combo);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
@@ -181,7 +188,7 @@ namespace UltramanGame.Runtime
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
             warningRing.enabled=attackRing.enabled=false;
-            charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;muzzleLight.intensity=hitLight.intensity=0;
+            charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;shieldHitWorld=Vector3.zero;shieldHitPending=false;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
         {
@@ -264,6 +271,11 @@ namespace UltramanGame.Runtime
             shield.position=shieldCenter-axis*(compression*.12f);
             shield.rotation=Quaternion.LookRotation(axis,Vector3.up);
             shield.localScale=new Vector3(1.9f+compression*.12f,2.15f+compression*.07f,.38f-compression*.13f);
+            if(shieldHitPending)
+            {
+                shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(shieldHitWorld));
+                shieldHitPending=false;
+            }
             shieldMaterial.SetFloat("_Clock",clock);shieldMaterial.SetFloat("_HitAge",shieldHitAge);
             Vector3 enemyGround=end-Vector3.up*2.6f+axis*AnimatedActor.MonsterAdvance(state);
             bool warning=active&&state.Enemy==EnemyPhase.Windup;
