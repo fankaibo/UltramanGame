@@ -40,6 +40,27 @@ namespace UltramanGame.Editor
             if(!tigaOriginal||!neutralFallback)throw new Exception("Beam voice coverage lost the confirmed Tiga original or neutral fallback clip");
             Debug.Log("[AudioVoiceCoverage] passed heroes="+HeroRoster.Count+" folder="+folder);
         }
+        public static void ProjectMusic()
+        {
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combat-audio/project-music"));
+            Directory.CreateDirectory(folder);
+            const string assetPath="Assets/Resources/Audio/miracle_reappearance.mp3";
+            var clip=Resources.Load<AudioClip>("Audio/miracle_reappearance");
+            var importer=AssetImporter.GetAtPath(assetPath) as AudioImporter;
+            if(!clip||importer==null)
+            {
+                File.WriteAllText(folder+"/validation.txt","result=unavailable local user-provided MP3 is not present\n");
+                Debug.Log("[ProjectMusicReview] unavailable local MP3 not present; public checkout remains valid");
+                return;
+            }
+            var settings=importer.defaultSampleSettings;
+            if(settings.loadType!=AudioClipLoadType.CompressedInMemory||settings.compressionFormat!=AudioCompressionFormat.Vorbis||!importer.loadInBackground)
+                throw new Exception("Project music must remain compressed, Vorbis and loaded in background");
+            if(clip.length<1||clip.channels<1||clip.frequency<8000)throw new Exception("Project music clip is empty or invalid");
+            string report=FormattableString.Invariant($"result=passed clip={clip.name} seconds={clip.length:F3} channels={clip.channels} frequency={clip.frequency} loadType={settings.loadType} compression={settings.compressionFormat} loadInBackground={importer.loadInBackground}\n");
+            File.WriteAllText(folder+"/validation.txt",report);
+            Debug.Log("[ProjectMusicReview] "+report.Trim());
+        }
         public static void Arrival()
         {
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/monster-entrance"));Directory.CreateDirectory(folder);
