@@ -88,6 +88,7 @@ namespace UltramanGame.Runtime
         }
         readonly Vector3 home,target,forward;
         readonly LineRenderer charge,shock;
+        readonly LineRenderer rushRing;
         readonly LineRenderer[] rushWakes=new LineRenderer[3];
         readonly RushDust[] rushDust=new RushDust[8];
         readonly ClawSweep[] claws=new ClawSweep[3];
@@ -99,13 +100,18 @@ namespace UltramanGame.Runtime
         Vector3 hitPosition,previousHand,sweepDirection;
         int attackNumber=-1,impactAttack=-1;
         public bool SlashVisible => claws[0].Visible;
-        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled||rushDust[0].Root.gameObject.activeSelf;
+        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled||rushDust[0].Root.gameObject.activeSelf||rushRing.enabled;
         public MonsterAttackEffects(Transform parent,Vector3 monsterHome,Vector3 heroHome)
         {
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
             glow=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")) {color=Color.white});
             charge=Line(parent,"Monster charge",48,.035f,true);
             shock=Line(parent,"Monster contact",48,.07f,true);
+            // A ground-plane pressure ring gives the body rush a readable
+            // volume cue on a 16:9 television. It expands with the same
+            // EnemyAge as the feet and dust, so it cannot get out of sync or
+            // remain after pause/restart.
+            rushRing=Line(parent,"Monster rush pressure ring",49,.045f,true);
             for(int i=0;i<rushWakes.Length;i++)
                 rushWakes[i]=Line(parent,"Monster body rush wake "+i,7,.06f);
             for(int i=0;i<rushDust.Length;i++)rushDust[i]=new RushDust(parent,i);
@@ -129,7 +135,7 @@ namespace UltramanGame.Runtime
             }
         }
         public void Clear()
-        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
+        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=rushRing.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
         {hitAge=0;impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
@@ -198,8 +204,28 @@ namespace UltramanGame.Runtime
                 float dustFade=launch*settle;
                 var dustSide=Vector3.Cross(Vector3.up,forward).normalized;
                 foreach(var dust in rushDust)dust.Draw(camera,monster,forward,dustSide,progress,dustFade);
+
+                // The reference arcade shot sells a lunge with a widening
+                // pressure footprint before the claw reaches the hero. Keep
+                // it low and translucent so it supports the character rather
+                // than becoming another bright line across the hands.
+                float ringT=Mathf.Clamp01((age-.12f)/.42f);
+                float ringFade=launch*settle*(1-Mathf.SmoothStep(.72f,1,ringT));
+                rushRing.enabled=ringFade>.001f;
+                if(rushRing.enabled)
+                {
+                    float radius=Mathf.Lerp(.20f,1.08f,Mathf.SmoothStep(0,1,ringT));
+                    Vector3 center=monster+forward*(.10f+.20f*progress);center.y=.065f;
+                    for(int point=0;point<rushRing.positionCount;point++)
+                    {
+                        float angle=point/(float)(rushRing.positionCount-1)*Mathf.PI*2;
+                        rushRing.SetPosition(point,center+forward*(Mathf.Cos(angle)*radius)+dustSide*(Mathf.Sin(angle)*radius*.62f));
+                    }
+                    ColorLine(rushRing,new Color(1,.47f,.12f),ringFade*.46f);
+                    rushRing.widthMultiplier=.035f+.035f*Mathf.Clamp01(ringT);
+                }
             }
-            else {foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();}
+            else {foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();rushRing.enabled=false;}
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
