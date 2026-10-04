@@ -393,7 +393,7 @@ namespace UltramanGame.Runtime
             photo.KeyboardMode=keyboard;
             // Only replace the input source: keep the round, selected hero and
             // any open settings/photo review, while discarding stale gestures.
-            recognizer.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
+            recognizer.Reset();heroSelectionGesture.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
             lastTracking=false;gestureFeedbackUntil=0;cursorUntil=Time.unscaledTime+3;
             if(battle.Phase==GamePhase.Waiting&&!photo.Active)
             {sound.Reset();if(!keyboard&&!settings)sound.Speak("arcade_ready",1,GamePhase.Waiting);}
