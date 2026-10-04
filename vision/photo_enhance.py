@@ -270,7 +270,17 @@ def harmonise(composite, plate, mask, recipe):
     if cropped(a[0,:],.35): alpha[:span,:]=np.minimum(alpha[:span,:],soft[:span,:])
     if cropped(a[-1,:],.35): alpha[-span:,:]=np.minimum(alpha[-span:,:],soft[-span:,:])
     radius=max(1,round(2*composite.shape[0]/1080))
-    edge=(1-cv2.erode(a,np.ones((radius*2+1,radius*2+1),np.uint8)))*alpha
+    # Build the wrap band from a hard matte boundary instead of subtracting a
+    # blur from the soft alpha.  The latter treats a low-confidence interior
+    # (hair, sleeves and semi-transparent camera pixels) as one giant edge and
+    # mixes the blurred scene through the entire person.  A hard core plus a
+    # small dilation/erosion ring keeps the face and clothing sharp while still
+    # allowing the scene colour to cross the actual silhouette.
+    kernel=np.ones((radius*2+1,radius*2+1),np.uint8)
+    core=(a>.75).astype(np.uint8)
+    outer=cv2.dilate(core,kernel).astype(np.float32)
+    inner=cv2.erode(core,kernel).astype(np.float32)
+    edge=np.clip(outer-inner,0,1)*soft
     wrap=cv2.GaussianBlur(b,(0,0),max(2,composite.shape[0]/80))
     corrected=corrected*(1-edge[:,:,None]*recipe['light_wrap'])+wrap*edge[:,:,None]*recipe['light_wrap']
     shadow=_foot_shadow(a)*recipe['shadow_strength']
