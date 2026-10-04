@@ -158,6 +158,25 @@ class PhotoEnhancementTests(unittest.TestCase):
         # The plate outside the narrow edge band remains unchanged.
         np.testing.assert_array_equal(image[:,0:145],result[:,0:145])
 
+    def test_edge_feather_does_not_blur_subject_interior(self):
+        # The matte boundary may borrow nearby colour, but the opaque centre
+        # must retain high-frequency face/clothing detail from the source.
+        height,width=160,240
+        plate=np.full((height,width,3),(35,48,70),np.uint8)
+        image=plate.copy();mask=np.zeros((height,width),np.uint8)
+        mask[24:140,80:210]=255
+        image[mask>0]=(150,110,78)
+        for y in range(42,124,8):
+            for x in range(96,194,8):
+                if ((x//8)+(y//8))%2:image[y:y+4,x:x+4]=(220,180,132)
+        recipe=dict(exposure_ev=0,red_gain=1,green_gain=1,blue_gain=1,
+                    saturation=1,edge_feather_px=4,light_wrap=0,shadow_strength=0)
+        result=harmonise(image,plate,mask,recipe)
+        # The eroded centre is outside the feather ring and should be byte
+        # stable (apart from no-op linear encode rounding, which is exact for
+        # these authored values).
+        np.testing.assert_array_equal(result[48:116,112:178],image[48:116,112:178])
+
     def test_local_fallback_creates_a_visible_but_bounded_variant(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'photo.png';plate=root/'plate.png';mask=root/'mask.png'

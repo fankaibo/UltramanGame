@@ -242,13 +242,17 @@ def harmonise(composite, plate, mask, recipe):
     # fixed hero untouched while fading only source-frame boundaries.
     soft=_soften_camera_crop(a,soft)
     # Feather the premultiplied foreground out through the cutout boundary.
-    # The previous min(a, soft) only pulled pixels inward, leaving the camera
-    # rectangle visible as a hard dark edge. Premultiplication lets the new
-    # outer pixels inherit nearby hair/clothing colour without inventing a
-    # second silhouette or touching the fixed hero on the left.
+    # The edge colour is only allowed in a narrow boundary ring. Applying it
+    # wherever ``soft`` was non-zero used to blur the entire child/person,
+    # including the face and clothing texture, which made the AI preview look
+    # like a soft-focus filter instead of a scene integration pass.
     premult=corrected*a[:,:,None]
     edge_colour=cv2.GaussianBlur(premult,(0,0),max(.5,feather))
-    corrected=np.where(soft[:,:,None]>.0001,edge_colour/np.maximum(soft[:,:,None],.0001),corrected)
+    edge_radius=max(1,round(feather*2))
+    interior=cv2.erode((a>.5).astype(np.float32),np.ones((edge_radius*2+1,edge_radius*2+1),np.uint8))
+    edge_ring=np.clip(soft*(1-interior),0,1)
+    edge_colour=np.divide(edge_colour,np.maximum(soft[:,:,None],.0001))
+    corrected=corrected*(1-edge_ring[:,:,None])+edge_colour*edge_ring[:,:,None]
     # Only a narrow exterior band is allowed to borrow the feathered alpha.
     # Interior pixels retain the original matte exactly, preserving hair,
     # clothing texture and facial detail.
