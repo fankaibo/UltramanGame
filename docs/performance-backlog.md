@@ -138,3 +138,22 @@ python3 scripts/guided_player_check.py \
 用户提供的《奇迹再现》MP3 原先按 `DecompressOnLoad` 导入，长达 236.095 秒的双声道文件会在 Unity 启动时扩展为 PCM；这不是已复现的 5 GB 泄漏，但会制造没有必要的常驻峰值。本轮增加 `UserMusicImportSettings`，每次重新导入同名文件时强制使用 `CompressedInMemory`、Vorbis、后台加载和 44.1 kHz；`GameAudio` 的音乐 `AudioSource` 本来就是 2D，运行时诊断同时记录 `musicProject=True` 和来源字符串。
 
 Unity `AudioMixReview.ProjectMusic` 报告 `result=passed`，实际资源为 236.095 秒、双声道、44.1 kHz；15 秒混音录制和静音/暂停清理通过。Release 完整回放 `artifacts/arcade60-music-compressed-release/guided-validation.json` 通过，154.6 秒、键鼠事件 0、自动合照 2 次、重拍/再开局通过；日志记录 `musicProject=True musicSource=项目内导入《奇迹再现》`。这项改动只降低背景音乐的导入驻留方式，没有降低角色或场景画质；P1 仍需要同一进程角色切换、Unity reserved 和现场采样后才能关闭。
+
+### 2026-10-04：ARCADE-90 发行回放采样竞态与持久英雄选角修正
+
+上一轮发行版内存采样的首行曾读到进程创建竞态的 0.2 MiB；本轮 `summarize_memory()` 保留原始 TSV，但在摘要基线、末值、阶段峰值和差值中排除 RSS 小于 16 MiB 的样本，并输出 `summary_samples`，避免把进程尚未完成 Unity 映射的瞬间当作真实低水位。采样对象仍是游戏 PID；VSZ 只记录为虚拟地址空间，不计作实际 RAM。
+
+同时，发行包会记住上一次可用英雄。回放验证器以前固定向右挥手，当前英雄为格力乔时会落到尚未导入的泽塔占位卡，游戏正确地不发选角事件，但验证器误报失败。现在先读取运行日志中的当前英雄：格力乔向左切到已有的捷德，其余已知可用起点向右切换；合照后选角姿态窗口从 7.4 秒扩展到 8.8 秒，以覆盖采样/Metal 首帧长帧，不改变游戏自身手势门禁。
+
+发行版完整回放命令仍为：
+
+```sh
+python3 scripts/guided_player_check.py --gesture-wobble --gesture-entry-noise \
+  --output artifacts/arcade76-memory-summary-release \
+  --log logs/arcade76-memory-summary-release.log \
+  --memory-output logs/arcade76-memory-summary.tsv --memory-interval 1.0
+```
+
+结果：157.4 秒，键鼠事件 0，自动合照 2 次，重拍、合照/预览断流恢复、再开局和选角重置通过；防御/大招姿势噪声下误出拳 0，格挡 3，大招 2，照片预览 p99 差异 0。155 个原始 RSS 样本中 154 个用于摘要，游戏进程 RSS 首个有效值约 95.6 MiB、峰值 **682.2 MiB**、末值 271.0 MiB；阶段峰值为战斗 **682.2 MiB**、合照 **376.9 MiB**、预览 294.2 MiB、再开局 290.7 MiB。VSZ 峰值约 **422.02 GiB**，是虚拟地址空间，不能当作物理内存。
+
+验证：`python3 -m py_compile scripts/guided_player_check.py`、`git diff --check`、允许本机回环环境执行的 `bash scripts/check.sh`（**698 项**）通过；代码提交为 `0714d18`。当前仍没有复现独立游戏进程稳定占用 5 GB；ARCADE-90 继续保留角色切换、Unity reserved、稳定 60 FPS 和真实摄像头/小米电视现场专项。
