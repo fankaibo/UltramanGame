@@ -57,12 +57,16 @@ def read_process_memory(pid):
 def summarize_memory(rows):
     valid=[row for row in rows if row['rss_kib'] is not None]
     if not valid:
-        return {'samples':0,'rss_mib':{},'vsz_gib':{},'stage_peaks_mib':{}}
-    rss=[row['rss_kib'] for row in valid];vsz=[row['vsz_kib'] for row in valid if row['vsz_kib'] is not None]
+        return {'samples':0,'summary_samples':0,'rss_mib':{},'vsz_gib':{},'stage_peaks_mib':{}}
+    # The first ps sample can race process creation and report a tiny RSS
+    # before Unity has mapped its player. Keep that raw row in the TSV, but do
+    # not use it as the baseline for the memory summary or delta.
+    measured=[row for row in valid if row['rss_kib']>=16*1024] or valid
+    rss=[row['rss_kib'] for row in measured];vsz=[row['vsz_kib'] for row in measured if row['vsz_kib'] is not None]
     stages={}
-    for row in valid:
+    for row in measured:
         stages[row['stage']]=max(stages.get(row['stage'],0),row['rss_kib'])
-    return {'samples':len(valid),
+    return {'samples':len(valid),'summary_samples':len(measured),
         'rss_mib':{'first':round(rss[0]/1024,1),'peak':round(max(rss)/1024,1),'last':round(rss[-1]/1024,1),
                    'delta_last_minus_first':round((rss[-1]-rss[0])/1024,1)},
         'vsz_gib':{'first':round(vsz[0]/1024/1024,2),'peak':round(max(vsz)/1024/1024,2),'last':round(vsz[-1]/1024/1024,2)} if vsz else {},
@@ -117,6 +121,7 @@ def main():
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
             initial_selection_done=False;replay_selection_sent=False;replay_selection_seen=False
+            replay_selection_direction='right'
             beam_release_until=0
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
@@ -128,6 +133,13 @@ def main():
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
                 complete=output.rfind('\n')+1;lines=output[parsed:complete].splitlines();parsed=complete
                 for line in lines:
+                    hero_match=re.search(r'\[HeroAtlasLights\] hero=([A-Za-z0-9]+)',line)
+                    if hero_match:
+                        # The release build remembers the last playable hero.
+                        # Grigio is the last currently available card, so a
+                        # right wave would land on the intentionally unavailable
+                        # Zeta placeholder and produce no selection event.
+                        replay_selection_direction='left' if hero_match.group(1)=='Grigio' else 'right'
                     if options.gesture_wobble and protected and '[Gesture]' in line and '挥拳' in line:
                         unwanted_attacks+=1
                     if options.gesture_entry_noise and guard_started and now-guard_started<.7 and '[Gesture] 护盾已展开' in line:
@@ -193,11 +205,16 @@ def main():
                     # the release path proves that a photo replay restores
                     # selection ownership as well as the transform gate.
                     replay_age=now-replay_started_at if replay_started_at else 0
-                    if replay_age<6.4:
+                    # Memory sampling and the first Metal frame can briefly
+                    # stall the player for more than one render interval. Keep
+                    # the deliberate carousel pose visible long enough for a
+                    # fresh packet to reach HeroSelectionGesture; this does
+                    # not alter the game's own hold/release rules.
+                    if replay_age<6.0:
                         points=landmarks_at(0)
-                    elif replay_age<7.4:
-                        replay_selection_sent=True;points=selection_landmarks('right')
-                    elif replay_age<8.1:
+                    elif replay_age<8.8:
+                        replay_selection_sent=True;points=selection_landmarks(replay_selection_direction)
+                    elif replay_age<9.8:
                         points=landmarks_at(0)
                     else:
                         points=landmarks_at(2.5)
