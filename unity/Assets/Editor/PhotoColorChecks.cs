@@ -36,7 +36,7 @@ namespace UltramanGame.Editor
                         var uv=camera.WorldToViewportPoint(person.TransformPoint(new Vector3((band+.5f)/5-.5f,0,0)));
                         int x=Mathf.RoundToInt(uv.x*width),y=Mathf.RoundToInt(uv.y*encoded.height);
                         var mask=matte.GetPixels32()[y*width+x];
-                        if(Math.Abs(mask.r-Opacity[band])>1||mask.r!=mask.g||mask.r!=mask.b)
+                        if(Math.Abs(mask.r-Opacity[band])>1||mask.r!=mask.g||mask.r!=mask.b||Math.Abs(mask.a-Opacity[band])>1)
                             throw new Exception($"Matte {id} {width} alpha {Opacity[band]} exported as {mask}");
                         var bg=clean.GetPixel(x,y);var actual=encoded.GetPixel(x,y);float a=Opacity[band]/255f;
                         var foreground=new Color(193/255f,117/255f,52/255f);
@@ -58,6 +58,6 @@ namespace UltramanGame.Editor
             File.WriteAllText(folder+"/validation.txt",report.ToString());Debug.Log("[PhotoColorChecks] PASS\n"+report);
         }
         static Texture2D Decode(byte[] png)
-        {var t=new Texture2D(2,2,TextureFormat.RGB24,false);if(!t.LoadImage(png))throw new Exception("PNG decode failed");return t;}
+        {var t=new Texture2D(2,2,TextureFormat.RGBA32,false);if(!t.LoadImage(png))throw new Exception("PNG decode failed");return t;}
     }
 }

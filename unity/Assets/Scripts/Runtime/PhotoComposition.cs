@@ -181,23 +181,49 @@ namespace UltramanGame.Runtime
         }
         public byte[] PersonMatte()
         {
-            var color=camera.backgroundColor;
-            var previousTarget=camera.targetTexture;
-            bool heroVisible=Hero.Root.gameObject.activeSelf,backgroundVisible=backgroundQuad.gameObject.activeSelf;
-            // Alpha is data, not a display color. An sRGB target would encode
-            // a 50% edge as 73.5%, widening the AI integration mask.
-            var matte=RenderTexture.GetTemporary(Preview.width,Preview.height,16,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
-            try
+            // Build the matte from the same source alpha and quad transform as
+            // PhotoLayer.  Rendering a transparent ARGB target through a
+            // linear readback can quantise both RGB and alpha to a single
+            // opaque value on some Metal batch paths; a CPU export keeps the
+            // segmentation data exact without touching the fixed hero.
+            var source=person.mainTexture as Texture2D;
+            if(!source)throw new InvalidOperationException("Photo person texture is unavailable");
+            var sourcePixels=source.GetPixels32();var frame=person.GetVector("_Frame");
+            int width=Preview.width,height=Preview.height;var pixels=new Color32[width*height];
+            Vector3 center=camera.transform.InverseTransformPoint(personQuad.position);
+            float worldWidth=2f*camera.orthographicSize*camera.aspect,worldHeight=2f*camera.orthographicSize;
+            float scaleX=Mathf.Abs(personQuad.lossyScale.x),scaleY=Mathf.Abs(personQuad.lossyScale.y);
+            for(int y=0;y<height;y++)
             {
-                backgroundQuad.gameObject.SetActive(false);Hero.Root.gameObject.SetActive(false);camera.backgroundColor=Color.black;person.SetFloat("_MaskOnly",1);
-                camera.targetTexture=matte;camera.Render();
-                var picture=Readback(matte,true);try{return picture.EncodeToPNG();}finally{Release(picture);}
+                float cameraY=((y+.5f)/height-.5f)*worldHeight;
+                float v=(cameraY-(center.y-scaleY*.5f))/Mathf.Max(.0001f,scaleY);
+                float sourceV=frame.y+v*frame.w;
+                if(sourceV<0||sourceV>1)continue;
+                for(int x=0;x<width;x++)
+                {
+                    float cameraX=((x+.5f)/width-.5f)*worldWidth;
+                    float u=(cameraX-(center.x-scaleX*.5f))/Mathf.Max(.0001f,scaleX);
+                    float sourceU=frame.x+u*frame.z;
+                    if(sourceU<0||sourceU>1)continue;
+                    byte alpha=SampleAlpha(sourcePixels,source.width,source.height,sourceU,sourceV);
+                    // Python consumes the grayscale channel while Unity keeps
+                    // the alpha channel for any later native image path.
+                    pixels[y*width+x]=new Color32(alpha,alpha,alpha,alpha);
+                }
             }
-            finally
-            {
-                camera.targetTexture=previousTarget;RenderTexture.ReleaseTemporary(matte);
-                backgroundQuad.gameObject.SetActive(backgroundVisible);Hero.Root.gameObject.SetActive(heroVisible);camera.backgroundColor=color;person.SetFloat("_MaskOnly",0);dirty=true;
-            }
+            var matte=new Texture2D(width,height,TextureFormat.RGBA32,false,true);
+            try{matte.SetPixels32(pixels);matte.Apply(false,false);return matte.EncodeToPNG();}
+            finally{Release(matte);}
+        }
+
+        static byte SampleAlpha(Color32[] pixels,int width,int height,float u,float v)
+        {
+            float x=Mathf.Clamp01(u)*(width-1),y=Mathf.Clamp01(v)*(height-1);
+            int x0=Mathf.FloorToInt(x),y0=Mathf.FloorToInt(y),x1=Mathf.Min(width-1,x0+1),y1=Mathf.Min(height-1,y0+1);
+            float tx=x-x0,ty=y-y0;
+            float a0=Mathf.Lerp(pixels[y0*width+x0].a,pixels[y0*width+x1].a,tx);
+            float a1=Mathf.Lerp(pixels[y1*width+x0].a,pixels[y1*width+x1].a,tx);
+            return (byte)Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(a0,a1,ty)),0,255);
         }
         public Texture2D Snapshot()
         {
