@@ -134,8 +134,14 @@ namespace UltramanGame.Runtime
                 // Ordinary contacts need the same one-frame arcade punctuation
                 // as the reference cabinet. Keep the flash short and local so
                 // it reads as fist-to-chest impact, not a second finisher.
+                // Keep the directional contact card, but add a short local
+                // expanding ring. The reference cabinet makes a punch read
+                // as a contact event before the sparks disperse; the old
+                // point flare had no silhouette against Golza's dark chest.
+                // This is presentation-only and remains anchored to the
+                // measured fist contact, so it cannot change damage timing.
                 FlashAt(position,combo?1.12f:.82f,combo?.20f:.14f,
-                    new Color(1,.72f,.26f,combo?.92f:.78f));
+                    new Color(1,.72f,.26f,combo?.92f:.78f),true);
             }
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             if(!blocked&&!punch&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
