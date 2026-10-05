@@ -189,7 +189,10 @@ namespace UltramanGame.Runtime
                     var line=rushWakes[i];line.enabled=true;
                     float sideOffset=(i-1)*.22f;
                     float height=i==1?1.25f:(i==0?.58f:2.05f);
-                    float length=Mathf.Lerp(.34f,.92f,progress);
+                    // A long saturated ribbon reads like a red debug ray when
+                    // the side camera catches the original monster position.
+                    // Let dust and the bright claw carry the speed instead.
+                    float length=Mathf.Lerp(.08f,.22f,progress);
                     for(int point=0;point<line.positionCount;point++)
                     {
                         float u=point/(float)(line.positionCount-1);
@@ -197,9 +200,9 @@ namespace UltramanGame.Runtime
                         float bow=Mathf.Sin(u*Mathf.PI)*(.035f+.08f*progress);
                         line.SetPosition(point,monster-forward*(.08f+tail)+side*(sideOffset+bow)+Vector3.up*(height+Mathf.Sin(u*Mathf.PI)*.06f));
                     }
-                    Color tint=i==1?new Color(1,.72f,.26f):new Color(1,.36f,.10f);
-                    ColorLine(line,tint,launch*settle*(i==1?.78f:.43f));
-                    line.widthMultiplier=(i==1?.095f:.052f)*(0.72f+.48f*progress);
+                    Color tint=i==1?new Color(1,.78f,.45f):new Color(1,.50f,.25f);
+                    ColorLine(line,tint,launch*settle*(i==1?.22f:.10f));
+                    line.widthMultiplier=(i==1?.065f:.036f)*(0.80f+.32f*progress);
                 }
                 float dustFade=launch*settle;
                 var dustSide=Vector3.Cross(Vector3.up,forward).normalized;

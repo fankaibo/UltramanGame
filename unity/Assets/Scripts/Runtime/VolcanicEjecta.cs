@@ -125,11 +125,17 @@ namespace UltramanGame.Runtime
         {
             Vector3 along=head-tail;
             if(along.sqrMagnitude<.000001f)along=Vector3.up*.002f;
-            Vector3 side=Vector3.Cross(along,view).normalized*radius;
-            if(side.sqrMagnitude<.000001f)side=Vector3.right*radius;
-            int v=index*4;var tip=along.normalized*radius;
-            sparkVertices[v]=tail-tip-side;sparkVertices[v+1]=tail-tip+side;
-            sparkVertices[v+2]=head+tip+side;sparkVertices[v+3]=head+tip-side;
+            // Never stretch the billboard by the world-space flight distance:
+            // that turns a small ember into a thin red debug ray at 1080p.
+            // Keep a fixed, short direction so the shader still has a tapered
+            // UV axis while the visible shape stays a rounded spark.
+            Vector3 direction=along.normalized;
+            Vector3 side=Vector3.Cross(direction,view).normalized*radius*1.65f;
+            if(side.sqrMagnitude<.000001f)side=Vector3.right*radius*1.65f;
+            int v=index*4;var halfLength=radius*.72f;var center=head;
+            var tip=direction*halfLength;
+            sparkVertices[v]=center-tip-side;sparkVertices[v+1]=center-tip+side;
+            sparkVertices[v+2]=center+tip+side;sparkVertices[v+3]=center+tip-side;
             Color color=Color.Lerp(new Color(.75f,.035f,.002f),new Color(2.4f,.64f,.075f),heat);
             color.a=opacity;for(int j=0;j<4;j++)sparkColors[v+j]=color;
         }
