@@ -30,13 +30,13 @@ namespace UltramanGame.Runtime
                     // hits and the same combo no longer occupy three rows.
                     // Keep the score cue legible at TV distance without
                     // letting this side rail compete with the two fighters.
-                    hud.Text(new Rect(30,247,150,54),(comboActive?comboCount:battle.Punches).ToString("00"),34+(int)(pulse*4),new Color(1,.88f,.52f),bold:true);
-                    hud.Text(new Rect(33,304,150,20),comboActive?"连击":"命中",12,comboActive?gold:HudPainter.Muted,bold:true);
-                    hud.Line(new Vector2(33,337),new Vector2(99,337),gold,2);
+                    hud.Text(new Rect(32,242,122,46),(comboActive?comboCount:battle.Punches).ToString("00"),29+(int)(pulse*3),new Color(1,.88f,.52f),bold:true);
+                    hud.Text(new Rect(34,289,122,17),comboActive?"连击":"命中",11,comboActive?gold:HudPainter.Muted,bold:true);
+                    hud.Line(new Vector2(34,317),new Vector2(88,317),gold,2);
                     for(int i=0;i<5;i++)
                     {
                         float earned=Mathf.Clamp01((battle.Punches-i*3)/3f);
-                        Star(new Vector2(1230,244+i*30),8,.12f+.88f*earned);
+                        Star(new Vector2(1240,240+i*25),6.5f,.10f+.82f*earned);
                     }
                     if(comboActive)
                     {
@@ -177,7 +177,8 @@ namespace UltramanGame.Runtime
                 ?Mathf.Sin(Mathf.Clamp01(battle.ActionAge/.42f)*Mathf.PI):0;
             float threat=warning?.5f+.5f*Mathf.Sin(time*8.5f):0;
             float beam=cinematic?Mathf.Clamp01(battle.ActionAge/1.15f):0;
-            float alpha=transforming?.28f:victory?.22f:.38f+.14f*pulse;
+            float intensity=Mathf.Max(action,Mathf.Max(threat,beam));
+            float alpha=transforming?.22f:victory?.16f:.24f+.10f*pulse+.16f*intensity;
             Color left=new Color(.18f,.78f,1,alpha),right=new Color(1,.34f,.12f,alpha);
             if(warning&&!cinematic)
             {
@@ -194,21 +195,22 @@ namespace UltramanGame.Runtime
                 left.a=Mathf.Clamp01(left.a+.18f*action);right.a=Mathf.Clamp01(right.a+.12f*action);
             }
             const float top=112,bottom=660;
-            hud.Box(new Rect(8,top,4,bottom-top),new Color(left.r,left.g,left.b,left.a*.36f));
-            hud.Box(new Rect(1268,top,4,bottom-top),new Color(right.r,right.g,right.b,right.a*.36f));
-            for(int i=0;i<8;i++)
+            hud.Box(new Rect(8,top,3,bottom-top),new Color(left.r,left.g,left.b,left.a*.28f));
+            hud.Box(new Rect(1269,top,3,bottom-top),new Color(right.r,right.g,right.b,right.a*.28f));
+            int railCount=intensity>.05f?6:4;
+            for(int i=0;i<railCount;i++)
             {
-                float y=top+25+i*68;
+                float y=top+34+i*((bottom-top-68)/Mathf.Max(1,railCount-1));
                 float wave=.55f+.45f*Mathf.Sin(time*4.1f+i*.85f);
-                float width=18+8*wave;
-                hud.Line(new Vector2(14,y),new Vector2(14+width,y-10),new Color(left.r,left.g,left.b,left.a*(.44f+.34f*wave)),2);
-                hud.Line(new Vector2(1266,y),new Vector2(1266-width,y-10),new Color(right.r,right.g,right.b,right.a*(.44f+.34f*wave)),2);
+                float width=14+6*wave;
+                hud.Line(new Vector2(13,y),new Vector2(13+width,y-8),new Color(left.r,left.g,left.b,left.a*(.34f+.28f*wave)),2);
+                hud.Line(new Vector2(1267,y),new Vector2(1267-width,y-8),new Color(right.r,right.g,right.b,right.a*(.34f+.28f*wave)),2);
             }
             // A small lower chevron locks the frame to the ground plane during
             // a hit, giving the child a clear visual rhythm without a panel.
-            float groundPulse=.35f+.65f*Mathf.Max(action,beam,threat);
-            hud.Line(new Vector2(14,674),new Vector2(44,674),new Color(left.r,left.g,left.b,left.a*groundPulse),2);
-            hud.Line(new Vector2(1266,674),new Vector2(1236,674),new Color(right.r,right.g,right.b,right.a*groundPulse),2);
+            float groundPulse=.10f+.70f*Mathf.Max(action,beam,threat);
+            hud.Line(new Vector2(13,674),new Vector2(39,674),new Color(left.r,left.g,left.b,left.a*groundPulse),2);
+            hud.Line(new Vector2(1267,674),new Vector2(1241,674),new Color(right.r,right.g,right.b,right.a*groundPulse),2);
         }
 
         // The reference cabinet uses brief directional streaks to connect a
