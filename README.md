@@ -257,3 +257,6 @@ docs/                    需求、实现和验证记录
 
 
 本轮把哥尔赞前冲时的非主攻爪从肩线收回胸前，避免双臂同时平伸；`ClawPoseReview.Release`、`ExchangeReview.After`、700 项核心检查、Release 构建和无键鼠完整回放均通过。当前回放截图位于 `artifacts/cinematic-combat/player/20261005T120153675645Z/native/monster-arms-left.png`，专项对照位于 `artifacts/claw-grip/after/` 与 `artifacts/exchange-combo-afterimage/after/`。这改善了支撑爪的读法，但高精度怪兽模型、参考视频级连续动作、真实儿童/摄像头/小米电视现场和稳定 60 FPS 仍保持 Review。
+
+
+本轮为普通拳接触点增加短时扩散冲击环，保留方向性命中卡、碎片、尘浪和局部受光；它让“拳到胸口”的瞬间更接近街机的接触—爆闪—散开节奏。ImpactSpill、ExchangeReview、700 项核心回归、Release 构建和完整无键鼠回放均通过。最新取证为 `artifacts/cinematic-combat/player/20261005T124129064386Z/native/punch-impact-left.png` 与 `combo-camera-peak.png`；参考视频级连续动作、高精度模型、真实儿童/摄像头/小米电视现场和稳定 60 FPS 仍保持 Review。
