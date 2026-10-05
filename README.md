@@ -254,3 +254,6 @@ docs/                    需求、实现和验证记录
 ```
 
 仓库沿用初始的 Apache-2.0 代码许可证。内置 Noto Sans SC 字体保留 OFL 1.1 许可证，来源与校验值见 [第三方资源](THIRD_PARTY.md)。本仓库不包含街机游戏文件、商业角色模型或从宣传视频提取的素材。
+
+
+本轮把哥尔赞前冲时的非主攻爪从肩线收回胸前，避免双臂同时平伸；`ClawPoseReview.Release`、`ExchangeReview.After`、700 项核心检查、Release 构建和无键鼠完整回放均通过。当前回放截图位于 `artifacts/cinematic-combat/player/20261005T120153675645Z/native/monster-arms-left.png`，专项对照位于 `artifacts/claw-grip/after/` 与 `artifacts/exchange-combo-afterimage/after/`。这改善了支撑爪的读法，但高精度怪兽模型、参考视频级连续动作、真实儿童/摄像头/小米电视现场和稳定 60 FPS 仍保持 Review。
