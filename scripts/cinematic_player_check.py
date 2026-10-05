@@ -13,7 +13,7 @@ from PIL import Image
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--width',type=int,default=1920);parser.add_argument('--height',type=int,default=1080)
-    parser.add_argument('--hero', choices=('Tiga','Mebius','Zero','Geed','Grigio'), default='Tiga')
+    parser.add_argument('--hero', choices=('Tiga','Mebius','Zero','Geed','Grigio','Zeta','DeckerStrong'), default='Tiga')
     parser.add_argument('--slam', action='store_true', help='Wait for the third, ground-slam attack before counterattacking')
     parser.add_argument('--ray', action='store_true', help='Exercise the fourth, head-ray attack before counterattacking')
     parser.add_argument('--linked', action='store_true', help='Queue the first three alternating fists during recovery')
@@ -65,6 +65,14 @@ def main():
     # live round below. Older builds may emit the bounded warmup marker.
     warmup_markers=('[PresentationWarmup] complete','[PresentationWarmup] skipped render warmup')
     warmup_marker=next((marker for marker in warmup_markers if marker in output),None)
+    # Release builds can skip the optional presentation warmup entirely. The
+    # first review hero/rigger pair is then the authoritative boundary between
+    # startup diagnostics and the live round; it is emitted after the player
+    # has created the actual materials used by the cinematic proof.
+    if warmup_marker is None:
+        hero_marker=f'[FullGameReviewHero] id={args.hero}'
+        if hero_marker in output and re.search(rf'\[RiggedActor\] name={re.escape(args.hero)} ', output):
+            warmup_marker=hero_marker
     if warmup_marker is None:
         raise RuntimeError('Presentation warmup state was not reported')
     live_output = output.split(warmup_marker, 1)[1]

@@ -14,5 +14,10 @@ static class HeroRosterChecks
         check(HeroRoster.At(HeroRoster.Index("Zero")).BeamJapanese=="ゼロツインシュート","Zero keeps Twin Shoot label");
         check(HeroRoster.At(HeroRoster.Index("Zeta")).BeamJapanese=="ゼスティウム光線","Zeta keeps Zestium Beam label");
         check(HeroRoster.At(HeroRoster.Index("DeckerStrong")).BeamJapanese=="ドルネードブレイカー","Decker Strong keeps Dolnade Breaker label");
+        var zero=HeroRoster.At(HeroRoster.Index("Zero"));
+        check(zero.BeamDual&&zero.BeamTint=="#67C8FF","Zero finisher keeps a distinct twin-beam presentation profile");
+        check(HeroRoster.At(HeroRoster.Index("Geed")).BeamTint!="#5CCBFF"&&
+            HeroRoster.At(HeroRoster.Index("Grigio")).BeamTint!="#5CCBFF",
+            "non-Tiga finishers do not silently fall back to the generic blue presentation");
     }
 }

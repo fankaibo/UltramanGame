@@ -32,7 +32,7 @@ namespace UltramanGame.Runtime
             // Construct first so a bad resource cannot destroy the currently playable hero.
             var replacement=new AnimatedActor(HeroRoster.At(index).Id,world.HeroHome,world.EnemyHome);
             var old=hero;hero=replacement;heroIndex=index;world.BindActors(hero,enemy);Destroy(old.Root.gameObject);
-            photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;
+            photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;world.SetHeroProfile(SelectedHero.Id);
             PlayerPrefs.SetString("hero.selected",SelectedHero.Id);PlayerPrefs.Save();
             recognizer.Reset();held=default;selectionHint="";selectionChangedAt=Time.unscaledTime;
             heroSelectionGesture.Consume();

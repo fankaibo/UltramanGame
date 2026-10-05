@@ -47,6 +47,8 @@ namespace UltramanGame.Runtime
         public int ActiveSparkCount {get;private set;}
         public bool BeamVisible => beam.Visible;
         static readonly Color Ice=new Color(.15f,.65f,1),Warm=new Color(1,.48f,.12f);
+        Color beamTint=Ice,beamAccent=new Color(.90f,.98f,1);
+        bool beamDual;
         public CombatVfx(Transform parent)
         {
             atmosphere=new ImpactAtmosphere(parent);
@@ -74,7 +76,16 @@ namespace UltramanGame.Runtime
             // This short-lived, small light needs per-pixel falloff on the
             // low-poly skin instead of being demoted to broad vertex lighting.
             hitLight.renderMode=LightRenderMode.ForcePixel;
+            beam.SetProfile(beamTint,beamAccent,beamDual);
         }
+        public void SetHeroProfile(string heroId)
+        {
+            var hero=HeroRoster.At(HeroRoster.Index(heroId));
+            beamTint=ParseColor(hero.BeamTint,Ice);beamAccent=ParseColor(hero.BeamAccent,Color.white);beamDual=hero.BeamDual;
+            beam.SetProfile(beamTint,beamAccent,beamDual);
+        }
+        static Color ParseColor(string value,Color fallback)
+        {return ColorUtility.TryParseHtmlString(value,out var parsed)?parsed:fallback;}
         LineRenderer Line(Transform parent,string name,int count,float width)
         {
             var line=new GameObject(name).AddComponent<LineRenderer>();line.transform.SetParent(parent,false);line.sharedMaterial=lineMaterial;
@@ -293,7 +304,7 @@ namespace UltramanGame.Runtime
             }
             beam.Tick(camera,origin,beamTarget,state.ActionAge,firing,clock);
             charge.gameObject.SetActive(firing);charge.position=origin-camera.transform.forward*.03f;charge.rotation=camera.transform.rotation;
-            charge.localScale=Vector3.one*.8f;chargeMaterial.color=new Color(.5f,.8f,1,beam.Power*.72f);
+            charge.localScale=Vector3.one*.8f;chargeMaterial.color=Color.Lerp(beamTint,beamAccent,.35f)*new Color(1,1,1,beam.Power*.72f);
             bool gathering=active&&state.Action==HeroAction.Beam&&(closeup||state.ActionAge<BeamStream.LaunchSeconds+.1f);
             beamCharge.Sample(gathering,closeup?closeupAge:BeamCloseup.Duration+state.ActionAge,origin,leftHand,rightHand,axis);
             bool contacting=firing&&state.ActionAge>=Battle.BeamHitSeconds;
@@ -313,7 +324,7 @@ namespace UltramanGame.Runtime
             hitLight.intensity=hitLightPower*(1-Mathf.SmoothStep(0,1,hitLightAge/hitLightDuration));
             if(contacting)
             {
-                hitLight.transform.position=beamTarget-axis*.3f;hitLight.color=Ice;
+                hitLight.transform.position=beamTarget-axis*.3f;hitLight.color=beamTint;
                 hitLight.intensity=Mathf.Max(hitLight.intensity,beam.Power*(1.6f+.2f*Mathf.Sin(clock*19)));
             }
         }

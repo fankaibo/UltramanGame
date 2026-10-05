@@ -103,7 +103,7 @@ namespace UltramanGame.Runtime
                 }
                 Debug.Log($"[FullGameReviewHero] id={SelectedHero.Id}");
             }
-            photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;
+            photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;world.SetHeroProfile(SelectedHero.Id);
             hero=new AnimatedActor(SelectedHero.Id,world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             world.BindActors(hero,enemy);
             PresentationWarmup.Run(world,hero,enemy);
