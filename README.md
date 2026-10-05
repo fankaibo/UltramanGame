@@ -2,7 +2,7 @@
 
 [![Core and pose bridge checks](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml/badge.svg?branch=codex/guided-arcade)](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml?query=branch%3Acodex%2Fguided-arcade)
 
-当前可试玩基线：`codex/guided-arcade`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **698 项通过**；合照流关闭竞态已修复，避免最后一个取景客户端退出后旧照片重新写回缓存。完整进度与证据见 [开发任务看板](docs/开发任务看板.md) 和 [验证记录](docs/验证记录.md)。
+当前可试玩基线：`codex/guided-arcade`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **698 项通过**；合照流关闭竞态已修复，避免最后一个取景客户端退出后旧照片重新写回缓存。远程 GitHub Actions run [707](https://github.com/fankaibo/UltramanGame/actions/runs/37246779016) 和 [708](https://github.com/fankaibo/UltramanGame/actions/runs/37246782756) 均成功。完整进度与证据见 [开发任务看板](docs/开发任务看板.md) 和 [验证记录](docs/验证记录.md)。
 
 本轮针对真人试玩反馈继续修正动作意图：护盾在胸前姿势确认的前 120 ms 就先占用输入，默认确认时间降到约 160 ms，避免抖动先被当成进攻；单手前伸会用原始帧的前向深度和离肩方向解除护盾锁定，仍能区分左右拳。必杀的 L 形入口增加肘部上升证据，二维姿势先锁住大招所有权，深度只负责累计进度；深度短暂不稳会暂停而不会转成普攻，动作所有权保护窗口延长到约 620 ms，原始双手放低会立即重新蓄力。离线核心回归仍为 698 项通过，最新 Tiga 打包版完成 32 次普攻、2 次光线、3 次格挡、1 次受击和胜利回放。哥尔赞两只手在 Rest/Windup/Attack/Recover 交接处加入连续过渡，逐帧手腕跳变由最高 0.1168 降到 0.0032 以内。战斗普通镜头收紧到约 27.8°，底部引导压成 29px 的窄轨道，角色在电视画面中更接近街机主体比例；专属大招反应近景单独按 cinematic 镜头验收，不再被普通全身构图规则误判。合照融合提高了富士夜景环境色、边缘羽化和接触阴影的幅度；本地备用版在合成测试中平均像素变化约 3.74，超过 22% 的画面像素有可见变化。网关不可用时仍保留原图，并另存有明确标注的本地环境光版，避免把未处理的原图冒充 AI 成片。
 
