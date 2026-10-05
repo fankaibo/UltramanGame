@@ -1939,7 +1939,12 @@ namespace UltramanGame.Runtime
             // support hand read as a rigid paddle at the 45-degree cabinet
             // angle, so keep the fingers closer together and let the lead
             // claw supply the silhouette.
-            float curl=.23f,spread=.56f;
+            // The imported fingers already carry a small authored fan. The
+            // old runtime multiplier widened the outer digits beyond a palm
+            // silhouette, so the support claw read as a flat paddle in the
+            // 45-degree shot. Keep the lead claw readable while letting the
+            // tucked claw stay compact around the chest.
+            float curl=.23f,spread=.38f;
             bool attack=false;
             int attackSide=1;
             if(preview>=0)
@@ -1982,13 +1987,13 @@ namespace UltramanGame.Runtime
                 // smaller curl leaves a readable gap between the fingers while
                 // the lead claw still carries the contact action.
                 float amount=Mathf.Max(.04f,curl*(lead?1.08f:.62f)+idlePulse);
-                float sideSpread=(side==0?-1:1)*spread;
+                float sideSpread=(side==0?-1:1)*spread*(lead?1f:.62f);
                 for(int i=0;i<ClawFingerNames.Length;i++)
                 {
                     var first=clawFingers[i,side,0];
                     if(first)
                     {
-                        float fan=sideSpread*(i-1.5f)*3.2f;
+                        float fan=sideSpread*(i-1.5f)*2.2f;
                         first.rotation=Quaternion.AngleAxis(fan,palmUp)*Quaternion.AngleAxis(amount*(44+i*4),curlAxis)*first.rotation;
                     }
                     var tip=clawFingers[i,side,1];
