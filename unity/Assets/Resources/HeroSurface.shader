@@ -83,7 +83,16 @@ Shader "Training/HeroSurface" {
    c.rgb*=1+micro*.022*microMask;
    o.Albedo=c.rgb;o.Metallic=lerp(_Metallic,.42,silver);
    o.Smoothness=lerp(_Glossiness,.43,silver)-abs(micro)*.035*microMask;
-   o.Normal=normalize(float3(micro*.028*microMask,micro*.021*microMask,1));
+   // The downloaded hero atlases do not ship a normal map. Recover a very
+   // small amount of panel/paint relief from the filtered albedo derivative
+   // so silver seams and colored inserts catch the same key light as the Tiga
+   // costume. GPU derivatives reuse the current texture sample (four extra
+   // neighbor reads made the first 1080P frame needlessly expensive).
+   float luma=dot(c.rgb,float3(.30,.59,.11));
+   float2 reliefGradient=float2(ddx(luma),ddy(luma));
+   float reliefStrength=(.055+.065*_MicroDetail)*saturate(1-silver*.55);
+   float2 relief=reliefGradient*reliefStrength;
+   o.Normal=normalize(float3(micro*.028*microMask+relief.x,micro*.021*microMask+relief.y,1));
    if(_CostumeFinish>0) {
     // The original UV colors define the panels exactly. Calibrate their
     // reflectance as dyed costume fabric, rather than pure RGB paint.
