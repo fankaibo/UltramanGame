@@ -31,10 +31,18 @@ class _PhotoHandler(_Handler):
             super().handle()
         finally:
             with bridge.changed:
-                bridge.subscribers -= 1
-                print("[PhotoStream] released", file=sys.stderr, flush=True)
-                if not bridge.subscribers:
+                # Clear the cached packet before exposing the zero-subscriber
+                # state.  The test and the camera worker both observe the
+                # count as a cheap liveness signal; publishing the count first
+                # leaves a tiny window where a closed client can still appear
+                # to have a stale frame.
+                remaining = bridge.subscribers - 1
+                if remaining <= 0:
                     bridge.latest = b""
+                    bridge.subscribers = 0
+                else:
+                    bridge.subscribers = remaining
+                print("[PhotoStream] released", file=sys.stderr, flush=True)
 
 
 class GamePhoto:
