@@ -362,23 +362,23 @@ namespace UltramanGame.Runtime
             // upper third of the playfield.  The reference cabinet uses a
             // compact versus badge; the fighters should remain the largest
             // shapes from the first battle frame.
-            float width=420*scale,height=56*scale,x=(1280-width)/2,y=7;
+            float width=360*scale,height=48*scale,x=(1280-width)/2,y=8;
             var cyan=new Color(.22f,.84f,1,alpha*.92f);
             var gold=new Color(1,.70f,.25f,alpha*.92f);
             hud.Rounded(new Rect(x,y,width,height),new Color(.008f,.035f,.075f,alpha*.95f),8);
-            hud.Line(new Vector2(x+10,y+17),new Vector2(x+78,y+17),cyan,2);
-            hud.Line(new Vector2(x+width-78,y+17),new Vector2(x+width-10,y+17),gold,2);
-            hud.Text(new Rect(x+18,y+5,150,18),SelectedHero.Name,12,new Color(.74f,.88f,1,alpha),TextAnchor.MiddleLeft,true);
-            hud.Text(new Rect(x+width-168,y+5,150,18),"哥尔赞",12,new Color(1,.72f,.42f,alpha),TextAnchor.MiddleRight,true);
-            hud.Text(new Rect(x+18,y+22,width-36,28),"VS   ·   开战！",22,new Color(1,.88f,.53f,alpha),TextAnchor.MiddleCenter,true);
+            hud.Line(new Vector2(x+10,y+14),new Vector2(x+68,y+14),cyan,2);
+            hud.Line(new Vector2(x+width-68,y+14),new Vector2(x+width-10,y+14),gold,2);
+            hud.Text(new Rect(x+14,y+4,126,16),SelectedHero.Name,11,new Color(.74f,.88f,1,alpha),TextAnchor.MiddleLeft,true);
+            hud.Text(new Rect(x+width-140,y+4,126,16),"哥尔赞",11,new Color(1,.72f,.42f,alpha),TextAnchor.MiddleRight,true);
+            hud.Text(new Rect(x+14,y+20,width-28,23),"VS · 开战！",18,new Color(1,.88f,.53f,alpha),TextAnchor.MiddleCenter,true);
             float fightAge=Mathf.Clamp01((age-.42f)/.74f);
             float fightFade=Mathf.Clamp01(Mathf.Min(fightAge*3f,(1-fightAge)*3f))*alpha;
             if(fightFade>.001f)
             {
-                float center=640,top=97;
-                hud.Line(new Vector2(center-200,top),new Vector2(center+200,top),new Color(.24f,.82f,1,fightFade*.28f),2);
-                hud.Line(new Vector2(center-170,top+61),new Vector2(center+170,top+61),new Color(1,.57f,.20f,fightFade*.22f),2);
-                hud.Text(new Rect(center-250,top+7,500,46),"FIGHT!",36,new Color(1,.91f,.62f,fightFade),TextAnchor.MiddleCenter,true);
+                float center=640,top=98;
+                hud.Line(new Vector2(center-150,top),new Vector2(center+150,top),new Color(.24f,.82f,1,fightFade*.24f),2);
+                hud.Line(new Vector2(center-128,top+48),new Vector2(center+128,top+48),new Color(1,.57f,.20f,fightFade*.18f),2);
+                hud.Text(new Rect(center-190,top+5,380,38),"FIGHT!",30,new Color(1,.91f,.62f,fightFade),TextAnchor.MiddleCenter,true);
             }
         }
         void BattlePlate(Rect r,Color accent,bool right)
