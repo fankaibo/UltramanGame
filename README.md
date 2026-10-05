@@ -2,7 +2,7 @@
 
 [![Core and pose bridge checks](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml/badge.svg?branch=codex/guided-arcade)](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml?query=branch%3Acodex%2Fguided-arcade)
 
-当前可试玩基线：`codex/guided-arcade`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，且发行版整局回放已重新验证。远程 GitHub Actions 的最新状态以本段链接为准；完整进度与证据见 [开发任务看板](docs/开发任务看板.md) 和 [验证记录](docs/验证记录.md)。
+当前可试玩基线：`codex/guided-arcade`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，且发行版整局回放已重新验证。GitHub Actions run [711](https://github.com/fankaibo/UltramanGame/actions/runs/37250808219) 和 [712](https://github.com/fankaibo/UltramanGame/actions/runs/37250810170) 均成功。完整进度与证据见 [开发任务看板](docs/开发任务看板.md) 和 [验证记录](docs/验证记录.md)。
 
 本轮新增英雄专属大招表现：迪迦、梦比优斯、赛罗、捷德、格力乔、泽塔和德凯各自使用独立的光束色彩配置，赛罗的「赛罗双射击」使用双能量带；选角和变身完成时会同步切换大招材质、聚能闪光和接触补光。开发构建的赛罗必杀专项回放通过，发行构建的无键鼠整局回放也通过。角色高清模型、连续动作密度、除迪迦外的授权影视原声、真人合照 AI 前后效果、稳定 60 FPS 和小米电视现场仍按看板保持 Review。
 
