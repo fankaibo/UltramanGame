@@ -2,9 +2,11 @@
 
 [![Core and pose bridge checks](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml/badge.svg?branch=codex/guided-arcade)](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml?query=branch%3Acodex%2Fguided-arcade)
 
-当前可试玩基线：`codex/guided-arcade`，最新代码提交为 `aba43e1`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，哥尔赞支撑爪五指扇角也已收敛，且发行版整局回放已重新验证。最新 HUD 收敛回放为 159.6 秒，键鼠事件 0、自动合照 2 次、重拍/断流恢复/再开局/选角重置通过，误出拳 0、格挡 3、大招 2，RSS 峰值 703.8 MiB；最新手型调整回放为 157.3 秒，键鼠事件 0、自动合照 2 次、RSS 峰值 729.2 MiB，可视帧见 [`artifacts/arcade40-claw-fan-20261005/replay/native`](artifacts/arcade40-claw-fan-20261005/replay/native)。合照流最后一个订阅者退出时已先清空缓存再公开零订阅状态，修复了远程 CI 偶发的旧照片包竞态；代码提交的 GitHub Actions run [725](https://github.com/fankaibo/UltramanGame/actions/runs/37258574641) 和 [726](https://github.com/fankaibo/UltramanGame/actions/runs/37258578139) 均成功。实现与证据见 [开发任务看板](docs/开发任务看板.md)、[验证记录](docs/验证记录.md) 和 [改动索引](docs/改动索引.md)。
+当前可试玩基线：`codex/guided-arcade`，最新代码提交为 `584c0ae`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，哥尔赞支撑爪五指扇角也已收敛，连击第五拳现在使用 24.6° 的真正命中近景，且发行版整局回放已重新验证。最新命中镜头回放为 157.3 秒，键鼠事件 0、自动合照 2 次、重拍/断流恢复/再开局/选角重置通过，误出拳 0、格挡 3、大招 2，RSS 峰值 760.8 MiB；可视帧见 [`artifacts/arcade20-hit-lens-20261005/replay2/native`](artifacts/arcade20-hit-lens-20261005/replay2/native)。合照流最后一个订阅者退出时已先清空缓存再公开零订阅状态，修复了远程 CI 偶发的旧照片包竞态；代码提交的 GitHub Actions run [725](https://github.com/fankaibo/UltramanGame/actions/runs/37258574641) 和 [726](https://github.com/fankaibo/UltramanGame/actions/runs/37258578139) 均成功。实现与证据见 [开发任务看板](docs/开发任务看板.md)、[验证记录](docs/验证记录.md) 和 [改动索引](docs/改动索引.md)。
 
 本轮继续收紧街机 HUD：两侧固定轨道从常驻八段改为低透明度四至六段，只有攻击、蓄力或光线时增强；左侧连击数字、标签和右侧星标同步缩小，保留动作提示、角色状态和右下角取景窗。这样不会遮住富士山、角色和接触特效；完整发行回放见 [ARCADE-20 HUD 收敛](docs/验证记录.md#2026-10-05arcade-20-hud-收敛)。
+
+本轮继续收紧街机命中镜头：连击第五拳的视场角从 28.4° 改为 24.6°，保留双方全身边界和冲击闪光安全区，让关键接触真正放大；`ComboCameraReview.Release`、700 项核心检查、Release 构建和 157.3 秒无键鼠完整回放均通过。记录见 [ARCADE-20 连击命中镜头收紧](docs/验证记录.md#2026-10-05arcade-20-连击命中镜头收紧)。
 
 本轮进一步修正哥尔赞的手型：导入模型自带的指间扇角不再被运行时再次放大，前伸爪保留抓击轮廓，支撑爪收拢到胸前；专项 15/30/60 Hz 审查和完整无键鼠发行回放均通过。画面证据见 [ARCADE-40 哥尔赞五指扇角收敛](docs/验证记录.md#2026-10-05arcade-40-哥尔赞五指扇角收敛)。该修正提升近景可读性，但仍不代表已经达到参考视频级怪兽模型和连续动作质量。
 
