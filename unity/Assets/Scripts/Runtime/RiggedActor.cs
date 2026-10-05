@@ -1857,9 +1857,14 @@ namespace UltramanGame.Runtime
             Vector3 leadElbow=center+right*leadSide*.52f+forward*.22f+Vector3.up*(.24f+.08f*reach);
             Vector3 leadWrist=center+right*leadSide*.50f+forward*(.42f+.44f*reach)+Vector3.up*(.04f+.13f*reach);
             // Pull the non-leading claw back toward the chest. It still moves
-            // with the attack, but never competes with the contact hand.
-            Vector3 supportElbow=center-right*leadSide*.43f+forward*.01f+Vector3.up*.18f;
-            Vector3 supportWrist=center-right*leadSide*.42f+forward*(.12f+.08f*reach)+Vector3.up*(.08f+.02f*reach);
+            // with the attack, but never competes with the contact hand. The
+            // imported clip placed this wrist almost level with the shoulder;
+            // from the 45-degree lens that made a long, flat forearm read like
+            // a second attacking prop. Lower the elbow and keep the wrist
+            // inside the ribs so the arm visibly folds while the lead claw
+            // owns the contact.
+            Vector3 supportElbow=center-right*leadSide*.40f+forward*(-.035f+.025f*reach)+Vector3.up*(.07f+.035f*reach);
+            Vector3 supportWrist=center-right*leadSide*.36f+forward*(.015f+.055f*reach)+Vector3.up*(-.075f+.015f*reach);
             float leadBlend=.08f+.24f*reach,supportBlend=.10f+.10f*reach;
             SolveArm(leadLeft?leftUpperArm:upperArm,leadLeft?leftForearm:forearm,leadLeft?leftHand:hand,leadElbow,leadWrist,leadBlend);
             SolveArm(leadLeft?upperArm:leftUpperArm,leadLeft?forearm:leftForearm,leadLeft?hand:leftHand,supportElbow,supportWrist,supportBlend);
