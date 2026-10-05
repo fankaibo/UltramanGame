@@ -93,7 +93,17 @@ class GamePhoto:
             self.frames += 1
             if self.frames == 1 or self.frames % 40 == 0:
                 print(f"[PhotoStream] frames={self.frames} present={present} ageMs={round(time.time()*1000-captured_ms)} size={rgba.shape[1]}x{rgba.shape[0]}", file=sys.stderr, flush=True)
-            self.bridge.publish(encode_photo(png.tobytes(), captured_ms, synthetic, bool(present)))
+            packet = encode_photo(png.tobytes(), captured_ms, synthetic, bool(present))
+            # The worker can finish encoding while the last Unity subscriber
+            # closes. Re-check under the bridge condition before publishing;
+            # otherwise a packet can repopulate ``latest`` after the handler
+            # has cleared it, leaving stale photo data with zero subscribers.
+            with self.bridge.changed:
+                if self.bridge.subscribers <= 0:
+                    return
+                self.bridge.latest = packet
+                self.bridge.revision += 1
+                self.bridge.changed.notify_all()
 
     def __enter__(self):
         self.bridge.__enter__()
