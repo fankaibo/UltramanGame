@@ -2,7 +2,7 @@
 
 [![Core and pose bridge checks](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml/badge.svg?branch=codex/guided-arcade)](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml?query=branch%3Acodex%2Fguided-arcade)
 
-当前可试玩基线：`codex/guided-arcade`，最新代码提交为 `0ee232c`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，哥尔赞支撑爪五指扇角也已收敛，连击第五拳现在使用 24.6° 的真正命中近景。音频设置页新增“使用《奇迹再现》”，可清理旧的本机音乐选择并立即恢复项目内歌曲；项目音乐审查确认 236.095 秒、44.1kHz、Vorbis、后台加载。实现与证据见 [开发任务看板](docs/开发任务看板.md)、[验证记录](docs/验证记录.md) 和 [改动索引](docs/改动索引.md)。
+当前可试玩基线：`codex/guided-arcade`，最新代码提交为 `0ee232c`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，哥尔赞支撑爪五指扇角也已收敛，连击第五拳现在使用 24.6° 的真正命中近景。音频设置页新增“使用《奇迹再现》”，可清理旧的本机音乐选择并立即恢复项目内歌曲；项目音乐审查确认 236.095 秒、44.1kHz、Vorbis、后台加载。同步文档提交 `d82e5f5` 的 GitHub Actions run [37265830116](https://github.com/fankaibo/UltramanGame/actions/runs/37265830116) 与 [37265833860](https://github.com/fankaibo/UltramanGame/actions/runs/37265833860) 均成功。实现与证据见 [开发任务看板](docs/开发任务看板.md)、[验证记录](docs/验证记录.md) 和 [改动索引](docs/改动索引.md)。
 
 本轮继续收紧街机 HUD：两侧固定轨道从常驻八段改为低透明度四至六段，只有攻击、蓄力或光线时增强；左侧连击数字、标签和右侧星标同步缩小，保留动作提示、角色状态和右下角取景窗。这样不会遮住富士山、角色和接触特效；完整发行回放见 [ARCADE-20 HUD 收敛](docs/验证记录.md#2026-10-05arcade-20-hud-收敛)。
 
