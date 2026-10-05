@@ -457,13 +457,11 @@ namespace UltramanGame.Runtime
                 // optical target moves the fighters down into the clear band
                 // below the top health plates.
                 target=Vector3.Lerp(target,lookAt+Vector3.up*.45f+BattleAxis*.06f,ComboFocus);
-                // The ordinary battle lens is already tight on a 16:9 TV. A
-                // wider 29.2 degree combo lens therefore made the supposed
-                // contact close-up smaller (0.87x in the framing review).
-                // Keep the dolly and use a genuinely tighter, readable arcade
-                // lens so the fifth-punch beat enlarges both fighters without
-                // entering the HUD rails.
-                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,28.4f,ComboFocus);
+                // The ordinary battle lens is already tight on a 16:9 TV. Keep
+                // this fifth-punch beat genuinely closer instead of widening it
+                // back out: the contact should read as a cabinet hit-stop while
+                // both helmets, feet and the impact flash stay inside the rails.
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,24.6f,ComboFocus);
             }
             if(HeroKickMotion.Active(state)&&!Showcase&&!Closeup.Active)
             {
