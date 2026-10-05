@@ -556,8 +556,9 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(386,276,508,32),music.Status,14,HudPainter.Muted);
             hud.Text(new Rect(386,302,508,20),"当前来源："+sound.MusicSource,11,HudPainter.Cyan);
             GUI.enabled=!music.Loading&&!music.Choosing;
-            if(hud.Button(new Rect(386,335,276,38),"导入音乐 · F6",HudPainter.Cyan))music.Choose();
-            if(hud.Button(new Rect(677,335,216,38),"恢复内置配乐"))music.BuiltIn();
+            if(hud.Button(new Rect(386,335,160,38),"使用《奇迹再现》",HudPainter.Cyan))music.ProjectMusic();
+            if(hud.Button(new Rect(554,335,160,38),"导入音乐 · F6",HudPainter.Cyan))music.Choose();
+            if(hud.Button(new Rect(722,335,171,38),"恢复内置配乐"))music.BuiltIn();
             GUI.enabled=true;
             hud.Text(new Rect(386,380,225,25),"总音量  "+Mathf.RoundToInt(sound.Volume*100)+"%",17);
             sound.Volume=GUI.HorizontalSlider(new Rect(633,388,256,20),sound.Volume,0,1);

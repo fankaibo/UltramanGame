@@ -273,6 +273,19 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log($"[Audio] music source={MusicSource} local={(clip!=null)}");
             MusicEnabled=true;
         }
+        public bool UseProjectMusic()
+        {
+            var clip=Clip("Audio/miracle_reappearance");
+            if(!clip)return false;
+            calm.Stop();battle.Stop();var previous=localMusic;localMusic=null;
+            calm.clip=clip;battle.clip=clip;ProjectMusicLoaded=true;
+            calm.loop=battle.loop=true;calm.Play();battle.Play();
+            if(previous)Object.Destroy(previous);
+            MusicSource="项目内导入《奇迹再现》";
+            MusicEnabled=true;
+            if(Debug.isDebugBuild)Debug.Log("[Audio] music source=项目内导入《奇迹再现》 local=false");
+            return true;
+        }
         public void Effect(string key,float gain=1)
         {
             if(muted)return;

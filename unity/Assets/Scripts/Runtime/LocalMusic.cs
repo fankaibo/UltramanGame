@@ -116,5 +116,17 @@ namespace UltramanGame.Runtime
             SelectedName="内置原创战斗音乐（未包含《奇迹再现》）";HasSelection=false;
             Status="可导入《奇迹再现》或其他喜欢的音乐";
         }
+        public void ProjectMusic()
+        {
+            if(Loading)return;
+            if(!sound.UseProjectMusic())
+            {
+                Status="项目内音乐缺失，请重新构建游戏";
+                return;
+            }
+            PlayerPrefs.DeleteKey(Preference);PlayerPrefs.Save();
+            SelectedName="奇迹再现（项目内音乐）";HasSelection=true;
+            Status="项目内音乐自动循环播放 · 语音时自动降低音乐音量";
+        }
     }
 }
