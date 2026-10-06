@@ -7,8 +7,8 @@ static class HeroRosterChecks
     {
         var geed=HeroRoster.At(HeroRoster.Index("Geed"));
         check(geed.Form.Contains("Acro Smasher"),"Geed roster keeps the Agile Acro Smasher form");
-        check(geed.BeamEnglish=="Acron Smasher"&&geed.BeamJapanese=="アクロスマッシャー",
-            "Geed Agile form uses Acron Smasher rather than Primitive Wrecking Burst");
+        check(geed.BeamEnglish=="Atmos Impact"&&geed.BeamJapanese=="アトモスインパクト"&&geed.Beam=="阿托莫斯冲击",
+            "Geed Acro Smasher uses Atmos Impact rather than the form name or Primitive Wrecking Burst");
         check(HeroRoster.At(HeroRoster.Index("Tiga")).BeamJapanese=="ゼペリオン光線","Tiga keeps Zeperion Beam label");
         check(HeroRoster.At(HeroRoster.Index("Mebius")).BeamJapanese=="メビュームシュート","Mebius keeps Mebium Shoot label");
         check(HeroRoster.At(HeroRoster.Index("Zero")).BeamJapanese=="ゼロツインシュート","Zero keeps Twin Shoot label");
