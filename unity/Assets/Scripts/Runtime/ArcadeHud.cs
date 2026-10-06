@@ -253,10 +253,15 @@ namespace UltramanGame.Runtime
                 // same timing while leaving the actor and volcanic stage clear.
                 float start=inner*(.82f+.18f*wobble),end=outer*(.18f+.82f*pulse)*(.82f+.18f*wobble);
                 Vector2 direction=new Vector2(Mathf.Cos(angle),Mathf.Sin(angle));
-                float travel=end*.58f,alpha=Mathf.Clamp01(pulse*(.10f+.035f*(i%3)));
+                // Keep the arcade punctuation close to the contact. Long
+                // screen-space rays landed over the Fuji ruins and read as
+                // red debug lines instead of heat or dust. A short ember dash
+                // plus a soft endpoint preserves the timing without slicing
+                // across the background.
+                float travel=end*.22f,alpha=Mathf.Clamp01(pulse*(.045f+.018f*(i%3)));
                 var fragment=new Color(color.r,color.g,color.b,alpha);
                 hud.Line(center+direction*start,center+direction*(start+travel),fragment,i%3==0?2:1);
-                hud.Dot(center+direction*(start+travel),1.8f+2.4f*pulse,
+                hud.Dot(center+direction*(start+travel),1.2f+1.8f*pulse,
                     new Color(Mathf.Min(1,color.r+.12f),Mathf.Min(1,color.g+.12f),color.b,alpha*.92f));
             }
         }
