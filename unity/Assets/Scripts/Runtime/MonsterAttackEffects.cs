@@ -237,9 +237,10 @@ namespace UltramanGame.Runtime
                 for(int foot=0;foot<rushFootprints.Length;foot++)
                 {
                     float start=foot==0?.13f:.235f;
+                    bool footActive=age>=start&&age<start+.30f;
                     float footT=Mathf.Clamp01((age-start)/.23f);
                     float footFade=launch*settle*(1-Mathf.SmoothStep(.60f,1,footT));
-                    var mark=rushFootprints[foot];mark.enabled=footFade>.001f&&age<.56f;
+                    var mark=rushFootprints[foot];mark.enabled=footActive&&footFade>.001f&&age<.56f;
                     if(!mark.enabled)continue;
                     float radius=Mathf.Lerp(.16f,.62f,Mathf.SmoothStep(0,1,footT));
                     Vector3 center=monster+side*((foot==0?-1:1)*.37f)+forward*(.12f+.17f*progress);
