@@ -19,9 +19,20 @@ namespace UltramanGame.Editor
             for(int i=0;i<HeroRoster.Count;i++)
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-                var id=HeroRoster.At(i).Id;var world=new GameWorld();
-                var importer=(ModelImporter)AssetImporter.GetAtPath("Assets/Resources/Characters/"+id+"/"+id+".fbx");
+                var id=HeroRoster.At(i).Id;
+                var assetPath="Assets/Resources/Characters/"+id+"/"+id+".fbx";
+                var importer=AssetImporter.GetAtPath(assetPath) as ModelImporter;
+                // Zeta and DeckerStrong remain documented roster placeholders until their
+                // licensed/readable FBX files are supplied. A missing importer must be an
+                // explicit review result, rather than a null-reference failure that hides
+                // the usable heroes' photo evidence.
+                if(importer==null)
+                {
+                    report.AppendLine($"{id}: model=fallback-skipped photo=skipped reason=missing-fbx asset={assetPath}");
+                    continue;
+                }
                 if(!importer.isReadable)throw new Exception("Player cannot read photo head weights or helmet vertices: "+id);
+                var world=new GameWorld();
                 var battleHero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
                 var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(battleHero,enemy);
                 var state=new Battle();battleHero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,0,0);
