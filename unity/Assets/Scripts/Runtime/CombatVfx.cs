@@ -18,6 +18,7 @@ namespace UltramanGame.Runtime
         readonly BeamStream beam;
         readonly LineRenderer warningRing,attackRing;
         readonly LineRenderer shieldHex;
+        readonly LineRenderer contactWave;
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
@@ -40,6 +41,9 @@ namespace UltramanGame.Runtime
         public string GroundContactCause=>groundImpact.LastCause;
         int sparkIndex,flashIndex,hitRayIndex;
         float hitLightAge=10,hitLightPower=3,hitLightDuration=.22f,shieldHitAge=10,clock,beamBurstAge;
+        float contactWaveAge=10,contactWaveLife=.22f,contactWaveSize=.8f;
+        Vector3 contactWavePosition;
+        Color contactWaveColor=Color.white;
         Vector3 shieldHitWorld;
         bool shieldHitPending;
         float previousEnemyAge;
@@ -74,6 +78,11 @@ namespace UltramanGame.Runtime
             warningRing=Line(parent,"Monster warning ground ring",64,.035f);
             attackRing=Line(parent,"Monster attack ground ring",64,.05f);
             shieldHex=Line(parent,"Shield six-sided energy edge",7,.035f);
+            // A camera-facing contact wave gives a TV-sized hit a readable
+            // expansion beat in addition to the point flare. It shares the
+            // exact Impact clock, so it cannot outlive a pause or introduce a
+            // second damage event.
+            contactWave=Line(parent,"Arcade contact shockwave",37,.045f);
             muzzleLight=Point(parent,"Energy spill",Ice,5);hitLight=Point(parent,"Impact spill",Warm,4);
             // This short-lived, small light needs per-pixel falloff on the
             // low-poly skin instead of being demoted to broad vertex lighting.
@@ -128,6 +137,9 @@ namespace UltramanGame.Runtime
             }
             atmosphere.Hit(position,special,blocked,!volumetric,combo);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
+            contactWaveAge=0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
+            contactWaveLife=special?.36f:blocked?.28f:combo?.25f:hurt?.23f:.20f;
+            contactWaveSize=special?2.15f:blocked?1.22f:combo?1.08f:hurt?.92f:.82f;
             Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special));
             bool punch=!special&&!blocked&&!hurt;
             if(punch)
@@ -206,7 +218,7 @@ namespace UltramanGame.Runtime
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
-            warningRing.enabled=attackRing.enabled=shieldHex.enabled=false;
+            warningRing.enabled=attackRing.enabled=shieldHex.enabled=contactWave.enabled=false;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;shieldHitWorld=Vector3.zero;shieldHitPending=false;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
@@ -257,6 +269,24 @@ namespace UltramanGame.Runtime
             groundImpact.Tick(camera,dt);
             beamImpact.Tick(dt);
             ActiveSparkCount=0;
+            contactWaveAge+=dt;
+            if(contactWaveAge<contactWaveLife)
+            {
+                float t=Mathf.Clamp01(contactWaveAge/Mathf.Max(.001f,contactWaveLife));
+                float radius=contactWaveSize*(.18f+.82f*Mathf.SmoothStep(0,1,t));
+                float alpha=(1-Mathf.SmoothStep(0,1,t))*(.82f-.18f*t);
+                var right=camera.transform.right;var up=camera.transform.up;
+                for(int i=0;i<contactWave.positionCount;i++)
+                {
+                    float a=i*Mathf.PI*2/(contactWave.positionCount-1);
+                    contactWave.SetPosition(i,contactWavePosition-camera.transform.forward*.045f+
+                        right*Mathf.Cos(a)*radius+up*Mathf.Sin(a)*radius);
+                }
+                Tint(contactWave,contactWaveColor,alpha);
+                contactWave.widthMultiplier=Mathf.Lerp(.075f,.025f,t);
+                contactWave.enabled=true;
+            }
+            else contactWave.enabled=false;
             foreach(var s in sparks)
             {
                 if(!s.Line.enabled)continue;s.Age+=dt;if(s.Age>=s.Life){s.Line.enabled=false;continue;}
