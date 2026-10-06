@@ -2,7 +2,7 @@
 
 [![Core and pose bridge checks](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml/badge.svg?branch=codex/guided-arcade)](https://github.com/fankaibo/UltramanGame/actions/workflows/check.yml?query=branch%3Acodex%2Fguided-arcade)
 
-当前可试玩基线：`codex/guided-arcade`，最新代码提交为 `443c656`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，哥尔赞支撑爪五指扇角也已收敛，连击第五拳现在使用 24.6° 的真正命中近景。音频设置页新增“使用《奇迹再现》”，可清理旧的本机音乐选择并立即恢复项目内歌曲；项目音乐审查确认 236.095 秒、44.1kHz、Vorbis、后台加载。开场 `VS · 开战！/FIGHT!` 提示再次收窄，发行版无键鼠回放 166.1 秒通过，截图证明双方主体和火山背景优先显示。火山余烬已改为固定尺寸的短发光粒子，哥尔赞前冲尾迹收短、降饱和；本轮又为非迪迦英雄图集增加 GPU 导数材质起伏，不新增纹理读取，Release 普通整局检查通过，1920×1080 取证帧已更新。实现与证据见 [开发任务看板](docs/开发任务看板.md)、[验证记录](docs/验证记录.md) 和 [改动索引](docs/改动索引.md)。
+当前可试玩基线：`codex/guided-arcade`，最新代码提交为 `0d9a75e`，街机差距看板为 **70.2%**。最近一次本机核心、姿态协议、照片流和 Python→C# 回环检查为 **700 项通过**；合照流关闭竞态已修复，英雄大招现在按角色显示独立能量色，赛罗使用双射线带，哥尔赞支撑爪五指扇角也已收敛，连击第五拳现在使用 24.6° 的真正命中近景。音频设置页新增“使用《奇迹再现》”，可清理旧的本机音乐选择并立即恢复项目内歌曲；项目音乐审查确认 236.095 秒、44.1kHz、Vorbis、后台加载。开场 `VS · 开战！/FIGHT!` 提示再次收窄，发行版无键鼠回放 166.1 秒通过，截图证明双方主体和火山背景优先显示。火山余烬已改为固定尺寸的短发光粒子，哥尔赞前冲尾迹收短、降饱和；本轮又为非迪迦英雄图集增加 GPU 导数材质起伏，不新增纹理读取，Release 普通整局检查通过，1920×1080 取证帧已更新。并修正防御回切时手部跳变、受击落地时撑地手悬空的问题；实现与证据见 [开发任务看板](docs/开发任务看板.md)、[验证记录](docs/验证记录.md) 和 [改动索引](docs/改动索引.md)。
 
 仓库同步提交 `2480f85` 的 [push 检查](https://github.com/fankaibo/UltramanGame/actions/runs/37307357793) 与 [Pull Request 检查](https://github.com/fankaibo/UltramanGame/actions/runs/37307364166) 均已成功；这两个链接用于回溯当前 README 与验证记录对应的自动检查。
 
