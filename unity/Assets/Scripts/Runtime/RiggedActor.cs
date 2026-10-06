@@ -1900,15 +1900,15 @@ namespace UltramanGame.Runtime
             // a second attacking prop. Lower the elbow and keep the wrist
             // inside the ribs so the arm visibly folds while the lead claw
             // owns the contact.
-            Vector3 supportElbow=center-right*leadSide*.34f+forward*(-.055f+.018f*reach)+Vector3.up*(.015f+.025f*reach);
+            Vector3 supportElbow=center-right*leadSide*.37f+forward*(-.10f+.018f*reach)+Vector3.up*(-.04f+.025f*reach);
             // Keep the non-leading claw below the pectoral line and inside the
             // ribs.  The imported attack clip leaves this hand almost level
             // with the striking wrist, which makes two horizontal forearms
             // read as one wide prop in the 45-degree cabinet shot.  A slightly
             // stronger late blend lets the tucked hand visibly finish its
             // protective fold while the active claw owns the contact silhouette.
-            Vector3 supportWrist=center-right*leadSide*.30f+forward*(.005f+.035f*reach)+Vector3.up*(-.17f+.010f*reach);
-            float leadBlend=.08f+.24f*reach,supportBlend=.12f+.18f*reach;
+            Vector3 supportWrist=center-right*leadSide*.34f+forward*(-.04f+.035f*reach)+Vector3.up*(-.23f+.010f*reach);
+            float leadBlend=.08f+.24f*reach,supportBlend=.15f+.24f*reach;
             SolveArm(leadLeft?leftUpperArm:upperArm,leadLeft?leftForearm:forearm,leadLeft?leftHand:hand,leadElbow,leadWrist,leadBlend);
             SolveArm(leadLeft?upperArm:leftUpperArm,leadLeft?forearm:leftForearm,leadLeft?hand:leftHand,supportElbow,supportWrist,supportBlend);
         }
@@ -2117,8 +2117,8 @@ namespace UltramanGame.Runtime
                 // palm, making its fingers overlap into one dark blob in the
                 // 45-degree camera. A forward component keeps the hand readable
                 // without changing its wrist position or arm endpoint.
-                Vector3 palmLane=forward*(lead?.30f:.20f);
-                Vector3 desired=palmLane+Root.up*.18f+Root.right*((side==0?-1:1)*outward*.36f);
+                Vector3 palmLane=forward*(lead?.30f:.13f);
+                Vector3 desired=palmLane+Root.up*.18f+Root.right*((side==0?-1:1)*(lead?.36f:.29f));
                 Vector3 source=Vector3.ProjectOnPlane(wrist.TransformDirection(palmUpLocal[side]),axis);
                 desired=Vector3.ProjectOnPlane(desired,axis);
                 if(source.sqrMagnitude<.001f||desired.sqrMagnitude<.001f)continue;
