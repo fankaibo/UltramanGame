@@ -33,6 +33,8 @@ namespace UltramanGame.Runtime
         float lastKickAge,kickExitAge=1;
         Vector3 kickExitLeft,kickExitRight,kickExitRoot;
         Quaternion kickExitLeftRotation,kickExitRightRotation;
+        float guardExitAge=1;
+        Vector3 guardExitLeft,guardExitRight;
         readonly Quaternion[] kickHitRotations;
         readonly Vector3[] kickHitPositions;
         bool kickHitEntry;
@@ -740,6 +742,16 @@ namespace UltramanGame.Runtime
             bool changedClip=playing!=next;
             if(changedClip)
             {
+                if(!monster&&playing=="Guard"&&next!="Guard"&&leftHand&&hand)
+                {
+                    // Keep the hands the child actually saw while the authored
+                    // Guard clip hands off to Idle. PoseTigaArms targets a
+                    // shared ready pose after the clip sample; without this
+                    // short handoff that target can move a wrist a full arm
+                    // length on the first unshielded frame.
+                    guardExitAge=0;guardExitLeft=leftHand.position;guardExitRight=hand.position;
+                }
+                else if(monster||next=="Guard"||preview>=0)guardExitAge=1;
                 if(monster&&preview<0)BeginMonsterHandTransition(next);
                 playing=next;clipAge=0;
                 // Punch clips already start at the combat stance. A long blend
@@ -1021,6 +1033,7 @@ namespace UltramanGame.Runtime
                 else PoseTigaArms(state,comboStrike);
             }
             if(comboStrike&&!kick)PoseComboStrike(state);
+            if(!monster&&!kick&&preview<0&&guardExitAge<.14f)PoseGuardExit(dt);
             if(kick)PoseKick(state);
             else if(kickExitAge<.16f)PoseKickExit(dt);
             if(comboExitAge<.14f)
@@ -1254,6 +1267,22 @@ namespace UltramanGame.Runtime
             PoseLimb(leftThigh,leftShin,leftFoot,left,1,leftPole,left.y-home.y);
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,rightPole,right.y-home.y);
             leftFoot.rotation=l;rightFoot.rotation=r;
+        }
+        void PoseGuardExit(float dt)
+        {
+            if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
+            guardExitAge=Mathf.Min(.14f,guardExitAge+Mathf.Max(0,dt));
+            float weight=Mathf.SmoothStep(0,1,guardExitAge/.14f);
+            var side=Vector3.Cross(Vector3.up,forward);
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0;var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                Vector3 from=left?guardExitLeft:guardExitRight;
+                Vector3 target=Vector3.Lerp(from,wrist.position,weight);
+                Quaternion palm=wrist.rotation;Vector3 span=wrist.position-lower.position;
+                PoseLimb(upper,lower,wrist,target,1,side*((left?-1:1)*.45f)+Vector3.down,.30f);
+                wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+            }
         }
         void PoseMonsterEntrance(float age)
         {
@@ -1778,7 +1807,12 @@ namespace UltramanGame.Runtime
             rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,facing*rightFootRest,landed);
             Vector3 support=seated-side*.74f-forward*.34f;support.y=home.y+.20f;
             Quaternion palm=leftHand.rotation;
-            PoseLimb(leftUpperArm,leftForearm,leftHand,support,landed*(1-RiseStep(age,.82f,1.24f)),-side,.23f);
+            // The visible hand is the brace that sells a fall rather than a
+            // seated pose. Keep a small palm-to-ground clearance so it reads
+            // as weight on the floor without clipping through the volcanic
+            // field; the old .23 clearance left the hand hovering beside the
+            // hip in the landing frame.
+            PoseLimb(leftUpperArm,leftForearm,leftHand,support,landed*(1-RiseStep(age,.82f,1.24f)),-side,.11f);
             leftHand.rotation=palm;
             // The free hand crosses the torso for balance instead of hanging
             // beside a second identically folded arm.
