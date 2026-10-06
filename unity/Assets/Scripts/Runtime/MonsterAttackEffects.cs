@@ -89,6 +89,7 @@ namespace UltramanGame.Runtime
         readonly Vector3 home,target,forward;
         readonly LineRenderer charge,shock;
         readonly LineRenderer rushRing;
+        readonly LineRenderer[] rushFootprints=new LineRenderer[2];
         readonly LineRenderer[] rushWakes=new LineRenderer[3];
         readonly RushDust[] rushDust=new RushDust[8];
         readonly ClawSweep[] claws=new ClawSweep[3];
@@ -100,7 +101,7 @@ namespace UltramanGame.Runtime
         Vector3 hitPosition,previousHand,sweepDirection;
         int attackNumber=-1,impactAttack=-1;
         public bool SlashVisible => claws[0].Visible;
-        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled||rushDust[0].Root.gameObject.activeSelf||rushRing.enabled;
+        public bool RushVisible => rushWakes[0].enabled||rushWakes[1].enabled||rushWakes[2].enabled||rushDust[0].Root.gameObject.activeSelf||rushRing.enabled||rushFootprints[0].enabled||rushFootprints[1].enabled;
         public MonsterAttackEffects(Transform parent,Vector3 monsterHome,Vector3 heroHome)
         {
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
@@ -112,6 +113,8 @@ namespace UltramanGame.Runtime
             // EnemyAge as the feet and dust, so it cannot get out of sync or
             // remain after pause/restart.
             rushRing=Line(parent,"Monster rush pressure ring",49,.045f,true);
+            for(int i=0;i<rushFootprints.Length;i++)
+                rushFootprints[i]=Line(parent,"Monster rush foot pressure "+i,40,.028f,true);
             for(int i=0;i<rushWakes.Length;i++)
                 rushWakes[i]=Line(parent,"Monster body rush wake "+i,7,.06f);
             for(int i=0;i<rushDust.Length;i++)rushDust[i]=new RushDust(parent,i);
@@ -135,7 +138,7 @@ namespace UltramanGame.Runtime
             }
         }
         public void Clear()
-        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=rushRing.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
+        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
         {hitAge=0;impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
@@ -227,8 +230,30 @@ namespace UltramanGame.Runtime
                     ColorLine(rushRing,new Color(1,.47f,.12f),ringFade*.46f);
                     rushRing.widthMultiplier=.035f+.035f*Mathf.Clamp01(ringT);
                 }
+                // Give each planted step a quiet, short-lived pressure mark.
+                // It is deliberately dimmer than the claw and ring: the foot
+                // contact should explain the body's weight without becoming a
+                // second neon outline or a red debug ray on the TV.
+                for(int foot=0;foot<rushFootprints.Length;foot++)
+                {
+                    float start=foot==0?.13f:.235f;
+                    float footT=Mathf.Clamp01((age-start)/.23f);
+                    float footFade=launch*settle*(1-Mathf.SmoothStep(.60f,1,footT));
+                    var mark=rushFootprints[foot];mark.enabled=footFade>.001f&&age<.56f;
+                    if(!mark.enabled)continue;
+                    float radius=Mathf.Lerp(.16f,.62f,Mathf.SmoothStep(0,1,footT));
+                    Vector3 center=monster+side*((foot==0?-1:1)*.37f)+forward*(.12f+.17f*progress);
+                    center.y=.055f;
+                    for(int point=0;point<mark.positionCount;point++)
+                    {
+                        float angle=point/(float)(mark.positionCount-1)*Mathf.PI*2;
+                        mark.SetPosition(point,center+forward*(Mathf.Cos(angle)*radius)+side*(Mathf.Sin(angle)*radius*.58f));
+                    }
+                    ColorLine(mark,new Color(1,.73f,.36f),footFade*.26f);
+                    mark.widthMultiplier=.022f+.018f*Mathf.Clamp01(footT);
+                }
             }
-            else {foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();rushRing.enabled=false;}
+            else {foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;}
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
