@@ -807,8 +807,11 @@ namespace UltramanGame.Runtime
                 // times; the next punch keeps the remaining root momentum.
                 float recoil=heavyHit?(beamRecoil.Active?0:ContactPulse(hitAge,0,.10f,.78f)):MonsterRecoilMotion.Weight(hitAge);
                 float carry=MonsterRecoilMotion.Carry(hitAge);
-                Root.position+=recoilStart*carry-forward*(heavyHit?.14f:accentHit?.34f:.23f)*recoil;
-                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:accentHit?.11f:.065f)*recoil);
+                // Give an ordinary hit a little more planted weight without
+                // extending the recoil clock. The feet stay anchored while
+                // the hips yield back and sideways into the contact lane.
+                Root.position+=recoilStart*carry-forward*(heavyHit?.14f:accentHit?.34f:.27f)*recoil;
+                Root.position+=Vector3.Cross(Vector3.up,forward)*(contactSide*(heavyHit?.045f:accentHit?.11f:.08f)*recoil);
                 Root.rotation*=Quaternion.AngleAxis(recoilStartYaw*carry+contactSide*(heavyHit?4.5f:accentHit?10:4f)*recoil,Vector3.up);
             }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&heroRecoveryAge<HeroRecoverySeconds)
@@ -1001,14 +1004,14 @@ namespace UltramanGame.Runtime
                 if(upperSpine)
                 {
                     spineBase=upperSpine.localRotation;
-                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:accentHit?22:13)*chest-18*beamRecoil.Chest,right)
+                    upperSpine.rotation=Quaternion.AngleAxis(-(heavyHit?20:accentHit?22:16)*chest-18*beamRecoil.Chest,right)
                         *Quaternion.AngleAxis(contactSide*(accentHit?30:18)*chest,Vector3.up)
                         *Quaternion.AngleAxis(contactSide*4*chest,forward)*upperSpine.rotation;
                 }
                 if(head)
                 {
                     headBase=head.localRotation;
-                    head.rotation=Quaternion.AngleAxis(-(heavyHit?13:accentHit?12:7)*follow-10*beamRecoil.Weight,right)
+                    head.rotation=Quaternion.AngleAxis(-(heavyHit?13:accentHit?12:9)*follow-10*beamRecoil.Weight,right)
                         *Quaternion.AngleAxis(contactSide*7*follow,Vector3.up)*head.rotation;
                 }
                 contactLayerApplied=true;
