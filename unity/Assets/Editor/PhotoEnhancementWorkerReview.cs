@@ -43,7 +43,7 @@ namespace UltramanGame.Editor
                     python_sha256=Hash(Path.Combine(root,"vision/photo_enhance.py")),entrypoint_sha256=Hash(Path.Combine(root,"scripts/enhance_photo.py")),
                     seconds=(float)watch.Elapsed.TotalSeconds,original_preserved=true,left_hero_unchanged=true,synthetic_only=true};
                 File.WriteAllText(Path.Combine(folder,"validation.json"),JsonUtility.ToJson(proof,true));
-                UnityEngine.Debug.Log("[PhotoEnhancementWorkerReview] PASS "+job.Status+" seconds="+proof.seconds);
+                UnityEngine.Debug.Log("[PhotoEnhancementWorkerReview] PASS "+job.Status+" seconds="+proof.seconds+" fallback="+job.UsedLocalFallback+" error="+job.ErrorType);
             }
             finally{UnityEngine.Object.DestroyImmediate(before);UnityEngine.Object.DestroyImmediate(after);}
         }

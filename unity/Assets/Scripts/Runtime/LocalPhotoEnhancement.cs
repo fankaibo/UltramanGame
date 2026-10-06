@@ -45,7 +45,14 @@ namespace UltramanGame.Runtime
                 entered=Slot.Wait(TimeSpan.FromSeconds(90));if(!entered){Status="原图已保存 · AI 繁忙，请稍后重试";return;}
                 string statusPath=Path.Combine(folder,"result.json");
                 var start=new ProcessStartInfo(python,Quote(script)+" --input "+Quote(source)+" --plate "+Quote(Path.Combine(folder,"plate.png"))+" --mask "+Quote(Path.Combine(folder,"mask.png"))+" --status "+Quote(statusPath)+" --fallback-local")
-                    {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
+                    {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=Path.GetDirectoryName(script)};
+                // Unity launched from the Hub or a packaged player can inherit
+                // a launcher-specific HOME. The approved photo configuration is
+                // deliberately read from the signed-in user's home, so make that
+                // location explicit for the child without copying credentials
+                // into the project or command line.
+                var personal=Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+                if(!string.IsNullOrWhiteSpace(personal))start.EnvironmentVariables["HOME"]=personal;
                 using(var process=Process.Start(start))
                 {
                     // Both streams are drained; no exception text or gateway body is logged.
@@ -55,6 +62,7 @@ namespace UltramanGame.Runtime
                 if(File.Exists(statusPath))
                 {
                     var result=JsonUtility.FromJson<Result>(File.ReadAllText(statusPath));Status=result.status;UsedLocalFallback=result.fallback;
+                    if(result.fallback&&System.Text.RegularExpressions.Regex.IsMatch(result.error_type??"",@"\A[A-Za-z][A-Za-z0-9]{0,79}\z"))ErrorType="fallback:"+result.error_type;
                     if(!result.ok&&System.Text.RegularExpressions.Regex.IsMatch(result.error_type??"",@"\A[A-Za-z][A-Za-z0-9]{0,79}\z"))ErrorType=result.error_type;
                     if(!result.ok&&System.Text.RegularExpressions.Regex.IsMatch(result.error_operation??"",@"\A[A-Za-z_][A-Za-z0-9_]{0,79}\z"))ErrorType+="@"+result.error_operation;
                     if(!result.ok&&result.transport_status>=100&&result.transport_status<=599)ErrorType+="/"+result.transport_status;

@@ -21,7 +21,7 @@ def main():
         if args.fallback_local:
             try:
                 output,recipe=local_fallback(args.input,args.plate,args.mask)
-                result={'ok':True,'fallback':True,'output':str(output),'status':'原图已保存 · AI 网关暂不可用，已完成本地环境光融合','model':'local-fallback','recipe':recipe}
+                result={'ok':True,'fallback':True,'output':str(output),'status':'原图已保存 · AI 网关暂不可用，已完成本地环境光融合','model':'local-fallback','error_type':'HTTPError','transport_status':error.code,'recipe':recipe}
             except Exception:
                 result={'ok':False,'status':f'原图已保存 · AI 网关暂不可用（{error.code}）','error_type':'HTTPError'}
         else:
@@ -30,7 +30,7 @@ def main():
         if args.fallback_local:
             try:
                 output,recipe=local_fallback(args.input,args.plate,args.mask)
-                result={'ok':True,'fallback':True,'output':str(output),'status':'原图已保存 · AI 参数不可用，已完成本地环境光融合','model':'local-fallback','recipe':recipe}
+                result={'ok':True,'fallback':True,'output':str(output),'status':'原图已保存 · AI 参数不可用，已完成本地环境光融合','model':'local-fallback','error_type':'ValueError','recipe':recipe}
             except Exception:
                 status='原图已保存 · 请配置有效 AI 密钥' if str(error) in ('credential_missing','configuration_missing') else '原图已保存 · AI 未返回有效融合参数'
                 result={'ok':False,'status':status,'error_type':'ValueError'}
@@ -47,7 +47,7 @@ def main():
         if args.fallback_local:
             try:
                 output,recipe=local_fallback(args.input,args.plate,args.mask)
-                result={'ok':True,'fallback':True,'output':str(output),'status':'原图已保存 · AI 暂不可用，已完成本地环境光融合','model':'local-fallback','recipe':recipe}
+                result={'ok':True,'fallback':True,'output':str(output),'status':'原图已保存 · AI 暂不可用，已完成本地环境光融合','model':'local-fallback','error_type':type(cause).__name__,'error_operation':operation if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,79}',operation) else '', 'transport_status':int(tunnel[1]) if tunnel else 0,'recipe':recipe}
             except Exception:
                 result={'ok':False,'status':'原图已保存 · AI 暂不可用，可继续下一局','error_type':type(cause).__name__,
                         'error_operation':operation if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,79}',operation) else '',
