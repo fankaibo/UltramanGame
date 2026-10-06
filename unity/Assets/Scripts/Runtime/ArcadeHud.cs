@@ -30,13 +30,16 @@ namespace UltramanGame.Runtime
                     // hits and the same combo no longer occupy three rows.
                     // Keep the score cue legible at TV distance without
                     // letting this side rail compete with the two fighters.
-                    hud.Text(new Rect(32,242,122,46),(comboActive?comboCount:battle.Punches).ToString("00"),29+(int)(pulse*3),new Color(1,.88f,.52f),bold:true);
-                    hud.Text(new Rect(34,289,122,17),comboActive?"连击":"命中",11,comboActive?gold:HudPainter.Muted,bold:true);
-                    hud.Line(new Vector2(34,317),new Vector2(88,317),gold,2);
+                    // Side counters are secondary cabinet feedback. Keep them
+                    // readable from a TV, but let the fighters and the actual
+                    // contact flash remain the largest visual elements.
+                    hud.Text(new Rect(32,244,122,38),(comboActive?comboCount:battle.Punches).ToString("00"),22+(int)(pulse*2),new Color(1,.88f,.52f),bold:true);
+                    hud.Text(new Rect(34,282,122,15),comboActive?"连击":"命中",10,comboActive?gold:HudPainter.Muted,bold:true);
+                    hud.Line(new Vector2(34,307),new Vector2(82,307),gold,1);
                     for(int i=0;i<5;i++)
                     {
                         float earned=Mathf.Clamp01((battle.Punches-i*3)/3f);
-                        Star(new Vector2(1240,240+i*25),6.5f,.10f+.82f*earned);
+                        Star(new Vector2(1240,242+i*22),5.0f,.10f+.82f*earned);
                     }
                     if(comboActive)
                     {
@@ -59,7 +62,7 @@ namespace UltramanGame.Runtime
                     // Keep praise beside the combo counter: the monster's
                     // face and contact area must stay clear in the closer lens.
                     float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*12;
-                    hud.Text(new Rect(33,351-lift,200,26),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?17:15,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
+                    hud.Text(new Rect(33,341-lift,200,23),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?14:13,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
                     float burstAge=Mathf.Clamp01((1-age)*1.4f);
                     Vector2 burstCenter=battle.Punches%5==0?new Vector2(515,270):new Vector2(225,350);
                     StarBurst(burstCenter,24+12*(1-burstAge),burstAge,battle.Punches%5==0?gold:cyan);
@@ -69,7 +72,7 @@ namespace UltramanGame.Runtime
                     float age=Mathf.Clamp01((time-damagePopAt)/.9f),lift=Mathf.SmoothStep(0,1,age)*6;
                     float alpha=1-Mathf.SmoothStep(0,1,age);
                     bool special=lastDamage>1;
-                    hud.Text(new Rect(1038,76-lift,144,26),"−"+lastDamage.ToString("00"),special?23:19,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
+                    hud.Text(new Rect(1038,76-lift,144,24),"−"+lastDamage.ToString("00"),special?19:16,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
                 }
                 if(warning&&battle.Action!=HeroAction.Beam)
                 {
