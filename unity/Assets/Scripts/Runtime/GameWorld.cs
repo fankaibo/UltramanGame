@@ -385,6 +385,14 @@ namespace UltramanGame.Runtime
             // orientation back into the next strike/defence camera offset.
             Vector3 viewForward=(lookAt-cameraHome).normalized;
             Vector3 viewRight=Vector3.Cross(Vector3.up,viewForward).normalized;
+            // The portrait cabinet keeps the fighters close to the viewer. On
+            // a 16:9 living-room screen, move only the ordinary battle camera
+            // a short distance toward the stage instead of tightening FOV:
+            // this enlarges the silhouettes while preserving the tested foot
+            // rail and the compact header safe area. Dedicated threat, combo,
+            // beam and fall compositions still take ownership below.
+            if(state.Phase==GamePhase.Battle&&!Showcase&&!Closeup.Active&&state.Action!=HeroAction.Beam)
+                Camera.transform.position+=viewForward*(state.Enemy==EnemyPhase.Attack?.34f:.24f);
             // Leave a narrow breathing band above the helmets for the compact
             // header. The slightly wider ordinary lens preserves the fighters'
             // scale while moving their silhouette away from the top rail.
