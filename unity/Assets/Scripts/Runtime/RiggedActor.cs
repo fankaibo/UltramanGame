@@ -1897,9 +1897,15 @@ namespace UltramanGame.Runtime
             // a second attacking prop. Lower the elbow and keep the wrist
             // inside the ribs so the arm visibly folds while the lead claw
             // owns the contact.
-            Vector3 supportElbow=center-right*leadSide*.40f+forward*(-.035f+.025f*reach)+Vector3.up*(.07f+.035f*reach);
-            Vector3 supportWrist=center-right*leadSide*.36f+forward*(.015f+.055f*reach)+Vector3.up*(-.075f+.015f*reach);
-            float leadBlend=.08f+.24f*reach,supportBlend=.10f+.10f*reach;
+            Vector3 supportElbow=center-right*leadSide*.34f+forward*(-.055f+.018f*reach)+Vector3.up*(.015f+.025f*reach);
+            // Keep the non-leading claw below the pectoral line and inside the
+            // ribs.  The imported attack clip leaves this hand almost level
+            // with the striking wrist, which makes two horizontal forearms
+            // read as one wide prop in the 45-degree cabinet shot.  A slightly
+            // stronger late blend lets the tucked hand visibly finish its
+            // protective fold while the active claw owns the contact silhouette.
+            Vector3 supportWrist=center-right*leadSide*.30f+forward*(.005f+.035f*reach)+Vector3.up*(-.17f+.010f*reach);
+            float leadBlend=.08f+.24f*reach,supportBlend=.12f+.18f*reach;
             SolveArm(leadLeft?leftUpperArm:upperArm,leadLeft?leftForearm:forearm,leadLeft?leftHand:hand,leadElbow,leadWrist,leadBlend);
             SolveArm(leadLeft?upperArm:leftUpperArm,leadLeft?forearm:leftForearm,leadLeft?hand:leftHand,supportElbow,supportWrist,supportBlend);
         }
