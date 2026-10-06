@@ -17,6 +17,7 @@ namespace UltramanGame.Runtime
         readonly BeamCharge beamCharge;
         readonly BeamStream beam;
         readonly LineRenderer warningRing,attackRing;
+        readonly LineRenderer shieldHex;
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
@@ -72,6 +73,7 @@ namespace UltramanGame.Runtime
             beam=new BeamStream(parent);
             warningRing=Line(parent,"Monster warning ground ring",64,.035f);
             attackRing=Line(parent,"Monster attack ground ring",64,.05f);
+            shieldHex=Line(parent,"Shield six-sided energy edge",7,.035f);
             muzzleLight=Point(parent,"Energy spill",Ice,5);hitLight=Point(parent,"Impact spill",Warm,4);
             // This short-lived, small light needs per-pixel falloff on the
             // low-poly skin instead of being demoted to broad vertex lighting.
@@ -204,7 +206,7 @@ namespace UltramanGame.Runtime
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
-            warningRing.enabled=attackRing.enabled=false;
+            warningRing.enabled=attackRing.enabled=shieldHex.enabled=false;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;shieldHitWorld=Vector3.zero;shieldHitPending=false;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
@@ -288,6 +290,27 @@ namespace UltramanGame.Runtime
             shield.position=shieldCenter-axis*(compression*.12f);
             shield.rotation=Quaternion.LookRotation(axis,Vector3.up);
             shield.localScale=new Vector3(1.9f+compression*.12f,2.15f+compression*.07f,.38f-compression*.13f);
+            shieldHex.enabled=active&&state.Shield;
+            if(shieldHex.enabled)
+            {
+                // The sphere shader keeps the barrier volumetric, while this
+                // short six-sided edge gives the living-room viewer the same
+                // unmistakable silhouette as the reference cabinet. Draw it
+                // from the final shield transform so impact compression and
+                // camera-facing orientation stay in the same clock.
+                float radiusX=(1.9f+compression*.12f)*.50f;
+                float radiusY=(2.15f+compression*.07f)*.50f;
+                Vector3 center=shield.position+axis*.205f;
+                for(int i=0;i<shieldHex.positionCount;i++)
+                {
+                    float angle=Mathf.PI*.5f+i*Mathf.PI*2/(shieldHex.positionCount-1);
+                    shieldHex.SetPosition(i,center+shield.right*Mathf.Cos(angle)*radiusX+shield.up*Mathf.Sin(angle)*radiusY);
+                }
+                float hitPulse=1-Mathf.SmoothStep(0,1,Mathf.Clamp01(shieldHitAge/.58f));
+                var edge=new Color(.20f,.78f,1,.30f+.30f*hitPulse+.06f*Mathf.Sin(clock*2.4f));
+                shieldHex.startColor=edge;edge.a=0;shieldHex.endColor=edge;
+                shieldHex.widthMultiplier=.026f+.020f*hitPulse;
+            }
             if(shieldHitPending)
             {
                 shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(shieldHitWorld));
