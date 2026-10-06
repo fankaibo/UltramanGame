@@ -1784,6 +1784,26 @@ namespace UltramanGame.Runtime
             hips=Vector3.Lerp(hips,upright,RiseStep(age,1.12f,1.62f));
             float landed=age<KnockdownMotion.LandingSeconds?weight:1;
             Root.position+=Vector3.Lerp(pelvis.position,hips,landed)-pelvis.position;
+            // Add a short shoulder/neck counter-rotation after impact. The
+            // authored Hurt clip keeps the chest nearly square, which makes
+            // the diagonal fall read like a seated pose on a wide TV shot.
+            // This layer peaks during the landing and eases out before the
+            // rise so the next action starts from the authored rest pose.
+            float tumble=12f*RiseStep(age,.06f,.34f)*weight*(1-RiseStep(age,.68f,1.12f));
+            if(upperSpine)
+            {
+                spineBase=upperSpine.localRotation;
+                upperSpine.rotation=Quaternion.AngleAxis(-tumble,forward)
+                    *Quaternion.AngleAxis(5f*RiseStep(age,.08f,.38f)*weight,Vector3.up)
+                    *upperSpine.rotation;
+            }
+            if(head)
+            {
+                headBase=head.localRotation;
+                head.rotation=Quaternion.AngleAxis(tumble*.55f,forward)
+                    *Quaternion.AngleAxis(-3f*RiseStep(age,.10f,.42f)*weight,Vector3.up)
+                    *head.rotation;
+            }
             Vector3 feet=seated+forward*1.02f;
             // The outside leg extends to catch the fall while the nearer leg
             // folds under the pelvis.  Staggered targets are what make the
