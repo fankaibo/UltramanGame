@@ -221,7 +221,9 @@ def main():
     if args.linked:
         required += ('punch-link-prepare','punch-link-handoff','engagement-held-stance')
     if args.hero == 'Mebius':
-        required += ('mebium-blade',)
+        required += ('mebium-blade', 'mebium-brace-charge', 'mebium-cross-shoot')
+        if not args.finisher:
+            required += ('mebium-restored',)
     if args.hero == 'Zero':
         required += ('zero-twin-grab', 'zero-twin-chest')
         if not args.finisher:

@@ -606,7 +606,7 @@ namespace UltramanGame.Runtime
             BeamStarted=firing&&!beamWasVisible&&!(state.Finishing&&previous==GamePhase.Paused);beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
             effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget,
-                Closeup.Age,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,hero?.HandPosition??BeamOrigin);
+                Closeup.Age,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,hero?.HandPosition??BeamOrigin,hero?.BladeOrigin);
             strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active,HeroArsenal.Blade(heroId,state));
             if(!Closeup.Active&&dt>0)
             {

@@ -93,7 +93,7 @@ namespace UltramanGame.Runtime
         public void SetHeroProfile(string heroId)
         {
             var hero=HeroRoster.At(HeroRoster.Index(heroId));
-            beamTint=ParseColor(hero.BeamTint,Ice);beamAccent=ParseColor(hero.BeamAccent,Color.white);beamDual=hero.BeamDual;chestMounted=heroId=="Zero";
+            beamTint=ParseColor(hero.BeamTint,Ice);beamAccent=ParseColor(hero.BeamAccent,Color.white);beamDual=hero.BeamDual;chestMounted=heroId=="Zero";beamCharge.SetMebium(heroId=="Mebius");muzzleLight.color=heroId=="Mebius"?beamTint:Ice;
             beam.SetProfile(beamTint,beamAccent,beamDual);
         }
         static Color ParseColor(string value,Color fallback)
@@ -261,7 +261,7 @@ namespace UltramanGame.Runtime
             }
             previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;
         }
-        public void Tick(Battle state,Camera camera,float dt,Vector3 origin,Vector3 end,Vector3 shieldCenter,Vector3 axis,bool closeup,float focus,bool firing,Vector3 beamTarget,float closeupAge,Vector3 leftHand,Vector3 rightHand)
+        public void Tick(Battle state,Camera camera,float dt,Vector3 origin,Vector3 end,Vector3 shieldCenter,Vector3 axis,bool closeup,float focus,bool firing,Vector3 beamTarget,float closeupAge,Vector3 leftHand,Vector3 rightHand,Vector3? brace=null)
         {
             clock+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
@@ -366,7 +366,7 @@ namespace UltramanGame.Runtime
             charge.gameObject.SetActive(firing);charge.position=origin-camera.transform.forward*.03f;charge.rotation=camera.transform.rotation;
             charge.localScale=Vector3.one*.8f;chargeMaterial.color=Color.Lerp(beamTint,beamAccent,.35f)*new Color(1,1,1,beam.Power*.72f);
             bool gathering=active&&state.Action==HeroAction.Beam&&(closeup||state.ActionAge<BeamStream.LaunchSeconds+.1f);
-            beamCharge.Sample(gathering,closeup?closeupAge:BeamCloseup.Duration+state.ActionAge,origin,leftHand,rightHand,axis,chestMounted);
+            beamCharge.Sample(gathering,closeup?closeupAge:BeamCloseup.Duration+state.ActionAge,origin,leftHand,rightHand,axis,chestMounted,brace);
             bool contacting=firing&&state.ActionAge>=Battle.BeamHitSeconds;
             if(contacting&&beam.Power>.15f)
             {

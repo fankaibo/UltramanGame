@@ -26,6 +26,8 @@ namespace UltramanGame.Runtime
         readonly bool retargetedPunch;
         readonly HeroPoseHandoff guardHandoff;
         readonly ZeroTwinShoot twinShoot;
+        readonly MebiumShoot mebiumShoot;
+        public MebiumShoot Mebium=>mebiumShoot;
         public ZeroTwinShoot TwinShoot=>twinShoot;
         public float GuardHandoffProgress=>guardHandoff?.Progress??1;
         bool counterReach;
@@ -197,10 +199,10 @@ namespace UltramanGame.Runtime
         public Vector3 KickContact(HeroAction action)=>FootPosition(action==HeroAction.LeftPunch)+forward*.14f;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
         public Vector3 EnemyStrikeOrigin(int attackCount) => MonsterStepMotion.ClawLeft(attackCount)&&leftHand?leftHand.position:HandPosition;
-        public Vector3 BeamOrigin => twinShoot!=null?twinShoot.Muzzle:hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
+        public Vector3 BeamOrigin => twinShoot!=null?twinShoot.Muzzle:mebiumShoot!=null?mebiumShoot.Muzzle:hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
         public void PoseFinisherWeapons(Battle state)
         {if(state.Phase==GamePhase.Battle||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)twinShoot?.PoseWeapons();}
-        public void ResetFinisher(){twinShoot?.Clear();Sluggers?.Restore();}
+        public void ResetFinisher(){twinShoot?.Clear();mebiumShoot?.Clear();Sluggers?.Restore();}
         public Vector3 BeamContact => upperSpine?upperSpine.TransformPoint(beamContactLocal):Root.position+Vector3.up*2.48f;
         public Vector3 BeamSurfaceContact => beamSurface!=null?beamSurface.Position:BeamContact;
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
@@ -399,7 +401,8 @@ namespace UltramanGame.Runtime
                 if(Sluggers!=null)twinShoot=new ZeroTwinShoot(Root,chest,surfaces,Sluggers,
                     new[]{leftUpperArm,leftForearm,leftHand,upperArm,forearm,hand},PoseLimb);
             }
-            if(name=="Mebius")CalibrateBladeSocket();
+            if(name=="Mebius")
+            {CalibrateBladeSocket();mebiumShoot=new MebiumShoot(Root,new[]{leftUpperArm,leftForearm,leftHand,upperArm,forearm,hand},surfaces,()=>BladeOrigin,PoseLimb);}
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2} vertices={modelVertices}");
         }
         void CalibrateBladeSocket()
@@ -525,6 +528,7 @@ namespace UltramanGame.Runtime
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&guardHandoff?.Active==true)return;
             twinShoot?.Observe(state,dt,preview);
+            mebiumShoot?.Observe(state,dt,preview);
             Sluggers?.Restore();
             if(HeroArsenal.Blade(heroId,state)&&preview<0&&
                 (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
@@ -823,7 +827,7 @@ namespace UltramanGame.Runtime
                     Frame=state.ActionAge<.07f?1:2;
                     travel=kick?HeroKickMotion.Drive(state.ActionAge)*((StrikeAdvance+chaseAdvance)*.68f):AnimatedActor.Strike(state.ActionAge)*PunchTravel(state);
                 }
-                else if(state.Action==HeroAction.Beam) {next=twinShoot!=null?"Idle":"Beam";sample=twinShoot!=null?0:Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
+                else if(state.Action==HeroAction.Beam) {next=twinShoot!=null||mebiumShoot!=null?"Idle":"Beam";sample=twinShoot!=null||mebiumShoot!=null?0:Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
                 else if(state.Action==HeroAction.Hurt)
                 {
                     next="Hurt";sample=KnockdownMotion.ClipSeconds(state.ActionAge);Frame=5;
@@ -1295,6 +1299,7 @@ namespace UltramanGame.Runtime
             // depth and matching shadows until each fragment disappears.
             poseOpacity=monster&&state.Phase==GamePhase.Victory&&preview<0?(opacity>0?1:0):opacity;SetPresentationOpacity(1);
             twinShoot?.PoseArms();
+            mebiumShoot?.Pose(preview);
             Sluggers?.CaptureMountedPose();
             if(preview<0)
             {
