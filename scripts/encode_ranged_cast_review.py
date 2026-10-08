@@ -33,6 +33,12 @@ def main():
         raise RuntimeError('Lifecycle review incomplete')
     columns = ('frame', 'action', 'age', 'shotAge', 'punches', 'health', 'energy', 'sequence')
     for hero in ('Tiga', 'Zero'):
+        baseline_sources = dict(row.rsplit(' ', 1) for row in
+                                (FOLDER / 'before' / (hero+'-60') / 'sources.txt').read_text().splitlines())
+        rig_path = 'Scripts/Runtime/RiggedActor.cs'
+        baseline_rig = subprocess.check_output(['git', 'show', '2d25eb0:unity/Assets/' + rig_path], cwd=ROOT)
+        if hashlib.sha256(baseline_rig).hexdigest() != baseline_sources[rig_path]:
+            raise RuntimeError('Baseline cast source differs: ' + hero)
         traces = [list(csv.DictReader((FOLDER / version / (hero+'-60') / 'trace.csv').open())) for version in ('before', 'after')]
         if any(len(rows) != 300 for rows in traces):
             raise RuntimeError('Missing five-second trace')
@@ -68,7 +74,7 @@ def main():
                     '-i', str(FOLDER / 'Zero-comparison.mp4'), '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
                     '-map', '[v]', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
                     str(FOLDER / 'ranged-comparison.mp4')], check=True)
-    report = dict(sources=sources, model_checks=reports, lifecycle=lifecycle, gameplay_identical_frames=600,
+    report = dict(baseline='2d25eb0', implementation='650b286', sources=sources, model_checks=reports, lifecycle=lifecycle, gameplay_identical_frames=600,
                   native=native, guided=guided, build=builds,
                   media=dict(frames=300, export_fps=30, kind='offline Unity rendering, not a runtime FPS measurement'))
     (FOLDER / 'validation.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
