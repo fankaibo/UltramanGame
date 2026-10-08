@@ -15,6 +15,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(review?.GuardHandoffEnabled==true&&battle.Phase==GamePhase.Battle&&battle.Punches>=1)
+            {
+                string guardKey=battle.Shield&&hero.GuardHandoffProgress<1?"guard-handoff-active":
+                    battle.Shield&&proofFrames.Contains("guard-handoff-active")?"guard-handoff-settled":
+                    review.GuardHandoffObserved&&battle.IsPunch&&battle.Punches==2?"guard-counter-contact":null;
+                if(guardKey!=null&&proofFrames.Add(guardKey)){StartCoroutine(SaveGuidedProof(guardKey));return;}
+            }
             if(!photo.Active&&world.Projectile.LaunchVisible&&battle.IsRangedPunch&&battle.ActionAge<AttackTempo.RangedLaunchSeconds&&proofFrames.Add("ranged-launch-volume"))
             {StartCoroutine(SaveGuidedProof("ranged-launch-volume"));return;}
             if(!photo.Active&&world.Projectile.ImpactVisible&&proofFrames.Add("ranged-impact-volume"))

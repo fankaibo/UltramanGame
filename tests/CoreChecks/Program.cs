@@ -46,6 +46,7 @@ static class Program
         try
         {
             PreviewChecks.Run(Check);
+            ReviewPlaybackChecks.Run(Check);
             PhotoChecks.Run(Check);
             BeamCloseupChecks.Run(Check);
         ImpactTimingChecks.Run(Check);

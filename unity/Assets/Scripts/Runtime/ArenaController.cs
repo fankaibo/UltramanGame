@@ -81,7 +81,7 @@ namespace UltramanGame.Runtime
             DisplayPreferences.Startup();recognizer.Difficulty=PlayerPrefs.GetInt("gesture.difficulty",0);
             keyboard=Array.IndexOf(Environment.GetCommandLineArgs(),"--keyboard")>=0;
             if(TraceEnabled&&Array.IndexOf(Environment.GetCommandLineArgs(),"--review-playback")>=0)
-            {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-linked")>=0);reviewFinisher=Array.IndexOf(Environment.GetCommandLineArgs(),"--review-finisher")>=0;keyboard=true;monsterHits=reviewFinisher?24:Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
+            {review=new ReviewPlayback(Array.IndexOf(Environment.GetCommandLineArgs(),"--review-slam")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-ray")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-linked")>=0,Array.IndexOf(Environment.GetCommandLineArgs(),"--review-guard-handoff")>=0);reviewFinisher=Array.IndexOf(Environment.GetCommandLineArgs(),"--review-finisher")>=0;keyboard=true;monsterHits=reviewFinisher?24:Battle.DefaultMonsterHits;battle=new Battle(monsterHits);lastHealth=enemyHealthDisplay=battle.MaxHealth;}
             Application.runInBackground=true;Screen.sleepTimeout=SleepTimeout.NeverSleep;
             client=new PoseClient(LocalPort("--pose-port",8765));previewClient=new PreviewClient(LocalPort("--preview-port",8766));
             var font=Resources.Load<Font>("Fonts/NotoSansSC-Regular");
@@ -330,6 +330,7 @@ namespace UltramanGame.Runtime
                 {
                     reviewFinishedAt=review.Age;
                     bool pass=battle.MaxHealth==(reviewFinisher?24:50)&&battle.Punches==(reviewFinisher?15:32)&&reviewBeams==(reviewFinisher?1:2)&&battle.Blocks>=1&&battle.HitsTaken==1&&reviewPaused;
+                    pass&=!review.GuardHandoffEnabled||review.GuardHandoffObserved;
                     Debug.Log($"[FullGameReview] pass={pass} age={review.Age:F2} punches={battle.Punches} beams={reviewBeams} blocks={battle.Blocks} hurt={battle.HitsTaken} pause={reviewPaused} health={battle.EnemyHealth}");
                     if(!pass){Application.Quit(2);return;}
                 }

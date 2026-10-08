@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--slam', action='store_true', help='Wait for the third, ground-slam attack before counterattacking')
     parser.add_argument('--ray', action='store_true', help='Exercise the fourth, head-ray attack before counterattacking')
     parser.add_argument('--linked', action='store_true', help='Queue the first three alternating fists during recovery')
+    parser.add_argument('--guard-handoff', action='store_true', help='Interrupt the first landed melee with a shield and counterpunch')
     parser.add_argument('--finisher', action='store_true', help='Use 24 HP so the first beam is the final strike')
     args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -38,7 +39,7 @@ def main():
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
                                    '--proof-output', str(native), '-screen-fullscreen', '0',
-                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else [])+(['--review-finisher'] if args.finisher else []),
+                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else [])+(['--review-finisher'] if args.finisher else [])+(['--review-guard-handoff'] if args.guard_handoff else []),
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         timed_out_after_review=False
         try:
@@ -221,6 +222,8 @@ def main():
         required += ('punch-link-prepare','punch-link-handoff','engagement-held-stance')
     if args.hero == 'Mebius':
         required += ('mebium-blade',)
+    if args.guard_handoff:
+        required += ('guard-handoff-active','guard-handoff-settled','guard-counter-contact')
     if args.finisher:
         # The defeated monster collapses after the release instead of taking a
         # recovery step back into battle. Ordinary rounds still require that shot.
@@ -265,7 +268,7 @@ def main():
             raise RuntimeError(f'HUD color was encoded incorrectly: {best[1:] if best else None}')
         pixel=best[1]
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'guard_handoff':args.guard_handoff, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,

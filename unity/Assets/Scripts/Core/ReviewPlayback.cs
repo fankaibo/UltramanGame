@@ -9,9 +9,12 @@ namespace UltramanGame.Core
         float nextPunch,lossAge=-1;
         bool alternate;
         readonly bool groundSlam,headRay,linkedPunches;
+        public bool GuardHandoffEnabled {get;}
+        public bool GuardHandoffObserved=>guardStage==2;
+        int guardStage;float guardAt;bool counterLeft;
         int queuedFor;
-        public ReviewPlayback(bool groundSlam=false,bool headRay=false,bool linkedPunches=false)
-        {this.groundSlam=groundSlam;this.headRay=headRay;this.linkedPunches=linkedPunches;}
+        public ReviewPlayback(bool groundSlam=false,bool headRay=false,bool linkedPunches=false,bool guardHandoff=false)
+        {this.groundSlam=groundSlam;this.headRay=headRay;this.linkedPunches=linkedPunches;GuardHandoffEnabled=guardHandoff;}
         public PlayerInput Next(Battle battle,float dt)
         {
             Age+=dt;var input=new PlayerInput{Tracking=true};
@@ -23,6 +26,16 @@ namespace UltramanGame.Core
             // First take one harmless hit, then demonstrate a successful block.
             if(battle.HitsTaken==0)return input;
             if(battle.Blocks<(headRay?3:groundSlam?2:1)){input.Shield=true;return input;}
+            if(GuardHandoffEnabled&&guardStage<2)
+            {
+                if(guardStage==0&&battle.Punches==1&&battle.IsPunch&&battle.ActionAge>=.14f)
+                {guardStage=1;guardAt=Age;counterLeft=battle.Action==HeroAction.RightPunch;}
+                if(guardStage==1)
+                {
+                    if(Age-guardAt<.30f){input.Shield=input.GuardIntent=true;return input;}
+                    guardStage=2;input.LeftPunch=counterLeft;input.RightPunch=!counterLeft;nextPunch=Age+.68f;return input;
+                }
+            }
             if(battle.Enemy==EnemyPhase.Attack){input.Shield=true;return input;}
             if(linkedPunches&&battle.Punches>0&&battle.Punches<4&&queuedFor!=battle.Punches&&battle.ActionAge>=.24f&&
                 (battle.Action==HeroAction.LeftPunch||battle.Action==HeroAction.RightPunch))

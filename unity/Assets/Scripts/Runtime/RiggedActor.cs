@@ -24,9 +24,13 @@ namespace UltramanGame.Runtime
         public Vector3 StancePosition=>home;
         public float EngagementWeight=>engagement.Weight;
         readonly bool retargetedPunch;
+        readonly HeroPoseHandoff guardHandoff;
+        public float GuardHandoffProgress=>guardHandoff?.Progress??1;
+        bool counterReach;
         Vector3 home;
         readonly Vector3 forward,opponentHome;
         AnimatedActor opponent;
+        Vector3 opponentRestContact;
         readonly Dictionary<string, AnimationClip> clips=new Dictionary<string, AnimationClip>();
         readonly Transform[] joints;
         readonly Renderer[] surfaces;
@@ -196,7 +200,7 @@ namespace UltramanGame.Runtime
         public Vector3 BeamSurfaceContact => beamSurface!=null?beamSurface.Position:BeamContact;
         public Vector3 FootPosition(bool left) => (left?leftFoot:rightFoot)?(left?leftFoot:rightFoot).position:Root.position;
         public Vector3 GroundContactPosition => pelvis?pelvis.position:Root.position;
-        public void SetOpponent(AnimatedActor actor){opponent=actor;}
+        public void SetOpponent(AnimatedActor actor){opponent=actor;opponentRestContact=actor!=null?actor.BeamSurfaceContact:opponentHome;}
         public void BindGuardImpact(Vector3 worldPosition)
         {if(!monster){guardContact=worldPosition;guardContactPending=true;}}
         public void BindSurfaceImpact(Vector3 worldPosition)
@@ -328,6 +332,7 @@ namespace UltramanGame.Runtime
                     clawBones[joint.name]=joint;
             }
             if(!hand||!leftHand)throw new InvalidOperationException(name+" is missing a left or right strike bone");
+            if(!monster)guardHandoff=new HeroPoseHandoff(Root,joints,leftFoot,rightFoot);
             if(monster)
             {
                 for(int side=0;side<2;side++)
@@ -507,6 +512,7 @@ namespace UltramanGame.Runtime
             // The terminal strike survives a tracking pause. Retain its visible
             // pose and recoil clock instead of sampling Idle beneath the pause.
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
+            if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&guardHandoff?.Active==true)return;
             Sluggers?.Restore();
             if(HeroArsenal.Blade(heroId,state)&&preview<0&&
                 (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
@@ -547,7 +553,20 @@ namespace UltramanGame.Runtime
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)&&
                 (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
-                punchStart=StrikeOrigin(state.Action);
+            {punchStart=StrikeOrigin(state.Action);counterReach=ReferenceEquals(observedBattle,state)&&(lastSampleShield||guardHandoff?.Active==true);}
+            if(guardHandoff!=null)
+            {
+                bool same=preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Battle;
+                bool wasPunch=observedAction==HeroAction.LeftPunch||observedAction==HeroAction.RightPunch;
+                bool guardChange=same&&lastSampleShield!=state.Shield&&state.Action==HeroAction.None;
+                bool cancelled=same&&wasPunch&&state.Action==HeroAction.None&&state.ActionAge<Battle.PunchSeconds;
+                if(same&&!rangedRecovery&&!comboWasActive&&!kickWasActive&&(guardChange||cancelled))
+                {guardHandoff.Begin();guardExitAge=1;}
+                else if(same&&(guardHandoff.Active||lastSampleShield)&&state.IsPunch&&observedAction!=state.Action)
+                    guardHandoff.Begin(.06f);
+                else if(!same||state.Action==HeroAction.Beam||state.Action==HeroAction.Hurt)guardHandoff.Clear();
+                guardHandoff.Restore();
+            }
             bool kick=!monster&&preview<0&&HeroKickMotion.Active(state);
             bool rangedToGuard=!monster&&rangedRecovery&&state.Phase==GamePhase.Battle&&state.Shield;
             if(!monster&&rangedRecovery&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&
@@ -667,7 +686,14 @@ namespace UltramanGame.Runtime
                     if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
                     {
                         if(observedAction!=state.Action||state.ActionAge<observedPunchAge)
+                        {
                             chaseAdvance=state.IsRangedPunch||opponent==null?0:opponent.LaunchAge<MonsterLaunchMotion.Landing?.72f:opponent.BeamChaseAdvance;
+                            // A counter can start while the first hit still has
+                            // the opponent leaning away. Follow that visible
+                            // chest instead of punching at its old home line.
+                            if(!state.IsRangedPunch&&opponent!=null&&guardHandoff?.Active==true)
+                                chaseAdvance=Mathf.Max(chaseAdvance,Mathf.Clamp(Vector3.Dot(opponent.BeamSurfaceContact-opponentRestContact,forward),0,.85f));
+                        }
                         lastPunchSide=state.Action==HeroAction.LeftPunch?-1:1;
                         observedPunchAge=state.ActionAge;
                     }
@@ -813,7 +839,7 @@ namespace UltramanGame.Runtime
             bool changedClip=playing!=next;
             if(changedClip)
             {
-                if(!monster&&(playing=="Guard"&&next!="Guard"||rangedToGuard)&&leftHand&&hand)
+                if(!monster&&guardHandoff?.Active!=true&&(playing=="Guard"&&next!="Guard"||rangedToGuard)&&leftHand&&hand)
                 {
                     // Keep the hands the child actually saw while the authored
                     // Guard clip hands off to Idle, or an interrupted ranged
@@ -1109,6 +1135,7 @@ namespace UltramanGame.Runtime
                  state.Action==HeroAction.None&&punchLink.Weight>0))PosePunchWeight(state);
             if(retargetArms)
             {
+                if(counterReach&&state.IsPunch&&!state.IsRangedPunch&&!kick&&!comboStrike&&!HeroArsenal.Blade(heroId,state))PoseCounterReach(state);
                 if(state.IsRangedPunch||rangedRecovery)PoseRangedArms(state);
                 else if(HeroArsenal.Blade(heroId,state))PoseMebiumArms(state);
                 else if(retargetedPunch)PoseRetargetedArms(state);
@@ -1212,6 +1239,15 @@ namespace UltramanGame.Runtime
                 float lift=Mathf.Max(0,Mathf.Lerp(kickHitLeftFloor,home.y+leftFootClearance,blend)-leftFoot.position.y,
                     Mathf.Lerp(kickHitRightFloor,home.y+rightFootClearance,blend)-rightFoot.position.y);
                 Root.position+=Vector3.up*lift;
+            }
+            if(guardHandoff!=null&&guardHandoff.Apply(dt))
+            {
+                var side=Vector3.Cross(Vector3.up,forward);
+                float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,guardHandoff.LeftTarget),LegDrop(rightThigh,rightShin,rightFoot,guardHandoff.RightTarget));
+                Root.position-=Vector3.up*drop;
+                PoseLimb(leftThigh,leftShin,leftFoot,guardHandoff.LeftTarget,1,forward-side*.15f,leftFootLocal.y);
+                PoseLimb(rightThigh,rightShin,rightFoot,guardHandoff.RightTarget,1,forward+side*.15f,rightFootLocal.y);
+                leftFoot.rotation=guardHandoff.LeftRotation;rightFoot.rotation=guardHandoff.RightRotation;
             }
             // Character-local emission carries the same readable signals as the
             // arcade VFX: Golza's eyes wake during warning/attack, while Tiga's
@@ -1573,6 +1609,28 @@ namespace UltramanGame.Runtime
             rightFoot.rotation=(!beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*rightFootRest;
         }
         float PunchTravel(Battle state)=>state.IsRangedPunch?.10f:StrikeAdvance+chaseAdvance-(HeroArsenal.Blade(heroId,state)?.95f:0);
+        void PoseCounterReach(Battle state)
+        {
+            bool left=state.Action==HeroAction.LeftPunch;
+            var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+            float length=Vector3.Distance(upper.position,lower.position)+Vector3.Distance(lower.position,wrist.position)-.02f;
+            var delta=PunchContact-forward*.10f-upper.position;
+            float reach=Mathf.Sqrt(Mathf.Max(0,length*length-Vector3.ProjectOnPlane(delta,forward).sqrMagnitude));
+            float shift=Mathf.Clamp(Vector3.Dot(delta,forward)-reach,0,.65f)*PunchReach(state.ActionAge);
+            if(shift<=.0001f)return;
+            // Retargeting cannot lengthen an arm. Complete the short pursuit
+            // with a real step; the following boot also releases so the pelvis
+            // does not stretch a planted rear leg.
+            SaveStepLegs();var side=Vector3.Cross(Vector3.up,forward);
+            var lf=leftFoot.position+forward*(shift*(left?1:.55f));var rf=rightFoot.position+forward*(shift*(left?.55f:1));
+            var lr=leftFoot.rotation;var rr=rightFoot.rotation;
+            Root.position+=forward*shift;
+            float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,lf),LegDrop(rightThigh,rightShin,rightFoot,rf));
+            Root.position-=Vector3.up*drop;stepDrop+=drop;
+            PoseLimb(leftThigh,leftShin,leftFoot,lf,1,forward-side*.15f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,rf,1,forward+side*.15f,rightFootLocal.y);
+            leftFoot.rotation=lr;rightFoot.rotation=rr;
+        }
         void PosePunchWeight(Battle state)
         {
             if(!pelvis||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
