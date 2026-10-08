@@ -1864,8 +1864,14 @@ namespace UltramanGame.Runtime
             right=Vector3.Lerp(right,standingRight,rightStep)+Vector3.up*(.08f*Mathf.Sin(rightStep*Mathf.PI));
             float floorBlend=RiseStep(age,1.38f,1.62f);
             float lc=Mathf.Lerp(leftFootClearance,leftFootLocal.y,floorBlend),rc=Mathf.Lerp(rightFootClearance,rightFootLocal.y,floorBlend);
-            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,side+forward,RiseStep(age,.88f,1.14f)),lc);
-            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,-forward,RiseStep(age,.88f,1.14f)),rc);
+            // As the boots plant under the hips, both knees must bend toward
+            // their toes. The old right pole faced backwards and the left one
+            // sideways, twisting the shins across the crouching pelvis. Start
+            // turning the bend planes during the supporting step, before the
+            // torso rises, and keep the final stance slightly open.
+            float kneePlant=RiseStep(age,.56f,.92f);
+            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,forward-side*.15f,kneePlant),lc);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,forward+side*.15f,kneePlant),rc);
             leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,facing*leftFootRest,landed);
             rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,facing*rightFootRest,landed);
             Vector3 support=seated-side*.68f-forward*.70f;support.y=home.y+.20f;

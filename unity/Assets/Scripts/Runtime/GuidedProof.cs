@@ -119,6 +119,7 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt)
                 key=battle.ActionAge<KnockdownMotion.LandingSeconds+.13f?"hero-hurt":
                     battle.ActionAge<KnockdownMotion.RiseSeconds+.24f?"hero-landed":
+                    battle.ActionAge>=1.15f&&battle.ActionAge<1.35f?"hero-rise-support":
                     battle.ActionAge<KnockdownMotion.Duration-.20f?"hero-rising":"hero-recovered";
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&world.BeamVisible)
                 key=battle.ActionAge<Battle.BeamHitSeconds?"beam-firing":battle.ActionAge<.62f?"beam-contact":
