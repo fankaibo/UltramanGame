@@ -62,6 +62,7 @@ namespace UltramanGame.Runtime
             {sequence=state.EnemyAttackCount;Launches++;Started=true;origin=hand+Vector3.up*.16f;destination=target;stone.localScale=Vector3.one;}
             if(Flying)
             {
+                destination=target;
                 stone.position=Vector3.Lerp(origin,destination,MonsterRockMotion.Travel(age))+Vector3.up*MonsterRockMotion.Arc(age);
                 stone.rotation=Quaternion.Euler(age*470,age*230,age*140);
             }

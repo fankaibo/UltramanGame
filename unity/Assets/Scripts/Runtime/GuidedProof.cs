@@ -15,6 +15,12 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&
+                battle.Punches>=3&&hero.EngagementWeight>.99f&&proofFrames.Add("engagement-held-stance"))
+            {
+                Debug.Log($"[Engagement] held hero={SelectedHero.Id} weight={hero.EngagementWeight:F3} distance={Vector3.Distance(hero.StancePosition,world.HeroHome):F3}");
+                StartCoroutine(SaveGuidedProof("engagement-held-stance"));return;
+            }
             if(!photo.Active&&world.Blade.Visible&&battle.ActionAge>.055f&&battle.ActionAge<.12f&&proofFrames.Add("mebium-blade"))
             {StartCoroutine(SaveGuidedProof("mebium-blade"));return;}
             if(!photo.Active&&HeroArsenal.Sluggers(SelectedHero.Id)&&world.Projectile.Visible)

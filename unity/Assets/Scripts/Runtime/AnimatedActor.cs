@@ -35,6 +35,8 @@ namespace UltramanGame.Runtime
         public Vector3 BeamSurfaceContact => rigged!=null?rigged.BeamSurfaceContact:BeamContact;
         public Vector3 FootPosition(bool left) => rigged!=null?rigged.FootPosition(left):Root.position;
         public Vector3 GroundContactPosition => rigged!=null?rigged.GroundContactPosition:Root.position;
+        public Vector3 StancePosition=>rigged!=null?rigged.StancePosition:home;
+        public float EngagementWeight=>rigged!=null?rigged.EngagementWeight:0;
         public void BindSurfaceImpact(Vector3 position){rigged?.BindSurfaceImpact(position);}
         public void BindGuardImpact(Vector3 position){rigged?.BindGuardImpact(position);}
         public void SetOpponent(AnimatedActor actor){rigged?.SetOpponent(actor);}

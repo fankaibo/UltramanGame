@@ -218,7 +218,7 @@ def main():
     if args.ray:
         required += ('ray-prepare','ray-travel','ray-block','ray-fade','ray-recover')
     if args.linked:
-        required += ('punch-link-prepare','punch-link-handoff')
+        required += ('punch-link-prepare','punch-link-handoff','engagement-held-stance')
     if args.hero == 'Mebius':
         required += ('mebium-blade',)
     if args.finisher:

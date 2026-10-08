@@ -39,7 +39,8 @@ namespace UltramanGame.Runtime
         public void SetHeroProfile(string id){heroId=id;effects.SetHeroProfile(id);projectile.SetHero(id);blade.SetHero(id);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
-        Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
+        Vector3 HeroAnchor=>hero!=null?hero.StancePosition:HeroHome;
+        Vector3 ShieldCenter => HeroAnchor+BattleAxis*.78f+Vector3.up*1.9f;
         readonly Transform backdrop;
         readonly Material backdropMaterial;
         readonly CinematicCamera cinematic;
@@ -196,7 +197,7 @@ namespace UltramanGame.Runtime
             }
             if(cue==GameCue.Hurt)
             {
-                Vector3 impact=HeroHome+Vector3.up*2;
+                Vector3 impact=HeroAnchor+Vector3.up*2;
                 if(state!=null&&MonsterRayMotion.Variant(state.EnemyAttackCount))monsterRay.Impact(impact,false);
                 if(state!=null&&MonsterRockMotion.Variant(state.EnemyAttackCount))rock.Impact(impact);
                 effects.Impact(impact,false,false,true);
@@ -320,7 +321,7 @@ namespace UltramanGame.Runtime
             float warningPulse=combat&&state.Enemy==EnemyPhase.Windup
                 ?.5f+.5f*Mathf.Sin(state.EnemyAge*8):0;
             float beamPulse=state.Action==HeroAction.Beam?Mathf.Clamp01(state.ActionAge/1.15f):0;
-            heroRim.transform.position=HeroHome-BattleAxis*1.15f+Vector3.up*2.35f;
+            heroRim.transform.position=HeroAnchor-BattleAxis*1.15f+Vector3.up*2.35f;
             monsterRim.transform.position=EnemyHome+BattleAxis*1.05f+Vector3.up*2.35f;
             heroRim.intensity=Showcase?.68f:combat?.62f+punchPulse*1.75f+beamPulse*1.55f:state.Phase==GamePhase.Transforming?1.2f:.40f;
             monsterRim.intensity=Showcase?.54f:combat?.54f+enemyPulse*1.55f+warningPulse*1.05f:state.Phase==GamePhase.Victory?Mathf.Max(0,.84f-arcade.PhaseAge*.3f):.30f;
@@ -381,6 +382,8 @@ namespace UltramanGame.Runtime
             // One damped recoil, with a restrained camera displacement for a young player.
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
             Vector3 target=lookAt;
+            if(state.Phase==GamePhase.Battle&&!Showcase)
+            {Vector3 follow=(HeroAnchor-HeroHome)*.20f;Camera.transform.position+=follow;target+=follow;}
             // Use the stable arena basis, not the previous frame's camera. A
             // repeated render or returning from a hero cut-in must not feed its
             // orientation back into the next strike/defence camera offset.
@@ -515,7 +518,7 @@ namespace UltramanGame.Runtime
                 target=Vector3.Lerp(target,lookAt+Vector3.up*.35f+BattleAxis*.10f,weight);
                 Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,31.5f,weight);
             }
-            Camera.transform.LookAt(Vector3.Lerp(target,HeroHome+BattleAxis*.2f+Vector3.up*2.60f,focus));
+            Camera.transform.LookAt(Vector3.Lerp(target,HeroAnchor+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)
             {
                 // Cut to a front three-quarter lens. A restrained orbit keeps the
@@ -525,8 +528,8 @@ namespace UltramanGame.Runtime
                 float orbit=Mathf.Sin(closeupT*Mathf.PI)*5.5f;
                 Vector3 offset=Quaternion.AngleAxis(orbit,Vector3.up)*new Vector3(3.8f,2.82f,.9f);
                 offset.y+=Mathf.Sin(closeupT*Mathf.PI)*.10f;
-                Camera.transform.position=HeroHome+offset;
-                Camera.transform.LookAt(HeroHome+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
+                Camera.transform.position=HeroAnchor+offset;
+                Camera.transform.LookAt(HeroAnchor+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
                 Camera.fieldOfView=32;
                 // Reproject the distant landscape for this dedicated lens.
                 backdrop.rotation=Camera.transform.rotation;
@@ -593,9 +596,9 @@ namespace UltramanGame.Runtime
             projectile.Tick(state,Camera,hero?.StrikeOrigin(state.Shot.Side)??BeamOrigin,BeamTarget,Showcase||Closeup.Active,hero?.RayOrigin);
             blade.Tick(state,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,BattleAxis,BeamTarget,Showcase||Closeup.Active);
             rock.Tick(state,enemy?.StrikeOrigin(HeroAction.RightPunch)??BeamTarget,ShieldCenter,Showcase||Closeup.Active);
-            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null);
+            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null,HeroAnchor);
             monsterRay.Tick(state,Camera,enemy?.RayOrigin??EnemyHome+Vector3.up*3.32f-BattleAxis*.46f,
-                state.Shield?ShieldCenter+Vector3.up*.26f:HeroHome+Vector3.up*2,Showcase||Closeup.Active);
+                state.Shield?ShieldCenter+Vector3.up*.26f:HeroAnchor+Vector3.up*2,Showcase||Closeup.Active);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>BeamStream.LaunchSeconds;
             BeamStarted=firing&&!beamWasVisible&&!(state.Finishing&&previous==GamePhase.Paused);beamWasVisible=firing;
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");

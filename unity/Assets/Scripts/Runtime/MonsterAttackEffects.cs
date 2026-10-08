@@ -141,7 +141,7 @@ namespace UltramanGame.Runtime
         {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
         {hitAge=0;impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
-        public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null)
+        public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null,Vector3? heroStance=null)
         {
             bool active=state.Phase==GamePhase.Battle;
             if(!active){hitAge=10;impactAttack=-1;pendingImpact=false;}else hitAge+=dt;
@@ -150,9 +150,11 @@ namespace UltramanGame.Runtime
             if(active&&pendingImpact){impactAttack=state.EnemyAttackCount;pendingImpact=false;}
             bool warning=active&&state.Enemy==EnemyPhase.Windup&&!MonsterRayMotion.Active(state)&&!MonsterRockMotion.Active(state);
             bool attack=active&&state.Enemy==EnemyPhase.Attack;
-            Vector3 monster=home+forward*AnimatedActor.MonsterAdvance(state,CombatSpacing.Approach(Vector3.Distance(home,target)));
-            Vector3 contact=target-forward*.7f+Vector3.up*2.15f-camera.transform.forward*.3f;
-            Vector3 clawPosition=hand??contact-forward*Mathf.Max(0,AnimatedActor.EnemyAdvance-AnimatedActor.MonsterAdvance(state,CombatSpacing.Approach(Vector3.Distance(home,target))));
+            Vector3 destination=heroStance??target;
+            float approach=CombatSpacing.Approach(Vector3.Distance(home,destination));
+            Vector3 monster=home+forward*AnimatedActor.MonsterAdvance(state,approach);
+            Vector3 contact=destination-forward*.7f+Vector3.up*2.15f-camera.transform.forward*.3f;
+            Vector3 clawPosition=hand??contact-forward*Mathf.Max(0,AnimatedActor.EnemyAdvance-AnimatedActor.MonsterAdvance(state,approach));
             if(attackNumber!=state.EnemyAttackCount)
             {
                 attackNumber=state.EnemyAttackCount;previousHand=clawPosition;
