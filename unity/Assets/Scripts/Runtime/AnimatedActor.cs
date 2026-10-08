@@ -10,6 +10,9 @@ namespace UltramanGame.Runtime
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
         public ZeroSluggerRig Sluggers=>rigged?.Sluggers;
+        public ZeroTwinShoot TwinShoot=>rigged?.TwinShoot;
+        public void PoseFinisherWeapons(Battle state)=>rigged?.PoseFinisherWeapons(state);
+        public void ResetFinisher()=>rigged?.ResetFinisher();
         public Vector3 BladeOrigin=>rigged!=null?rigged.BladeOrigin:StrikeOrigin(HeroAction.LeftPunch);
         public Vector3 BladeDirection=>rigged!=null?rigged.BladeDirection:forwardAxis;
         public Vector3 BladeNormal=>rigged!=null?rigged.BladeNormal:Vector3.up;

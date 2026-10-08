@@ -222,6 +222,10 @@ def main():
         required += ('punch-link-prepare','punch-link-handoff','engagement-held-stance')
     if args.hero == 'Mebius':
         required += ('mebium-blade',)
+    if args.hero == 'Zero':
+        required += ('zero-twin-grab', 'zero-twin-chest')
+        if not args.finisher:
+            required += ('zero-twin-restored',)
     if args.guard_handoff:
         required += ('guard-handoff-active','guard-handoff-settled','guard-counter-contact')
     if args.finisher:

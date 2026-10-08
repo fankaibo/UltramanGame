@@ -34,7 +34,7 @@ namespace UltramanGame.Runtime
             Clear();
         }
         public void Clear(){root.gameObject.SetActive(false);Power=Age=0;}
-        public void Sample(bool active,float age,Vector3 origin,Vector3 leftHand,Vector3 rightHand,Vector3 axis)
+        public void Sample(bool active,float age,Vector3 origin,Vector3 leftHand,Vector3 rightHand,Vector3 axis,bool chestMounted=false)
         {
             if(!active){Clear();return;}
             Age=Mathf.Max(0,age);
@@ -51,7 +51,7 @@ namespace UltramanGame.Runtime
             // The vertical-hand pose puts the hand midpoint beside the face.
             // Gather below it at the upper chest, keeping the eyes readable.
             var gathered=Vector3.Lerp(hands,origin,.15f)-Vector3.up*.28f;
-            volume.position=Vector3.Lerp(gathered,origin,Mathf.SmoothStep(0,1,(Age-BeamCloseup.Duration+.20f)/.20f));
+            volume.position=chestMounted?origin:Vector3.Lerp(gathered,origin,Mathf.SmoothStep(0,1,(Age-BeamCloseup.Duration+.20f)/.20f));
             volume.rotation=Quaternion.LookRotation(axis,Vector3.up);
             float gathering=Mathf.Sin(Mathf.Clamp01(progress/.8f)*Mathf.PI*.5f);
             float collapse=Mathf.SmoothStep(0,1,(progress-.66f)/.34f);

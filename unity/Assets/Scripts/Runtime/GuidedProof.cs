@@ -15,6 +15,14 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&hero.TwinShoot!=null&&battle.Phase==GamePhase.Battle)
+            {
+                string twin=hero.TwinShoot.Active&&battle.Action==HeroAction.Beam?
+                    hero.TwinShoot.Age>.18f&&hero.TwinShoot.Age<.60f?"zero-twin-grab":
+                    hero.TwinShoot.Dock>.999f&&world.Closeup.Active?"zero-twin-chest":null:
+                    !hero.TwinShoot.Active&&proofFrames.Contains("zero-twin-chest")?"zero-twin-restored":null;
+                if(twin!=null&&proofFrames.Add(twin)){StartCoroutine(SaveGuidedProof(twin));return;}
+            }
             if(review?.GuardHandoffEnabled==true&&battle.Phase==GamePhase.Battle&&battle.Punches>=1)
             {
                 string guardKey=battle.Shield&&hero.GuardHandoffProgress<1?"guard-handoff-active":

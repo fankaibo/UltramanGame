@@ -149,7 +149,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -596,6 +596,7 @@ namespace UltramanGame.Runtime
             volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
             projectile.Tick(state,Camera,hero?.StrikeOrigin(state.IsRangedPunch?state.Action:state.Shot.Side)??BeamOrigin,BeamTarget,Showcase||Closeup.Active,hero?.RayOrigin,dt);
+            if(!Showcase)hero?.PoseFinisherWeapons(state);
             blade.Tick(state,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,BattleAxis,BeamTarget,Showcase||Closeup.Active);
             rock.Tick(state,enemy?.StrikeOrigin(HeroAction.RightPunch)??BeamTarget,ShieldCenter,Showcase||Closeup.Active);
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null,HeroAnchor);
