@@ -31,6 +31,14 @@ namespace UltramanGame.Runtime
                     !hero.Mebium.Active&&proofFrames.Contains("mebium-cross-shoot")?"mebium-restored":null;
                 if(mebiumKey!=null&&proofFrames.Add(mebiumKey)){StartCoroutine(SaveGuidedProof(mebiumKey));return;}
             }
+            if(!photo.Active&&hero.Grigio!=null&&battle.Phase==GamePhase.Battle)
+            {
+                string grigioKey=hero.Grigio.Active&&battle.Action==HeroAction.Beam?
+                    hero.Grigio.Age>.32f&&hero.Grigio.Age<.65f?"grigio-circle-charge":
+                    hero.Grigio.Crossed&&world.Closeup.Active?"grigio-wrist-shot":null:
+                    !hero.Grigio.Active&&proofFrames.Contains("grigio-wrist-shot")?"grigio-restored":null;
+                if(grigioKey!=null&&proofFrames.Add(grigioKey)){StartCoroutine(SaveGuidedProof(grigioKey));return;}
+            }
             if(review?.GuardHandoffEnabled==true&&battle.Phase==GamePhase.Battle&&battle.Punches>=1)
             {
                 string guardKey=battle.Shield&&hero.GuardHandoffProgress<1?"guard-handoff-active":

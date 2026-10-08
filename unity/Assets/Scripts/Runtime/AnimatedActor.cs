@@ -12,6 +12,7 @@ namespace UltramanGame.Runtime
         public ZeroSluggerRig Sluggers=>rigged?.Sluggers;
         public ZeroTwinShoot TwinShoot=>rigged?.TwinShoot;
         public MebiumShoot Mebium=>rigged?.Mebium;
+        public GrigioShot Grigio=>rigged?.Grigio;
         public void PoseFinisherWeapons(Battle state)=>rigged?.PoseFinisherWeapons(state);
         public void ResetFinisher()=>rigged?.ResetFinisher();
         public Vector3 BladeOrigin=>rigged!=null?rigged.BladeOrigin:StrikeOrigin(HeroAction.LeftPunch);

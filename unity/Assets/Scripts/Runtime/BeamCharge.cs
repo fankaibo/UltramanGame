@@ -14,7 +14,8 @@ namespace UltramanGame.Runtime
         public float Power {get;private set;}
         public Vector3 Center=>volume.position;
         public float Age {get;private set;}
-        bool mebium;
+        bool mebium,grigio;
+        public void SetGrigio(bool value){grigio=value;volumeMaterial.SetFloat("_RoseBlend",value?1:0);}
         public void SetMebium(bool value){mebium=value;volumeMaterial.SetFloat("_WarmBlend",value?1:0);}
         public BeamCharge(Transform parent)
         {
@@ -56,6 +57,7 @@ namespace UltramanGame.Runtime
             volume.position=chestMounted?origin:Vector3.Lerp(gathered,origin,Mathf.SmoothStep(0,1,(Age-BeamCloseup.Duration+.20f)/.20f));
             if(mebium&&brace.HasValue)
                 volume.position=Vector3.Lerp(brace.Value,origin,Mathf.SmoothStep(0,1,(Age-.30f)/.80f));
+            if(grigio)volume.position=Vector3.Lerp(hands-Vector3.up*.12f,origin,Mathf.SmoothStep(0,1,(Age-.72f)/.38f));
             volume.rotation=Quaternion.LookRotation(axis,Vector3.up);
             float gathering=Mathf.Sin(Mathf.Clamp01(progress/.8f)*Mathf.PI*.5f);
             float collapse=Mathf.SmoothStep(0,1,(progress-.66f)/.34f);
@@ -81,8 +83,8 @@ namespace UltramanGame.Runtime
                 }
                 float life=Mathf.Sin(tip*Mathf.PI);
                 line.widthMultiplier=(.018f+i%3*.007f)*(.65f+progress*.6f);
-                line.startColor=mebium?new Color(1,.35f,.05f,0):new Color(.07f,.42f,1,0);
-                line.endColor=mebium?new Color(1.2f,.86f,.38f,streamFade*life*.88f):new Color(.60f,.87f,1.2f,streamFade*life*.88f);
+                line.startColor=grigio?new Color(.86f,.11f,.36f,0):mebium?new Color(1,.35f,.05f,0):new Color(.07f,.42f,1,0);
+                line.endColor=grigio?new Color(1.2f,.66f,.90f,streamFade*life*.88f):mebium?new Color(1.2f,.86f,.38f,streamFade*life*.88f):new Color(.60f,.87f,1.2f,streamFade*life*.88f);
             }
         }
     }

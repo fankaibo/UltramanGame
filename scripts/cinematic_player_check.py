@@ -224,6 +224,10 @@ def main():
         required += ('mebium-blade', 'mebium-brace-charge', 'mebium-cross-shoot')
         if not args.finisher:
             required += ('mebium-restored',)
+    if args.hero == 'Grigio':
+        required += ('grigio-circle-charge', 'grigio-wrist-shot')
+        if not args.finisher:
+            required += ('grigio-restored',)
     if args.hero == 'Zero':
         required += ('zero-twin-grab', 'zero-twin-chest')
         if not args.finisher:

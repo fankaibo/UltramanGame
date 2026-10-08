@@ -14,6 +14,9 @@ static class HeroRosterChecks
         check(HeroRoster.At(HeroRoster.Index("Zero")).BeamJapanese=="ゼロツインシュート","Zero keeps Twin Shoot label");
         check(HeroRoster.At(HeroRoster.Index("Zeta")).BeamJapanese=="ゼスティウム光線","Zeta keeps Zestium Beam label");
         check(HeroRoster.At(HeroRoster.Index("DeckerStrong")).BeamJapanese=="ドルネードブレイカー","Decker Strong keeps Dolnade Breaker label");
+        var grigio=HeroRoster.At(HeroRoster.Index("Grigio"));
+        check(grigio.Beam=="格力乔射线"&&grigio.BeamEnglish=="Grigio Shot"&&grigio.BeamJapanese=="グリージョショット",
+            "Grigio damage finisher is Shot rather than the restorative Cheer Charge");
         var zero=HeroRoster.At(HeroRoster.Index("Zero"));
         check(zero.BeamDual&&zero.BeamTint=="#67C8FF","Zero finisher keeps a distinct twin-beam presentation profile");
         check(HeroRoster.At(HeroRoster.Index("Geed")).BeamTint!="#5CCBFF"&&
