@@ -16,7 +16,9 @@ namespace UltramanGame.Editor
         {foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int hz in new[]{15,30,60})Run("after",id,hz,id=="Tiga"&&hz==60);}
         static void Run(string version,string id,int hz,bool movie)
         {
-            string folder=Path.GetFullPath($"../artifacts/knee-rise-20261008/{version}/{id}-{hz}");Directory.CreateDirectory(folder);
+            // Keep later regressions separate from the original before/after evidence.
+            string reviewRoot=Environment.GetEnvironmentVariable("ULTRAMAN_KNEE_REVIEW_ROOT")??"knee-rise-20261008";
+            string folder=Path.GetFullPath($"../artifacts/{reviewRoot}/{version}/{id}-{hz}");Directory.CreateDirectory(folder);
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(1008);
             var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);world.SetHeroProfile(id);
             if(!hero.IsRigged||!enemy.IsRigged)throw new Exception("Actual rig missing");
