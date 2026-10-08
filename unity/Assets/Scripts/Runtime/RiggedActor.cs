@@ -608,7 +608,7 @@ namespace UltramanGame.Runtime
                     if(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)
                     {
                         if(observedAction!=state.Action||state.ActionAge<observedPunchAge)
-                            chaseAdvance=opponent==null?0:opponent.LaunchAge<MonsterLaunchMotion.Landing?.72f:opponent.BeamChaseAdvance;
+                            chaseAdvance=state.IsRangedPunch||opponent==null?0:opponent.LaunchAge<MonsterLaunchMotion.Landing?.72f:opponent.BeamChaseAdvance;
                         lastPunchSide=state.Action==HeroAction.LeftPunch?-1:1;
                         observedPunchAge=state.ActionAge;
                     }
@@ -1025,7 +1025,7 @@ namespace UltramanGame.Runtime
                 state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt);
             bool pursuing=!retargetedPunch&&chaseAdvance>0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||state.Action==HeroAction.None&&heroRecoveryAge<HeroRecoverySeconds&&!state.Shield);
-            if(preview<0&&!kick&&(plantedRoster||pursuing))
+            if(preview<0&&!kick&&(plantedRoster||pursuing||!monster&&state.IsRangedPunch))
                 PoseRetargetedFootwork(state);
             if(!monster&&!kick&&preview<0&&state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt)
                 PoseGuardBrace(ContactPulse(guardAge,0,.14f,.64f));
@@ -1470,7 +1470,7 @@ namespace UltramanGame.Runtime
             leftFoot.rotation=(beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*leftFootRest;
             rightFoot.rotation=(!beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*rightFootRest;
         }
-        float PunchTravel(Battle state)=>StrikeAdvance+chaseAdvance;
+        float PunchTravel(Battle state)=>state.IsRangedPunch?.10f:StrikeAdvance+chaseAdvance;
         void PosePunchWeight(Battle state)
         {
             if(!pelvis||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
@@ -1608,7 +1608,7 @@ namespace UltramanGame.Runtime
                 Vector3 target=guard;
                 if(active)
                 {
-                    Vector3 finish=contact-forward*.12f+side*(sign*.10f);
+                    Vector3 finish=state.IsRangedPunch?upper.position+forward*.90f-Vector3.up*.10f:contact-forward*.12f+side*(sign*.10f);
                     target=Vector3.Lerp(age<=.15f?punchStart:guard,finish,reach);
                     // A small outward arc separates the two silhouettes. It
                     // disappears at contact and on return to the shared guard.
@@ -1646,7 +1646,7 @@ namespace UltramanGame.Runtime
                 Vector3 target=guard;
                 if(active)
                 {
-                    Vector3 finish=PunchContact-forward*.10f+side*(sign*.06f);
+                    Vector3 finish=state.IsRangedPunch?upper.position+forward*.90f-Vector3.up*.10f:PunchContact-forward*.10f+side*(sign*.06f);
                     target=Vector3.Lerp(age<=.15f?punchStart:guard,finish,motion)+side*(sign*.08f*Mathf.Sin(motion*Mathf.PI));
                 }
                 var palm=wrist.rotation;var span=wrist.position-lower.position;

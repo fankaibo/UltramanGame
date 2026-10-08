@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import plistlib
 import re
+import statistics
 import subprocess
 import sys
 import time
@@ -36,6 +37,25 @@ def selection_landmarks(direction):
         points[15].x,points[15].y=.90,.02
     else:
         points[16].x,points[16].y=.10,.02
+    return points
+
+
+def tempo_landmarks(seconds):
+    """Alternate real receiver trajectories: slow left, fast right, with retraction."""
+    points=landmarks_at(0)
+    for point in points:point.z=-.1
+    for index,x,y,z in [(11,.65,.35,-.1),(12,.35,.35,-.1),(13,.68,.50,-.12),
+                        (14,.32,.50,-.12),(15,.58,.44,-.20),(16,.42,.44,-.20)]:
+        points[index].x,points[index].y,points[index].z=x,y,z
+    phase=seconds%2.65
+    right=phase>=1.55
+    if right:phase-=1.55
+    duration=.14 if right else .65
+    active=phase-.18
+    extension=max(0,min(1,active/duration))
+    if active>duration+.16:extension=max(0,1-(active-duration-.16)/.30)
+    hand=points[16 if right else 15]
+    hand.x+=(-.04 if right else .04)*extension;hand.y-=.04*extension;hand.z-=.28*extension
     return points
 
 
@@ -89,6 +109,7 @@ def main():
     parser.add_argument('--memory-output',type=Path,help='Write same-process RSS/VSZ samples as TSV and a summary JSON')
     parser.add_argument('--memory-interval',type=float,default=1.0,help='Seconds between process memory samples')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
+    parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
@@ -123,12 +144,13 @@ def main():
             initial_selection_done=False;replay_selection_sent=False;replay_selection_seen=False
             replay_selection_direction='right'
             beam_release_until=0
-            pose_contexts={};gesture_audit=[]
+            pose_contexts={};gesture_audit=[];guard_entry_contexts=set()
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
             guard_shape_frames=guard_reacquisitions=0;guard_confirmed=False
             guard_startup_overlap_frames=beam_startup_frames=0
             next_memory_sample=0.0
+            tempo_started=None
             while time.monotonic()-started<240:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
@@ -153,8 +175,9 @@ def main():
                         gesture_audit.append(dict(sequence=sequence,source_protected=source_protected,
                                                   delivery_protected=protected,event=line))
                         if source_protected:unwanted_attacks+=1
-                    if options.gesture_entry_noise and guard_started and now-guard_started<.7 and '[Gesture] 护盾已展开' in line:
-                        guard_entries+=1
+                    if options.gesture_entry_noise and '[Gesture] 护盾已展开' in line:
+                        match=re.search(r'sequence=(\d+)',line)
+                        if match and int(match.group(1)) in guard_entry_contexts:guard_entries+=1
                     if options.gesture_shape_noise and guard and not beam and '[Gesture] 护盾已展开' in line:
                         if guard_confirmed:guard_reacquisitions+=1
                         guard_confirmed=True
@@ -169,7 +192,8 @@ def main():
                             # held pose cannot fire a second beam accidentally.
                             beam_release_until=now+.75
                         if cue in ('Beam','Victory'):beam=False;guard=False
-                        if cue=='Warning':guard=True;guard_started=now;guard_confirmed=False
+                        if cue=='Warning':
+                            guard=True;guard_started=now+(.30 if options.tempo_skills else 0);guard_confirmed=False
                         if cue in ('Block','Hurt'):guard=False
                         # Tracking loss cancels the game's unfinished warning.
                         # Do not keep holding a guard for an attack that no longer exists.
@@ -245,6 +269,10 @@ def main():
                         points=landmarks_at(4.15)
                     else:
                         points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
+                        if options.tempo_skills and not beam and not guard:
+                            if tempo_started is None:tempo_started=now
+                            points=tempo_landmarks(now-tempo_started)
+                        else:tempo_started=None
                         if options.gesture_wobble and beam:
                             points[15].z=points[16].z=-.10
                             hold_age=now-beam_release_until
@@ -281,6 +309,11 @@ def main():
                                     if int((now-guard_started)/.8)%2==0:
                                         points[16 if hand==15 else 15].visibility=.1
                                         guard_overlap_frames+=1
+                if options.tempo_skills and guard and not beam and now<guard_started:
+                    # The tempo fixture rests at chest height and can already
+                    # be guarding before Warning. Release that old guard so
+                    # this audit exercises a new, initially biased acquisition.
+                    points=landmarks_at(0);protected='';tempo_started=None
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
                 if stage=='review' and photos_seen==2 and now-review_at>7 and not review_loss_start:
@@ -290,7 +323,9 @@ def main():
                 publish_at=time.monotonic()
                 frame=factory.make(points)
                 if options.gesture_wobble:pose_contexts[frame['sequence']]=protected
-                if options.gesture_startup_noise:
+                if options.gesture_entry_noise and guard and not beam and 0<=now-guard_started<.7:
+                    guard_entry_contexts.add(frame['sequence'])
+                if options.gesture_startup_noise or options.tempo_skills:
                     pose_trace.append(dict(frame=frame,protected=protected,beam_available=beam,transform_available=phase=='Waiting'))
                 if not review_loss_start or now-review_loss_start>.45:bridge.publish(frame)
                 pose_at=time.monotonic()
@@ -310,6 +345,24 @@ def main():
             for marker in required:
                 if marker not in output:raise RuntimeError('Missing '+marker)
             if re.search(r'NullReferenceException|Shader error|error CS\d',output):raise RuntimeError('Unity runtime error')
+            tempo_evidence=None
+            if options.tempo_skills:
+                attacks=re.findall(r'\[AttackTempo\] ranged=True speed=([\d.]+) duration=([\d.]+) side=(LeftPunch|RightPunch)',output)
+                launches=re.findall(r'\[HeroProjectile\] launch side=(LeftPunch|RightPunch) speed=([\d.]+) sequence=(\d+)',output)
+                speeds=[float(row[0]) for row in attacks]
+                if len(attacks)<20 or {row[2] for row in attacks}!={'LeftPunch','RightPunch'} or max(speeds)<min(speeds)*1.3:
+                    raise RuntimeError(f'Missing actual slow/fast ranged receiver evidence: {attacks}')
+                slow=statistics.median(float(row[0]) for row in attacks if row[2]=='LeftPunch')
+                fast=statistics.median(float(row[0]) for row in attacks if row[2]=='RightPunch')
+                if fast<slow*1.25:raise RuntimeError(f'Fast trajectory did not speed up the actual player: {slow}/{fast}')
+                if len(launches)<20 or len({row[2] for row in launches})!=len(launches):
+                    raise RuntimeError(f'Missing or duplicate remote launches: {launches}')
+                proof_shots={path.stem for path in (folder/'native').glob('*.png')}
+                if not {'light-bullet-left','light-bullet-right'}.issubset(proof_shots):
+                    raise RuntimeError('Missing rendered remote shots from both hands')
+                tempo_evidence=dict(accepted=len(attacks),launches=len(launches),speed_min=min(speeds),speed_max=max(speeds),
+                    slow_median=slow,fast_median=fast,
+                    hands=sorted({row[2] for row in attacks}),shots=sorted(proof_shots&{'light-bullet-left','light-bullet-right'}))
             if options.gesture_wobble:
                 if unwanted_attacks or guard_noise_frames<4 or beam_noise_frames<4 or guard_overlap_frames<4:
                     raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames} guardOverlap={guard_overlap_frames}')
@@ -342,6 +395,7 @@ def main():
                 'replay_battle_started':True,'replay_selection_reset':True,
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
+            if tempo_evidence:result['tempo_skills']=tempo_evidence
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
             if options.gesture_startup_noise:result['gesture_startup_noise']={'guard_overlap_frames':guard_startup_overlap_frames,'beam_bias_frames':beam_startup_frames}
@@ -351,8 +405,8 @@ def main():
         finally:
             stop_process(process)
             if options.gesture_wobble:
-                (folder/'gesture-audit.json').write_text(json.dumps(dict(poses=pose_contexts,events=gesture_audit),ensure_ascii=False,indent=2)+'\n')
-            if options.gesture_startup_noise:
+                (folder/'gesture-audit.json').write_text(json.dumps(dict(poses=pose_contexts,events=gesture_audit,guard_entry_sequences=sorted(guard_entry_contexts)),ensure_ascii=False,indent=2)+'\n')
+            if options.gesture_startup_noise or options.tempo_skills:
                 (folder/'synthetic-poses.jsonl').write_text(''.join(json.dumps(row,separators=(',',':'))+'\n' for row in pose_trace))
             if memory_output:write_memory_report(memory_output,memory_rows)
             build['after']=build_hashes()

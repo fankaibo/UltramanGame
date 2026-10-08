@@ -15,6 +15,11 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&world.Projectile.Visible&&AttackTempo.Travel(battle.Shot.Age)>.30f&&AttackTempo.Travel(battle.Shot.Age)<.85f)
+            {
+                string shotKey="light-bullet-"+(battle.Shot.Side==HeroAction.LeftPunch?"left":"right");
+                if(proofFrames.Add(shotKey)){StartCoroutine(SaveGuidedProof(shotKey));return;}
+            }
             if(HeroKickMotion.Active(battle))proofLastKickTime=Time.unscaledTime;
             else if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield&&
                 Time.unscaledTime-proofLastKickTime<.75f&&hero.FootPosition(true).y<.4f&&hero.FootPosition(false).y<.4f)

@@ -8,7 +8,7 @@ namespace UltramanGame.Core
     {
         public static bool Active(Battle state)
         {
-            if(state.Phase!=GamePhase.Battle||(state.Action!=HeroAction.LeftPunch&&state.Action!=HeroAction.RightPunch))return false;
+            if(state.IsRangedPunch||state.Phase!=GamePhase.Battle||(state.Action!=HeroAction.LeftPunch&&state.Action!=HeroAction.RightPunch))return false;
             int number=state.Punches+(state.ActionAge<Battle.PunchHitSeconds?1:0);
             return number>0&&number%5==0;
         }

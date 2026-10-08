@@ -24,6 +24,15 @@ namespace UltramanGame.Core
         public float EnemyHealth { get; private set; }
         public float Energy { get; private set; }
         public float ActionAge { get; private set; }
+        public float AttackSpeed { get; private set; } = 1;
+        public int AttackSequence { get; private set; }
+        public readonly RangedShot Shot=new RangedShot();
+        public bool LastDamageRanged {get;private set;}
+        bool rangedPunch;
+        public bool IsPunch=>Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch;
+        public bool IsRangedPunch=>IsPunch&&rangedPunch;
+        public float AttackHitTime=>IsRangedPunch?AttackTempo.RangedHitSeconds:PunchHitSeconds;
+        public float AttackDuration=>IsRangedPunch?AttackTempo.RangedSeconds:PunchSeconds;
         public float TransformationAge=>Phase==GamePhase.Transforming?phaseAge:0;
         public float EnemyAge { get; private set; }
         public float WarningDuration { get; private set; } = WindupSeconds;
@@ -49,7 +58,8 @@ namespace UltramanGame.Core
         bool finishing;
         bool enemyHitApplied;
         HeroAction queuedPunch;
-        float queuedAge;
+        float queuedAge,queuedSpeed;
+        bool queuedRanged;
         float queuedBeamAge;
 
         public Battle(int monsterHits=DefaultMonsterHits)
@@ -82,7 +92,7 @@ namespace UltramanGame.Core
             if(Phase==GamePhase.Paused || Phase==GamePhase.Waiting || Phase==GamePhase.Victory) return;
             resumePhase=Phase; Phase=GamePhase.Paused; ResumeProgress=0;
             if(!finishing)Action=HeroAction.None;
-            Shield=false; Enemy=EnemyPhase.Rest; EnemyAge=0;
+            Shield=false;Shot.Clear(); Enemy=EnemyPhase.Rest; EnemyAge=0;
             queuedPunch=HeroAction.None;queuedAge=0;
             queuedBeamAge=0;InstructionRemaining=0;WarningDuration=WindupSeconds;
             enemyHitApplied=false;
@@ -91,6 +101,7 @@ namespace UltramanGame.Core
         public void Tick(float dt,PlayerInput input)
         {
             if(float.IsNaN(dt)||float.IsInfinity(dt)||dt<0) throw new ArgumentOutOfRangeException(nameof(dt));
+            LastDamageRanged=false;
             dt=Math.Min(dt,.1f); // avoid one stalled render frame skipping an entire warning
             if(Phase==GamePhase.Victory) return;
             if(!input.Tracking) { Pause(); ResumeProgress=0; return; }
@@ -111,12 +122,22 @@ namespace UltramanGame.Core
                 if(phaseAge>=TransformationSeconds) { Phase=GamePhase.Battle; phaseAge=0;GiveInstructionTime(0); Cue(GameCue.BattleStart); }
                 return;
             }
+            if(Shot.Tick(dt))
+            {
+                EnemyHealth=Math.Max(0,EnemyHealth-1);Punches++;LastDamageRanged=true;AddEnergy(1);
+                if(EnemyHealth<=0)
+                {
+                    Action=Shot.Side;ActionAge=Shot.Age;AttackSpeed=Shot.Speed;rangedPunch=true;
+                    finishing=true;Shield=false;Enemy=EnemyPhase.Rest;EnemyAge=0;queuedPunch=HeroAction.None;queuedAge=queuedBeamAge=0;
+                    return;
+                }
+            }
             if(finishing)
             {
                 // Pose changes during the final hit cannot cancel its release,
                 // enqueue another fist or let a defeated enemy retaliate.
-                ActionAge+=dt;
-                if(ActionAge>=(Action==HeroAction.Beam?BeamSeconds:PunchSeconds))CompleteVictory();
+                ActionAge+=dt*(IsPunch?AttackSpeed:1);
+                if(ActionAge>=(Action==HeroAction.Beam?BeamSeconds:AttackDuration))CompleteVictory();
                 return;
             }
             immunity=Math.Max(0,immunity-dt);
@@ -145,10 +166,12 @@ namespace UltramanGame.Core
             queuedAge-=dt;
             if(queuedAge<=0 || poseOwnsInput || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&
-                ActionAge>=PunchSeconds-.18f && !poseOwnsInput && !input.Beam && (input.LeftPunch || input.RightPunch))
-            { queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=.20f; }
+                (IsRangedPunch?ActionAge>=AttackTempo.RangedLaunchSeconds:ActionAge>=AttackDuration-.18f) && !poseOwnsInput && !input.Beam && (input.LeftPunch || input.RightPunch))
+            { queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=Math.Max(.20f/AttackSpeed,(AttackDuration-ActionAge)/AttackSpeed+.12f);queuedSpeed=input.AttackSpeed;queuedRanged=input.RangedAttack; }
+            if(Shot.Flying&&Action==HeroAction.None&&!poseOwnsInput&&(input.LeftPunch||input.RightPunch))
+            {queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=.5f;queuedSpeed=input.AttackSpeed;queuedRanged=input.RangedAttack;}
             Shield=input.Shield && (Action==HeroAction.None);
-            if(Action==HeroAction.None)
+            if(Action==HeroAction.None&&!Shot.Flying)
             {
                 if(queuedBeamAge>0 && Energy>=MaxEnergy)
                 {
@@ -159,17 +182,21 @@ namespace UltramanGame.Core
                 else if(!poseOwnsInput && (input.LeftPunch || input.RightPunch || queuedPunch!=HeroAction.None))
                 {
                     var next=input.LeftPunch?HeroAction.LeftPunch:input.RightPunch?HeroAction.RightPunch:queuedPunch;
-                    queuedPunch=HeroAction.None;Begin(next);Cue(GameCue.Punch);
+                    bool direct=input.LeftPunch||input.RightPunch;
+                    float speed=direct?input.AttackSpeed:queuedSpeed;bool ranged=direct?input.RangedAttack:queuedRanged;
+                    queuedPunch=HeroAction.None;Begin(next);AttackSpeed=AttackTempo.Clamp(speed);rangedPunch=ranged;AttackSequence++;Cue(GameCue.Punch);
                 }
             }
             if(Action!=HeroAction.None)
             {
                 float previousActionAge=ActionAge;
-                ActionAge+=dt;
+                ActionAge+=dt*(IsPunch?AttackSpeed:1);
                 if(Action==HeroAction.Hurt&&previousActionAge<KnockdownMotion.LandingSeconds&&ActionAge>=KnockdownMotion.LandingSeconds)
                     Cue(GameCue.HeroLanded);
-                float hitTime=Action==HeroAction.Beam?BeamHitSeconds:PunchHitSeconds;
-                if(!hitApplied && Action!=HeroAction.Hurt && ActionAge>=hitTime)
+                if(IsRangedPunch&&!hitApplied&&ActionAge>=AttackTempo.RangedLaunchSeconds)
+                {hitApplied=true;Shot.Launch(AttackSequence,Action,ActionAge,AttackSpeed);}
+                float hitTime=Action==HeroAction.Beam?BeamHitSeconds:AttackHitTime;
+                if(!hitApplied && !IsRangedPunch && Action!=HeroAction.Hurt && ActionAge>=hitTime)
                 {
                     hitApplied=true;
                     if(Action==HeroAction.Beam) EnemyHealth=Math.Max(0,EnemyHealth-9);
@@ -181,7 +208,7 @@ namespace UltramanGame.Core
                         return;
                     }
                 }
-                float duration=Action==HeroAction.Beam?BeamSeconds:Action==HeroAction.Hurt?KnockdownMotion.Duration:PunchSeconds;
+                float duration=Action==HeroAction.Beam?BeamSeconds:Action==HeroAction.Hurt?KnockdownMotion.Duration:AttackDuration;
                 if(ActionAge>=duration) Action=HeroAction.None;
             }
             // Special move provides an obvious window of protection.
@@ -206,7 +233,7 @@ namespace UltramanGame.Core
             else if(Enemy==EnemyPhase.Recover && EnemyAge>=2)
             { Enemy=EnemyPhase.Rest; EnemyAge=0; }
         }
-        void Begin(HeroAction action) { Action=action; ActionAge=0; hitApplied=false; }
+        void Begin(HeroAction action) { Action=action; ActionAge=0; hitApplied=false;AttackSpeed=1;rangedPunch=false; }
         void CompleteVictory(){finishing=false;Phase=GamePhase.Victory;Shield=false;Cue(GameCue.Victory);}
         void AddEnergy(float amount)
         {

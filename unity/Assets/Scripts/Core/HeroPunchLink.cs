@@ -25,7 +25,7 @@ namespace UltramanGame.Core
             {
                 if(Side!=next){Side=next;Weight=0;}
                 releasing=false;
-                float target=Smooth((state.ActionAge-(Battle.PunchSeconds-.18f))/.16f);
+                float target=Smooth((state.ActionAge-(state.AttackDuration-.18f))/.16f);
                 Weight=Move(Weight,target,dt*10);
             }
             else if(state.Action==Side&&Side!=HeroAction.None&&Weight>0)

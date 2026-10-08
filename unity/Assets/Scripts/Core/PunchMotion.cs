@@ -14,6 +14,7 @@ namespace UltramanGame.Core
         long firedAt;
         public bool ForwardStrike { get; private set; }
         public float LastScore { get; private set; }
+        public float PlaybackSpeed { get; private set; } = 1;
         internal bool HoldingStrike => latched;
         // Returning a visible arm toward the chest can establish defense even
         // while the accepted punch is still inside its rearm cooldown. This
@@ -21,7 +22,7 @@ namespace UltramanGame.Core
         internal bool RetractedForGuard(PosePoint shoulder,PosePoint wrist,float scale,float side)
             =>latched&&peakOut-(wrist.x-shoulder.x)*side/scale>.28f;
         public void Reset()
-        {count=next=candidates=0;latched=false;peakOut=peakDepth=releaseHold=candidateHold=0;firedAt=0;ForwardStrike=false;LastScore=0;}
+        {count=next=candidates=0;latched=false;peakOut=peakDepth=releaseHold=candidateHold=0;firedAt=0;ForwardStrike=false;LastScore=0;PlaybackSpeed=1;}
         // A guard can reject an ambiguous candidate before it becomes an action.
         // Keep its trajectory so a subsequent deliberate reach can still punch;
         // only an accepted strike should require retraction to rearm.
@@ -42,7 +43,7 @@ namespace UltramanGame.Core
                 {latched=false;count=next=0;candidates=0;candidateHold=0;}
                 else return false;
             }
-            bool forward=false,lateral=false;
+            bool forward=false,lateral=false;float velocity=0;
             // Hands can be a little above/below the shoulder, but simply raising or dropping an arm is not a punch.
             if(current.Y>=-.45f && current.Y<=.78f)
             {
@@ -53,6 +54,7 @@ namespace UltramanGame.Core
                     float outTravel=current.X-old.X,depthTravel=current.Depth-old.Depth,vertical=Math.Abs(current.Y-old.Y);
                     forward|=depthTravel>=.32f*deliberate && current.Depth>.35f*deliberate && depthTravel>vertical*.8f &&
                         depthTravel>Math.Abs(outTravel)*.65f;
+                    if(age<=240)velocity=Math.Max(velocity,Math.Max(depthTravel,outTravel)/Math.Max(.10f,age/1000f));
                     lateral|=elbowVisible && outTravel>=.42f*deliberate && current.X>.62f && outTravel>vertical*.65f;
                 }
             }
@@ -61,6 +63,7 @@ namespace UltramanGame.Core
             else {candidates=0;candidateHold=0;}
             // Two fresh observations reject a single bad depth estimate or one noisy wrist location.
             if(candidates<2 || candidateHold<.045f*deliberate)return false;
+            PlaybackSpeed=AttackTempo.FromVelocity(velocity);
             ForwardStrike=forward;LastScore=Math.Max(current.Depth,current.X*.72f);latched=true;firedAt=stamp;peakOut=current.X;peakDepth=current.Depth;
             releaseHold=candidateHold=0;candidates=0;
             return true;

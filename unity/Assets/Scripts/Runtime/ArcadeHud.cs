@@ -154,7 +154,7 @@ namespace UltramanGame.Runtime
                 else if(ready)
                     Guide(keyboard?"能量已满 · 按 J 释放光线":"双臂交叉成光线姿势，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);
                 else if(time<captionUntil||battle.Punches<3)
-                    Guide(keyboard?"交替按 A / D，挥拳出击！":time<captionUntil?caption:"收回拳头，再向前挥出去","punch",cyan,0);
+                    Guide(keyboard?"A / D 出拳 · Q / E 光弹":time<captionUntil?caption:"向前挥拳发光弹 · 快慢跟随你","punch",cyan,0);
             }
             DrawBattleStartCue();
             DrawArcadePreview();

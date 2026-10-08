@@ -35,7 +35,7 @@ namespace UltramanGame.Runtime
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
         public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
-        public void SetHeroProfile(string heroId)=>effects.SetHeroProfile(heroId);
+        public void SetHeroProfile(string heroId){effects.SetHeroProfile(heroId);projectile.SetHero(heroId);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
         Vector3 ShieldCenter => HeroHome+BattleAxis*.78f+Vector3.up*1.9f;
@@ -44,6 +44,8 @@ namespace UltramanGame.Runtime
         readonly CinematicCamera cinematic;
         readonly MonsterAttackEffects monsterEffects;
         readonly MonsterRay monsterRay;
+        readonly HeroProjectile projectile;
+        public HeroProjectile Projectile=>projectile;
         public bool MonsterRayVisible=>monsterRay.Visible;
         public float MonsterRayPower=>monsterRay.Power;
         public Vector3 MonsterRayOrigin=>monsterRay.Origin;
@@ -125,7 +127,7 @@ namespace UltramanGame.Runtime
             RenderSettings.fog=true;RenderSettings.fogMode=FogMode.Linear;RenderSettings.fogStartDistance=13;RenderSettings.fogEndDistance=42;
             RenderSettings.fogColor=new Color(.11f,.125f,.145f);
             volcano=VolcanoStage.Create(root);
-            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);monsterRay=new MonsterRay(root);effects=new CombatVfx(root);strikeTrails=new StrikeTrails(root);arcade=new ArcadeStageFx(root,HeroHome);
+            monsterEffects=new MonsterAttackEffects(root,EnemyHome,HeroHome);monsterRay=new MonsterRay(root);projectile=new HeroProjectile(root);effects=new CombatVfx(root);strikeTrails=new StrikeTrails(root);arcade=new ArcadeStageFx(root,HeroHome);
             defeatImpact=new DefeatImpact(root);
             effects.GroundContact+=volcano.Damage.Shock;
         }
@@ -142,7 +144,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -153,11 +155,11 @@ namespace UltramanGame.Runtime
             // four-year-old to keep the action legible.
             Kick(special?.12f:.065f,special);
             // Use the monster's position at this contact, including its own forward step.
-            var position=special?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeContact(state);
+            var position=special||state!=null&&state.LastDamageRanged?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeContact(state);
             cinematic.PulseAt(position,special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
             enemy?.BindSurfaceImpact(position);
             if(!special&&HeroKickMotion.Active(state)&&Debug.isDebugBuild)Debug.Log($"[HeroKick] contact side={state.Action} punches={state.Punches}");
-            effects.Impact(position,special,combo:!special&&state!=null&&ComboStrikeMotion.Active(state),direction:BattleAxis,volumetric:special);
+            effects.Impact(position,special,combo:!special&&state!=null&&!state.LastDamageRanged&&ComboStrikeMotion.Active(state),direction:BattleAxis,volumetric:special);
             if(special)effects.BeamHit(position,BattleAxis);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {
@@ -589,6 +591,7 @@ namespace UltramanGame.Runtime
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
+            projectile.Tick(state,Camera,hero?.StrikeOrigin(state.Shot.Side)??BeamOrigin,BeamTarget,Showcase||Closeup.Active);
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null);
             monsterRay.Tick(state,Camera,enemy?.RayOrigin??EnemyHome+Vector3.up*3.32f-BattleAxis*.46f,
                 state.Shield?ShieldCenter+Vector3.up*.26f:HeroHome+Vector3.up*2,Showcase||Closeup.Active);

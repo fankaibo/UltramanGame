@@ -9,7 +9,7 @@ namespace UltramanGame.Runtime
         readonly AudioSource calm,battle,voice,charge,monsterRay;
         readonly CombatAudioVoices effects,debris;
         readonly AudioClip[] fistContacts=new AudioClip[3];
-        readonly AudioClip heavyContact,beamContact;
+        readonly AudioClip heavyContact,beamContact,projectileLaunch;
         AudioClip localMusic;
         readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer,arrivalRoar,defeatSurge;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
@@ -46,6 +46,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<fistContacts.Length;i++)fistContacts[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(0,i));
             heavyContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(1));
             beamContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(2));
+            projectileLaunch=RuntimeResources.Own(owner.transform,CreateProjectileLaunch());
             charge=Source(owner);charge.loop=true;charge.volume=0;
             charge.clip=RuntimeResources.Own(owner.transform,CreateBeamGather());
             monsterRay=Source(owner);monsterRay.loop=true;monsterRay.volume=0;
@@ -306,6 +307,18 @@ namespace UltramanGame.Runtime
             if(heavy&&!beam)effects.Play(Clip("Audio/combo"),.36f,1,2);
             if(Debug.isDebugBuild)Debug.Log($"[CombatAudio] contact={(beam?"beam":heavy?"heavy":"fist")}");
         }
+        public static AudioClip CreateProjectileLaunch()
+        {
+            const int rate=22050;var data=new float[(int)(rate*.22f)];float phase=0;
+            for(int i=0;i<data.Length;i++)
+            {
+                float t=i/(float)data.Length;phase+=2*Mathf.PI*Mathf.Lerp(1500,220,t)/rate;
+                data[i]=(Mathf.Sin(phase)+.25f*Mathf.Sin(phase*2.03f))*Mathf.Sin(Mathf.PI*t)*Mathf.Pow(1-t,1.5f)*.48f;
+            }
+            var clip=AudioClip.Create("Hero light bullet",data.Length,1,rate,false);clip.SetData(data,0);return clip;
+        }
+        public void ProjectileLaunch(float speed){if(!muted)effects.Play(projectileLaunch,.65f,Mathf.Lerp(.90f,1.12f,Mathf.InverseLerp(AttackTempo.Min,AttackTempo.Max,speed)),1);}
+        public void ProjectileImpact(){if(!muted)effects.Play(beamContact,.48f,1.22f,1);}
         void ApplyEffectsMix()
         {
             float master=muted?0:Mathf.Clamp01(Volume);

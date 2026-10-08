@@ -50,6 +50,7 @@ static class Program
             BeamCloseupChecks.Run(Check);
         ImpactTimingChecks.Run(Check);
         PunchLinkChecks.Run(Check);
+        AttackTempoChecks.Run(Check);
         ClawReactionChecks.Run(Check);
         GuidedPhotoChecks.Run(Check);
         GuardBeamChecks.Run(Check);

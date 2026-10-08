@@ -167,8 +167,8 @@ namespace UltramanGame.Runtime
             UpdatePreview(now);
             PlayerInput input;
             if(keyboard)
-                input=new PlayerInput {Tracking=true,Transform=Input.GetKeyDown(KeyCode.Space),LeftPunch=Input.GetKeyDown(KeyCode.A),
-                    RightPunch=Input.GetKeyDown(KeyCode.D),Shield=Input.GetKey(KeyCode.S),Beam=Input.GetKeyDown(KeyCode.J)};
+                input=new PlayerInput {Tracking=true,Transform=Input.GetKeyDown(KeyCode.Space),LeftPunch=Input.GetKeyDown(KeyCode.A)||Input.GetKeyDown(KeyCode.Q),
+                    RightPunch=Input.GetKeyDown(KeyCode.D)||Input.GetKeyDown(KeyCode.E),RangedAttack=Input.GetKeyDown(KeyCode.Q)||Input.GetKeyDown(KeyCode.E),Shield=Input.GetKey(KeyCode.S),Beam=Input.GetKeyDown(KeyCode.J)};
             else
             {
                 input=held;input.Transform=input.LeftPunch=input.RightPunch=input.Beam=false;
@@ -262,7 +262,7 @@ namespace UltramanGame.Runtime
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 if(TraceEnabled)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
                 if(battle.Finishing&&TraceEnabled)Debug.Log($"[FinalStrike] contact action={battle.Action} actionAge={battle.ActionAge:F3} health={battle.EnemyHealth}");
-                sound.Hit(!special&&battle.Punches%5==0,special);
+                if(battle.LastDamageRanged)sound.ProjectileImpact();else sound.Hit(!special&&battle.Punches%5==0,special);
             }
             lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
@@ -274,6 +274,11 @@ namespace UltramanGame.Runtime
             if(damage)world.Hit(specialDamage,battle);
             int groundContacts=world.GroundContactCount;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(world.Projectile.Started)
+            {
+                sound.ProjectileLaunch(battle.Shot.Speed);
+                if(TraceEnabled)Debug.Log($"[HeroProjectile] launch side={battle.Shot.Side} speed={battle.Shot.Speed:F3} sequence={battle.AttackSequence} origin={world.Projectile.Origin} target={world.BeamTarget}");
+            }
             sound.SetChargePower(showcase?0:world.ChargePower);
             sound.SetMonsterRayPower(showcase?0:world.MonsterRayPower);
             if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam"||world.GroundContactCause=="arrival");
@@ -340,6 +345,7 @@ namespace UltramanGame.Runtime
             if(TraceEnabled)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
             if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
             world.Cue(cue,battle);
+            if(cue==GameCue.Punch&&TraceEnabled)Debug.Log($"[AttackTempo] ranged={battle.IsRangedPunch} speed={battle.AttackSpeed:F3} duration={battle.AttackDuration/battle.AttackSpeed:F3} side={battle.Action}");
             switch(cue)
             {
                 case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;hintAt=Time.unscaledTime+12;break;

@@ -159,7 +159,7 @@ namespace UltramanGame.Runtime
                 else if(punch)
                 {
                     frame=state.ActionAge<.065f?1:state.ActionAge<.25f?2:1;
-                    forward=Strike(state.ActionAge)*PunchAdvance;tilt=-Strike(state.ActionAge)*2;
+                    forward=Strike(state.ActionAge)*(state.IsRangedPunch?.10f:PunchAdvance);tilt=-Strike(state.ActionAge)*2;
                 }
             }
             if(preview>=0) {frame=preview%8;forward=tilt=jump=0;opacity=scale=1;breath=0;}

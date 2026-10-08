@@ -70,6 +70,8 @@ namespace UltramanGame.Core
         // Continuous ownership while confirming a pose, not an awarded action.
         // The battle queue must respect this before Shield/Beam can fire.
         public bool GuardIntent, BeamIntent;
+        public bool RangedAttack;
+        public float AttackSpeed; // 0 is the keyboard/default cadence.
     }
 
     // New frames only. Each gesture requires its own visible joints; missing joints never attack.
@@ -539,7 +541,15 @@ namespace UltramanGame.Core
             float observedHandSpread=Math.Abs(flw.x-frw.x)/fs;
             bool compactGuard=observedHandSpread<.65f;
             bool guardAnchorShape=rawGuard||forgivingGuard;
-            if(guardAnchorShape&&(!guardAnchored||!guardLocked&&compactGuard)&&leftReturned&&rightReturned)
+            // Both hands closing into the compact, level warning guard is a
+            // fresh defense reference. The outgoing fist can still be latched
+            // while the other wrist's inferred depth jumps; an old anchor must
+            // not turn that returning pair into a new opposite-hand attack.
+            // Wider/single-arm reaches retain their normal departure checks.
+            bool compactWarningReturn=warningShieldPose&&rawGuard&&observedHandSpread<.50f&&
+                Math.Abs(flw.y-frw.y)<.30f*fs;
+            if(guardAnchorShape&&(!guardAnchored||!guardLocked&&compactGuard||compactWarningReturn)&&
+                (leftReturned&&rightReturned||compactWarningReturn))
             {guardLeft=leftOffset;guardRight=rightOffset;guardAnchored=true;}
             bool leftOutward=(flw.x-fl.x)*side>=-.03f*fs&&flw.y<fsy-.04f*fs;
             bool rightOutward=(frw.x-fr.x)*-side>=-.03f*fs&&frw.y<fsy-.04f*fs;
@@ -728,6 +738,8 @@ namespace UltramanGame.Core
             else if(input.LeftPunch)ReferencePose="P2-左拳";
             if(input.LeftPunch||input.RightPunch)
             {
+                input.AttackSpeed=input.LeftPunch?leftMotion.PlaybackSpeed:rightMotion.PlaybackSpeed;
+                input.RangedAttack=ForwardPunch;
                 input.Shield=false;shieldHold=0;guardAnchored=false;
                 // Only a confirmed, visible reach can break the guard latch.
                 // This prevents one noisy depth packet from stealing defense.
