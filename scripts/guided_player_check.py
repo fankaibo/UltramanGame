@@ -110,6 +110,7 @@ def main():
     parser.add_argument('--memory-interval',type=float,default=1.0,help='Seconds between process memory samples')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
+    parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Use the initial left selection gesture to choose this actual hero')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
@@ -137,6 +138,11 @@ def main():
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
             '--preview-port',str(preview.bridge.address[1]),'--photo-port',str(photo.bridge.address[1])]
+        if options.hero:
+            # Start on the next available card: the existing initial left-hand
+            # gesture must select the requested hero through the real carousel.
+            next_card={'Tiga':'Mebius','Mebius':'Zero','Zero':'Geed','Geed':'Grigio','Grigio':'Tiga'}
+            args+=['--proof-hero',next_card[options.hero]]
         try:
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
@@ -346,6 +352,9 @@ def main():
                 if marker not in output:raise RuntimeError('Missing '+marker)
             if re.search(r'NullReferenceException|Shader error|error CS\d',output):raise RuntimeError('Unity runtime error')
             tempo_evidence=None
+            hero_evidence=re.findall(r'\[GuidedProofHero\] battle=([A-Za-z0-9]+)',output)
+            if options.hero and (not hero_evidence or hero_evidence[0]!=options.hero):
+                raise RuntimeError(f'Requested hero was not selected through gesture: {options.hero}/{hero_evidence}')
             if options.tempo_skills:
                 attacks=re.findall(r'\[AttackTempo\] ranged=True speed=([\d.]+) duration=([\d.]+) side=(LeftPunch|RightPunch)',output)
                 launches=re.findall(r'\[HeroProjectile\] launch side=(LeftPunch|RightPunch) speed=([\d.]+) sequence=(\d+)',output)
@@ -360,9 +369,14 @@ def main():
                 proof_shots={path.stem for path in (folder/'native').glob('*.png')}
                 if not {'light-bullet-left','light-bullet-right'}.issubset(proof_shots):
                     raise RuntimeError('Missing rendered remote shots from both hands')
+                impacts=re.findall(r'\[RangedPresentation\] impact hero=([A-Za-z0-9]+) count=(\d+) visible=True',output)
+                if len(impacts)!=len(launches) or not {'ranged-launch-volume','ranged-impact-volume'}.issubset(proof_shots):
+                    raise RuntimeError(f'Missing remote contact volumes: impacts={len(impacts)} launches={len(launches)}')
+                if options.hero=='Zero' and not {'zero-sluggers-out','zero-sluggers-return'}.issubset(proof_shots):
+                    raise RuntimeError('Actual Zero player did not capture both blade directions')
                 tempo_evidence=dict(accepted=len(attacks),launches=len(launches),speed_min=min(speeds),speed_max=max(speeds),
                     slow_median=slow,fast_median=fast,
-                    hands=sorted({row[2] for row in attacks}),shots=sorted(proof_shots&{'light-bullet-left','light-bullet-right'}))
+                    hands=sorted({row[2] for row in attacks}),impacts=len(impacts),shots=sorted(proof_shots&{'light-bullet-left','light-bullet-right','ranged-launch-volume','ranged-impact-volume','zero-sluggers-out','zero-sluggers-return'}))
             if options.gesture_wobble:
                 if unwanted_attacks or guard_noise_frames<4 or beam_noise_frames<4 or guard_overlap_frames<4:
                     raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames} guardOverlap={guard_overlap_frames}')
@@ -396,6 +410,7 @@ def main():
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if tempo_evidence:result['tempo_skills']=tempo_evidence
+            result['battle_heroes']=hero_evidence
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
             if options.gesture_startup_noise:result['gesture_startup_noise']={'guard_overlap_frames':guard_startup_overlap_frames,'beam_bias_frames':beam_startup_frames}

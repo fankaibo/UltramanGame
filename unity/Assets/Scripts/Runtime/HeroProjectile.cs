@@ -12,6 +12,17 @@ namespace UltramanGame.Runtime
         readonly Material coreMat,haloMat,waveMat,trailMat;
         readonly LineRenderer trail;
         readonly Transform[] sluggers=new Transform[2];
+        readonly LineRenderer[] bladeTrails=new LineRenderer[2];
+        readonly RangedSkillAccent accents;
+        Vector3 flightAxis,flightSide,contactPoint;
+        Quaternion spinBasis;
+        bool contacted;
+        public bool LaunchVisible=>accents.LaunchVisible;
+        public bool ImpactVisible=>accents.ImpactVisible;
+        public int Impacts=>accents.Impacts;
+        public Color Tint=>tint;
+        public Vector3 BladePosition(int i)=>sluggers[i].position;
+        public Vector3 BladeTrailTip(int i)=>bladeTrails[i].GetPosition(bladeTrails[i].positionCount-1);
         bool useSluggers;
         Battle observed;
         int sequence=-1;
@@ -24,7 +35,8 @@ namespace UltramanGame.Runtime
         public Vector3 Tip {get;private set;}
         public HeroProjectile(Transform parent)
         {
-            core=Quad(parent,"Light bullet core",out coreMat);
+            core=RangedSkillAccent.Volume(parent,"Light bullet moving energy",out coreMat);
+            accents=new RangedSkillAccent(parent);
             halo=Quad(parent,"Light bullet aura",out haloMat);
             wave=Quad(parent,"Light bullet travelling wave",out waveMat);waveMat.SetFloat("_Ring",1);
             var bladeMaterial=RuntimeResources.Own(parent,new Material(Shader.Find("Standard")){color=new Color(.75f,.88f,1)});
@@ -40,7 +52,16 @@ namespace UltramanGame.Runtime
             trail=new GameObject("Light bullet short trail").AddComponent<LineRenderer>();trail.transform.SetParent(parent,false);
             trail.sharedMaterial=trailMat;trail.positionCount=8;trail.widthMultiplier=.30f;
             trail.widthCurve=new AnimationCurve(new Keyframe(0,0),new Keyframe(.8f,1),new Keyframe(1,.35f));
-            trail.shadowCastingMode=ShadowCastingMode.Off;trail.receiveShadows=false;Clear();
+            trail.shadowCastingMode=ShadowCastingMode.Off;trail.receiveShadows=false;
+            var bladeTrailMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("ChargeFilament")));
+            for(int i=0;i<2;i++)
+            {
+                var line=new GameObject("Zero curved wake "+i).AddComponent<LineRenderer>();line.transform.SetParent(parent,false);
+                line.sharedMaterial=bladeTrailMaterial;line.positionCount=20;line.widthMultiplier=.16f;
+                line.widthCurve=new AnimationCurve(new Keyframe(0,0),new Keyframe(.75f,1),new Keyframe(1,.4f));
+                line.shadowCastingMode=ShadowCastingMode.Off;line.receiveShadows=false;bladeTrails[i]=line;
+            }
+            Clear();
         }
         static Transform Quad(Transform parent,string name,out Material material)
         {
@@ -65,41 +86,75 @@ namespace UltramanGame.Runtime
         }
         public void SetHero(string id)
         {useSluggers=HeroArsenal.Sluggers(id);if(ColorUtility.TryParseHtmlString(HeroRoster.At(HeroRoster.Index(id)).BeamTint,out var color))tint=color;Clear();}
-        public void Clear(){Visible=Started=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);}
-        public void Tick(Battle state,Camera camera,Vector3 hand,Vector3 target,bool suppressed,Vector3? head=null)
+        void HideFlight()
+        {Visible=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);foreach(var line in bladeTrails)line.enabled=false;}
+        public void Clear(){Started=false;HideFlight();accents.Clear();contacted=false;}
+        public void Impact(Vector3 point,Vector3 direction)
+        {contacted=true;contactPoint=point;accents.Hit(point,direction,tint);}
+        Vector3 BladePoint(float age,int index,Vector3 target,Vector3 head)
+        {
+            float sign=index==0?-1:1;
+            if(age<=AttackTempo.RangedHitSeconds)
+            {
+                float t=AttackTempo.Travel(age),arc=Mathf.Sin(t*Mathf.PI);
+                return Vector3.Lerp(origin,target,t)+flightSide*(sign*((1-t)*.18f+arc*.44f))+Vector3.up*(arc*.20f);
+            }
+            float back=Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/(AttackTempo.RangedSeconds-AttackTempo.RangedHitSeconds));
+            float curve=Mathf.Sin(back*Mathf.PI);
+            return Vector3.Lerp(target,head,back)+flightSide*(sign*(curve*.65f+back*.18f))+Vector3.up*(curve*.35f);
+        }
+        public void Tick(Battle state,Camera camera,Vector3 hand,Vector3 target,bool suppressed,Vector3? head=null,float dt=0)
         {
             Started=false;
-            if(!ReferenceEquals(observed,state)){observed=state;sequence=-1;Launches=0;Clear();}
-            if(suppressed||state.Phase!=GamePhase.Battle||!state.Shot.Active)
-            {Clear();return;}
+            if(!ReferenceEquals(observed,state)){observed=state;sequence=-1;Launches=0;Clear();accents.NewRound();}
+            if(suppressed||state.Phase!=GamePhase.Battle){Clear();return;}
+            accents.TickImpact(dt);
+            bool flight=state.Shot.Active;
+            bool preparing=state.IsRangedPunch&&state.ActionAge<AttackTempo.RangedLaunchSeconds;
+            Vector3 launchPoint=preparing?(useSluggers?(head??hand):hand):origin;
+            // Pre-release light follows the active hand; after release it stays at the muzzle.
+            accents.Launch(preparing||flight,preparing?state.ActionAge:state.Shot.Age,launchPoint,(target-launchPoint).normalized,tint);
+            if(!flight){HideFlight();return;}
             if(sequence!=state.Shot.Sequence)
-            {sequence=state.Shot.Sequence;origin=useSluggers&&head.HasValue?head.Value:hand;Launches++;Started=true;}
+            {
+                sequence=state.Shot.Sequence;origin=useSluggers&&head.HasValue?head.Value:hand;
+                flightAxis=(target-origin).normalized;flightSide=Vector3.Cross(Vector3.up,flightAxis).normalized;
+                spinBasis=camera.transform.rotation;contacted=false;Launches++;Started=true;
+                accents.Launch(true,state.Shot.Age,origin,flightAxis,tint);
+            }
             float age=state.Shot.Age;
             Visible=age<=(useSluggers?AttackTempo.RangedSeconds:AttackTempo.RangedHitSeconds+.055f);
-            core.gameObject.SetActive(Visible&&!useSluggers);halo.gameObject.SetActive(Visible);wave.gameObject.SetActive(Visible&&!useSluggers);trail.enabled=Visible;
+            core.gameObject.SetActive(Visible&&!useSluggers);halo.gameObject.SetActive(Visible&&!useSluggers);wave.gameObject.SetActive(Visible&&!useSluggers);trail.enabled=Visible&&!useSluggers;
             foreach(var blade in sluggers)blade.gameObject.SetActive(Visible&&useSluggers);
+            foreach(var line in bladeTrails)line.enabled=Visible&&useSluggers;
             if(!Visible)return;
             float t=AttackTempo.Travel(age),fade=1-Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/.055f);
-            Tip=Vector3.Lerp(origin,target,t);
-            Vector3 from=origin,to=target;
+            Vector3 end=contacted?contactPoint:target;
+            Tip=Vector3.Lerp(origin,end,t);
             if(useSluggers)
             {
-                bool returning=age>AttackTempo.RangedHitSeconds;fade=1;
-                if(returning){from=target;to=head??origin;t=Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/(AttackTempo.RangedSeconds-AttackTempo.RangedHitSeconds));}
-                Tip=Vector3.Lerp(from,to,t)+camera.transform.up*(Mathf.Sin(t*Mathf.PI)*(returning?.35f:.20f));
+                var home=head??origin;
                 for(int i=0;i<2;i++)
-                {sluggers[i].position=Tip+camera.transform.right*((i==0?-1:1)*.22f);sluggers[i].rotation=camera.transform.rotation*Quaternion.Euler(0,15,age*(i==0?1200:-1200));sluggers[i].localScale=Vector3.one*.64f;}
+                {
+                    sluggers[i].position=BladePoint(age,i,end,home);
+                    sluggers[i].rotation=spinBasis*Quaternion.Euler(0,15,age*(i==0?1200:-1200));sluggers[i].localScale=Vector3.one*.64f;
+                    var line=bladeTrails[i];line.startColor=new Color(tint.r,tint.g,tint.b,0);line.endColor=new Color(.80f,.94f,1,.92f);
+                    for(int j=0;j<line.positionCount;j++)
+                    {float sample=Mathf.Max(AttackTempo.RangedLaunchSeconds,age-.075f*(1-j/(float)(line.positionCount-1)));line.SetPosition(j,BladePoint(sample,i,end,home));}
+                }
+                Tip=(sluggers[0].position+sluggers[1].position)*.5f;
+                return;
             }
             core.position=halo.position=wave.position=Tip;
-            core.rotation=halo.rotation=camera.transform.rotation;
-            wave.rotation=camera.transform.rotation*Quaternion.Euler(0,25,age*320);
-            core.localScale=Vector3.one*.38f;halo.localScale=Vector3.one*.85f;
-            wave.localScale=new Vector3(.72f,.50f,1)*(1+.12f*Mathf.Sin(t*Mathf.PI));
-            coreMat.color=new Color(1,.97f,.85f,fade);
-            haloMat.color=new Color(tint.r,tint.g,tint.b,.72f*fade);
-            waveMat.color=new Color(tint.r,tint.g,tint.b,.58f*fade);
-            trailMat.color=new Color(tint.r,tint.g,tint.b,.65f*fade);
-            for(int i=0;i<8;i++)trail.SetPosition(i,Vector3.Lerp(from,to,Mathf.Max(0,t-.28f+i/7f*.28f)));
+            core.rotation=Quaternion.LookRotation(flightAxis);halo.rotation=camera.transform.rotation;
+            wave.rotation=Quaternion.LookRotation(flightAxis)*Quaternion.Euler(0,0,age*320);
+            core.localScale=new Vector3(.25f,.25f,.65f);halo.localScale=Vector3.one*.85f;
+            wave.localScale=Vector3.one*(.50f+.08f*Mathf.Sin(t*Mathf.PI));
+            coreMat.color=new Color(tint.r,tint.g,tint.b,fade);coreMat.SetFloat("_Age",age);
+            haloMat.color=new Color(tint.r,tint.g,tint.b,.50f*fade);
+            waveMat.color=new Color(tint.r,tint.g,tint.b,.60f*fade);
+            trailMat.color=new Color(tint.r,tint.g,tint.b,.70f*fade);
+            for(int i=0;i<8;i++)trail.SetPosition(i,Vector3.Lerp(origin,end,Mathf.Max(0,t-.30f+i/7f*.30f)));
         }
     }
 }

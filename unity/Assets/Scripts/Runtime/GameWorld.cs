@@ -161,10 +161,12 @@ namespace UltramanGame.Runtime
             Kick(special?.12f:.065f,special);
             // Use the monster's position at this contact, including its own forward step.
             var position=special||state!=null&&(state.LastDamageRanged||HeroArsenal.Blade(heroId,state))?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeContact(state);
-            cinematic.PulseAt(position,special?new Color(.25f,.68f,1):new Color(1,.48f,.16f),special?.82f:.30f);
+            bool ranged=!special&&state!=null&&state.LastDamageRanged;
+            cinematic.PulseAt(position,special?new Color(.25f,.68f,1):ranged?projectile.Tint:new Color(1,.48f,.16f),special?.82f:.30f);
             enemy?.BindSurfaceImpact(position);
             if(!special&&HeroKickMotion.Active(state)&&Debug.isDebugBuild)Debug.Log($"[HeroKick] contact side={state.Action} punches={state.Punches}");
-            effects.Impact(position,special,combo:!special&&state!=null&&!state.LastDamageRanged&&ComboStrikeMotion.Active(state),direction:BattleAxis,volumetric:special);
+            if(ranged){projectile.Impact(position,BattleAxis);effects.Burst(position,14,.65f,false);}
+            else effects.Impact(position,special,combo:!special&&state!=null&&ComboStrikeMotion.Active(state),direction:BattleAxis,volumetric:special);
             if(special)effects.BeamHit(position,BattleAxis);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {
@@ -593,7 +595,7 @@ namespace UltramanGame.Runtime
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);
             bool active=state.Phase==GamePhase.Battle;
-            projectile.Tick(state,Camera,hero?.StrikeOrigin(state.Shot.Side)??BeamOrigin,BeamTarget,Showcase||Closeup.Active,hero?.RayOrigin);
+            projectile.Tick(state,Camera,hero?.StrikeOrigin(state.IsRangedPunch?state.Action:state.Shot.Side)??BeamOrigin,BeamTarget,Showcase||Closeup.Active,hero?.RayOrigin,dt);
             blade.Tick(state,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,BattleAxis,BeamTarget,Showcase||Closeup.Active);
             rock.Tick(state,enemy?.StrikeOrigin(HeroAction.RightPunch)??BeamTarget,ShieldCenter,Showcase||Closeup.Active);
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null,HeroAnchor);

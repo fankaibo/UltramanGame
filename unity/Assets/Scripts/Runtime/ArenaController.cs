@@ -103,6 +103,16 @@ namespace UltramanGame.Runtime
                 }
                 Debug.Log($"[FullGameReviewHero] id={SelectedHero.Id}");
             }
+            else if(TraceEnabled&&GuidedProofRequested)
+            {
+                var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--proof-hero");
+                if(at>=0)
+                {
+                    if(at+1>=args.Length)throw new ArgumentException("Missing proof hero");
+                    heroIndex=HeroRoster.Index(args[at+1]);
+                    if(SelectedHero.Id!=args[at+1]||!HeroAvailable(heroIndex))throw new ArgumentException("Unavailable proof hero");
+                }
+            }
             photo.HeroId=SelectedHero.Id;sound.HeroId=SelectedHero.Id;world.SetHeroProfile(SelectedHero.Id);
             hero=new AnimatedActor(SelectedHero.Id,world.HeroHome,world.EnemyHome);enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             world.BindActors(hero,enemy);
@@ -274,6 +284,8 @@ namespace UltramanGame.Runtime
             if(damage)world.Hit(specialDamage,battle);
             int groundContacts=world.GroundContactCount;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            if(damage&&battle.LastDamageRanged&&TraceEnabled)
+                Debug.Log($"[RangedPresentation] impact hero={SelectedHero.Id} count={world.Projectile.Impacts} visible={world.Projectile.ImpactVisible}");
             if(world.Projectile.Started)
             {
                 sound.ProjectileLaunch(battle.Shot.Speed);
@@ -345,6 +357,7 @@ namespace UltramanGame.Runtime
         void PlayCue(GameCue cue)
         {
             if(TraceEnabled)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
+            if(TraceEnabled&&GuidedProofRequested&&cue==GameCue.BattleStart)Debug.Log($"[GuidedProofHero] battle={SelectedHero.Id}");
             if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount)&&!MonsterRockMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
             world.Cue(cue,battle);
             if((cue==GameCue.Block||cue==GameCue.Hurt)&&MonsterRockMotion.Variant(battle.EnemyAttackCount))

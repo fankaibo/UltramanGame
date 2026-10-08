@@ -15,6 +15,10 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&world.Projectile.LaunchVisible&&battle.IsRangedPunch&&battle.ActionAge<AttackTempo.RangedLaunchSeconds&&proofFrames.Add("ranged-launch-volume"))
+            {StartCoroutine(SaveGuidedProof("ranged-launch-volume"));return;}
+            if(!photo.Active&&world.Projectile.ImpactVisible&&proofFrames.Add("ranged-impact-volume"))
+            {StartCoroutine(SaveGuidedProof("ranged-impact-volume"));return;}
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&
                 battle.Punches>=3&&hero.EngagementWeight>.99f&&proofFrames.Add("engagement-held-stance"))
             {
