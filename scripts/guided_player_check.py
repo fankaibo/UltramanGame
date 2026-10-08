@@ -147,7 +147,7 @@ def main():
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
-            initial_selection_done=False;replay_selection_sent=False;replay_selection_seen=False
+            initial_selection_done=False;initial_selection_at=0;replay_selection_sent=False;replay_selection_seen=False
             replay_selection_direction='right'
             beam_release_until=0
             pose_contexts={};gesture_audit=[];guard_entry_contexts=set()
@@ -213,6 +213,11 @@ def main():
                         stage='replay';replay_started_at=now
                     if '[HeroSelection]' in line:
                         if stage=='replay':replay_selection_seen=True
+                        elif options.hero:
+                            chosen=re.search(r'id=([A-Za-z0-9]+)',line)
+                            if not chosen or chosen[1]!=options.hero:
+                                raise RuntimeError('Initial gesture selected the wrong hero: '+line)
+                            initial_selection_at=now
                 if memory_output and age>=next_memory_sample:
                     rss_kib,vsz_kib,command=read_process_memory(process.pid)
                     memory_rows.append({'elapsed_s':round(age,3),'stage':stage,'phase':phase,
@@ -263,7 +268,15 @@ def main():
                     # Consume the initial selection latch once, then release
                     # before the first transform. This makes the later
                     # post-photo reset assertion meaningful in the same run.
-                    if not initial_selection_done:
+                    if options.hero and not initial_selection_done:
+                        # Imported models can finish loading after the old 4.1 s
+                        # selection window. Wait for the actual selection event,
+                        # then release before transforming; never test the neighbour.
+                        if not initial_selection_at:points=selection_landmarks('left')
+                        elif now-initial_selection_at<.8:points=landmarks_at(0)
+                        else:
+                            initial_selection_done=True;points=landmarks_at(2.5)
+                    elif not initial_selection_done:
                         if age<4.1:points=selection_landmarks('left')
                         elif age<4.8:points=landmarks_at(0)
                         else:
