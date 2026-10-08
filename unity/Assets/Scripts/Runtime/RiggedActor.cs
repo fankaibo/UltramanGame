@@ -177,6 +177,7 @@ namespace UltramanGame.Runtime
         Vector3 defeatEntryRoot;Quaternion defeatEntryFacing;
         bool defeatEntry;
         readonly MonsterDissolve dissolve;
+        public ZeroSluggerRig Sluggers {get;private set;}
         public int DissolveStarts=>dissolve?.Starts??0;
         public int DissolveMotes=>dissolve?.ActiveMotes??0;
         readonly Vector3[] palmForwardLocal=new Vector3[2],palmUpLocal=new Vector3[2];
@@ -377,6 +378,7 @@ namespace UltramanGame.Runtime
                 foreheadLocal=head.InverseTransformPoint(home+Vector3.up*3.48f+forward*.60f);
                 foreheadSurface=SkinnedSurfaceAnchor.Head(surfaces,new Ray(home+Vector3.up*3.48f+forward*3,-forward));
             }
+            if(name=="Zero")Sluggers=ZeroSluggerRig.Create(surfaces);
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2} vertices={modelVertices}");
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
@@ -478,6 +480,7 @@ namespace UltramanGame.Runtime
             // The terminal strike survives a tracking pause. Retain its visible
             // pose and recoil clock instead of sampling Idle beneath the pause.
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
+            Sluggers?.Restore();
             // Procedural throws and recoil are undone before choosing the next
             // clip. A handoff must start from the visible pose, not the idle
             // wrist underneath those layers (especially when releasing a rock).
@@ -1212,6 +1215,7 @@ namespace UltramanGame.Runtime
             // Departure removes actual surface fragments, retaining opaque
             // depth and matching shadows until each fragment disappears.
             poseOpacity=monster&&state.Phase==GamePhase.Victory&&preview<0?(opacity>0?1:0):opacity;SetPresentationOpacity(1);
+            Sluggers?.CaptureMountedPose();
             if(preview<0)
             {
                 lastSampleBattle=state;lastSamplePhase=state.Phase;lastSampleEnemy=state.Enemy;

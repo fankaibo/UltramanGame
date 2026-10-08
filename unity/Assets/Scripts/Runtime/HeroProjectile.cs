@@ -16,6 +16,11 @@ namespace UltramanGame.Runtime
         readonly RangedSkillAccent accents;
         Vector3 flightAxis,flightSide,contactPoint;
         Quaternion spinBasis;
+        ZeroSluggerRig originalSluggers;
+        readonly Vector3[] bladeOrigins=new Vector3[2];
+        readonly Quaternion[] bladeRotations=new Quaternion[2];
+        bool OriginalBlades=>useSluggers&&originalSluggers!=null;
+        public void BindSluggers(ZeroSluggerRig rig){Clear();originalSluggers=rig;}
         bool contacted;
         public bool LaunchVisible=>accents.LaunchVisible;
         public bool ImpactVisible=>accents.ImpactVisible;
@@ -87,7 +92,7 @@ namespace UltramanGame.Runtime
         public void SetHero(string id)
         {useSluggers=HeroArsenal.Sluggers(id);if(ColorUtility.TryParseHtmlString(HeroRoster.At(HeroRoster.Index(id)).BeamTint,out var color))tint=color;Clear();}
         void HideFlight()
-        {Visible=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);foreach(var line in bladeTrails)line.enabled=false;}
+        {originalSluggers?.Restore();Visible=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);foreach(var line in bladeTrails)line.enabled=false;}
         public void Clear(){Started=false;HideFlight();accents.Clear();contacted=false;}
         public void Impact(Vector3 point,Vector3 direction)
         {contacted=true;contactPoint=point;accents.Hit(point,direction,tint);}
@@ -97,11 +102,11 @@ namespace UltramanGame.Runtime
             if(age<=AttackTempo.RangedHitSeconds)
             {
                 float t=AttackTempo.Travel(age),arc=Mathf.Sin(t*Mathf.PI);
-                return Vector3.Lerp(origin,target,t)+flightSide*(sign*((1-t)*.18f+arc*.44f))+Vector3.up*(arc*.20f);
+                return Vector3.Lerp(OriginalBlades?bladeOrigins[index]:origin+flightSide*(sign*.18f),target,t)+flightSide*(sign*arc*.44f)+Vector3.up*(arc*.20f);
             }
             float back=Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/(AttackTempo.RangedSeconds-AttackTempo.RangedHitSeconds));
             float curve=Mathf.Sin(back*Mathf.PI);
-            return Vector3.Lerp(target,head,back)+flightSide*(sign*(curve*.65f+back*.18f))+Vector3.up*(curve*.35f);
+            return Vector3.Lerp(target,OriginalBlades?originalSluggers.MountedCenter(index):head+flightSide*(sign*.18f),back)+flightSide*(sign*curve*.65f)+Vector3.up*(curve*.35f);
         }
         public void Tick(Battle state,Camera camera,Vector3 hand,Vector3 target,bool suppressed,Vector3? head=null,float dt=0)
         {
@@ -111,13 +116,18 @@ namespace UltramanGame.Runtime
             accents.TickImpact(dt);
             bool flight=state.Shot.Active;
             bool preparing=state.IsRangedPunch&&state.ActionAge<AttackTempo.RangedLaunchSeconds;
-            Vector3 launchPoint=preparing?(useSluggers?(head??hand):hand):origin;
+            Vector3 launchPoint=preparing?(OriginalBlades?(originalSluggers.MountedCenter(0)+originalSluggers.MountedCenter(1))*.5f:useSluggers?(head??hand):hand):origin;
             // Pre-release light follows the active hand; after release it stays at the muzzle.
             accents.Launch(preparing||flight,preparing?state.ActionAge:state.Shot.Age,launchPoint,(target-launchPoint).normalized,tint);
             if(!flight){HideFlight();return;}
             if(sequence!=state.Shot.Sequence)
             {
                 sequence=state.Shot.Sequence;origin=useSluggers&&head.HasValue?head.Value:hand;
+                if(OriginalBlades)
+                {
+                    for(int i=0;i<2;i++){bladeOrigins[i]=originalSluggers.MountedCenter(i);bladeRotations[i]=originalSluggers.MountedRotation(i);}
+                    origin=(bladeOrigins[0]+bladeOrigins[1])*.5f;
+                }
                 flightAxis=(target-origin).normalized;flightSide=Vector3.Cross(Vector3.up,flightAxis).normalized;
                 spinBasis=camera.transform.rotation;contacted=false;Launches++;Started=true;
                 accents.Launch(true,state.Shot.Age,origin,flightAxis,tint);
@@ -125,9 +135,9 @@ namespace UltramanGame.Runtime
             float age=state.Shot.Age;
             Visible=age<=(useSluggers?AttackTempo.RangedSeconds:AttackTempo.RangedHitSeconds+.055f);
             core.gameObject.SetActive(Visible&&!useSluggers);halo.gameObject.SetActive(Visible&&!useSluggers);wave.gameObject.SetActive(Visible&&!useSluggers);trail.enabled=Visible&&!useSluggers;
-            foreach(var blade in sluggers)blade.gameObject.SetActive(Visible&&useSluggers);
+            foreach(var blade in sluggers)blade.gameObject.SetActive(Visible&&useSluggers&&!OriginalBlades);
             foreach(var line in bladeTrails)line.enabled=Visible&&useSluggers;
-            if(!Visible)return;
+            if(!Visible){originalSluggers?.Restore();return;}
             float t=AttackTempo.Travel(age),fade=1-Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/.055f);
             Vector3 end=contacted?contactPoint:target;
             Tip=Vector3.Lerp(origin,end,t);
@@ -138,6 +148,14 @@ namespace UltramanGame.Runtime
                 {
                     sluggers[i].position=BladePoint(age,i,end,home);
                     sluggers[i].rotation=spinBasis*Quaternion.Euler(0,15,age*(i==0?1200:-1200));sluggers[i].localScale=Vector3.one*.64f;
+                    if(OriginalBlades)
+                    {
+                        float back=Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/(AttackTempo.RangedSeconds-AttackTempo.RangedHitSeconds));
+                        Quaternion basis=Quaternion.Slerp(bladeRotations[i],originalSluggers.MountedRotation(i),back);
+                        float turn=age<=AttackTempo.RangedHitSeconds?t:back;
+                        var rotation=Quaternion.AngleAxis((i==0?360:-360)*turn,flightSide)*basis;
+                        originalSluggers.Pose(i,sluggers[i].position,rotation);
+                    }
                     var line=bladeTrails[i];line.startColor=new Color(tint.r,tint.g,tint.b,0);line.endColor=new Color(.80f,.94f,1,.92f);
                     for(int j=0;j<line.positionCount;j++)
                     {float sample=Mathf.Max(AttackTempo.RangedLaunchSeconds,age-.075f*(1-j/(float)(line.positionCount-1)));line.SetPosition(j,BladePoint(sample,i,end,home));}
