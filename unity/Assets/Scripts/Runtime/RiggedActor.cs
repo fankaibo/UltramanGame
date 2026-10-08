@@ -178,6 +178,10 @@ namespace UltramanGame.Runtime
         bool defeatEntry;
         readonly MonsterDissolve dissolve;
         public ZeroSluggerRig Sluggers {get;private set;}
+        Vector3 bladeSocketLocal,bladeStartTip;
+        public Vector3 BladeOrigin=>leftForearm?leftForearm.TransformPoint(bladeSocketLocal):StrikeOrigin(HeroAction.LeftPunch);
+        public Vector3 BladeDirection=>leftHand&&leftForearm?(leftHand.position-leftForearm.position).normalized:forward;
+        public Vector3 BladeNormal=>leftForearm?Vector3.ProjectOnPlane(BladeOrigin-leftForearm.position,BladeDirection).normalized:Vector3.up;
         public int DissolveStarts=>dissolve?.Starts??0;
         public int DissolveMotes=>dissolve?.ActiveMotes??0;
         readonly Vector3[] palmForwardLocal=new Vector3[2],palmUpLocal=new Vector3[2];
@@ -379,7 +383,30 @@ namespace UltramanGame.Runtime
                 foreheadSurface=SkinnedSurfaceAnchor.Head(surfaces,new Ray(home+Vector3.up*3.48f+forward*3,-forward));
             }
             if(name=="Zero")Sluggers=ZeroSluggerRig.Create(surfaces);
+            if(name=="Mebius")CalibrateBladeSocket();
             Debug.Log($"[RiggedActor] name={name} clips={clips.Count} bones={BoneCount} renderers={renderers.Length} height={bounds.size.y*size:F2} vertices={modelVertices}");
+        }
+        void CalibrateBladeSocket()
+        {
+            // The existing model has a separate brace material. Its centre is
+            // carried by the left forearm, keeping the light attached to the
+            // actual bracelet instead of starting in the fist or empty air.
+            Vector3 center=Vector3.zero;int count=0;var mesh=new Mesh();
+            foreach(var surface in surfaces)
+            {
+                if(!(surface is SkinnedMeshRenderer skin))continue;
+                var mats=skin.sharedMaterials;skin.BakeMesh(mesh,true);var vertices=mesh.vertices;
+                for(int sub=0;sub<mats.Length;sub++)
+                {
+                    if(!mats[sub].name.Contains("MebiusBrace"))continue;
+                    var indices=new HashSet<int>(skin.sharedMesh.GetTriangles(sub));
+                    foreach(int index in indices){center+=skin.transform.TransformPoint(vertices[index]);count++;}
+                }
+            }
+            if(Application.isPlaying)UnityEngine.Object.Destroy(mesh);else UnityEngine.Object.DestroyImmediate(mesh);
+            center=count>0?center/count+BladeDirection*.04f:leftHand.position-BladeDirection*.12f;
+            bladeSocketLocal=leftForearm.InverseTransformPoint(center);
+            Debug.Log($"[MebiumBlade] braceVertices={count} socketFromWrist={Vector3.Distance(center,leftHand.position):F3}");
         }
         static Material Surface(string name,Texture2D texture,Texture2D eyes,string character)
         {
@@ -481,6 +508,9 @@ namespace UltramanGame.Runtime
             // pose and recoil clock instead of sampling Idle beneath the pause.
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
             Sluggers?.Restore();
+            if(HeroArsenal.Blade(heroId,state)&&preview<0&&
+                (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
+                bladeStartTip=BladeOrigin+BladeDirection*HeroBlade.Length;
             // Procedural throws and recoil are undone before choosing the next
             // clip. A handoff must start from the visible pose, not the idle
             // wrist underneath those layers (especially when releasing a rock).
@@ -1080,6 +1110,7 @@ namespace UltramanGame.Runtime
             if(retargetArms)
             {
                 if(state.IsRangedPunch||rangedRecovery)PoseRangedArms(state);
+                else if(HeroArsenal.Blade(heroId,state))PoseMebiumArms(state);
                 else if(retargetedPunch)PoseRetargetedArms(state);
                 else PoseTigaArms(state,comboStrike);
             }
@@ -1541,7 +1572,7 @@ namespace UltramanGame.Runtime
             leftFoot.rotation=(beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*leftFootRest;
             rightFoot.rotation=(!beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*rightFootRest;
         }
-        float PunchTravel(Battle state)=>state.IsRangedPunch?.10f:StrikeAdvance+chaseAdvance-(HeroArsenal.Blade(heroId,state)?.60f:0);
+        float PunchTravel(Battle state)=>state.IsRangedPunch?.10f:StrikeAdvance+chaseAdvance-(HeroArsenal.Blade(heroId,state)?.95f:0);
         void PosePunchWeight(Battle state)
         {
             if(!pelvis||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
@@ -1690,6 +1721,59 @@ namespace UltramanGame.Runtime
                 PoseLimb(upper,lower,wrist,target,1,side*(handSign*.55f)+Vector3.down*.75f,.30f);
                 wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
             }
+        }
+        void PoseMebiumArms(Battle state)
+        {
+            float age=state.ActionAge;var side=Vector3.Cross(Vector3.up,forward);
+            if(!contactLayerApplied){if(upperSpine)spineBase=upperSpine.localRotation;if(head)headBase=head.localRotation;}
+            float turn=age<Battle.PunchHitSeconds?Mathf.Lerp(-14,15,StrikeApproach(age/Battle.PunchHitSeconds)):
+                Mathf.Lerp(15,0,Mathf.SmoothStep(0,1,(age-.19f)/.19f));
+            if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(turn,Vector3.up)*upperSpine.rotation;
+            if(head)head.rotation=Quaternion.AngleAxis(-turn*.65f,Vector3.up)*head.rotation;
+            contactLayerApplied=true;
+            stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
+            stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
+            // Both hands first share the ordinary guard. Only the left arm
+            // sweeps; its elbow/forearm drive a rigid extension to the blade tip.
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0;float sign=left?-1:1;var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                var guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
+                var palm=wrist.rotation;var axis=wrist.position-lower.position;
+                PoseLimb(upper,lower,wrist,guard,1,side*(sign*.45f)+Vector3.down,.30f);
+                wrist.rotation=Quaternion.FromToRotation(axis,wrist.position-lower.position)*palm;
+            }
+            var guardUpper=leftUpperArm.localRotation;var guardLower=leftForearm.localRotation;var guardHand=leftHand.localRotation;
+            var shoulder=leftUpperArm.position;var contact=PunchContact;var follow=shoulder+forward*1.65f+side*.70f-Vector3.up*.40f;
+            Vector3 Cubic(Vector3 a,Vector3 b,Vector3 c,Vector3 d,float t)
+            {float u=1-t;return a*u*u*u+b*3*u*u*t+c*3*u*t*t+d*t*t*t;}
+            Vector3 tip;
+            if(age<=Battle.PunchHitSeconds)
+                tip=Cubic(bladeStartTip,bladeStartTip+forward*.30f,contact-side*.32f+Vector3.up*.30f,contact,StrikeApproach(age/Battle.PunchHitSeconds));
+            else
+                tip=Cubic(contact,contact+side*.50f-Vector3.up*.24f,follow+forward*.22f+Vector3.up*.12f,follow,Mathf.SmoothStep(0,1,(age-Battle.PunchHitSeconds)/.12f));
+            // The sword is a rigid extension of the forearm. Solve toward its
+            // tip; rotating a line independently would break the wrist join.
+            var palmBefore=leftHand.rotation;var axisBefore=BladeDirection;
+            for(int iteration=0;iteration<3;iteration++)
+            {
+                var axis=BladeDirection;
+                float extension=HeroBlade.Length+Vector3.Dot(BladeOrigin-leftHand.position,axis);
+                var lateral=BladeOrigin-leftHand.position-axis*Vector3.Dot(BladeOrigin-leftHand.position,axis);
+                var start=leftUpperArm.position;var end=tip-lateral;var to=end-start;
+                float a=Vector3.Distance(start,leftForearm.position),b=Vector3.Distance(leftForearm.position,leftHand.position)+extension;
+                float d=Mathf.Clamp(to.magnitude,Mathf.Abs(a-b)+.001f,a+b-.001f);
+                var aim=to.normalized;var bend=Vector3.ProjectOnPlane(-side*.70f-Vector3.up*.60f,aim).normalized;
+                float along=(a*a-b*b+d*d)/(2*d);
+                var elbow=start+aim*along+bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+                leftUpperArm.rotation=Quaternion.FromToRotation(leftForearm.position-start,elbow-start)*leftUpperArm.rotation;
+                leftForearm.rotation=Quaternion.FromToRotation(leftHand.position-leftForearm.position,start+aim*d-leftForearm.position)*leftForearm.rotation;
+            }
+            leftHand.rotation=Quaternion.FromToRotation(axisBefore,BladeDirection)*palmBefore;
+            float recover=Mathf.SmoothStep(0,1,(age-.22f)/(Battle.PunchSeconds-.22f));
+            leftUpperArm.localRotation=Quaternion.Slerp(leftUpperArm.localRotation,guardUpper,recover);
+            leftForearm.localRotation=Quaternion.Slerp(leftForearm.localRotation,guardLower,recover);
+            leftHand.localRotation=Quaternion.Slerp(leftHand.localRotation,guardHand,recover);
         }
         void PoseRetargetedArms(Battle state)
         {

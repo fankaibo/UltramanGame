@@ -125,7 +125,7 @@ namespace UltramanGame.Runtime
         }
         public void Clear()
         {hero.Clear();heroComboEcho.Clear();foreach(var claw in claws)claw.Clear();lastAction=HeroAction.None;lastHeroAge=0;lastEnemyAttack=0;}
-        public void Tick(Battle state,Camera camera,float dt,AnimatedActor heroActor,AnimatedActor enemyActor,bool closeup)
+        public void Tick(Battle state,Camera camera,float dt,AnimatedActor heroActor,AnimatedActor enemyActor,bool closeup,bool wristBlade=false)
         {
             if(state.Phase!=GamePhase.Battle||closeup||heroActor==null||enemyActor==null){Clear();return;}
             if(dt<=0)return;
@@ -137,7 +137,7 @@ namespace UltramanGame.Runtime
             bool combo=ComboStrikeMotion.Active(state);
             bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
             bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
-            hero.Tick(camera,clock,emitHero&&(!HeroKickMotion.Active(state)||state.ActionAge<.23f),heroActor.StrikeContact(state));
+            hero.Tick(camera,clock,emitHero&&!wristBlade&&(!HeroKickMotion.Active(state)||state.ActionAge<.23f),heroActor.StrikeContact(state));
             // Echo only the contact-facing part of a combo strike. It fades in
             // the same bounded history as the main wake, so a paused frame,
             // input handoff, or photo round cannot leave an orphaned afterimage.

@@ -35,7 +35,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-homeOffset,0,.4f-homeOffset),EnemyHome=new Vector3(homeOffset,0,.4f+homeOffset);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){projectile.BindSluggers(heroActor?.Sluggers);hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){blade.BindActor(heroActor);projectile.BindSluggers(heroActor?.Sluggers);hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void SetHeroProfile(string id){heroId=id;effects.SetHeroProfile(id);projectile.SetHero(id);blade.SetHero(id);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
@@ -606,7 +606,7 @@ namespace UltramanGame.Runtime
             if(BeamStarted&&Debug.isDebugBuild)Debug.Log($"[BeamCloseup] beam-visible actionAge={state.ActionAge:F2}");
             effects.Tick(state,Camera,dt,BeamOrigin,EnemyHome+Vector3.up*2.6f,ShieldCenter,BattleAxis,Closeup.Active,focus,firing,BeamTarget,
                 Closeup.Age,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,hero?.HandPosition??BeamOrigin);
-            strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active);
+            strikeTrails.Tick(state,Camera,dt,hero,enemy,Closeup.Active,HeroArsenal.Blade(heroId,state));
             if(!Closeup.Active&&dt>0)
             {
                 int before=effects.GroundContactCount;effects.MotionDust(state,hero,enemy,BattleAxis);

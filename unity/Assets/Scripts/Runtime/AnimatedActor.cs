@@ -10,6 +10,9 @@ namespace UltramanGame.Runtime
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
         public ZeroSluggerRig Sluggers=>rigged?.Sluggers;
+        public Vector3 BladeOrigin=>rigged!=null?rigged.BladeOrigin:StrikeOrigin(HeroAction.LeftPunch);
+        public Vector3 BladeDirection=>rigged!=null?rigged.BladeDirection:forwardAxis;
+        public Vector3 BladeNormal=>rigged!=null?rigged.BladeNormal:Vector3.up;
         public int DissolveStarts=>rigged?.DissolveStarts??0;
         public int DissolveMotes=>rigged?.DissolveMotes??0;
         public float StrikeAdvance=>rigged!=null?rigged.StrikeAdvance:PunchAdvance;
