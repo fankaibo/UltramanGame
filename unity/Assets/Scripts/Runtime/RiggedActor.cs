@@ -154,10 +154,13 @@ namespace UltramanGame.Runtime
         float monsterHandAge,monsterHandDuration;
         Vector3 monsterLeftHandFrom,monsterRightHandFrom;
         Quaternion monsterLeftHandRotationFrom,monsterRightHandRotationFrom;
+        bool monsterVisibleHandsValid;
+        Vector3 monsterVisibleLeft,monsterVisibleRight;
+        Quaternion monsterVisibleLeftRotation,monsterVisibleRightRotation;
         bool monsterArmPhaseKnown;
         EnemyPhase monsterArmPhase;
         bool attackPoseApplied;
-        float slamPrepare,rayPrepare;
+        float slamPrepare,rayPrepare,rockPrepare;
         float slamEntryAge=1;
         Vector3 slamEntryLeft,slamEntryRight;
         Quaternion slamEntryLeftRotation,slamEntryRightRotation;
@@ -475,6 +478,15 @@ namespace UltramanGame.Runtime
             // The terminal strike survives a tracking pause. Retain its visible
             // pose and recoil clock instead of sampling Idle beneath the pause.
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
+            // Procedural throws and recoil are undone before choosing the next
+            // clip. A handoff must start from the visible pose, not the idle
+            // wrist underneath those layers (especially when releasing a rock).
+            monsterVisibleHandsValid=monster&&preview<0&&ReferenceEquals(observedBattle,state);
+            if(monsterVisibleHandsValid)
+            {
+                monsterVisibleLeft=leftHand.position;monsterVisibleRight=hand.position;
+                monsterVisibleLeftRotation=leftHand.rotation;monsterVisibleRightRotation=hand.rotation;
+            }
             if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Victory)defeatEntry=false;
             if(monster&&preview<0&&ReferenceEquals(observedBattle,state)&&previous==GamePhase.Battle&&state.Phase==GamePhase.Victory)
             {
@@ -638,7 +650,7 @@ namespace UltramanGame.Runtime
             // replay the recoil. Chest yields first; planted knees take the
             // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
+            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=rockPrepare=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
             if(monster)
             {
                 if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack)beamRecoil.Clear();
@@ -713,7 +725,7 @@ namespace UltramanGame.Runtime
                 }
                 else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Windup)
                 {
-                    next=(state.EnemyAttackCount+1)%2==0?"WindupAlt":"Windup";
+                    next=MonsterStepMotion.ClawLeft(state.EnemyAttackCount+1)?"WindupAlt":"Windup";
                     float desired=MonsterWindupMotion.Clip(state.EnemyAge,state.WarningDuration,clips[next].length);
                     // A queued guide can extend even the final warning second.
                     // Return to the listening hold smoothly instead of jumping
@@ -893,7 +905,7 @@ namespace UltramanGame.Runtime
             {
                 float coil=MonsterWindupMotion.Coil(state.EnemyAge);
                 float breath=MonsterWindupMotion.Breath(state.EnemyAge,state.WarningDuration);
-                float side=(state.EnemyAttackCount+1)%2==0?-1:1;
+                float side=MonsterStepMotion.ClawLeft(state.EnemyAttackCount+1)?-1:1;
                 var right=Vector3.Cross(Vector3.up,forward);
                 if(upperSpine)
                 {
@@ -1132,7 +1144,8 @@ namespace UltramanGame.Runtime
             else slamPrepare=0;
             if(monster&&preview<0&&MonsterRayMotion.Active(state)&&next!="Hurt")PoseHeadRay(state,dt);
             else rayPrepare=0;
-            if(monster&&preview<0&&MonsterRockMotion.Active(state)&&next!="Hurt")PoseRockThrow(state);
+            if(monster&&preview<0&&MonsterRockMotion.Active(state)&&next!="Hurt")PoseRockThrow(state,dt);
+            else rockPrepare=0;
             if(monster)PoseClawReaction(state,preview);
             if(monster&&preview<0)BlendMonsterHandTransition(dt);
             if(monster&&jaw)
@@ -1381,13 +1394,16 @@ namespace UltramanGame.Runtime
                 leftHand.rotation=rotationLeft;hand.rotation=rotationRight;AlignClawWrists();
             }
         }
-        void PoseRockThrow(Battle state)
+        void PoseRockThrow(Battle state,float dt)
         {
             if(!upperSpine||!leftHand||!hand)return;
             for(int i=0;i<joints.Length;i++){attackRotations[i]=joints[i].localRotation;attackPositions[i]=joints[i].localPosition;}
             attackRootBefore=Root.position;attackRotationBefore=Root.rotation;attackPoseApplied=true;
             var side=Vector3.Cross(Vector3.up,forward);
-            float prepare=MonsterRockMotion.Prepare(state);
+            // A delayed voice can extend the warning after the rock is lifted.
+            // Return the arm gradually instead of dropping a full shoulder span.
+            rockPrepare=Mathf.MoveTowards(rockPrepare,MonsterRockMotion.Prepare(state),dt*2.5f);
+            float prepare=rockPrepare;
             float throwT=state.Enemy==EnemyPhase.Attack?MonsterRockMotion.Smooth(state.EnemyAge/MonsterRockMotion.Launch):0;
             float recover=state.Enemy==EnemyPhase.Attack?1-MonsterRockMotion.Smooth((state.EnemyAge-.40f)/.55f):1;
             upperSpine.rotation=Quaternion.AngleAxis((12-23*throwT)*prepare,side)*upperSpine.rotation;
@@ -2007,39 +2023,41 @@ namespace UltramanGame.Runtime
             float idleSway=Mathf.Sin(time*1.35f+.35f),idleWeight=state.Enemy==EnemyPhase.Rest?1:state.Enemy==EnemyPhase.Recover?.55f:.30f;
             if(upperSpine)upperSpine.rotation=Quaternion.AngleAxis(idleSway*1.35f*idleWeight,right)*upperSpine.rotation;
             if(head)head.rotation=Quaternion.AngleAxis(-idleSway*2.1f*idleWeight,right)*head.rotation;
+            if(state.Enemy==EnemyPhase.Windup&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state)&&!MonsterRockMotion.Active(state))
+            {
+                // Use the smoothed clip clock so a late voice extension can
+                // unwind this preparation without snapping the shoulder.
+                float prepare=Mathf.SmoothStep(0,1,(windupSample-.90f)/.60f);
+                bool left=MonsterStepMotion.ClawLeft(state.EnemyAttackCount+1);
+                AimClaw(left,ClawPoint(left,.98f,2.95f,.20f),prepare*.90f);
+            }
+        }
+        Vector3 ClawPoint(bool left,float lateral,float height,float depth)
+            =>Root.position+Vector3.Cross(Vector3.up,forward)*((left?-1:1)*lateral)+Vector3.up*height+forward*depth;
+        static Vector3 Bezier(Vector3 a,Vector3 b,Vector3 c,Vector3 d,float t)
+        {t=Mathf.Clamp01(t);float u=1-t;return a*(u*u*u)+b*(3*u*u*t)+c*(3*u*t*t)+d*(t*t*t);}
+        void AimClaw(bool left,Vector3 target,float weight)
+        {
+            var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+            Vector3 span=wrist.position-lower.position;Quaternion palm=wrist.rotation;
+            var side=Vector3.Cross(Vector3.up,forward)*(left?-1:1);
+            PoseLimb(upper,lower,wrist,target,weight,side*.70f+Vector3.down*.45f,.30f);
+            wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
         }
         void CorrectAttackArms(Battle state)
         {
             if(!upperArm||!leftUpperArm||!forearm||!leftForearm||!hand||!leftHand)return;
-            // Keep the imported attack clip's timing, but guide the active claw
-            // toward the contact lane. This prevents the low-resolution source
-            // animation from reading as two disconnected arms on a TV.
-            float phase=Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds);
-            float reach=Mathf.Sin(phase*Mathf.PI);
-            bool leadLeft=MonsterStepMotion.ClawLeft(state.EnemyAttackCount);
-            float leadSide=leadLeft?-1:1;
-            var right=Vector3.Cross(Vector3.up,forward).normalized;
-            Vector3 center=Root.position+forward*.48f+Vector3.up*2.38f;
-            Vector3 leadElbow=center+right*leadSide*.52f+forward*.22f+Vector3.up*(.24f+.08f*reach);
-            Vector3 leadWrist=center+right*leadSide*.50f+forward*(.42f+.44f*reach)+Vector3.up*(.04f+.13f*reach);
-            // Pull the non-leading claw back toward the chest. It still moves
-            // with the attack, but never competes with the contact hand. The
-            // imported clip placed this wrist almost level with the shoulder;
-            // from the 45-degree lens that made a long, flat forearm read like
-            // a second attacking prop. Lower the elbow and keep the wrist
-            // inside the ribs so the arm visibly folds while the lead claw
-            // owns the contact.
-            Vector3 supportElbow=center-right*leadSide*.37f+forward*(-.10f+.018f*reach)+Vector3.up*(-.04f+.025f*reach);
-            // Keep the non-leading claw below the pectoral line and inside the
-            // ribs.  The imported attack clip leaves this hand almost level
-            // with the striking wrist, which makes two horizontal forearms
-            // read as one wide prop in the 45-degree cabinet shot.  A slightly
-            // stronger late blend lets the tucked hand visibly finish its
-            // protective fold while the active claw owns the contact silhouette.
-            Vector3 supportWrist=center-right*leadSide*.34f+forward*(-.04f+.035f*reach)+Vector3.up*(-.23f+.010f*reach);
-            float leadBlend=.08f+.24f*reach,supportBlend=.15f+.24f*reach;
-            SolveArm(leadLeft?leftUpperArm:upperArm,leadLeft?leftForearm:forearm,leadLeft?leftHand:hand,leadElbow,leadWrist,leadBlend);
-            SolveArm(leadLeft?upperArm:leftUpperArm,leadLeft?forearm:leftForearm,leadLeft?hand:leftHand,supportElbow,supportWrist,supportBlend);
+            bool left=MonsterStepMotion.ClawLeft(state.EnemyAttackCount);float age=state.EnemyAge;
+            // One continuous diagonal swipe crosses the contact beat instead
+            // of easing to a stop like a push. Retraction takes a lower arc,
+            // leaving the lead shoulder room to settle above the planted feet.
+            Vector3 load=ClawPoint(left,.98f,2.95f,.20f),follow=ClawPoint(left,-.25f,2.40f,.82f);
+            Vector3 target=age<=.62f
+                ?Bezier(load,ClawPoint(left,.90f,3.00f,1.15f),ClawPoint(left,-.15f,2.70f,1.40f),follow,(age-.08f)/.54f)
+                :Bezier(follow,ClawPoint(left,-.18f,2.20f,.52f),ClawPoint(left,.55f,2.25f,.42f),ClawPoint(left,.60f,2.40f,.63f),(age-.62f)/.37f);
+            float settle=1-Mathf.SmoothStep(0,1,(age-.82f)/.23f);
+            AimClaw(left,target,.90f*settle);
+            AimClaw(!left,ClawPoint(!left,.43f,2.38f,.45f),.60f*settle);
         }
         static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 elbowTarget,Vector3 wristTarget,float blend)
         {
@@ -2106,8 +2124,10 @@ namespace UltramanGame.Runtime
             if(!leftHand||!hand)return;
             monsterHandTransition=true;monsterHandAge=0;
             monsterHandDuration=next=="Hurt"?.14f:next=="Attack"||next=="AttackAlt"?.075f:.10f;
-            monsterLeftHandFrom=leftHand.position;monsterRightHandFrom=hand.position;
-            monsterLeftHandRotationFrom=leftHand.rotation;monsterRightHandRotationFrom=hand.rotation;
+            monsterLeftHandFrom=monsterVisibleHandsValid?monsterVisibleLeft:leftHand.position;
+            monsterRightHandFrom=monsterVisibleHandsValid?monsterVisibleRight:hand.position;
+            monsterLeftHandRotationFrom=monsterVisibleHandsValid?monsterVisibleLeftRotation:leftHand.rotation;
+            monsterRightHandRotationFrom=monsterVisibleHandsValid?monsterVisibleRightRotation:hand.rotation;
         }
         void ApplyClawPose(Battle state,int preview,float time)
         {

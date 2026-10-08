@@ -32,7 +32,7 @@ namespace UltramanGame.Editor
                 var finger=new Transform[2,4];string[] names={"index","middle","ring","pinky"};
                 for(int side=0;side<2;side++)for(int i=0;i<4;i++)finger[side,i]=Bone(enemy.Root,"bip_"+names[i]+"_0_"+(side==0?"L":"R"));
                 Vector3[] anchor={enemy.FootPosition(true),enemy.FootPosition(false)},prior={left.position,right.position};
-                float maxWrist=0,footDrift=0,maxStep=0,minGround=100,chestMotion=0,repeatError=0;int extensions=0,samples=0;Quaternion firstChest=Quaternion.identity;
+                float maxWrist=0,footDrift=0,maxStep=0,minGround=100,chestMotion=0,repeatError=0;int extensions=0,samples=0;Quaternion firstChest=Quaternion.identity;string stepAt="";
                 var mesh=new Mesh();float dt=1f/rate;
                 try
                 {
@@ -47,7 +47,8 @@ namespace UltramanGame.Editor
                         {
                             Vector3 center=Vector3.zero;for(int i=0;i<4;i++)center+=finger[side,i].position;center/=4;
                             maxWrist=Mathf.Max(maxWrist,Vector3.Angle(center-hands[side].position,hands[side].position-lower[side].position));
-                            if(f>0)maxStep=Mathf.Max(maxStep,Vector3.Distance(prior[side],hands[side].position));prior[side]=hands[side].position;
+                            float step=Vector3.Distance(prior[side],hands[side].position);
+                            if(f>0&&step>maxStep){maxStep=step;stepAt=$"{state.Enemy}/{state.EnemyAttackCount}/{state.EnemyAge:F3}/hand{side}";}prior[side]=hands[side].position;
                         }
                         if(state.Enemy==EnemyPhase.Windup&&state.EnemyAge>.5f)
                         {
@@ -62,7 +63,7 @@ namespace UltramanGame.Editor
                             {skin.BakeMesh(mesh,true);foreach(var v in mesh.vertices)minGround=Mathf.Min(minGround,skin.transform.TransformPoint(v).y);}
                         if(state.Blocks==2&&state.Enemy==EnemyPhase.Recover&&state.EnemyAge>.5f)break;
                     }
-                    string result=$"{rate}Hz extended={extended} blocks={state.Blocks} extensions={extensions} wrist={maxWrist:F3} footDrift={footDrift:F4} handStep={maxStep:F4} minGround={minGround:F4} chestMotion={chestMotion:F3} repeatError={repeatError:F5}";
+                    string result=$"{rate}Hz extended={extended} blocks={state.Blocks} extensions={extensions} wrist={maxWrist:F3} footDrift={footDrift:F4} handStep={maxStep:F4} stepAt={stepAt} minGround={minGround:F4} chestMotion={chestMotion:F3} repeatError={repeatError:F5}";
                     Debug.Log("[MonsterAnticipation] "+result);
                     if(state.Blocks!=2||state.HitsTaken!=0||state.EnemyHealth!=50||maxWrist>36||footDrift>.035f||maxStep>.70f||minGround<-.035f||chestMotion<5||repeatError>.015f||(extended&&extensions!=2))throw new Exception(result);
                     report.AppendLine(result+" passed");

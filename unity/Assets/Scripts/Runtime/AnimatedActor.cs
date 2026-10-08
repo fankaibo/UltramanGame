@@ -107,9 +107,20 @@ namespace UltramanGame.Runtime
             if(state.Enemy!=EnemyPhase.Attack)return 0;
             float age=state.EnemyAge;
             if(MonsterSlamMotion.Variant(state.EnemyAttackCount))return MonsterSlamMotion.Travel(age);
-            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance+approach,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
+            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance+approach,RushProgress(age/Battle.EnemyHitSeconds));
             if(age<Battle.EnemyHitSeconds+.12f)return EnemyAdvance+approach;
             return (EnemyAdvance+approach)*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
+        }
+        static float RushProgress(float t)
+        {
+            // The wider ranged stance needs a longer approach. A full-length
+            // smoothstep concentrates that distance into the middle two frames
+            // on a slow display. Short acceleration/deceleration ramps spread
+            // the travel across the same contact deadline, with no teleport.
+            t=Mathf.Clamp01(t);const float ramp=.10f,area=1-ramp;
+            if(t<ramp)return t*t/(2*ramp*area);
+            if(t>1-ramp){float end=1-t;return 1-end*end/(2*ramp*area);}
+            return (t-ramp*.5f)/area;
         }
         void SetFrame(int frame)
         {
