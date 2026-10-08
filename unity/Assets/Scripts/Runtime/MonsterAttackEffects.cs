@@ -148,15 +148,15 @@ namespace UltramanGame.Runtime
             // Older preview callers send the cue without Battle. Bind that cue
             // on its next sample rather than letting its contact follow the hand.
             if(active&&pendingImpact){impactAttack=state.EnemyAttackCount;pendingImpact=false;}
-            bool warning=active&&state.Enemy==EnemyPhase.Windup&&!MonsterRayMotion.Active(state);
+            bool warning=active&&state.Enemy==EnemyPhase.Windup&&!MonsterRayMotion.Active(state)&&!MonsterRockMotion.Active(state);
             bool attack=active&&state.Enemy==EnemyPhase.Attack;
-            Vector3 monster=home+forward*AnimatedActor.MonsterAdvance(state);
+            Vector3 monster=home+forward*AnimatedActor.MonsterAdvance(state,CombatSpacing.Approach(Vector3.Distance(home,target)));
             Vector3 contact=target-forward*.7f+Vector3.up*2.15f-camera.transform.forward*.3f;
-            Vector3 clawPosition=hand??contact-forward*Mathf.Max(0,AnimatedActor.EnemyAdvance-AnimatedActor.MonsterAdvance(state));
+            Vector3 clawPosition=hand??contact-forward*Mathf.Max(0,AnimatedActor.EnemyAdvance-AnimatedActor.MonsterAdvance(state,CombatSpacing.Approach(Vector3.Distance(home,target))));
             if(attackNumber!=state.EnemyAttackCount)
             {
                 attackNumber=state.EnemyAttackCount;previousHand=clawPosition;
-                float side=attackNumber%2==0?-1:1;
+                float side=MonsterStepMotion.ClawLeft(attackNumber)?-1:1;
                 sweepDirection=(camera.transform.right*(side*.65f)-camera.transform.up*.76f).normalized;
             }
             if(attack&&dt>0)
@@ -178,7 +178,7 @@ namespace UltramanGame.Runtime
             // planted body to its forward step; claws keep their own brighter
             // ribbons below.  Everything follows EnemyAge, so pause/restart
             // cannot leave a delayed streak behind.
-            bool bodyRush=attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)
+            bool bodyRush=attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount)
                 &&state.EnemyAge>=.045f&&state.EnemyAge<.59f;
             if(bodyRush)
             {
@@ -258,7 +258,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<3;i++)
             {
                 var claw=claws[i];float age=state.EnemyAge;
-                claw.Visible=attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterSlamMotion.Variant(state.EnemyAttackCount)&&age>=.30f&&age<.64f;
+                claw.Visible=attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount)&&!MonsterSlamMotion.Variant(state.EnemyAttackCount)&&age>=.30f&&age<.64f;
                 if(claw.Visible)
                 {
                     float growth=Mathf.SmoothStep(0,1,Mathf.Clamp01((age-.30f)/.10f));

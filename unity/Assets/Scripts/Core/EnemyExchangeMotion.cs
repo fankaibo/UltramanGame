@@ -23,8 +23,8 @@ namespace UltramanGame.Core
             Focus=Math.Max(desired,Math.Max(0,Focus-Math.Max(0,dt)/.24f));
             if(desired>0)
             {
-                Side=(state.EnemyAttackCount+(state.Enemy==EnemyPhase.Windup?1:0))%2==0?-1:1;
-                Travel=state.Enemy==EnemyPhase.Windup?0:state.Enemy==EnemyPhase.Attack?Ease(state.EnemyAge/Battle.EnemyHitSeconds):1;
+                Side=MonsterStepMotion.ClawLeft(state.EnemyAttackCount+(state.Enemy==EnemyPhase.Windup?1:0))?-1:1;
+                Travel=state.Enemy==EnemyPhase.Windup?0:state.Enemy==EnemyPhase.Attack?Ease(state.EnemyAge/state.EnemyContactSeconds):1;
             }
         }
         static float Envelope(Battle state)

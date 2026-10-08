@@ -195,7 +195,8 @@ def main():
         entrance_roars=1
     # These images come from this player run, not the independent Editor render
     # in cinematic-combat/frames. A unique directory prevents stale visual proof.
-    required = ('battle-entry', 'monster-rush-left', 'monster-rush-right', 'guard-impact', 'hero-hurt',
+    # The second attack is now a thrown boulder, not another claw lunge.
+    required = ('battle-entry', 'monster-rock-hold', 'monster-rock-flight', 'monster-rock-break', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
                 'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'beam-braced', 'beam-pressure', 'beam-recovery', 'beam-reaction-entry', 'beam-reaction-peak', 'Paused', 'Victory',
                 'victory-collapse', 'victory-turn', 'victory-dissolve', 'victory-motes', 'victory-hero',
@@ -218,6 +219,8 @@ def main():
         required += ('ray-prepare','ray-travel','ray-block','ray-fade','ray-recover')
     if args.linked:
         required += ('punch-link-prepare','punch-link-handoff')
+    if args.hero == 'Mebius':
+        required += ('mebium-blade',)
     if args.finisher:
         # The defeated monster collapses after the release instead of taking a
         # recovery step back into battle. Ordinary rounds still require that shot.

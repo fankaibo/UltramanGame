@@ -241,7 +241,7 @@ namespace UltramanGame.Runtime
             if(state.Punches>previousPunches)
                 atmosphere.GroundBurst(hero.FootPosition(HeroKickMotion.Active(state)?state.Action!=HeroAction.LeftPunch:state.Action==HeroAction.LeftPunch),-axis,false);
             if(state.EnemyAttackCount!=previousAttack)previousEnemyAge=0;
-            if(state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount))
+            if(state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount))
             {
                 bool left=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
                 bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);

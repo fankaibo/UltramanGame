@@ -319,6 +319,8 @@ namespace UltramanGame.Runtime
         }
         public void ProjectileLaunch(float speed){if(!muted)effects.Play(projectileLaunch,.65f,Mathf.Lerp(.90f,1.12f,Mathf.InverseLerp(AttackTempo.Min,AttackTempo.Max,speed)),1);}
         public void ProjectileImpact(){if(!muted)effects.Play(beamContact,.48f,1.22f,1);}
+        public void RockLaunch(){if(!muted)Effect("enemy_rush",.65f);}
+        public void RockImpact(){if(!muted)GroundContact(true);}
         void ApplyEffectsMix()
         {
             float master=muted?0:Mathf.Clamp01(Volume);

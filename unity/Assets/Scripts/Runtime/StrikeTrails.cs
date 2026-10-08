@@ -136,7 +136,7 @@ namespace UltramanGame.Runtime
             bool emitHero=punch&&state.ActionAge>=.025f&&state.ActionAge<.34f;
             bool combo=ComboStrikeMotion.Active(state);
             bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
-            bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
+            bool emitMonster=state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount)&&state.EnemyAge>=.12f&&state.EnemyAge<(slam?MonsterSlamMotion.GroundSeconds:.66f);
             hero.Tick(camera,clock,emitHero&&(!HeroKickMotion.Active(state)||state.ActionAge<.23f),heroActor.StrikeContact(state));
             // Echo only the contact-facing part of a combo strike. It fades in
             // the same bounded history as the main wake, so a paused frame,

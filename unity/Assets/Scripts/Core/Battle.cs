@@ -49,6 +49,7 @@ namespace UltramanGame.Core
         public const float InstructionReactionSeconds=3f, WindupSeconds=5.4f;
         public const float TransformationSeconds=MonsterEntranceMotion.End;
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
+        public float EnemyContactSeconds=>MonsterRockMotion.Variant(EnemyAttackCount)?MonsterRockMotion.Contact:EnemyHitSeconds;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
         public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
@@ -222,7 +223,7 @@ namespace UltramanGame.Core
             }
             else if(Enemy==EnemyPhase.Attack)
             {
-                if(!enemyHitApplied&&EnemyAge>=EnemyHitSeconds)
+                if(!enemyHitApplied&&EnemyAge>=EnemyContactSeconds)
                 {
                     enemyHitApplied=true;
                     if(Shield) {Blocks++;Cue(GameCue.Block);}

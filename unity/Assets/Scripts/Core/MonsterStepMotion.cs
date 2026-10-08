@@ -11,6 +11,9 @@ namespace UltramanGame.Core
         public const float LandingSeconds=.40f;
         public const float ReturnStartSeconds=.63f;
         public const float ReturnLandingSeconds=.99f;
-        public static bool LeadLeft(int attackCount)=>attackCount%2!=0;
+        // Ranged variants occupy the even slots. Explicitly alternate the two
+        // remaining claw slots; the opposite foot supports the striking arm.
+        public static bool ClawLeft(int attackCount)=>attackCount%6==5||attackCount%2==0;
+        public static bool LeadLeft(int attackCount)=>!ClawLeft(attackCount);
     }
 }

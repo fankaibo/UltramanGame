@@ -277,8 +277,10 @@ namespace UltramanGame.Runtime
             if(world.Projectile.Started)
             {
                 sound.ProjectileLaunch(battle.Shot.Speed);
-                if(TraceEnabled)Debug.Log($"[HeroProjectile] launch side={battle.Shot.Side} speed={battle.Shot.Speed:F3} sequence={battle.AttackSequence} origin={world.Projectile.Origin} target={world.BeamTarget}");
+                if(TraceEnabled)Debug.Log($"[HeroProjectile] launch side={battle.Shot.Side} speed={battle.Shot.Speed:F3} sequence={battle.AttackSequence} origin={world.Projectile.Origin} target={world.BeamTarget} weapon={HeroArsenal.RangedName(SelectedHero.Id)}");
             }
+            if(world.Rock.Started)
+            {sound.RockLaunch();if(TraceEnabled)Debug.Log($"[MonsterRock] launch sequence={battle.EnemyAttackCount} contact={battle.EnemyContactSeconds:F2}");}
             sound.SetChargePower(showcase?0:world.ChargePower);
             sound.SetMonsterRayPower(showcase?0:world.MonsterRayPower);
             if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam"||world.GroundContactCause=="arrival");
@@ -343,9 +345,12 @@ namespace UltramanGame.Runtime
         void PlayCue(GameCue cue)
         {
             if(TraceEnabled)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
-            if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
+            if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount)&&!MonsterRockMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
             world.Cue(cue,battle);
+            if((cue==GameCue.Block||cue==GameCue.Hurt)&&MonsterRockMotion.Variant(battle.EnemyAttackCount))
+            {sound.RockImpact();if(TraceEnabled)Debug.Log($"[MonsterRock] impact blocked={cue==GameCue.Block} age={battle.EnemyAge:F3}");}
             if(cue==GameCue.Punch&&TraceEnabled)Debug.Log($"[AttackTempo] ranged={battle.IsRangedPunch} speed={battle.AttackSpeed:F3} duration={battle.AttackDuration/battle.AttackSpeed:F3} side={battle.Action}");
+            if(cue==GameCue.Punch&&HeroArsenal.Blade(SelectedHero.Id,battle)&&TraceEnabled)Debug.Log("[HeroWeapon] 梦比姆光剑");
             switch(cue)
             {
                 case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;hintAt=Time.unscaledTime+12;break;
@@ -353,6 +358,7 @@ namespace UltramanGame.Runtime
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
                 case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
+                case GameCue.Warning:caption=MonsterRockMotion.Active(battle)?"飞石来了 · 双手护住胸前":"怪兽要攻击了 · 准备防御";captionUntil=Time.unscaledTime+battle.WarningDuration;break;
                 case GameCue.Victory:victoryAt=Time.unscaledTime;if(TraceEnabled)Debug.Log($"[FinalStrike] completed action={battle.Action} actionAge={battle.ActionAge:F3}");break;
                 case GameCue.Resume:caption="准备好了，继续！";break;
                 default:return;

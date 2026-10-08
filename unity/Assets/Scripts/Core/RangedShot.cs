@@ -10,7 +10,7 @@ namespace UltramanGame.Core
         public HeroAction Side {get;private set;}
         bool applied;
         public bool Flying=>Active&&!applied;
-        public bool Active=>Age<AttackTempo.RangedHitSeconds+.055f;
+        public bool Active=>Age<AttackTempo.RangedSeconds;
         public void Launch(int sequence,HeroAction side,float age,float speed)
         {Sequence=sequence;Side=side;Age=age;Speed=AttackTempo.Clamp(speed);applied=false;}
         public void Clear(){Age=10;applied=true;}

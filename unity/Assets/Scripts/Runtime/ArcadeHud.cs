@@ -80,8 +80,8 @@ namespace UltramanGame.Runtime
                     hud.Box(new Rect(0,130,4,420),new Color(1,.51f,.22f,opacity));
                     hud.Box(new Rect(1276,130,4,420),new Color(1,.51f,.22f,opacity));
                     string warningText=battle.Enemy==EnemyPhase.Attack?
-                        (battle.Shield?"挡住它 · 保持护盾！":MonsterRayMotion.Active(battle)?"光线来了 · 双手防御！":"怪兽冲过来了！"):
-                        (battle.Shield?"护盾准备好了":MonsterRayMotion.Active(battle)?"怪兽正在积蓄光线":"怪兽正在蓄力");
+                        (battle.Shield?"挡住它 · 保持护盾！":MonsterRockMotion.Active(battle)?"飞石来了 · 双手防御！":MonsterRayMotion.Active(battle)?"光线来了 · 双手防御！":"怪兽冲过来了！"):
+                        (battle.Shield?"护盾准备好了":MonsterRockMotion.Active(battle)?"怪兽举起了石头":MonsterRayMotion.Active(battle)?"怪兽正在积蓄光线":"怪兽正在蓄力");
                     hud.Text(new Rect(855,105,335,26),warningText,14,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
                 }
             }
@@ -154,7 +154,7 @@ namespace UltramanGame.Runtime
                 else if(ready)
                     Guide(keyboard?"能量已满 · 按 J 释放光线":"双臂交叉成光线姿势，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);
                 else if(time<captionUntil||battle.Punches<3)
-                    Guide(keyboard?"A / D 出拳 · Q / E 光弹":time<captionUntil?caption:"向前挥拳发光弹 · 快慢跟随你","punch",cyan,0);
+                    Guide(keyboard?"A / D 出拳 · Q / E 光弹":time<captionUntil?caption:SelectedHero.Id=="Mebius"?"左手侧挥光剑 · 向前挥拳发光弹":"向前挥拳发"+HeroArsenal.RangedName(SelectedHero.Id)+" · 快慢跟随你","punch",cyan,0);
             }
             DrawBattleStartCue();
             DrawArcadePreview();

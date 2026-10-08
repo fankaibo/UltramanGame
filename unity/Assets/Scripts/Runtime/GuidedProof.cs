@@ -15,6 +15,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&world.Blade.Visible&&battle.ActionAge>.055f&&battle.ActionAge<.12f&&proofFrames.Add("mebium-blade"))
+            {StartCoroutine(SaveGuidedProof("mebium-blade"));return;}
+            if(!photo.Active&&HeroArsenal.Sluggers(SelectedHero.Id)&&world.Projectile.Visible)
+            {
+                string weapon=battle.Shot.Age>.33f?"zero-sluggers-return":battle.Shot.Age>.20f?"zero-sluggers-out":null;
+                if(weapon!=null&&proofFrames.Add(weapon)){StartCoroutine(SaveGuidedProof(weapon));return;}
+            }
             if(!photo.Active&&world.Projectile.Visible&&AttackTempo.Travel(battle.Shot.Age)>.30f&&AttackTempo.Travel(battle.Shot.Age)<.85f)
             {
                 string shotKey="light-bullet-"+(battle.Shot.Side==HeroAction.LeftPunch?"left":"right");
@@ -78,19 +85,26 @@ namespace UltramanGame.Runtime
                     battle.EnemyAge>=.78f&&battle.EnemyAge<.98f?"slam-rise":null):null;
                 if(slamKey!=null&&proofFrames.Add(slamKey)){StartCoroutine(SaveGuidedProof(slamKey));return;}
             }
-            string clawKey=battle.EnemyAttackCount%2==0?"monster-rush-left":"monster-rush-right";
+            if(!photo.Active&&MonsterRockMotion.Active(battle))
+            {
+                string rockKey=world.Rock.Holding&&battle.WarningDuration-battle.EnemyAge<.4f?"monster-rock-hold":
+                    world.Rock.Flying&&battle.EnemyAge>.42f?"monster-rock-flight":world.Rock.Fragments?"monster-rock-break":null;
+                if(rockKey!=null&&proofFrames.Add(rockKey)){StartCoroutine(SaveGuidedProof(rockKey));return;}
+            }
+            string clawKey=MonsterRockMotion.Active(battle)?"monster-rock-flight":MonsterRayMotion.Active(battle)?"ray-travel":MonsterSlamMotion.Active(battle)?"slam-swing":MonsterStepMotion.ClawLeft(battle.EnemyAttackCount)?"monster-rush-left":"monster-rush-right";
             // A frame can cross the claw contact and start Hurt together. Save
             // the attacking claw first, then the later fall stages; otherwise
             // the Hurt priority can erase an entire side's contact evidence.
             bool captureClaw=!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Attack&&
-                battle.EnemyAge>=Battle.EnemyHitSeconds-.02f&&battle.EnemyAge<Battle.EnemyHitSeconds+.15f&&
+                !MonsterRockMotion.Active(battle)&&!MonsterRayMotion.Active(battle)&&!MonsterSlamMotion.Active(battle)&&
+                battle.EnemyAge>=battle.EnemyContactSeconds-.02f&&battle.EnemyAge<battle.EnemyContactSeconds+.15f&&
                 !proofFrames.Contains(clawKey+(photo.Captures>0?"-after-photo":""));
             if(review!=null&&battle.Action==HeroAction.Hurt&&battle.ActionAge<.18f&&!captureClaw)return;
             // Capture the reaching claw at contact, not the first windup-like
             // frame of an attack. Keep left and right evidence independently.
-            if(battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Attack&&battle.EnemyAge<Battle.EnemyHitSeconds-.02f)return;
+            if(battle.Phase==GamePhase.Battle&&battle.Enemy==EnemyPhase.Attack&&battle.EnemyAge<battle.EnemyContactSeconds-.02f)return;
             string key=photo.Active?"photo-"+photo.Stage+(photo.Stage==PhotoStage.Framing?(photo.HasLivePerson?"-live":"-preparing"):""):
-                battle.Phase==GamePhase.Battle?(world.Closeup.Focus>.999f?"beam-closeup-peak":world.Closeup.Active?"beam-closeup":world.BeamVisible?"beam-firing":battle.Action==HeroAction.Hurt?"hero-hurt":battle.Enemy==EnemyPhase.Attack&&battle.Shield&&battle.EnemyAge>Battle.EnemyHitSeconds+.09f&&battle.EnemyAge<Battle.EnemyHitSeconds+.32f?"guard-impact":battle.Enemy==EnemyPhase.Attack?(battle.EnemyAttackCount%2==0?"monster-rush-left":"monster-rush-right"):battle.Enemy==EnemyPhase.Windup?"guard-guide":battle.Energy>=15?"beam-guide":battle.Punches>2?"battle":"battle-entry"):
+                battle.Phase==GamePhase.Battle?(world.Closeup.Focus>.999f?"beam-closeup-peak":world.Closeup.Active?"beam-closeup":world.BeamVisible?"beam-firing":battle.Action==HeroAction.Hurt?"hero-hurt":battle.Enemy==EnemyPhase.Attack&&battle.Shield&&battle.EnemyAge>battle.EnemyContactSeconds+.09f&&battle.EnemyAge<battle.EnemyContactSeconds+.32f?"guard-impact":battle.Enemy==EnemyPhase.Attack?clawKey:battle.Enemy==EnemyPhase.Windup?"guard-guide":battle.Energy>=15?"beam-guide":battle.Punches>2?"battle":"battle-entry"):
                 battle.Phase.ToString();
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt)
                 key=battle.ActionAge<KnockdownMotion.LandingSeconds+.13f?"hero-hurt":
