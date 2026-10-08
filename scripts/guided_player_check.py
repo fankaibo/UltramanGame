@@ -123,6 +123,7 @@ def main():
             initial_selection_done=False;replay_selection_sent=False;replay_selection_seen=False
             replay_selection_direction='right'
             beam_release_until=0
+            pose_contexts={};gesture_audit=[]
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
             guard_shape_frames=guard_reacquisitions=0;guard_confirmed=False
@@ -140,8 +141,18 @@ def main():
                         # right wave would land on the intentionally unavailable
                         # Zeta placeholder and produce no selection event.
                         replay_selection_direction='left' if hero_match.group(1)=='Grigio' else 'right'
-                    if options.gesture_wobble and protected and '[Gesture]' in line and '挥拳' in line:
-                        unwanted_attacks+=1
+                    if options.gesture_wobble and '[Gesture]' in line and '挥拳' in line:
+                        # Log delivery is asynchronous. Attribute each decision
+                        # to the pose packet it consumed, not the pose currently
+                        # being sent after a Warning/Beam transition.
+                        match=re.search(r'sequence=(\d+)',line)
+                        sequence=int(match.group(1)) if match else -1
+                        if sequence not in pose_contexts:
+                            raise RuntimeError(f'Unattributed punch sequence: {sequence}')
+                        source_protected=pose_contexts[sequence]
+                        gesture_audit.append(dict(sequence=sequence,source_protected=source_protected,
+                                                  delivery_protected=protected,event=line))
+                        if source_protected:unwanted_attacks+=1
                     if options.gesture_entry_noise and guard_started and now-guard_started<.7 and '[Gesture] 护盾已展开' in line:
                         guard_entries+=1
                     if options.gesture_shape_noise and guard and not beam and '[Gesture] 护盾已展开' in line:
@@ -278,6 +289,7 @@ def main():
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
                 publish_at=time.monotonic()
                 frame=factory.make(points)
+                if options.gesture_wobble:pose_contexts[frame['sequence']]=protected
                 if options.gesture_startup_noise:
                     pose_trace.append(dict(frame=frame,protected=protected,beam_available=beam,transform_available=phase=='Waiting'))
                 if not review_loss_start or now-review_loss_start>.45:bridge.publish(frame)
@@ -338,6 +350,8 @@ def main():
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:
             stop_process(process)
+            if options.gesture_wobble:
+                (folder/'gesture-audit.json').write_text(json.dumps(dict(poses=pose_contexts,events=gesture_audit),ensure_ascii=False,indent=2)+'\n')
             if options.gesture_startup_noise:
                 (folder/'synthetic-poses.jsonl').write_text(''.join(json.dumps(row,separators=(',',':'))+'\n' for row in pose_trace))
             if memory_output:write_memory_report(memory_output,memory_rows)

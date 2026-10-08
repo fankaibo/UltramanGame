@@ -94,7 +94,7 @@ namespace UltramanGame.Runtime
         bool knockdownApplied;
         Vector3 knockdownRoot;
         Quaternion knockdownFacing;
-        readonly Quaternion[] knockdownRotations=new Quaternion[9];
+        readonly Quaternion[] knockdownRotations=new Quaternion[12];
         float leftFootClearance,rightFootClearance;
         Quaternion headBase,spineBase;
         bool contactLayerApplied;
@@ -518,6 +518,8 @@ namespace UltramanGame.Runtime
                 leftThigh.localRotation=knockdownRotations[0];leftShin.localRotation=knockdownRotations[1];leftFoot.localRotation=knockdownRotations[2];
                 rightThigh.localRotation=knockdownRotations[3];rightShin.localRotation=knockdownRotations[4];rightFoot.localRotation=knockdownRotations[5];
                 leftUpperArm.localRotation=knockdownRotations[6];leftForearm.localRotation=knockdownRotations[7];leftHand.localRotation=knockdownRotations[8];
+                if(upperArm&&forearm&&hand)
+                {upperArm.localRotation=knockdownRotations[9];forearm.localRotation=knockdownRotations[10];hand.localRotation=knockdownRotations[11];}
                 knockdownApplied=false;
             }
             if(jawLayerApplied){jaw.localRotation=jawBase;jawLayerApplied=false;}
@@ -719,13 +721,13 @@ namespace UltramanGame.Runtime
                 {
                     next="Hurt";sample=KnockdownMotion.ClipSeconds(state.ActionAge);Frame=5;
                     float p=KnockdownMotion.Weight(state.ActionAge);
-                    // Let the shoulders lead a diagonal loss of balance.  The
-                    // old symmetric knee fold read as a squat; a shallower
-                    // pitch plus a clear side lean makes the hit look like a
-                    // body falling onto one bracing arm.
-                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-48f*p:
-                        Mathf.Lerp(-48,14,RiseStep(state.ActionAge,.68f,1.02f))*(1-RiseStep(state.ActionAge,1.02f,KnockdownMotion.Duration));
-                    fallSide=30f*p;
+                    // Let the back follow the impact down to the floor. The
+                    // old shallow pitch held the shoulders upright throughout
+                    // landing, reading as a sitting pose. Roll onto a support
+                    // arm before bringing the chest over the planted foot.
+                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-70f*p:
+                        Mathf.Lerp(-70,14,RiseStep(state.ActionAge,.68f,1.02f))*(1-RiseStep(state.ActionAge,1.02f,KnockdownMotion.Duration));
+                    fallSide=24f*p;
                 }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
             }
@@ -1775,9 +1777,11 @@ namespace UltramanGame.Runtime
             knockdownRotations[0]=leftThigh.localRotation;knockdownRotations[1]=leftShin.localRotation;knockdownRotations[2]=leftFoot.localRotation;
             knockdownRotations[3]=rightThigh.localRotation;knockdownRotations[4]=rightShin.localRotation;knockdownRotations[5]=rightFoot.localRotation;
             knockdownRotations[6]=leftUpperArm.localRotation;knockdownRotations[7]=leftForearm.localRotation;knockdownRotations[8]=leftHand.localRotation;knockdownApplied=true;
+            if(upperArm&&forearm&&hand)
+            {knockdownRotations[9]=upperArm.localRotation;knockdownRotations[10]=forearm.localRotation;knockdownRotations[11]=hand.localRotation;}
             var side=Vector3.Cross(Vector3.up,forward);
             var facing=Quaternion.LookRotation(forward);
-            Vector3 seated=home-forward*.43f+side*.34f+Vector3.up*.50f;
+            Vector3 seated=home-forward*.52f+side*.30f+Vector3.up*.52f;
             Vector3 upright=home+facing*pelvisLocal;
             Vector3 crouch=upright+side*.10f-forward*.08f;crouch.y=home.y+pelvisLocal.y*.54f;
             Vector3 hips=Vector3.Lerp(seated,crouch,RiseStep(age,.78f,1.12f));
@@ -1790,16 +1794,19 @@ namespace UltramanGame.Runtime
             // This layer peaks during the landing and eases out before the
             // rise so the next action starts from the authored rest pose.
             float tumble=12f*RiseStep(age,.06f,.34f)*weight*(1-RiseStep(age,.68f,1.12f));
+            // Save both local bases before rotating the parent spine. Restore
+            // this additive layer on the next sample, including interruptions.
+            if(upperSpine)spineBase=upperSpine.localRotation;
+            if(head)headBase=head.localRotation;
+            contactLayerApplied=true;
             if(upperSpine)
             {
-                spineBase=upperSpine.localRotation;
                 upperSpine.rotation=Quaternion.AngleAxis(-tumble,forward)
                     *Quaternion.AngleAxis(5f*RiseStep(age,.08f,.38f)*weight,Vector3.up)
                     *upperSpine.rotation;
             }
             if(head)
             {
-                headBase=head.localRotation;
                 head.rotation=Quaternion.AngleAxis(tumble*.55f,forward)
                     *Quaternion.AngleAxis(-3f*RiseStep(age,.10f,.42f)*weight,Vector3.up)
                     *head.rotation;
@@ -1824,11 +1831,11 @@ namespace UltramanGame.Runtime
             right=Vector3.Lerp(right,standingRight,rightStep)+Vector3.up*(.08f*Mathf.Sin(rightStep*Mathf.PI));
             float floorBlend=RiseStep(age,1.38f,1.62f);
             float lc=Mathf.Lerp(leftFootClearance,leftFootLocal.y,floorBlend),rc=Mathf.Lerp(rightFootClearance,rightFootLocal.y,floorBlend);
-            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,side+forward,RiseStep(age,.68f,1.02f)),lc);
-            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,-forward,RiseStep(age,.68f,1.02f)),rc);
+            PoseLimb(leftThigh,leftShin,leftFoot,left,landed,Vector3.Lerp(Vector3.up,side+forward,RiseStep(age,.88f,1.14f)),lc);
+            PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,-forward,RiseStep(age,.88f,1.14f)),rc);
             leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,facing*leftFootRest,landed);
             rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,facing*rightFootRest,landed);
-            Vector3 support=seated-side*.74f-forward*.34f;support.y=home.y+.20f;
+            Vector3 support=seated-side*.68f-forward*.70f;support.y=home.y+.20f;
             Quaternion palm=leftHand.rotation;
             // The visible hand is the brace that sells a fall rather than a
             // seated pose. Keep a small palm-to-ground clearance so it reads
@@ -1841,7 +1848,7 @@ namespace UltramanGame.Runtime
             // beside a second identically folded arm.
             if(upperArm&&forearm&&hand)
             {
-                Vector3 brace=seated+forward*.05f-side*.10f+Vector3.up*.92f;
+                Vector3 brace=hips+forward*.15f+side*.24f+Vector3.up*.58f;
                 Quaternion rightPalm=hand.rotation;
                 PoseLimb(upperArm,forearm,hand,brace,landed*(1-RiseStep(age,.74f,1.18f)),side+forward,.28f);
                 hand.rotation=rightPalm;

@@ -18,7 +18,10 @@ namespace UltramanGame.Editor
             for(int h=0;h<HeroRoster.Count;h++)
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-                string id=HeroRoster.At(h).Id;var world=new GameWorld();var state=new Battle();
+                string id=HeroRoster.At(h).Id;
+                if(!Resources.Load<GameObject>("Characters/"+id+"/"+id))
+                {Debug.Log("[RosterGuardTransitions] "+id+" skipped: missing skeletal model");continue;}
+                var world=new GameWorld();var state=new Battle();
                 var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
                 state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)state.Tick(.02f,new PlayerInput{Tracking=true});state.GiveInstructionTime(20);
                 hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);
