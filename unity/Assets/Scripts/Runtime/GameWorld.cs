@@ -29,6 +29,8 @@ namespace UltramanGame.Runtime
         public bool MonsterEntranceRoar {get;private set;}
         public int MonsterEntranceSteps {get;private set;}
         public int MonsterEntranceRoars {get;private set;}
+        public int MonsterRushSteps=>effects.RushStepCount;
+        public int MonsterRushBeat=>effects.RushStepBeat;
         float lastEntranceAge;
         public bool HeroShot=>Closeup.Active&&Closeup.Focus>.18f;
         public bool BeamReactionCloseup {get;private set;}

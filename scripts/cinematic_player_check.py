@@ -209,6 +209,7 @@ def main():
                 'uppercut-airborne', 'uppercut-land', 'uppercut-recover')
     required += ('monster-arms-left','monster-arms-right','monster-arms-uppercut','monster-arms-beam')
     required += ('monster-recovery-drop','monster-recovery-return')
+    required += ('rush-support-land','rush-return-lead','rush-return-trail')
     required += ('outpost-dust','outpost-settled')
     required += ('monster-entrance-step','monster-entrance-plant','monster-entrance-roar','monster-entrance-return')
     required += ('defeat-flash','defeat-billows','defeat-settling')

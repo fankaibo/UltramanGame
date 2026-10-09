@@ -283,6 +283,7 @@ namespace UltramanGame.Runtime
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             if(damage)world.Hit(specialDamage,battle);
             int groundContacts=world.GroundContactCount;
+            int rushSteps=world.MonsterRushSteps;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
             if(damage&&battle.LastDamageRanged&&TraceEnabled)
                 Debug.Log($"[RangedPresentation] impact hero={SelectedHero.Id} count={world.Projectile.Impacts} visible={world.Projectile.ImpactVisible}");
@@ -296,6 +297,7 @@ namespace UltramanGame.Runtime
             sound.SetChargePower(showcase?0:world.ChargePower);
             sound.SetMonsterRayPower(showcase?0:world.MonsterRayPower);
             if(world.GroundContactCount>groundContacts)sound.GroundContact(world.GroundContactCause=="rush"||world.GroundContactCause=="slam"||world.GroundContactCause=="arrival");
+            if(world.MonsterRushSteps>rushSteps)sound.MonsterRushStep();
             if(world.MonsterEntranceRoar)sound.MonsterArrival();
             if(world.MonsterLanded)sound.MonsterLanding();
             if(world.MonsterDissolving)sound.MonsterDeparture();

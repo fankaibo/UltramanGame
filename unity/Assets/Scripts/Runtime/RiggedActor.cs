@@ -1513,17 +1513,13 @@ namespace UltramanGame.Runtime
             if(state.Enemy==EnemyPhase.Windup)weight=Mathf.SmoothStep(0,1,state.EnemyAge/.20f);
             else if(state.Enemy==EnemyPhase.Attack)
             {
-                // The opposite leg supports the claw lunge. Plant the moving
-                // foot before contact, hold its landing, then lift it to return.
-                float age=state.EnemyAge,advance,lift;
-                if(age<MonsterStepMotion.LandingSeconds)
-                {float t=Mathf.Clamp01(age/MonsterStepMotion.LandingSeconds);advance=AnimatedActor.EnemyAdvance*Mathf.SmoothStep(0,1,t);lift=.20f*Mathf.Sin(t*Mathf.PI);}
-                else if(age<MonsterStepMotion.ReturnStartSeconds){advance=AnimatedActor.EnemyAdvance;lift=0;}
-                else
-                {float t=Mathf.Clamp01((age-MonsterStepMotion.ReturnStartSeconds)/(MonsterStepMotion.ReturnLandingSeconds-MonsterStepMotion.ReturnStartSeconds));advance=AnimatedActor.EnemyAdvance*(1-Mathf.SmoothStep(0,1,t));lift=.16f*Mathf.Sin(t*Mathf.PI);}
-                Vector3 closing=forward*(AnimatedActor.MonsterAdvance(state,ApproachDistance)-AnimatedActor.MonsterAdvance(state));left+=closing;right+=closing;
-                Vector3 step=forward*advance+Vector3.up*lift;
-                if(MonsterStepMotion.LeadLeft(state.EnemyAttackCount))left+=step;else right+=step;
+                // Extra range belongs to lifted steps, not a translation of
+                // both soles. Each planted interval keeps its world target.
+                bool leadLeft=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
+                var l=MonsterStepMotion.Foot(state.EnemyAge,ApproachDistance,leadLeft);
+                var r=MonsterStepMotion.Foot(state.EnemyAge,ApproachDistance,!leadLeft);
+                left+=forward*l.Travel+Vector3.up*l.Lift;
+                right+=forward*r.Travel+Vector3.up*r.Lift;
             }
             // Lower the hips only as far as the leg lengths need. Keep the
             // authored claw contact in world space while the knees take weight.

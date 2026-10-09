@@ -205,6 +205,12 @@ namespace UltramanGame.Runtime
             effects.Play(landingThud,.25f,1,0);
             if(Debug.isDebugBuild)Debug.Log("[MonsterStagger] footstep playing=True");
         }
+        public void MonsterRushStep()
+        {
+            if(muted||!landingThud)return;
+            effects.Play(landingThud,.18f,.88f,0);
+            if(Debug.isDebugBuild)Debug.Log("[MonsterRush] footstep playing=True");
+        }
         public static AudioClip CreateBeamGather()
         {
             // Every frequency completes an integer number of cycles in this

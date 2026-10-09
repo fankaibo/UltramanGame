@@ -55,6 +55,7 @@ static class Program
         RangedCameraChecks.Run(Check);
         RangedReactionChecks.Run(Check);
         ArsenalChecks.Run(Check);
+        MonsterRushChecks.Run(Check);
         EngagementChecks.Run(Check);
         ClawReactionChecks.Run(Check);
         GuidedPhotoChecks.Run(Check);
