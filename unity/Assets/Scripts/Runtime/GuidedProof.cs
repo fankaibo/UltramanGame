@@ -52,7 +52,7 @@ namespace UltramanGame.Runtime
             {StartCoroutine(SaveGuidedProof("ranged-impact-volume"));return;}
             if(!photo.Active&&battle.Phase==GamePhase.Battle)
             {
-                string volley=world.RangedFocus>.97f&&battle.IsRangedPunch?"ranged-volley-peak":
+                string volley=world.RangedFocus>.97f?"ranged-volley-peak":
                     proofFrames.Contains("ranged-volley-peak")&&world.RangedFocus<.001f?
                     battle.Shield||battle.Enemy==EnemyPhase.Windup?"ranged-volley-yield":
                     battle.Enemy==EnemyPhase.Rest&&battle.Action==HeroAction.None?"ranged-volley-return":null:null;
