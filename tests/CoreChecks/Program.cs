@@ -52,6 +52,7 @@ static class Program
         ImpactTimingChecks.Run(Check);
         PunchLinkChecks.Run(Check);
         AttackTempoChecks.Run(Check);
+        RangedCameraChecks.Run(Check);
         ArsenalChecks.Run(Check);
         EngagementChecks.Run(Check);
         ClawReactionChecks.Run(Check);

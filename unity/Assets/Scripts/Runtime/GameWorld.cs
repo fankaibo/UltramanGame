@@ -22,6 +22,8 @@ namespace UltramanGame.Runtime
         readonly ComboCameraMotion comboCamera=new ComboCameraMotion();
         public float ComboFocus=>comboCamera.Focus;
         public float ComboCameraAge=>comboCamera.Age;
+        readonly RangedCameraMotion rangedCamera=new RangedCameraMotion();
+        public float RangedFocus=>rangedCamera.Focus;
         public bool TransformationCloseup {get;private set;}
         public bool MonsterEntranceCloseup {get;private set;}
         public bool MonsterEntranceRoar {get;private set;}
@@ -149,7 +151,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -313,6 +315,7 @@ namespace UltramanGame.Runtime
             float focus=Closeup.Focus;
             int oldShots=comboCamera.Shots;
             comboCamera.Tick(state,dt,Showcase||Closeup.Active);
+            rangedCamera.Tick(state,dt,Showcase||Closeup.Active);
             exchangeCamera.Tick(state,dt,Showcase||Closeup.Active);
             if(comboCamera.Shots>oldShots&&Debug.isDebugBuild)Debug.Log($"[ComboCamera] begin side={comboCamera.Side} punches={state.Punches}");
             bool combat=state.Phase==GamePhase.Battle;
@@ -420,7 +423,7 @@ namespace UltramanGame.Runtime
                 // A short arcade lens move makes each exchange readable on a TV.
                 // It is intentionally small and uses the same deterministic battle clock
                 // as the actors, so it never changes gesture timing or gameplay state.
-                bool heroStrike=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
+                bool heroStrike=state.IsPunch&&!state.IsRangedPunch;
                 float strike=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.42f)*Mathf.PI);
                 if(heroStrike)
                 {
@@ -459,6 +462,16 @@ namespace UltramanGame.Runtime
             // Apply the ordinary strike lens before the dedicated combo and
             // enemy-exchange compositions below take ownership of the camera.
             Camera.fieldOfView=Mathf.Lerp(framingFieldOfView-dynamicZoom,14,focus);
+            if(RangedFocus>0)
+            {
+                // Consecutive long-range casts share a medium shot. Keep the
+                // helmets, hands and projectile lane prominent; the lower legs
+                // can leave frame until a guard/return restores the wide arena.
+                Camera.transform.position+=viewForward*(2.05f*RangedFocus)
+                    +viewRight*(rangedCamera.Side*.24f*rangedCamera.Travel*RangedFocus);
+                target+=Vector3.up*(.39f*RangedFocus)+BattleAxis*(.08f*RangedFocus);
+                Camera.fieldOfView-=.65f*RangedFocus;
+            }
             if(ComboFocus>0)
             {
                 // Move the camera toward the fighters as the fifth-punch shot

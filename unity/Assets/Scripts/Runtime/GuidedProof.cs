@@ -50,6 +50,15 @@ namespace UltramanGame.Runtime
             {StartCoroutine(SaveGuidedProof("ranged-launch-volume"));return;}
             if(!photo.Active&&world.Projectile.ImpactVisible&&proofFrames.Add("ranged-impact-volume"))
             {StartCoroutine(SaveGuidedProof("ranged-impact-volume"));return;}
+            if(!photo.Active&&battle.Phase==GamePhase.Battle)
+            {
+                string volley=world.RangedFocus>.97f&&battle.IsRangedPunch?"ranged-volley-peak":
+                    proofFrames.Contains("ranged-volley-peak")&&world.RangedFocus<.001f?
+                    battle.Shield||battle.Enemy==EnemyPhase.Windup?"ranged-volley-yield":
+                    battle.Enemy==EnemyPhase.Rest&&battle.Action==HeroAction.None?"ranged-volley-return":null:null;
+                if(volley!=null&&proofFrames.Add(volley))
+                {Debug.Log($"[RangedCameraProof] {volley} focus={world.RangedFocus:F3} fov={world.Camera.fieldOfView:F3} punches={battle.Punches}");StartCoroutine(SaveGuidedProof(volley));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&
                 battle.Punches>=3&&hero.EngagementWeight>.99f&&proofFrames.Add("engagement-held-stance"))
             {
