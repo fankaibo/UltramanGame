@@ -1755,6 +1755,28 @@ namespace UltramanGame.Runtime
         }
         static float PunchReach(float age)=>age<Battle.PunchHitSeconds?StrikeApproach(age/Battle.PunchHitSeconds):
             1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
+        Vector3 ReadyHand(Battle state,Transform upper,Transform lower,Transform wrist,bool left,Vector3 side)
+        {
+            float sign=left?-1:1;
+            float span=Vector3.Distance(upper.position,lower.position)+Vector3.Distance(lower.position,wrist.position);
+            Vector3 compact=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+            // A relaxed martial stance reaches toward the opponent, with soft
+            // elbows and a slightly lower rear hand. Scale to each actual rig.
+            Vector3 open=upper.position+forward*(span*(left?.80f:.74f))
+                -side*(sign*span*.06f)-Vector3.up*(span*(left?.25f:.36f));
+            float openness=1;
+            if(state.IsPunch)
+            {
+                // The support hand protects the torso at contact, then opens
+                // continuously with the striking arm's return. Do not snap to
+                // a different wrist target when the action becomes None.
+                float release=state.IsRangedPunch?.22f:.20f;
+                float close=Mathf.SmoothStep(0,1,state.ActionAge/.07f);
+                float reopen=Mathf.SmoothStep(0,1,(state.ActionAge-release)/(state.AttackDuration-release));
+                openness=1-close*(1-reopen);
+            }
+            return LinkedGuard(Vector3.Lerp(compact,open,openness),left,side);
+        }
         Vector3 LinkedGuard(Vector3 guard,bool left,Vector3 side)
         {
             if(punchLink.Side!=(left?HeroAction.LeftPunch:HeroAction.RightPunch))return guard;
@@ -1783,7 +1805,7 @@ namespace UltramanGame.Runtime
             {
                 bool left=i==0;float handSign=left?-1:1;
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-                var guard=LinkedGuard(upper.position+forward*.28f-side*(handSign*.10f)-Vector3.up*.15f,left,side);
+                var guard=ReadyHand(state,upper,lower,wrist,left,side);
                 Vector3 target=guard;
                 if(!state.IsRangedPunch)
                     target=Vector3.Lerp(left?rangedExitLeft:rangedExitRight,guard,Mathf.SmoothStep(0,1,heroRecoveryAge/.14f));
@@ -1819,7 +1841,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<2;i++)
             {
                 bool left=i==0;float sign=left?-1:1;var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-                var guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
+                var guard=ReadyHand(state,upper,lower,wrist,left,side);
                 var palm=wrist.rotation;var axis=wrist.position-lower.position;
                 PoseLimb(upper,lower,wrist,guard,1,side*(sign*.45f)+Vector3.down,.30f);
                 wrist.rotation=Quaternion.FromToRotation(axis,wrist.position-lower.position)*palm;
@@ -1885,7 +1907,7 @@ namespace UltramanGame.Runtime
                 bool left=i==0,active=punch&&(left==(state.Action==HeroAction.LeftPunch));
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
                 float sign=left?-1:1;
-                Vector3 guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
+                Vector3 guard=ReadyHand(state,upper,lower,wrist,left,side);
                 Vector3 target=guard;
                 if(active)
                 {
@@ -1923,7 +1945,7 @@ namespace UltramanGame.Runtime
             {
                 bool left=i==0,active=punch&&!combo&&left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-                Vector3 guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
+                Vector3 guard=ReadyHand(state,upper,lower,wrist,left,side);
                 Vector3 target=guard;
                 if(active)
                 {
@@ -2004,7 +2026,7 @@ namespace UltramanGame.Runtime
             {
                 bool left=i==0,active=left==(state.Action==HeroAction.LeftPunch);float sign=left?-1:1;
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
-                Vector3 guard=LinkedGuard(upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f,left,side);
+                Vector3 guard=ReadyHand(state,upper,lower,wrist,left,side);
                 Vector3 target=guard;
                 if(active)
                 {
