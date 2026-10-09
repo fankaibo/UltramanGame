@@ -22,7 +22,7 @@ namespace UltramanGame.Editor
             RenderAt("grounded-rise/rates/15",true,15);RenderAt("grounded-rise/rates/30",true,30);
             CheckInterruptions();RosterPunchReview.CheckGuardTransitions();
         }
-        public static void CheckInterruptions()
+        public static void CheckInterruptions(float interruptedAt=.9f)
         {
             for(int id=0;id<HeroRoster.Count;id++)
             {
@@ -37,7 +37,7 @@ namespace UltramanGame.Editor
                 var freshBones=BoneRotations(fresh.Root);
                 UnityEngine.Object.DestroyImmediate(fresh.Root.gameObject);
                 state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
-                for(int i=0;i<2000;i++){state.Tick(.02f,new PlayerInput{Tracking=true});if(state.Action==HeroAction.Hurt&&state.ActionAge>=.9f)break;}
+                for(int i=0;i<2000;i++){state.Tick(.02f,new PlayerInput{Tracking=true});if(state.Action==HeroAction.Hurt&&state.ActionAge>=interruptedAt)break;}
                 if(state.Action!=HeroAction.Hurt)throw new Exception("No interrupted rise");
                 hero.Update(state,world.Camera,.02f,1);state.Pause();hero.Update(state,world.Camera,0,1);
                 Vector3 root=hero.Root.position,left=hero.FootPosition(true),right=hero.FootPosition(false);
@@ -53,7 +53,7 @@ namespace UltramanGame.Editor
                 for(int i=0;i<30;i++){state.Tick(.02f,new PlayerInput{Tracking=true});hero.Update(state,world.Camera,.02f,3+i*.02f);}
                 if(state.Punches!=1)throw new Exception("No counterpunch after rise interruption");
                 // Interrupt another fall directly with a new round too.
-                for(int i=0;i<2000;i++){state.Tick(.02f,new PlayerInput{Tracking=true});if(state.Action==HeroAction.Hurt&&state.ActionAge>=.9f)break;}
+                for(int i=0;i<2000;i++){state.Tick(.02f,new PlayerInput{Tracking=true});if(state.Action==HeroAction.Hurt&&state.ActionAge>=interruptedAt)break;}
                 if(state.Action!=HeroAction.Hurt)throw new Exception("No reset rise");
                 hero.Update(state,world.Camera,.02f,5);state=new Battle();world.ResetPresentation();
                 for(int i=0;i<15;i++)hero.Update(state,world.Camera,.02f,5+i*.02f);
@@ -63,7 +63,7 @@ namespace UltramanGame.Editor
                     Vector3.Distance(hero.FootPosition(true),freshLeft)>.001f||Vector3.Distance(hero.FootPosition(false),freshRight)>.001f)
                     throw new Exception("New round retains fall offset: "+name);
                 CheckBoneRotations(freshBones,hero.Root,name+" new round");
-                Debug.Log("[KnockdownBoundary] "+name+" pause=passed resumeGuard=passed counterpunch=passed newRound=passed");
+                Debug.Log("[KnockdownBoundary] "+name+" at="+interruptedAt+" pause=passed resumeGuard=passed counterpunch=passed newRound=passed");
             }
         }
         static Dictionary<string,Quaternion> BoneRotations(Transform root)

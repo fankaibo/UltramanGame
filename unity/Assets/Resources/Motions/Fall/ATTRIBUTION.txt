@@ -1,0 +1,12 @@
+Motion data used in this game was obtained from mocap.cs.cmu.edu.
+The database was created with funding from NSF EIA-0196217.
+Source: CMU subject 90, trial 18, RugPullFall (120 Hz), frames 50-185.
+BVH conversion: Bruce Hahne, 2010; mirror: github.com/una-dinosauria/cmu-mocap.
+Source SHA-256: 32a6bcf85820af466fb141f7e05a7131fbb7d0b76a4f7d407379c6f9457cac10
+
+These are costume-specific retargeted game assets with corrected body
+orientation and skinned boot contacts, not a standalone motion dataset.
+CMU permits research/product use but not direct resale of the motion data.
+The converter adds no restrictions. See the existing Recovery attribution
+and docs/真人跌倒动作接入.md for source, verification and limitations.
+Character model permissions remain separate. Fingers are not captured.

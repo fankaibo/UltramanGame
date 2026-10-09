@@ -1,0 +1,16 @@
+{
+  "sourceSha256": "32a6bcf85820af466fb141f7e05a7131fbb7d0b76a4f7d407379c6f9457cac10",
+  "sourceFrames": [
+    50,
+    185
+  ],
+  "sourceDuration": 1.1249955,
+  "samples": 69,
+  "sha256": {
+    "Grigio.bytes": "da9b9400af28f347509f2784c1e185cca47a83fb93da6604441331cb88c0d343",
+    "Geed.bytes": "45f77351cff0d334d68bb857723f0a8058ba7a6b3328fe68e119085759a90d93",
+    "Mebius.bytes": "1b5cd2aa04b03cba5c6b3d311923602918a307f8e3657e6d1d61e45c3d264852",
+    "Tiga.bytes": "ede9b25e30923547b7a0d6dc8ab44a99f408c41d2b3c9bb322eeb0210761f92d",
+    "Zero.bytes": "828b7776e8737861a54f528b1ca4997b7b39a0cc76a7218dd11c9f9a025dea69"
+  }
+}

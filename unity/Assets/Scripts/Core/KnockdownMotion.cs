@@ -5,11 +5,13 @@ namespace UltramanGame.Core
     // Shared by the action clock, skeletal sampling, camera and landing cue.
     public static class KnockdownMotion
     {
-        public const float LandingSeconds=.30f, RiseSeconds=.68f, BraceSeconds=1.12f, Duration=2.55f;
-        public const float CapturedStart=.50f,CapturedEnd=2.26f,CapturedExit=2.16f;
+        public const float LandingSeconds=.40f, RiseSeconds=.90f, BraceSeconds=1.42f, Duration=2.97f;
+        public const float CapturedStart=.92f,CapturedEnd=2.68f,CapturedExit=2.58f;
         static float Ease(float t) { t=Math.Max(0,Math.Min(1,t));return t*t*(3-2*t); }
+        public static float FallProgress(float age)=>Math.Max(0,Math.Min(1,age/.68f));
+        public static float FallWeight(float age)=>Ease(age/.10f)*(1-Ease((age-1.02f)/.08f));
         public static float CapturedProgress(float age)=>Math.Max(0,Math.Min(1,(age-CapturedStart)/(CapturedEnd-CapturedStart)));
-        public static float CapturedWeight(float age)=>Ease((age-.48f)/.22f)*(1-Ease((age-CapturedExit)/(Duration-CapturedExit)));
+        public static float CapturedWeight(float age)=>Ease((age-.62f)/.40f)*(1-Ease((age-CapturedExit)/(Duration-CapturedExit)));
         public static float Weight(float age)
         {
             if(age<LandingSeconds)return Ease(age/LandingSeconds);

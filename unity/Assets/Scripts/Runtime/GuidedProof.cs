@@ -22,6 +22,13 @@ namespace UltramanGame.Runtime
                 if(hand!=null&&proofFrames.Add("ready-follow-"+hand))
                 {Debug.Log($"[LiveReadyProof] hand={hand} sequence={pose?.sequence} action={battle.Action}");StartCoroutine(SaveGuidedProof("ready-follow-"+hand));return;}
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt&&hero.CapturedFallActive)
+            {
+                string fall=battle.ActionAge>=.20f&&battle.ActionAge<.34f?"hero-fall-unbalanced":
+                    battle.ActionAge>=.44f&&battle.ActionAge<.58f?"hero-fall-contact":
+                    battle.ActionAge>=.68f&&battle.ActionAge<.78f?"hero-fall-settled":null;
+                if(fall!=null&&proofFrames.Add(fall)){StartCoroutine(SaveGuidedProof(fall));return;}
+            }
             // The phase-entry frame may still show the previous punch. Capture
             // the settled pause too, where an uncorrected Idle folds the arms.
             if(!photo.Active&&battle.Phase==GamePhase.Paused&&Time.unscaledTime-phaseStarted>=.5f&&proofFrames.Add("paused-ready"))
@@ -35,9 +42,9 @@ namespace UltramanGame.Runtime
             }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt&&hero.CapturedRecoveryActive)
             {
-                string recovery=battle.ActionAge>=.80f&&battle.ActionAge<1.02f?"hero-captured-seat":
-                    battle.ActionAge>=1.70f&&battle.ActionAge<1.95f?"hero-captured-rise":
-                    battle.ActionAge>=2.38f?"hero-recovery-ready":null;
+                string recovery=battle.ActionAge>=1.22f&&battle.ActionAge<1.44f?"hero-captured-seat":
+                    battle.ActionAge>=2.12f&&battle.ActionAge<2.37f?"hero-captured-rise":
+                    battle.ActionAge>=2.80f?"hero-recovery-ready":null;
                 if(recovery!=null&&proofFrames.Add(recovery)){StartCoroutine(SaveGuidedProof(recovery));return;}
             }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.RangedStepActive)

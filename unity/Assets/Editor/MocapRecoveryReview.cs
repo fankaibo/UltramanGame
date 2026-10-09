@@ -30,18 +30,28 @@ namespace UltramanGame.Editor
         static int Depth(Transform bone){int depth=0;for(var p=bone.parent;p;p=p.parent)depth++;return depth;}
         static Quaternion Along(Vector3 direction,Vector3 plane)
         {
+            if(direction.sqrMagnitude<1e-12f)throw new InvalidDataException("Zero anatomical direction");
             var up=Vector3.ProjectOnPlane(plane,direction);
-            if(up.sqrMagnitude<.000001f)up=Vector3.ProjectOnPlane(Vector3.forward,direction);
+            if(up.sqrMagnitude<1e-12f)up=Vector3.ProjectOnPlane(Mathf.Abs(Vector3.Dot(direction.normalized,Vector3.up))<.9f?Vector3.up:Vector3.right,direction);
             return Quaternion.LookRotation(direction,up);
         }
         static Quaternion Anatomy(string name,Func<string,Vector3> p)
         {
             Vector3 shoulderRight=p("RightArm")-p("LeftArm"),hipRight=p("RightUpLeg")-p("LeftUpLeg");
-            if(name=="Hips")return Along(Vector3.Cross(hipRight,p("LowerBack")-p("Hips")),p("LowerBack")-p("Hips"));
+            if(name=="Hips")
+            {
+                var up=p("LowerBack")-p("Hips");
+                // CMU LowerBack and Hips share an origin. A zero vector
+                // otherwise leaves the costume pelvis standing during a fall.
+                if(up.sqrMagnitude<.000001f)up=p("Spine")-p("Hips");
+                return Along(Vector3.Cross(hipRight,up),up);
+            }
             if(name=="LowerBack"||name=="Spine"||name=="Spine1"||name=="Neck"||name=="Head")
             {
                 string next=name=="LowerBack"?"Spine":name=="Spine"?"Spine1":name=="Spine1"?"Neck":"Head";
                 Vector3 up=name=="Head"?p("Head")-p("Neck"):p(next)-p(name);
+                // Spine1 and Neck can also share an origin in the BVH.
+                if(up.sqrMagnitude<.000001f)up=p("Head")-p(name);
                 return Along(Vector3.Cross(shoulderRight,up),up);
             }
             string side=name.StartsWith("Left")?"Left":"Right";
@@ -67,10 +77,17 @@ namespace UltramanGame.Editor
         public static void Preview()=>Render(false,false);
         public static void Grounded()=>Render(true,false);
         public static void Bake()=>Render(true,true);
-        static void Render(bool grounded,bool bake)
+        public static void FallPreview()=>Render(true,false,true);
+        public static void FallBake()=>Render(true,true,true);
+        static void Render(bool grounded,bool bake,bool fall=false)
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/mocap-recovery-20261010"));
-            var capture=JsonUtility.FromJson<Capture>(File.ReadAllText(folder+"/side-rise-positions.json"));
+            // Zero-length BVH aliases must use their next meaningful joint;
+            // short but valid costume bones must not be treated as aliases.
+            var fixture=new Dictionary<string,Vector3>{{"Hips",Vector3.zero},{"LowerBack",Vector3.zero},{"Spine",Vector3.up},{"Spine1",Vector3.up*2},{"Neck",Vector3.up*2},{"Head",Vector3.up*3},{"LeftArm",Vector3.left},{"RightArm",Vector3.right},{"LeftUpLeg",Vector3.left},{"RightUpLeg",Vector3.right}};
+            foreach(var name in new[]{"Hips","Spine1"})if(Vector3.Dot(Anatomy(name,n=>fixture[n])*Vector3.forward,Vector3.forward)<.999f)throw new Exception("Coincident source joint lost body orientation");
+            if(Vector3.Dot(Along(Vector3.forward*.0001f,Vector3.up)*Vector3.forward,Vector3.forward)<.999f)throw new Exception("Short valid anatomical segment rejected");
+            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,fall?"../../artifacts/mocap-fall-20261010":"../../artifacts/mocap-recovery-20261010"));
+            var capture=JsonUtility.FromJson<Capture>(File.ReadAllText(folder+(fall?"/fall-positions.json":"/side-rise-positions.json")));
             string variant=bake?"baked-sequence":grounded?"reach-supported-sequence":"anatomical-sequence";
             var report=new StringBuilder();Directory.CreateDirectory(folder+"/"+variant);
             foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})
@@ -100,7 +117,8 @@ namespace UltramanGame.Editor
                 float scale=leg/capture.legLength;
                 var footRotations=new Quaternion[2];var footClearances=new float[2];var sourceFloor=new float[2];
                 var surfaces=hero.Root.GetComponentsInChildren<Renderer>();
-                Vector3 sourceEndFeet=(Point(capture,capture.frames.Last(),"LeftFoot")+Point(capture,capture.frames.Last(),"RightFoot"))*.5f;
+                var referenceSample=fall?capture.frames.First():capture.frames.Last();
+                Vector3 sourceEndFeet=(Point(capture,referenceSample,"LeftFoot")+Point(capture,referenceSample,"RightFoot"))*.5f;
                 Vector3 offset=(reference["LeftFoot"]+reference["RightFoot"])*.5f-sourceEndFeet*scale;offset.y=0;
                 for(int s=0;s<2;s++)
                 {
@@ -108,17 +126,20 @@ namespace UltramanGame.Editor
                     FootPlantCalibration.Apply(hero.Root,foot,surfaces,ref anchor,ref rotation);footClearances[s]=anchor.y;footRotations[s]=rotation;
                     sourceFloor[s]=capture.frames.Min(f=>Mathf.Min(Point(capture,f,side+"Foot").y,Point(capture,f,side+"ToeBase").y));
                 }
+                var footAttitudes=new Quaternion[2][];
+                Quaternion FootAttitude(Frame f,string side)=>Along(Point(capture,f,side+"ToeBase")-Point(capture,f,side+"Foot"),Point(capture,f,side+"Leg")-Point(capture,f,side+"Foot"));
                 var footTargets=new Vector3[2][];var footYaws=new float[2][];var planted=new bool[2][];
                 for(int s=0;s<2;s++)
                 {
                     string side=s==0?"Left":"Right";int count=capture.frames.Length;
-                    footTargets[s]=new Vector3[count];footYaws[s]=new float[count];planted[s]=new bool[count];var candidates=new bool[count];
+                    footTargets[s]=new Vector3[count];footYaws[s]=new float[count];footAttitudes[s]=new Quaternion[count];planted[s]=new bool[count];var candidates=new bool[count];
                     for(int n=0;n<count;n++)
                     {
                         Vector3 foot=Point(capture,capture.frames[n],side+"Foot"),toe=Point(capture,capture.frames[n],side+"ToeBase");
                         float height=Mathf.Max(0,(Mathf.Min(foot.y,toe.y)-sourceFloor[s])*scale);
                         var target=foot*scale+offset;target.y=footClearances[s]+Mathf.Max(0,height-.035f);footTargets[s][n]=target;
                         footYaws[s][n]=Vector3.SignedAngle(Vector3.forward,Vector3.ProjectOnPlane(toe-foot,Vector3.up),Vector3.up);
+                        footAttitudes[s][n]=FootAttitude(capture.frames[n],side)*Quaternion.Inverse(FootAttitude(referenceSample,side))*footRotations[s];
                         int firstSample=Mathf.Max(0,n-2),last=Mathf.Min(count-1,n+2);
                         Vector3 delta=Point(capture,capture.frames[last],side+"Foot")-Point(capture,capture.frames[firstSample],side+"Foot");delta.y=0;
                         float speed=delta.magnitude*scale/(capture.times[last]-capture.times[firstSample]);
@@ -141,10 +162,25 @@ namespace UltramanGame.Editor
                         start=end;
                     }
                 }
+                var bootVertices=new Dictionary<SkinnedMeshRenderer,int[][]>();
+                if(fall)foreach(var skin in hero.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
+                {
+                    var selected=new int[2][];var weights=skin.sharedMesh.boneWeights;
+                    for(int side=0;side<2;side++)
+                    {
+                        var foot=Bone(side==0?"LeftFoot":"RightFoot");
+                        var included=skin.bones.Select(b=>b==foot||b.IsChildOf(foot)).ToArray();
+                        float Weight(int i,float w)=>included[i]?w:0;
+                        selected[side]=Enumerable.Range(0,weights.Length).Where(i=>
+                        {var w=weights[i];return Weight(w.boneIndex0,w.weight0)+Weight(w.boneIndex1,w.weight1)+Weight(w.boneIndex2,w.weight2)+Weight(w.boneIndex3,w.weight3)>.5f;}).ToArray();
+                    }
+                    bootVertices[skin]=selected;
+                }
                 var rt=new RenderTexture(1280,720,24){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;
                 string output=folder+"/"+variant+"/"+id;Directory.CreateDirectory(output);
                 if(id=="Tiga")Directory.CreateDirectory(output+"/frames");
                 var trace=new StringBuilder("frame,minimumMeshY,hipY,leftWristY,rightWristY,leftFootY,rightFootY,maximumJointStep,bodyLift,footError,leftPlant,rightPlant\n");
+                var jointTrace=new StringBuilder("frame,joint,parent,sourceX,sourceY,sourceZ,actualX,actualY,actualZ\n");
                 var baked=new Mesh();var old=new Vector3[bindings.Count];bool first=true;
                 float minGround=100,maxStep=0,maxLift=0,maxFootError=0;
                 var motionStream=new MemoryStream();var motion=new BinaryWriter(motionStream);
@@ -177,9 +213,24 @@ namespace UltramanGame.Editor
                                 string side=s==0?"Left":"Right";Vector3 target=floorOrigin+facing*footTargets[s][n];
                                 var upper=Bone(side+"UpLeg");var lower=Bone(side+"Leg");var foot=Bone(side+"Foot");
                                 Limb(upper,lower,foot,target,facing*(P(side+"Leg")-P(side+"UpLeg")));
-                                foot.rotation=facing*Quaternion.AngleAxis(footYaws[s][n],Vector3.up)*footRotations[s];
+                                foot.rotation=fall?facing*footAttitudes[s][n]:facing*Quaternion.AngleAxis(footYaws[s][n],Vector3.up)*footRotations[s];
                                 error=Mathf.Max(error,Vector3.Distance(foot.position,target));
                             }
+                        }
+                        void LiftBoots()
+                        {
+                            // A tilted boot needs a different ankle height from
+                            // a flat sole. Correct the actual skinned heel/toe,
+                            // not the whole body while pinning a buried foot.
+                            var bottoms=new[]{100f,100f};
+                            foreach(var item in bootVertices)
+                            {
+                                var skin=item.Key;skin.BakeMesh(baked,true);var v=baked.vertices;
+                                for(int side=0;side<2;side++)foreach(int i in item.Value[side])
+                                    bottoms[side]=Mathf.Min(bottoms[side],skin.transform.TransformPoint(v[i]).y);
+                            }
+                            for(int side=0;side<2;side++)footTargets[side][n].y+=Mathf.Max(0,floorOrigin.y+.002f-bottoms[side]);
+                            Feet();
                         }
                         void FitReach()
                         {
@@ -202,13 +253,13 @@ namespace UltramanGame.Editor
                             // Moving the actor includes skeleton branches that
                             // are not children of the pelvis in imported rigs.
                             hero.Root.position+=floorOrigin+facing*(P("Hips")*scale+offset)-hips.position;
-                            FitReach();Feet();
+                            FitReach();Feet();if(fall){LiftBoots();FitReach();Feet();}
                             // Adapt low seated hip clearance to each costume's
                             // geometry while solving the SAME foot targets.
                             for(int pass=0;pass<3;pass++)
                             {
                                 float needed=floorOrigin.y+.002f-Ground();if(needed<.0001f)break;
-                                hero.Root.position+=Vector3.up*needed;liftBody+=needed;FitReach();Feet();
+                                hero.Root.position+=Vector3.up*needed;liftBody+=needed;FitReach();Feet();if(fall)LiftBoots();
                             }
                         }
                         else
@@ -216,6 +267,11 @@ namespace UltramanGame.Editor
                             hips.position=home+facing*P("Hips")*scale;
                             float lowest=Mathf.Min(Bone("LeftFoot").position.y,Bone("RightFoot").position.y);
                             hips.position+=Vector3.up*(home.y+.18f-lowest);
+                        }
+                        if(fall)foreach(var binding in bindings)
+                        {
+                            var sp=P(binding.Name)*scale+offset;var ap=Quaternion.Inverse(facing)*(binding.Bone.position-floorOrigin);
+                            jointTrace.AppendLine(FormattableString.Invariant($"{n},{binding.Name},{binding.Bone.parent?.name},{sp.x:F5},{sp.y:F5},{sp.z:F5},{ap.x:F5},{ap.y:F5},{ap.z:F5}"));
                         }
                         float ground=Ground(),step=0;
                         for(int i=0;i<bindings.Count;i++)
@@ -237,6 +293,7 @@ namespace UltramanGame.Editor
                     }
                     report.AppendLine($"{id} bindings={bindings.Count} scale={scale:F5} samples={count} minimumMeshY={minGround:F5} maximumJointStep={maxStep:F5} hipLift={maxLift:F5} footError={maxFootError:F5} planted=({planted[0].Count(v=>v)},{planted[1].Count(v=>v)}) status=prototype-not-release-ready");
                     File.WriteAllText(output+"/trace.csv",trace.ToString());
+                    if(fall)File.WriteAllText(output+"/joints.csv",jointTrace.ToString());
                     if(bake)
                     {
                         if(minGround<-.01f||maxFootError>.005f)throw new Exception("Captured motion contact not ready: "+report);

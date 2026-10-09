@@ -67,6 +67,17 @@ Frame Time: 0.01
         np.testing.assert_allclose(points[0],[0,5,0])
         self.assertEqual(len(data['sourceSha256']),64)
 
+    def test_first_anchor_keeps_fall_travel_relative_to_standing_start(self):
+        path = self.source(self.fixture())
+        data = preparer.prepare(path,1,4,2,anchor='first')
+        self.assertEqual(data['anchorFrame'],1)
+        points = [np.array(f['positions']).reshape(-1,3) for f in data['frames']]
+        np.testing.assert_allclose(points[0][0],[0,5,0])
+        np.testing.assert_allclose(points[-1][0],[-3,5,0])
+        self.assertEqual(preparer.prepare(path,1,4,2)['anchorFrame'],4)
+        with self.assertRaises(ValueError):
+            preparer.prepare(path,1,4,2,anchor='unknown')
+
     def test_invalid_ranges_reject_calibration_and_out_of_bounds(self):
         path = self.source(self.fixture())
         for first,last,stride in [(0,4,1),(1,5,1),(4,1,1),(1,4,0)]:

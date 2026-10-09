@@ -18,6 +18,7 @@ namespace UltramanGame.Editor
             foreach(string hero in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})
                 foreach(int hz in new[]{15,30,60})Run(hero,hz,hero=="Tiga"&&hz==60);
             KnockdownReview.CheckInterruptions();
+            KnockdownReview.CheckInterruptions(.2f);KnockdownReview.CheckInterruptions(.52f);
         }
         static void Run(string id,int hz,bool movie)
         {
@@ -39,9 +40,9 @@ namespace UltramanGame.Editor
             var rt=new RenderTexture(1280,720,24){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;
             var mesh=new Mesh();var skins=hero.Root.GetComponentsInChildren<SkinnedMeshRenderer>();
             var tracked=hero.Root.GetComponentsInChildren<Transform>().Where(t=>new[]{"hip","bip_pelvis","HandBase_L","HandBase_R","bip_hand_L","bip_hand_R","Foot_L","Foot_R","bip_foot_L","bip_foot_R"}.Contains(t.name)).ToArray();
-            Vector3[] previous=tracked.Select(t=>t.position).ToArray();float lowest=100,maxStep=0,repeat=0;int captured=0;string lowestDetail="";
-            var csv=new StringBuilder("frame,action,age,captured,minimumY,jointStep,rootX,rootY,rootZ,leftX,leftY,leftZ,rightX,rightY,rightZ\n");
-            float[] moments={.2f,.45f,.85f,1.3f,1.8f,2.35f};bool[] saved=new bool[moments.Length];
+            Vector3[] previous=tracked.Select(t=>t.position).ToArray();float lowest=100,maxStep=0,repeat=0;int captured=0,falls=0;string lowestDetail="";
+            var csv=new StringBuilder("frame,action,age,captured,fall,minimumY,jointStep,rootX,rootY,rootZ,leftX,leftY,leftZ,rightX,rightY,rightZ\n");
+            float[] moments={.2f,.45f,.85f,1.3f,1.8f,2.35f,2.8f};bool[] saved=new bool[moments.Length];
             try
             {
                 for(int frame=0;frame<hz*4;frame++)
@@ -59,6 +60,8 @@ namespace UltramanGame.Editor
                     {
                         if(ground<lowest){lowest=ground;lowestDetail=detail;}maxStep=Mathf.Max(maxStep,movement);
                         if(hero.CapturedRecoveryActive)captured++;
+                        if(hero.CapturedFallActive)falls++;
+                        if(b.ActionAge>.10f&&b.ActionAge<.62f&&!hero.CapturedFallActive)throw new Exception("Fall capture was not applied "+id);
                         if(b.ActionAge>.8f&&b.ActionAge<2&& !hero.CapturedRecoveryActive)throw new Exception("Capture was not loaded/applied "+id);
                         for(int m=0;m<moments.Length;m++)if(!saved[m]&&b.ActionAge>=moments[m])
                         {CharacterReview.Save(world.Camera,rt,$"{output}/pose-{m}.png");saved[m]=true;}
@@ -67,13 +70,13 @@ namespace UltramanGame.Editor
                     repeat=Mathf.Max(repeat,Vector3.Distance(hero.Root.position,beforeRoot));
                     for(int i=0;i<current.Length;i++)repeat=Mathf.Max(repeat,Vector3.Distance(current[i],tracked[i].position));
                     var root=hero.Root.position;var left=hero.FootPosition(true);var right=hero.FootPosition(false);
-                    csv.AppendLine(FormattableString.Invariant($"{frame},{b.Action},{b.ActionAge:F6},{hero.CapturedRecoveryActive},{ground:F6},{movement:F6},{root.x:F6},{root.y:F6},{root.z:F6},{left.x:F6},{left.y:F6},{left.z:F6},{right.x:F6},{right.y:F6},{right.z:F6}"));
+                    csv.AppendLine(FormattableString.Invariant($"{frame},{b.Action},{b.ActionAge:F6},{hero.CapturedRecoveryActive},{hero.CapturedFallActive},{ground:F6},{movement:F6},{root.x:F6},{root.y:F6},{root.z:F6},{left.x:F6},{left.y:F6},{left.z:F6},{right.x:F6},{right.y:F6},{right.z:F6}"));
                     if(movie&&frame%2==0)CharacterReview.Save(world.Camera,rt,$"{output}/frames/{frame/2:D4}.png");
                 }
                 bool recovered=b.Action==HeroAction.None;Step(new PlayerInput{Tracking=true,Shield=true});
-                string result=$"{id}-{hz} capturedSamples={captured} minimumY={lowest:F6} maximumJointStep={maxStep:F6} repeatError={repeat:F6} hits={b.HitsTaken} landings={landings} recovered={recovered} shield={b.Shield} lowest=({lowestDetail})";
+                string result=$"{id}-{hz} capturedSamples={captured} fallSamples={falls} minimumY={lowest:F6} maximumJointStep={maxStep:F6} repeatError={repeat:F6} hits={b.HitsTaken} landings={landings} recovered={recovered} shield={b.Shield} lowest=({lowestDetail})";
                 File.WriteAllText(output+"/trace.csv",csv.ToString());File.WriteAllText(output+"/metrics.txt",result);Debug.Log("[CapturedRecoveryReview] "+result);
-                if(captured<10||lowest<-.05f||repeat>.001f||landings!=1||b.HitsTaken!=1||b.Action!=HeroAction.None||!b.Shield||!saved.All(x=>x))throw new Exception("Captured recovery failed: "+result);
+                if(falls<5||captured<10||lowest<-.05f||repeat>.001f||landings!=1||b.HitsTaken!=1||b.Action!=HeroAction.None||!b.Shield||!saved.All(x=>x))throw new Exception("Captured recovery failed: "+result);
             }
             finally{world.Camera.targetTexture=null;RenderTexture.active=null;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(mesh);}
         }

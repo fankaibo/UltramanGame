@@ -43,6 +43,15 @@ static class KnockdownChecks
             check(b.Phase==GamePhase.Battle&&b.Action==HeroAction.None&&landings==0&&b.HitsTaken==1,
                 $"tracking loss at {interruptedAt}s cancels fall without replaying the landing on resume");
         }
+        for(float age=.10f;age<KnockdownMotion.CapturedExit;age+=.02f)
+        {
+            float fall=KnockdownMotion.FallWeight(age),rise=KnockdownMotion.CapturedWeight(age);
+            check(fall>=0&&fall<=1&&rise>=0&&rise<=1&&(1-fall)*(1-rise)<.0001f,
+                $"captured fall and rise own the body without exposing the old pose at {age:F2}s");
+        }
+        check(KnockdownMotion.FallWeight(0)==0&&KnockdownMotion.FallWeight(KnockdownMotion.Duration)==0&&
+              KnockdownMotion.FallProgress(0)==0&&KnockdownMotion.FallProgress(.68f)==1,
+              "captured fall starts at contact and releases before standing");
         check(KnockdownMotion.Weight(0)==0&&KnockdownMotion.Weight(.5f)==1&&KnockdownMotion.Weight(KnockdownMotion.Duration)==0,
             "fall has a grounded hold and returns upright before input unlocks");
     }

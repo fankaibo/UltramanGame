@@ -11,6 +11,7 @@ namespace UltramanGame.Runtime
     {
         readonly Transform root;
         readonly string id;
+        readonly bool fall;
         Transform[] bones;
         Vector3[] positions,basePositions,rootOffsets;
         Quaternion[] samples,baseRotations,baseWorldRotations,worldRotations;
@@ -25,14 +26,14 @@ namespace UltramanGame.Runtime
         public bool Applied {get;private set;}
         public bool Loaded=>bones!=null;
         public int SampleCount=>times?.Length??0;
-        public CapturedRecoveryPose(Transform root,string id){this.root=root;this.id=id;}
+        public CapturedRecoveryPose(Transform root,string id,bool fall=false){this.root=root;this.id=id;this.fall=fall;}
         static float Read(BinaryReader data)
         {float x=data.ReadSingle();if(float.IsNaN(x)||float.IsInfinity(x))throw new InvalidDataException("Nonfinite recovery value");return x;}
         static Vector3 Vector(BinaryReader data)=>new Vector3(Read(data),Read(data),Read(data));
         bool Load()
         {
             if(tried)return Loaded;tried=true;
-            var asset=Resources.Load<TextAsset>("Motions/Recovery/"+id);if(!asset)return false;
+            var asset=Resources.Load<TextAsset>("Motions/"+(fall?"Fall":"Recovery")+"/"+id);if(!asset)return false;
             try
             {
                 using(var stream=new MemoryStream(asset.bytes,false))using(var data=new BinaryReader(stream))
@@ -63,7 +64,7 @@ namespace UltramanGame.Runtime
                     limbs[2,0]=Find("armBase_L","bip_upperArm_L");limbs[2,1]=Find("ForearmBase_L","bip_lowerArm_L");limbs[2,2]=Find("HandBase_L","bip_hand_L");
                     limbs[3,0]=Find("armBase_R","bip_upperArm_R");limbs[3,1]=Find("ForearmBase_R","bip_lowerArm_R");limbs[3,2]=Find("HandBase_R","bip_hand_R");
                     bones=targets;basePositions=new Vector3[count];baseRotations=new Quaternion[count];baseWorldRotations=new Quaternion[count];worldRotations=new Quaternion[count];
-                    Debug.Log($"[CapturedRecovery] {id} samples={frames} bones={count} bytes={stream.Length}");
+                    Debug.Log($"[Captured{(fall?"Fall":"Recovery")}] {id} samples={frames} bones={count} bytes={stream.Length}");
                 }
                 return true;
             }
@@ -79,11 +80,11 @@ namespace UltramanGame.Runtime
         }
         public void Apply(float age,Vector3 home,Vector3 forward)
         {
-            float weight=KnockdownMotion.CapturedWeight(age);if(weight<=0||!Load())return;
+            float weight=fall?KnockdownMotion.FallWeight(age):KnockdownMotion.CapturedWeight(age);if(weight<=0||!Load())return;
             baseRoot=root.position;baseFacing=root.rotation;
             for(int i=0;i<bones.Length;i++){basePositions[i]=bones[i].localPosition;baseRotations[i]=bones[i].localRotation;baseWorldRotations[i]=bones[i].rotation;}
             for(int i=0;i<4;i++){baseEnds[i]=limbs[i,2].position;baseBends[i]=limbs[i,1].position;baseEndRotations[i]=limbs[i,2].rotation;}
-            float seconds=KnockdownMotion.CapturedProgress(age)*times[times.Length-1];int next=1;
+            float seconds=(fall?KnockdownMotion.FallProgress(age):KnockdownMotion.CapturedProgress(age))*times[times.Length-1];int next=1;
             while(next<times.Length-1&&times[next]<seconds)next++;
             int previous=next-1;float fraction=Mathf.InverseLerp(times[previous],times[next],seconds);
             var facing=Quaternion.LookRotation(forward,Vector3.up);

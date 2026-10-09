@@ -29,7 +29,8 @@ namespace UltramanGame.Runtime
         public Vector3 StancePosition=>home;
         public float EngagementWeight=>engagement.Weight;
         readonly bool retargetedPunch;
-        readonly CapturedRecoveryPose capturedRecovery;
+        readonly CapturedRecoveryPose capturedRecovery,capturedFall;
+        public bool CapturedFallActive=>capturedFall?.Applied??false;
         public bool CapturedRecoveryActive=>capturedRecovery?.Applied??false;
         readonly HeroPoseHandoff guardHandoff;
         readonly ZeroTwinShoot twinShoot;
@@ -384,7 +385,7 @@ namespace UltramanGame.Runtime
             comboExitStart=new Quaternion[joints.Length];comboExitBase=new Quaternion[joints.Length];comboExitMask=new bool[joints.Length];
             if(!monster&&upperSpine)for(int i=0;i<joints.Length;i++)comboExitMask[i]=joints[i]==upperSpine||joints[i].IsChildOf(upperSpine);
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
-            if(!monster)capturedRecovery=new CapturedRecoveryPose(Root,name);
+            if(!monster){capturedRecovery=new CapturedRecoveryPose(Root,name);capturedFall=new CapturedRecoveryPose(Root,name,true);}
             // A point on the front of the resting chest, carried by its sampled
             // bone through recoil. Root/home coordinates drift off the skin.
             if(upperSpine)beamContactLocal=upperSpine.InverseTransformPoint(home+Vector3.up*2.48f+forward*.33f);
@@ -666,6 +667,7 @@ namespace UltramanGame.Runtime
             else if(kick||preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle||state.Action==HeroAction.Hurt)kickExitAge=1;
             kickWasActive=kick;if(kick)lastKickAge=state.ActionAge;
             capturedRecovery?.Restore();
+            capturedFall?.Restore();
             if(knockdownApplied)
             {
                 Root.SetPositionAndRotation(knockdownRoot,knockdownFacing);
@@ -905,7 +907,7 @@ namespace UltramanGame.Runtime
                     // landing, reading as a sitting pose. Roll onto a support
                     // arm before bringing the chest over the planted foot.
                     fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-70f*p:
-                        Mathf.Lerp(-70,14,RiseStep(state.ActionAge,.68f,1.02f))*(1-RiseStep(state.ActionAge,1.02f,KnockdownMotion.Duration));
+                        Mathf.Lerp(-70,14,RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds,KnockdownMotion.RiseSeconds+.34f))*(1-RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds+.34f,KnockdownMotion.Duration));
                     fallSide=24f*p;
                 }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
@@ -995,6 +997,7 @@ namespace UltramanGame.Runtime
             {
                 if(recoveryReady){PoseRetargetedFootwork(state,true);PoseRelaxedReadyArms(state,1);}
                 else PoseKnockdown(state.ActionAge);
+                capturedFall?.Apply(state.ActionAge,home,forward);
                 capturedRecovery?.Apply(state.ActionAge,home,forward);
             }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt"&&!launch.Active)
