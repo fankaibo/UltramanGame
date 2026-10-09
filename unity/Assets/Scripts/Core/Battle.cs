@@ -28,6 +28,11 @@ namespace UltramanGame.Core
         public int AttackSequence { get; private set; }
         public readonly RangedShot Shot=new RangedShot();
         public bool LastDamageRanged {get;private set;}
+        // Persistent receipt of the applied damage. A released projectile may
+        // arrive after Action has become Guard/None or the next accepted fist.
+        public HeroAction LastHitAction {get;private set;}
+        public bool LastHitRanged {get;private set;}
+        public int HitSequence {get;private set;}
         bool rangedPunch;
         public bool IsPunch=>Action==HeroAction.LeftPunch||Action==HeroAction.RightPunch;
         public bool IsRangedPunch=>IsPunch&&rangedPunch;
@@ -125,6 +130,7 @@ namespace UltramanGame.Core
             }
             if(Shot.Tick(dt))
             {
+                RecordHit(Shot.Side,true);
                 EnemyHealth=Math.Max(0,EnemyHealth-1);Punches++;LastDamageRanged=true;AddEnergy(1);
                 if(EnemyHealth<=0)
                 {
@@ -200,6 +206,7 @@ namespace UltramanGame.Core
                 if(!hitApplied && !IsRangedPunch && Action!=HeroAction.Hurt && ActionAge>=hitTime)
                 {
                     hitApplied=true;
+                    RecordHit(Action,false);
                     if(Action==HeroAction.Beam) EnemyHealth=Math.Max(0,EnemyHealth-9);
                     else { EnemyHealth=Math.Max(0,EnemyHealth-1); Punches++; AddEnergy(1); }
                     if(EnemyHealth<=0)
@@ -235,6 +242,7 @@ namespace UltramanGame.Core
             { Enemy=EnemyPhase.Rest; EnemyAge=0; }
         }
         void Begin(HeroAction action) { Action=action; ActionAge=0; hitApplied=false;AttackSpeed=1;rangedPunch=false; }
+        void RecordHit(HeroAction action,bool ranged){LastHitAction=action;LastHitRanged=LastDamageRanged=ranged;HitSequence++;}
         void CompleteVictory(){finishing=false;Phase=GamePhase.Victory;Shield=false;Cue(GameCue.Victory);}
         void AddEnergy(float amount)
         {

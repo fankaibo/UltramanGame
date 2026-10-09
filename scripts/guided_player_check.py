@@ -129,6 +129,7 @@ def main():
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
+    parser.add_argument('--ranged-reaction',action='store_true',help='Require actual ranged recovery step lift, landing and return')
     parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Use the initial left selection gesture to choose this actual hero')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
@@ -137,6 +138,7 @@ def main():
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     if options.volley_camera and not options.tempo_skills:parser.error('--volley-camera requires --tempo-skills')
+    if options.ranged_reaction and not options.volley_camera:parser.error('--ranged-reaction requires --volley-camera')
     if options.gesture_shape_noise and not options.gesture_wobble:parser.error('--gesture-shape-noise requires --gesture-wobble')
     if options.gesture_startup_noise and not options.gesture_entry_noise:parser.error('--gesture-startup-noise requires --gesture-entry-noise')
     app=ROOT/'unity/Builds/TigaTraining.app'
@@ -421,6 +423,12 @@ def main():
                     peaks=re.findall(r'\[RangedCameraProof\] ranged-volley-peak focus=([\d.]+)',output)
                     if not peaks or max(map(float,peaks))<.97:raise RuntimeError('Actual player did not reach the volley lens')
                     tempo_evidence['volley_camera']=dict(shots=sorted(required),focus_max=max(map(float,peaks)))
+                if options.ranged_reaction:
+                    required={'ranged-step-lift','ranged-step-land','ranged-step-return'}
+                    if not required.issubset(proof_shots):raise RuntimeError(f'Missing actual ranged reaction proof: {required-proof_shots}')
+                    reactions=re.findall(r'\[RangedReactionProof\] (ranged-step-\w+) side=(left|right) age=([\d.]+) punches=(\d+)',output)
+                    if len(reactions)<3:raise RuntimeError('Missing applied ranged step timing')
+                    tempo_evidence['ranged_reaction']=dict(shots=sorted(required),events=reactions)
             if options.gesture_wobble:
                 if unwanted_attacks or guard_noise_frames<4 or beam_noise_frames<4 or guard_overlap_frames<4:
                     raise RuntimeError(f'Gesture arbitration failed: unwanted={unwanted_attacks} guardNoise={guard_noise_frames} beamNoise={beam_noise_frames} guardOverlap={guard_overlap_frames}')

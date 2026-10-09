@@ -28,6 +28,7 @@ namespace UltramanGame.Runtime
         public float StaggerAge=>rigged!=null?rigged.StaggerAge:10;
         public bool StaggerLeft=>rigged!=null&&rigged.StaggerLeft;
         public int StaggerLandings=>rigged!=null?rigged.StaggerLandings:0;
+        public bool RangedStepActive=>rigged?.RangedStepActive??false;
         public float LaunchAge=>rigged!=null?rigged.LaunchAge:10;
         public int LaunchLandings=>rigged!=null?rigged.LaunchLandings:0;
         public float LaunchCamera=>rigged!=null?rigged.LaunchCamera:0;
@@ -143,7 +144,7 @@ namespace UltramanGame.Runtime
             if(rigged!=null){rigged.Update(state,dt,time,preview);return;}
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
             phaseAge+=dt;hitAge+=dt;
-            if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;}
+            if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=state.LastHitAction==HeroAction.Beam;}
             lastHealth=state.EnemyHealth;
             bool fighting=state.Phase==GamePhase.Battle;
             bool punch=fighting&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch);

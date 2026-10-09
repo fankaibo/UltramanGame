@@ -72,6 +72,9 @@ namespace UltramanGame.Runtime
         Vector3 punchStart;
         float windupSample=float.NaN;
         readonly MonsterStaggerMotion stagger=new MonsterStaggerMotion();
+        readonly MonsterRangedPressure rangedPressure=new MonsterRangedPressure();
+        bool rangedStep;
+        public bool RangedStepActive=>stagger.Active&&rangedStep;
         readonly MonsterLaunchMotion launch=new MonsterLaunchMotion();
         readonly MonsterBeamMotion beamRecoil=new MonsterBeamMotion();
         readonly HeroPunchLink punchLink=new HeroPunchLink();
@@ -774,6 +777,7 @@ namespace UltramanGame.Runtime
                 else launch.Tick(dt);
                 if(preview>=0||state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Transforming||state.Phase==GamePhase.Paused)stagger.Clear();
                 else stagger.Tick(dt,state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Attack&&state.Action!=HeroAction.Beam);
+                rangedPressure.Tick(state,dt,!stagger.Active&&!launch.Active&&!beamRecoil.Active,preview>=0);
             }
             if(state.Phase!=GamePhase.Battle){guardAge=10;guardContactPending=false;}
             else if(state.Blocks>observedBlocks)
@@ -800,10 +804,11 @@ namespace UltramanGame.Runtime
                 bool carryPose=playing=="Hurt"||playing=="Idle";
                 recoilStart=carryPose?Vector3.ProjectOnPlane(Root.position-home-staggerTravel-beamTravel,Vector3.up):Vector3.zero;
                 recoilStartYaw=carryPose?Vector3.SignedAngle(forward,Root.forward,Vector3.up):0;
-                hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;contactSide=state.Action==HeroAction.LeftPunch?-1:state.Action==HeroAction.RightPunch?1:0;
-                accentHit=!heavyHit&&ComboStrikeMotion.Active(state);
-                if(monster&&preview<0&&state.Action==HeroAction.Beam)
+                hitAge=0;heavyHit=state.LastHitAction==HeroAction.Beam;contactSide=state.LastHitAction==HeroAction.LeftPunch?-1:state.LastHitAction==HeroAction.RightPunch?1:0;
+                accentHit=!heavyHit&&!state.LastHitRanged&&ComboStrikeMotion.Active(state);
+                if(monster&&preview<0&&state.LastHitAction==HeroAction.Beam)
                 {stagger.Clear();launch.Clear();beamRecoil.Begin((state.Punches/Battle.MaxEnergy)%2==1);}
+                if(monster&&rangedPressure.Step){stagger.Begin(rangedPressure.Left);rangedStep=true;}
                 // Leave the final warning second and the attacking claw alone.
                 // The step never delays an enemy hit or the child's next input.
                 if(monster&&accentHit&&!state.Finishing&&!beamRecoil.Active&&state.Enemy!=EnemyPhase.Attack&&
@@ -812,7 +817,7 @@ namespace UltramanGame.Runtime
                     if(MonsterLaunchMotion.Uppercut(state)&&
                         (state.Enemy!=EnemyPhase.Windup||state.WarningDuration-state.EnemyAge>1.6f))
                     {stagger.Clear();launch.Begin(contactSide<0);}
-                    else if(!launch.Active)stagger.Begin(contactSide<0);
+                    else if(!launch.Active){stagger.Begin(contactSide<0);rangedStep=false;}
                 }
                 surfaceContactLocal=beamContactLocal;
             }

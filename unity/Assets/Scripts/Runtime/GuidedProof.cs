@@ -15,6 +15,14 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.RangedStepActive)
+            {
+                string step=enemy.StaggerAge>=.09f&&enemy.StaggerAge<MonsterStaggerMotion.Landing?"ranged-step-lift":
+                    enemy.StaggerAge>=MonsterStaggerMotion.Landing&&enemy.StaggerAge<MonsterStaggerMotion.Return?"ranged-step-land":
+                    enemy.StaggerAge>=MonsterStaggerMotion.Return+.08f?"ranged-step-return":null;
+                if(step!=null&&proofFrames.Add(step))
+                {Debug.Log($"[RangedReactionProof] {step} side={(enemy.StaggerLeft?"left":"right")} age={enemy.StaggerAge:F3} punches={battle.Punches}");StartCoroutine(SaveGuidedProof(step));return;}
+            }
             if(!photo.Active&&hero.TwinShoot!=null&&battle.Phase==GamePhase.Battle)
             {
                 string twin=hero.TwinShoot.Active&&battle.Action==HeroAction.Beam?

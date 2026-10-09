@@ -265,10 +265,10 @@ namespace UltramanGame.Runtime
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
             while(battle.TryCue(out var cue))PlayCue(cue);
-            bool damage=battle.EnemyHealth<lastHealth;bool specialDamage=lastHealth-battle.EnemyHealth>1;
+            bool damage=battle.EnemyHealth<lastHealth;bool specialDamage=battle.LastHitAction==HeroAction.Beam;
             if(damage)
             {
-                bool special=lastHealth-battle.EnemyHealth>1;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
+                bool special=specialDamage;lastDamage=Mathf.RoundToInt(lastHealth-battle.EnemyHealth);damagePopAt=Time.unscaledTime;
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 if(TraceEnabled)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
                 if(battle.Finishing&&TraceEnabled)Debug.Log($"[FinalStrike] contact action={battle.Action} actionAge={battle.ActionAge:F3} health={battle.EnemyHealth}");
