@@ -59,6 +59,24 @@ def tempo_landmarks(seconds):
     return points
 
 
+def volley_landmarks(seconds):
+    """Six alternating forward casts; the other hand rests below the guard."""
+    points=tempo_landmarks(0)
+    for index in (15,16):
+        points[index].y=.80
+        points[index].z=-.16
+    phase=seconds%.8
+    right=int(seconds/.8)%2==1
+    hand=points[16 if right else 15]
+    rise=min(1,phase/.12) if phase<.62 else max(0,1-(phase-.62)/.12)
+    hand.y=.80-.36*rise;hand.z=-.16-.04*rise
+    extension=max(0,min(1,(phase-.20)/.14))
+    if phase>.42:extension=max(0,1-(phase-.42)/.16)
+    hand.x+=(-.04 if right else .04)*extension
+    hand.y-=.04*extension;hand.z-=.28*extension
+    return points
+
+
 def read_process_memory(pid):
     """Read one macOS process sample without turning a missing process into zero."""
     try:
@@ -150,6 +168,7 @@ def main():
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
             initial_selection_done=False;initial_selection_at=0;replay_selection_sent=False;replay_selection_seen=False
+            volley_started=None
             replay_selection_direction='right'
             beam_release_until=0
             pose_contexts={};gesture_audit=[];guard_entry_contexts=set()
@@ -291,8 +310,12 @@ def main():
                     else:
                         points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
                         if options.tempo_skills and not beam and not guard:
-                            if tempo_started is None:tempo_started=now
-                            points=tempo_landmarks(now-tempo_started)
+                            if options.volley_camera and volley_started is None:volley_started=now
+                            if options.volley_camera and now-volley_started<4.8:
+                                points=volley_landmarks(now-volley_started);tempo_started=None
+                            else:
+                                if tempo_started is None:tempo_started=now
+                                points=tempo_landmarks(now-tempo_started)
                         else:tempo_started=None
                         if options.gesture_wobble and beam:
                             points[15].z=points[16].z=-.10
