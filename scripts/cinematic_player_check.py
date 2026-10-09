@@ -199,6 +199,7 @@ def main():
     # The second attack is now a thrown boulder, not another claw lunge.
     required = ('battle-entry', 'monster-rock-hold', 'monster-rock-flight', 'monster-rock-break', 'monster-rush-right', 'guard-impact', 'hero-hurt',
                 'hero-landed', 'hero-rising', 'hero-recovered',
+                'hero-captured-seat', 'hero-captured-rise', 'hero-recovery-ready',
                 'beam-closeup-peak', 'beam-firing', 'beam-contact', 'beam-sustain', 'beam-fade', 'beam-braced', 'beam-pressure', 'beam-recovery', 'beam-reaction-entry', 'beam-reaction-peak', 'Paused', 'Victory',
                 'victory-collapse', 'victory-turn', 'victory-dissolve', 'victory-motes', 'victory-hero',
                 'transform-front', 'transform-radiance', 'transform-return', 'left-punch-recoil', 'right-punch-recoil',

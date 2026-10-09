@@ -1,0 +1,38 @@
+{
+  "task": "A-20261010-73",
+  "source": "CMU 140_03 Get Up Laying on Side",
+  "source_url": "https://mocap.cs.cmu.edu/search.php?subjectnumber=140",
+  "bvh_conversion": "Bruce Hahne 2010, mirrored by una-dinosauria/cmu-mocap",
+  "source_sha256": "7ba705b771ab9febcfd0bac22d7fcd4039de382cfc4a92ead264ca5c6fc1bb41",
+  "frames": [
+    350,
+    780
+  ],
+  "sample_count": 109,
+  "source_seconds": 3.583319,
+  "converter": "scripts/prepare_recovery_motion.py",
+  "baker": "UltramanGame.Editor.MocapRecoveryReview.Bake",
+  "format": "UCR1: little endian header/node paths+positions/timed root offsets+local quaternions",
+  "files": {
+    "Geed.bytes": {
+      "bytes": 68212,
+      "sha256": "ddc9f781db476ca83aeb7092269cf0597ddd894b157a6062315a2b77defabf16"
+    },
+    "Grigio.bytes": {
+      "bytes": 68278,
+      "sha256": "d22e64cb6c179b8a0f341ea907cb5615bfd7c478b1dd8e9e1a61b8138bc6b1c7"
+    },
+    "Mebius.bytes": {
+      "bytes": 110596,
+      "sha256": "f4eeb741edc6c15acd76d4e47d16921276ecd8d6c80c67b43235df2ffbd9c24b"
+    },
+    "Tiga.bytes": {
+      "bytes": 394666,
+      "sha256": "0789e29e70cd76463ba4ac4e704af9c364bf48e8a75137bfb395f4898cc48a6d"
+    },
+    "Zero.bytes": {
+      "bytes": 116380,
+      "sha256": "1c0479524dfd7158d5f0b270c2dbd893b83689a51451fc16253398d15c199627"
+    }
+  }
+}

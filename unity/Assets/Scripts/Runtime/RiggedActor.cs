@@ -24,6 +24,8 @@ namespace UltramanGame.Runtime
         public Vector3 StancePosition=>home;
         public float EngagementWeight=>engagement.Weight;
         readonly bool retargetedPunch;
+        readonly CapturedRecoveryPose capturedRecovery;
+        public bool CapturedRecoveryActive=>capturedRecovery?.Applied??false;
         readonly HeroPoseHandoff guardHandoff;
         readonly ZeroTwinShoot twinShoot;
         readonly MebiumShoot mebiumShoot;
@@ -377,6 +379,7 @@ namespace UltramanGame.Runtime
             comboExitStart=new Quaternion[joints.Length];comboExitBase=new Quaternion[joints.Length];comboExitMask=new bool[joints.Length];
             if(!monster&&upperSpine)for(int i=0;i<joints.Length;i++)comboExitMask[i]=joints[i]==upperSpine||joints[i].IsChildOf(upperSpine);
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
+            if(!monster)capturedRecovery=new CapturedRecoveryPose(Root,name);
             // A point on the front of the resting chest, carried by its sampled
             // bone through recoil. Root/home coordinates drift off the skin.
             if(upperSpine)beamContactLocal=upperSpine.InverseTransformPoint(home+Vector3.up*2.48f+forward*.33f);
@@ -646,6 +649,7 @@ namespace UltramanGame.Runtime
             }
             else if(kick||preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle||state.Action==HeroAction.Hurt)kickExitAge=1;
             kickWasActive=kick;if(kick)lastKickAge=state.ActionAge;
+            capturedRecovery?.Restore();
             if(knockdownApplied)
             {
                 Root.SetPositionAndRotation(knockdownRoot,knockdownFacing);
@@ -938,7 +942,16 @@ namespace UltramanGame.Runtime
                 Root.position=home+forward*travel+Vector3.down*fallDrop;
                 Root.rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.Euler(fallTilt,0,fallSide);
             }
-            clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
+            bool recoveryReady=!monster&&preview<0&&state.Action==HeroAction.Hurt&&
+                state.ActionAge>=KnockdownMotion.CapturedExit&&capturedRecovery?.Loaded==true;
+            if(recoveryReady)
+            {
+                // The captured rise exits into the same ready stance used by
+                // the next Idle frame, rather than the folded final Hurt key.
+                fallTilt=fallSide=fallDrop=travel=0;
+                clips["Idle"].SampleAnimation(model,time%clips["Idle"].length);
+            }
+            else clips[next].SampleAnimation(model,Mathf.Clamp(sample,0,clips[next].length));
             if(monster&&preview<0)CorrectRestingArms(state,time);
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state)&&!MonsterRockMotion.Active(state))
                 CorrectAttackArms(state);
@@ -960,7 +973,11 @@ namespace UltramanGame.Runtime
                 else PoseVictoryTurn(VictoryMotion.Turn(phaseAge));
             }
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt")
-                PoseKnockdown(state.ActionAge);
+            {
+                if(recoveryReady){PoseRetargetedFootwork(state,true);PoseRelaxedReadyArms(state,1);}
+                else PoseKnockdown(state.ActionAge);
+                capturedRecovery?.Apply(state.ActionAge,home,forward);
+            }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Hurt"&&!launch.Active)
             {
                 // Hips yield over anchored feet instead of sliding the entire

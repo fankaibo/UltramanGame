@@ -15,6 +15,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt&&hero.CapturedRecoveryActive)
+            {
+                string recovery=battle.ActionAge>=.80f&&battle.ActionAge<1.02f?"hero-captured-seat":
+                    battle.ActionAge>=1.70f&&battle.ActionAge<1.95f?"hero-captured-rise":
+                    battle.ActionAge>=2.38f?"hero-recovery-ready":null;
+                if(recovery!=null&&proofFrames.Add(recovery)){StartCoroutine(SaveGuidedProof(recovery));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&enemy.RangedStepActive)
             {
                 string step=enemy.StaggerAge>=.09f&&enemy.StaggerAge<MonsterStaggerMotion.Landing?"ranged-step-lift":
