@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,10 +12,61 @@ namespace UltramanGame.Editor
 {
     public static class GroundImpactReview
     {
-        static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/ground-impact"));
+        static string Folder=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_GROUND_REVIEW")??Path.Combine(Application.dataPath,"../../artifacts/ground-impact"));
         public static void Before()=>Render("before");
         public static void After()=>Render("after");
         public static void Release(){After();Checks();Roster();Audio();}
+        public static void ScannedRelease()
+        {
+            foreach(string name in new[]{"rock_07","rock_09"})
+                AssetDatabase.ImportAsset("Assets/Resources/Environment/GroundDebris/"+name+".fbx",ImportAssetOptions.ForceUpdate);
+            ScannedAssets();Release();
+        }
+        public static void ScannedAssets()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+            Directory.CreateDirectory(Folder+"/inspection");
+            var root=new GameObject("Scanned fragment inspection");var camera=new GameObject("Camera").AddComponent<Camera>();
+            var ground=new GroundImpact(root.transform);ground.Burst(Vector3.zero,Vector3.right,"scan-review");ground.Tick(camera,0);
+            var meshes=new HashSet<Mesh>();var materials=new HashSet<Material>();var report=new StringBuilder();
+            foreach(var filter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if(filter.name!="Ground basalt fragment")continue;
+                var mesh=filter.sharedMesh;meshes.Add(mesh);var material=filter.GetComponent<Renderer>().sharedMaterial;materials.Add(material);
+                if(mesh.triangles.Length!=960||!mesh.isReadable||mesh.uv.Length!=mesh.vertexCount||mesh.tangents.Length!=mesh.vertexCount)
+                    throw new Exception("Scanned fragment missing topology/UV/tangents: "+mesh.name);
+                float radius=0;foreach(var vertex in mesh.vertices){radius=Mathf.Max(radius,vertex.magnitude);if(float.IsNaN(vertex.x))throw new Exception("Invalid fragment vertex");}
+                if(radius<.89f||radius>.91f)throw new Exception("Fragment scale invalid "+mesh.bounds);
+                foreach(string property in new[]{"_MainTex","_Normal","_ARM"})if(!material.GetTexture(property))throw new Exception("Missing scan map "+property);
+            }
+            if(meshes.Count!=2||materials.Count!=2)throw new Exception("Scans/materials not shared by pool");
+            foreach(var mesh in meshes)report.AppendLine($"{mesh.name} vertices={mesh.vertexCount} triangles={mesh.triangles.Length/3} bounds={mesh.bounds} uv/tangents/readable=passed");
+            // Magnified asset inspection, separate from the unchanged battle
+            // camera in Before/After. Do not pass this off as gameplay scale.
+            foreach(var renderer in root.GetComponentsInChildren<Renderer>(true))renderer.gameObject.SetActive(false);
+            int selected=0;
+            foreach(var filter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if(filter.name!="Ground basalt fragment"||selected>=4)continue;
+                filter.gameObject.SetActive(true);filter.transform.localScale=Vector3.one*.65f;
+                filter.transform.rotation=Quaternion.Euler(20+selected*23,selected*60,15);
+                float bottom=0;foreach(var v in filter.sharedMesh.vertices)bottom=Mathf.Min(bottom,(filter.transform.rotation*(v*.65f)).y);
+                filter.transform.position=new Vector3((selected%2-.5f)*1.5f,-bottom,(selected/2-.5f)*1.3f);selected++;
+            }
+            var floor=GameObject.CreatePrimitive(PrimitiveType.Cube);floor.transform.position=new Vector3(0,-.055f,0);floor.transform.localScale=new Vector3(20,.1f,20);
+            var floorMaterial=new Material(Shader.Find("Standard")){color=new Color(.09f,.10f,.12f)};floor.GetComponent<Renderer>().sharedMaterial=floorMaterial;
+            var key=new GameObject("Cool side light").AddComponent<Light>();key.type=LightType.Directional;key.transform.eulerAngles=new Vector3(35,-40,0);key.intensity=1.2f;key.color=new Color(.76f,.84f,1);
+            camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.07f,.09f,.12f);camera.fieldOfView=36;camera.aspect=16f/9;
+            camera.transform.position=new Vector3(2.2f,2.5f,-5);camera.transform.LookAt(new Vector3(0,.3f,0));
+            var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();camera.targetTexture=target;
+            try{CharacterReview.Save(camera,target,Folder+"/inspection/scanned-assets-magnified.png");}
+            finally{camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(floorMaterial);}
+            UnityEngine.Object.DestroyImmediate(root);
+            foreach(var mat in materials)if(mat)throw new Exception("Owned fragment material leaked");
+            foreach(var mesh in meshes)if(!mesh)throw new Exception("Cleanup destroyed shared asset");
+            report.AppendLine("pool=72 sharedMeshes=2 sharedMaterials=2 noCopiedTextures=passed ownedCleanup=passed sourceMeshesRetained=passed");
+            File.WriteAllText(Folder+"/scan-validation.txt",report.ToString());Debug.Log("[ScannedGroundAssets] "+report);
+        }
         public static void Audio()
         {
             Directory.CreateDirectory(Folder);var clip=GameAudio.CreateGroundCrunch();var data=new float[clip.samples];clip.GetData(data,0);

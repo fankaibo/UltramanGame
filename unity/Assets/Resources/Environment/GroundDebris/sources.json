@@ -1,0 +1,31 @@
+{
+  "blender": "4.5.13 LTS",
+  "script": "scripts/bake_ground_debris.py",
+  "note": "Derived geometry; original UVs and shared scan textures retained.",
+  "assets": [
+    {
+      "name": "rock_07",
+      "source": "unity/Assets/Resources/Environment/ScannedRocks/rock_07_2k.fbx",
+      "source_sha256": "a49a0fce3da2a976013aac8be3899817b0fe03a1f19628ea0677820df3bdbae1",
+      "output_sha256": "383de704d308f2dbf6ccb2005970180592347a8e0b547aa47f5c2837bc3f47b5",
+      "triangles": 320,
+      "vertices": 162,
+      "source_lod_triangles": 1854,
+      "source_url": "https://polyhaven.com/a/rock_07",
+      "licence": "CC0-1.0",
+      "author": "Jenelle van Heerden"
+    },
+    {
+      "name": "rock_09",
+      "source": "unity/Assets/Resources/Environment/ScannedRocks/rock_09_2k.fbx",
+      "source_sha256": "a04920ea816c4a3ca88c57ce8cbe2a9ba9315130df1c32b589640819d5096333",
+      "output_sha256": "85cd7ff577b7e37713caa6974ef2b01ee2a8e87e4baa7da4c05992deef80fa16",
+      "triangles": 320,
+      "vertices": 162,
+      "source_lod_triangles": 1552,
+      "source_url": "https://polyhaven.com/a/rock_09",
+      "licence": "CC0-1.0",
+      "author": "Jenelle van Heerden"
+    }
+  ]
+}

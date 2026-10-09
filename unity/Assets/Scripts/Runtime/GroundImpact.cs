@@ -32,14 +32,33 @@ namespace UltramanGame.Runtime
         float Range(float a,float b)=>Mathf.Lerp(a,b,(float)random.NextDouble());
         public GroundImpact(Transform parent)
         {
-            var material=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("GroundStone")));
-            var meshes=new Mesh[4];var vertices=new Vector3[4][];
-            for(int i=0;i<meshes.Length;i++){meshes[i]=RuntimeResources.Own(parent,Shard(i));vertices[i]=meshes[i].vertices;}
+            var meshes=new Mesh[2];var vertices=new Vector3[2][];var materials=new Material[2];
+            for(int i=0;i<meshes.Length;i++)
+            {
+                string scan=i==0?"rock_07":"rock_09";
+                var source=Resources.Load<GameObject>("Environment/GroundDebris/"+scan);
+                var filter=source?source.GetComponentInChildren<MeshFilter>(true):null;
+                bool mapped=filter&&filter.sharedMesh&&filter.sharedMesh.isReadable;
+                // Small offline decimations retain the scan's original UVs;
+                // share two meshes/maps across the pool, not complete prefabs.
+                meshes[i]=mapped?filter.sharedMesh:RuntimeResources.Own(parent,Shard(i));
+                vertices[i]=meshes[i].vertices;
+                var material=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("GroundStone")));
+                if(mapped)
+                {
+                    string path="Environment/ScannedRocks/"+scan;
+                    material.mainTexture=Resources.Load<Texture2D>(path+"_diff_2k");
+                    material.SetTexture("_Normal",Resources.Load<Texture2D>(path+"_nor_gl_2k"));
+                    material.SetTexture("_ARM",Resources.Load<Texture2D>(path+"_arm_2k"));
+                }
+                else Debug.LogWarning("[GroundImpact] Missing readable scanned fragment: "+scan);
+                materials[i]=material;
+            }
             for(int i=0;i<stones.Length;i++)
             {
                 var obj=new GameObject("Ground basalt fragment",typeof(MeshFilter),typeof(MeshRenderer));obj.transform.SetParent(parent,false);
-                obj.GetComponent<MeshFilter>().sharedMesh=meshes[i%4];obj.GetComponent<MeshRenderer>().sharedMaterial=material;
-                stones[i]=new Stone{Root=obj.transform,Vertices=vertices[i%4]};obj.SetActive(false);
+                obj.GetComponent<MeshFilter>().sharedMesh=meshes[i%2];obj.GetComponent<MeshRenderer>().sharedMaterial=materials[i%2];
+                stones[i]=new Stone{Root=obj.transform,Vertices=vertices[i%2]};obj.SetActive(false);
             }
             for(int i=0;i<clouds.Length;i++)
             {
