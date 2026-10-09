@@ -1,0 +1,23 @@
+{
+  "character": "Grigio",
+  "source": "unity/Assets/Resources/Characters/Grigio/Grigio.fbx",
+  "source_sha256": "cdd210d047d9add636d486992f74885bd46262b4532578227dd8180144103c45",
+  "blender": "4.5.13 LTS",
+  "resolution": [
+    1024,
+    1024
+  ],
+  "model_height": 1.4809192414395511,
+  "distance": 0.03702298103598878,
+  "rest_pose": true,
+  "only_local": true,
+  "samples": 32,
+  "ao_samples": 64,
+  "maps": [
+    {
+      "material": "Grigio_Tex_geliqao",
+      "file": "Grigio_Tex_geliqao.png",
+      "sha256": "97d8bcd7169b29bb85c86aa31bc1d1563d4184f3749910e080d37ecaeb502502"
+    }
+  ]
+}

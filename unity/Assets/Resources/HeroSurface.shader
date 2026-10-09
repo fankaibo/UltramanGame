@@ -8,6 +8,8 @@ Shader "Training/HeroSurface" {
   _MicroDetail("Suit micro detail",Range(0,2))=.35
   _CostumeFinish("Tiga costume finish",Range(0,1))=0
   _CostumeOcclusion("Local costume cavities",2D)="white"{}
+  _SurfaceCavity("Original mesh cavities",2D)="white"{}
+  _SurfaceCavityStrength("Local mesh occlusion",Range(0,1))=0
   _EmissionColor("Base emission",Color)=(0,0,0,0)
   _GuardPoint("Shield contact and radius",Vector)=(0,0,0,1)
   _GuardColor("Reflected shield light",Color)=(0,0,0,0)
@@ -24,8 +26,8 @@ Shader "Training/HeroSurface" {
   CGPROGRAM
   #pragma surface surf Standard fullforwardshadows addshadow keepalpha finalcolor:FadeAdditive
   #pragma target 3.0
-  sampler2D _MainTex,_CostumeOcclusion;fixed4 _Color,_EmissionColor,_RimColor;float4 _GuardPoint;
-  half _CostumeFinish;
+  sampler2D _MainTex,_CostumeOcclusion,_SurfaceCavity;fixed4 _Color,_EmissionColor,_RimColor;float4 _GuardPoint;
+  half _CostumeFinish,_SurfaceCavityStrength;
   half4 _GuardColor;half _Metallic,_Glossiness,_TextureArmor,_MicroDetail,_EmissionAudit,_RimPower,_RimStrength;
   float4 _EyeRegion,_CoreRegion;half _AtlasLights,_WarmEyes,_EyeRadiance,_CoreRadiance;
   struct Input {float2 uv_MainTex;float3 worldPos;float3 worldNormal;INTERNAL_DATA};
@@ -113,6 +115,15 @@ Shader "Training/HeroSurface" {
     o.Normal=normalize(float3(weave*.032*fabric+grainWave*.012*grainMask,1));
     o.Smoothness=lerp(o.Smoothness,.25+.035*weave.x*weave.y,fabric);
     o.Occlusion=lerp(1,tex2D(_CostumeOcclusion,i.uv_MainTex).r,.72*_CostumeFinish);
+   }
+   if(_SurfaceCavityStrength>0) {
+    // Rest-pose geometry, not colored panel boundaries, supplies local depth.
+    // Indirect light is occluded in armor joins and folds; a restrained direct
+    // component keeps those joins readable under the arena's strong key light.
+    // Emission below still uses the unchanged source color and lens masks.
+    float cavity=tex2D(_SurfaceCavity,i.uv_MainTex).r;
+    o.Occlusion=lerp(1,cavity,_SurfaceCavityStrength);
+    o.Albedo*=lerp(1,cavity,.26*_SurfaceCavityStrength);
    }
    float3 toward=_GuardPoint.xyz-i.worldPos;
    float distanceToLight=length(toward)/max(.01,_GuardPoint.w);

@@ -497,6 +497,12 @@ namespace UltramanGame.Runtime
                 var cavity=Resources.Load<Texture2D>("Characters/Tiga/TigaBodyOcclusion");
                 if(cavity)mat.SetTexture("_CostumeOcclusion",cavity);
             }
+            if(heroSurface&&character!="Tiga")
+            {
+                var cavity=Resources.Load<Texture2D>("Characters/"+character+"/Occlusion/"+name);
+                if(cavity)
+                {mat.SetTexture("_SurfaceCavity",cavity);mat.SetFloat("_SurfaceCavityStrength",.82f);}
+            }
             return mat;
         }
         public void SetPresentationOpacity(float opacity)

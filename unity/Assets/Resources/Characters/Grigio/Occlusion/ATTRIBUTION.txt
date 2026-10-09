@@ -1,0 +1,3 @@
+Derived local geometry occlusion for Grigio; see ../ATTRIBUTION.txt for the source model and its terms.
+Generated with scripts/bake_hero_cavity.py from the unchanged project FBX in rest pose.
+The map contains local geometric occlusion only. It does not add mesh detail or replace the original color atlas.
