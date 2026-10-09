@@ -15,6 +15,10 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            // The phase-entry frame may still show the previous punch. Capture
+            // the settled pause too, where an uncorrected Idle folds the arms.
+            if(!photo.Active&&battle.Phase==GamePhase.Paused&&Time.unscaledTime-phaseStarted>=.5f&&proofFrames.Add("paused-ready"))
+            {StartCoroutine(SaveGuidedProof("paused-ready"));return;}
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&(battle.Enemy==EnemyPhase.Attack||battle.Enemy==EnemyPhase.Recover)&&world.MonsterRushSteps>0)
             {
                 string step=world.MonsterRushBeat==1&&battle.EnemyAge>=MonsterStepMotion.ApproachLanding&&battle.EnemyAge<.34f?"rush-support-land":

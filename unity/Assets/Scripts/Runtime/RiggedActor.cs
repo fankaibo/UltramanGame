@@ -702,8 +702,11 @@ namespace UltramanGame.Runtime
             else if(comboStrike||preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle)comboExitAge=1;
             if(comboExitApplied)for(int i=0;i<joints.Length;i++)if(comboExitMask[i])joints[i].localRotation=comboExitBase[i];
             comboExitApplied=false;comboWasActive=comboStrike;
+            // Tracking loss also samples Idle. Keep its hands at the same
+            // forward ready targets instead of exposing the folded source clip.
             bool relaxedReady=!monster&&(preview>=0?preview%8==0:
-                state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Transforming&&state.TransformationAge>=MonsterEntranceMotion.Start);
+                state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Paused||
+                state.Phase==GamePhase.Transforming&&state.TransformationAge>=MonsterEntranceMotion.Start);
             bool retargetArms=relaxedReady||!monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&!state.Shield));

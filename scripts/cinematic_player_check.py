@@ -207,7 +207,7 @@ def main():
                 'monster-stagger-lift', 'monster-stagger-land', 'monster-stagger-return', 'punch-impact-left', 'punch-impact-right',
                 'combo-camera-peak', 'combo-camera-return', 'ground-rush', 'ground-hero-land', 'ground-stagger', 'ground-defeat',
                 'uppercut-airborne', 'uppercut-land', 'uppercut-recover')
-    required += ('monster-arms-left','monster-arms-right','monster-arms-uppercut','monster-arms-beam')
+    required += ('paused-ready', 'monster-arms-left','monster-arms-right','monster-arms-uppercut','monster-arms-beam')
     required += ('monster-recovery-drop','monster-recovery-return')
     required += ('rush-support-land','rush-return-lead','rush-return-trail')
     required += ('outpost-dust','outpost-settled')
