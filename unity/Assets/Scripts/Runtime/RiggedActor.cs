@@ -685,7 +685,9 @@ namespace UltramanGame.Runtime
             else if(comboStrike||preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle)comboExitAge=1;
             if(comboExitApplied)for(int i=0;i<joints.Length;i++)if(comboExitMask[i])joints[i].localRotation=comboExitBase[i];
             comboExitApplied=false;comboWasActive=comboStrike;
-            bool retargetArms=!monster&&preview<0&&state.Phase==GamePhase.Battle&&
+            bool relaxedReady=!monster&&(preview>=0?preview%8==0:
+                state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Transforming&&state.TransformationAge>=MonsterEntranceMotion.Start);
+            bool retargetArms=relaxedReady||!monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  (state.Action==HeroAction.None&&!state.Shield));
             // The leg reach correction is a presentation layer; remove it
@@ -1189,8 +1191,9 @@ namespace UltramanGame.Runtime
                  state.Action==HeroAction.None&&punchLink.Weight>0))PosePunchWeight(state);
             if(retargetArms)
             {
-                if(counterReach&&state.IsPunch&&!state.IsRangedPunch&&!kick&&!comboStrike&&!HeroArsenal.Blade(heroId,state))PoseCounterReach(state);
-                if(state.IsRangedPunch||rangedRecovery)PoseRangedArms(state);
+                if(!relaxedReady&&counterReach&&state.IsPunch&&!state.IsRangedPunch&&!kick&&!comboStrike&&!HeroArsenal.Blade(heroId,state))PoseCounterReach(state);
+                if(relaxedReady)PoseRelaxedReadyArms(state,preview>=0||state.Phase==GamePhase.Waiting?1:Mathf.SmoothStep(0,1,clipAge/.16f));
+                else if(state.IsRangedPunch||rangedRecovery)PoseRangedArms(state);
                 else if(HeroArsenal.Blade(heroId,state))PoseMebiumArms(state);
                 else if(retargetedPunch)PoseRetargetedArms(state);
                 else PoseTigaArms(state,comboStrike);
@@ -1789,7 +1792,24 @@ namespace UltramanGame.Runtime
         }
         static float PunchReach(float age)=>age<Battle.PunchHitSeconds?StrikeApproach(age/Battle.PunchHitSeconds):
             1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
-        Vector3 ReadyHand(Battle state,Transform upper,Transform lower,Transform wrist,bool left,Vector3 side)
+        void PoseRelaxedReadyArms(Battle state,float blend)
+        {
+            if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
+            stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
+            stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
+            var side=Vector3.Cross(Vector3.up,forward);
+            for(int i=0;i<2;i++)
+            {
+                bool left=i==0;float sign=left?-1:1;
+                var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
+                var palm=wrist.rotation;var span=wrist.position-lower.position;
+                // The ready preview must not inherit a paused punch or its
+                // buffered shoulder load from the underlying battle state.
+                PoseLimb(upper,lower,wrist,ReadyHand(state,upper,lower,wrist,left,side,true),blend,side*(sign*.45f)+Vector3.down,.30f);
+                wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+            }
+        }
+        Vector3 ReadyHand(Battle state,Transform upper,Transform lower,Transform wrist,bool left,Vector3 side,bool neutral=false)
         {
             float sign=left?-1:1;
             float span=Vector3.Distance(upper.position,lower.position)+Vector3.Distance(lower.position,wrist.position);
@@ -1799,7 +1819,7 @@ namespace UltramanGame.Runtime
             Vector3 open=upper.position+forward*(span*(left?.80f:.74f))
                 -side*(sign*span*.06f)-Vector3.up*(span*(left?.25f:.36f));
             float openness=1;
-            if(state.IsPunch)
+            if(!neutral&&state.IsPunch)
             {
                 // The support hand protects the torso at contact, then opens
                 // continuously with the striking arm's return. Do not snap to
@@ -1809,7 +1829,7 @@ namespace UltramanGame.Runtime
                 float reopen=Mathf.SmoothStep(0,1,(state.ActionAge-release)/(state.AttackDuration-release));
                 openness=1-close*(1-reopen);
             }
-            return LinkedGuard(Vector3.Lerp(compact,open,openness),left,side);
+            return neutral?open:LinkedGuard(Vector3.Lerp(compact,open,openness),left,side);
         }
         Vector3 LinkedGuard(Vector3 guard,bool left,Vector3 side)
         {
