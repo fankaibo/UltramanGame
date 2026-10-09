@@ -293,8 +293,21 @@ namespace UltramanGame.Runtime
             string folder=at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.Combine(System.Environment.CurrentDirectory,"artifacts/guided-arcade/native");Directory.CreateDirectory(folder);
             var texture=new Texture2D(Screen.width,Screen.height,TextureFormat.RGB24,false);
             texture.ReadPixels(new Rect(0,0,Screen.width,Screen.height),0,0);texture.Apply();
-            File.WriteAllBytes(Path.Combine(folder,key+".png"),texture.EncodeToPNG());Destroy(texture);proofBusy=false;
+            var png=texture.EncodeToPNG();
+            File.WriteAllBytes(Path.Combine(folder,key+".png"),png);Destroy(texture);proofBusy=false;
             Debug.Log("[GuidedProof] screenshot="+key+" source="+(review!=null?"review-playback":"synthetic")+" file="+Path.Combine(folder,key+".png"));
+            // A hero landing and monster return step can share the same
+            // rendered frame. Preserve both observations from that frame;
+            // waiting for a second capture can miss the contact's lifetime.
+            if(!photo.Active&&world.ActiveGroundStones>0&&world.GroundImpactAge>=.18f&&world.GroundImpactAge<.36f)
+            {
+                string contact="ground-"+world.GroundContactCause+(photo.Captures>0?"-after-photo":"");
+                if(proofFrames.Add(contact))
+                {
+                    File.WriteAllBytes(Path.Combine(folder,contact+".png"),png);
+                    Debug.Log("[GuidedProof] screenshot="+contact+" source="+(review!=null?"review-playback":"synthetic")+" sharedFrame="+key+" file="+Path.Combine(folder,contact+".png"));
+                }
+            }
         }
     }
 }
