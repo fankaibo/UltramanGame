@@ -119,6 +119,7 @@ namespace UltramanGame.Runtime
                 var material=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicPlume")));
                 material.SetFloat("_Seed",i*3.71f);cloudMaterials[i]=material;
                 material.SetTexture("_Noise",densityNoise);
+                VolcanicPlumeMotion.Update(material,0);
                 var origin=vents[i];origin.y=Height(origin.x,origin.z);
                 var volume=GameWorld.Primitive("Volumetric volcanic ash",PrimitiveType.Cube,transform,
                     origin+new Vector3(.46f,2.83f,0),new Vector3(3.8f,5.6f,3.2f),material);
@@ -329,7 +330,7 @@ namespace UltramanGame.Runtime
                 float envelope=Mathf.Sin(cycle*Mathf.PI);
                 ventLights[vent].transform.position=origin+Vector3.up*.35f;
                 ventLights[vent].intensity=envelope*2.4f;
-                cloudMaterials[vent].SetFloat("_Clock",time);cloudMaterials[vent].SetFloat("_Surge",envelope);
+                VolcanicPlumeMotion.Update(cloudMaterials[vent],time);cloudMaterials[vent].SetFloat("_Surge",envelope);
             }
             float pulse=.5f+.5f*Mathf.Sin(time*2.15f+.7f);
             float eruption=Mathf.Sin(Mathf.Repeat(time*.82f,2.8f)/2.8f*Mathf.PI);

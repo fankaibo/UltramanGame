@@ -30,7 +30,7 @@ def main():
                 raise RuntimeError('Incomplete frames: ' + side + '/' + subfolder)
         sources[side] = dict(line.rsplit(' ', 1) for line in (capture / 'sources.txt').read_text().splitlines())
         for name, expected in sources[side].items():
-            if side == 'before' and name == 'Resources/VolcanicPlume.shader':
+            if side == 'before' and name in ('Resources/VolcanicPlume.shader', 'Scripts/Runtime/VolcanoStage.cs'):
                 data = subprocess.check_output(['git', 'show', BASELINE + ':unity/Assets/' + name], cwd=ROOT)
             elif side == 'before' and name == 'Editor/VolcanoStageReview.cs':
                 data = (capture / 'VolcanoStageReview.cs').read_bytes()

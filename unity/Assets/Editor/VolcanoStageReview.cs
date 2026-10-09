@@ -31,7 +31,7 @@ namespace UltramanGame.Editor
             camera.depthTextureMode=DepthTextureMode.Depth;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.08f,.10f,.14f);
             camera.transform.position=new Vector3(0,2.8f,-7);camera.transform.LookAt(new Vector3(0,2.8f,0));camera.fieldOfView=45;camera.aspect=1;
             var volume=GameObject.CreatePrimitive(PrimitiveType.Cube);volume.name="Volume depth inspection";volume.transform.position=new Vector3(0,2.8f,0);volume.transform.localScale=new Vector3(3.8f,5.6f,3.2f);
-            var smoke=new Material(Resources.Load<Shader>("VolcanicPlume"));smoke.SetFloat("_Clock",7.1f);smoke.SetFloat("_Surge",.8f);
+            var smoke=new Material(Resources.Load<Shader>("VolcanicPlume"));VolcanicPlumeMotion.Update(smoke,7.1f);smoke.SetFloat("_Surge",.8f);
             var densityNoise=VolcanoStage.CreatePlumeNoise();smoke.SetTexture("_Noise",densityNoise);
             var renderer=volume.GetComponent<Renderer>();renderer.sharedMaterial=smoke;renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
             var blocker=GameObject.CreatePrimitive(PrimitiveType.Cube);blocker.transform.position=new Vector3(0,2.8f,-2.5f);blocker.transform.localScale=new Vector3(8,8,.3f);
@@ -45,12 +45,21 @@ namespace UltramanGame.Editor
             {
                 renderer.enabled=false;var clear=Read("clear");renderer.enabled=true;var visible=Read("visible");var repeat=Read("repeat");
                 int contribution=Changed(clear,visible,9);if(contribution<2000||Changed(visible,repeat,0)!=0)throw new Exception("Smoke missing or changing without time");
-                smoke.SetFloat("_Clock",8.1f);int animated=Changed(visible,Read("later"),6);if(animated<800)throw new Exception("Smoke is static");
+                VolcanicPlumeMotion.Update(smoke,8.1f);int animated=Changed(visible,Read("later"),6);if(animated<800)throw new Exception("Smoke is static");
+                int rollover=0;
+                foreach(int cycle in new[]{1,4,7})
+                {
+                    float seam=cycle*.16f/.085f;
+                    VolcanicPlumeMotion.Update(smoke,seam-.0001f);var prior=Read("rollover-"+cycle+"-before");
+                    VolcanicPlumeMotion.Update(smoke,seam+.0001f);
+                    rollover=Math.Max(rollover,Changed(prior,Read("rollover-"+cycle+"-after"),3));
+                }
+                if(rollover>655)throw new Exception("Smoke jumps when parcel cache rolls over: "+rollover);
                 blocker.SetActive(true);renderer.enabled=false;var blocked=Read("opaque-front");renderer.enabled=true;
                 int leaked=Changed(blocked,Read("opaque-front-smoke"),1);if(leaked!=0)throw new Exception("Smoke draws through foreground geometry: "+leaked);
                 blocker.SetActive(false);camera.transform.position=new Vector3(0,2.8f,0);camera.transform.rotation=Quaternion.identity;
                 renderer.enabled=false;clear=Read("inside-clear");renderer.enabled=true;int inside=Changed(clear,Read("inside-smoke"),9);if(inside<2000)throw new Exception("Volume disappears when camera enters it");
-                report.AppendLine($"GPU: visiblePixels={contribution} animatedPixels={animated} foregroundLeakPixels={leaked} insidePixels={inside} zeroTime=passed");
+                report.AppendLine($"GPU: visiblePixels={contribution} animatedPixels={animated} foregroundLeakPixels={leaked} insidePixels={inside} rolloverPixels={rollover} zeroTime=passed");
                 File.WriteAllText(folder+"/volume-validation.txt",report.ToString());Debug.Log("[VolcanoVolumeChecks] "+report);
             }
             finally {camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(pixels);UnityEngine.Object.DestroyImmediate(smoke);UnityEngine.Object.DestroyImmediate(opaque);UnityEngine.Object.DestroyImmediate(densityNoise);}
@@ -129,6 +138,7 @@ namespace UltramanGame.Editor
                 string outpost=Path.Combine(Application.dataPath,"Resources/Art/Outpost");
                 if(Directory.Exists(outpost))foreach(string file in Directory.GetFiles(outpost))files.Add(file.Substring(Application.dataPath.Length+1));
                 files.Add("Scripts/Runtime/ScannedOutcrops.cs");files.Add("Resources/ScannedRock.shader");files.Add("Editor/ScannedRockImport.cs");
+                files.Add("Scripts/Runtime/VolcanicPlumeMotion.cs");
                 string scans=Path.Combine(Application.dataPath,"Resources/Environment/ScannedRocks");
                 if(Directory.Exists(scans))foreach(string file in Directory.GetFiles(scans))files.Add(file.Substring(Application.dataPath.Length+1));
                 var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())

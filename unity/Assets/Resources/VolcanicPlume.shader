@@ -13,6 +13,8 @@ Shader "Training/VolcanicPlume" {
    UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
    sampler3D _Noise;
    float _Seed,_Clock,_Surge;
+   float _FirstHeight;
+   float4 _ParcelCenters[10],_ParcelRadii[10];
    struct v2f {float4 pos:SV_POSITION;float3 world:TEXCOORD0;float4 screen:TEXCOORD1;};
    v2f vert(appdata_base v){v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.world=mul(unity_ObjectToWorld,v.vertex).xyz;o.screen=ComputeScreenPos(o.pos);return o;}
    float noise(float3 p){
@@ -25,28 +27,20 @@ Shader "Training/VolcanicPlume" {
     // rising parcels instead of recycling a whole column at once. Its radius
     // grows with height; opposing offsets roll the rim away from the core.
     const float spacing=.16;
-    float travel=_Clock*.085;
-    float nearest=floor((h-travel)/spacing);
+    int nearest=(int)floor((h-_FirstHeight)/spacing);
     float3 flow=p*float3(8,10,8)+float3(_Seed,-_Clock*.85,_Seed*.37);
     float broad=noise(flow*.81+float3(1.7,-.8,2.4));
     float detail=noise(flow*1.9+8)*.68+noise(flow*3.87-3)*.32;
     float body=0;
     [unroll] for(int parcel=-1;parcel<=2;parcel++){
-     float id=nearest+parcel;
-     float altitude=id*spacing+travel;
-     float age=saturate(altitude);
-     float phase=id*2.39996+_Seed*1.7;
-     float spread=.035+.225*pow(age,.68);
-     float sway=.018+.070*age;
-     float2 center=float2(-.12+age*.23,0)+
-       float2(sin(phase+age*4.1),cos(phase+age*3.2))*sway;
-     float3 delta=float3(p.x-center.x,h-altitude,p.z-center.y);
-     float3 radius=float3(spread*(1+.14*sin(phase)),.090+.092*age,spread*.91);
+     int id=nearest+parcel;
+     if(id<0||id>=10)continue;
+     float4 center=_ParcelCenters[id];
+     float3 delta=float3(p.x,h,p.z)-center.xyz;
      // Soft union preserves necks between broad caps without a row of balls.
-     float shell=1-length(delta/radius)+(broad-.5)*.62+(detail-.5)*.40;
+     float shell=1-length(delta*_ParcelRadii[id].xyz)+(broad-.5)*.62+(detail-.5)*.40;
      float puff=smoothstep(-.13,.38,shell);
-     float life=smoothstep(-.14,.04,altitude)*(1-smoothstep(.77,1.14,altitude));
-     body=1-(1-body)*(1-puff*life);
+     body=1-(1-body)*(1-puff*center.w);
     }
     // A narrow turbulent throat joins the parcels to the vent. It has no
     // upper radial shell: billows, rather than a cone, define the silhouette.
