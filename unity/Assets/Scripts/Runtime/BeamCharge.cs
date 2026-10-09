@@ -14,7 +14,8 @@ namespace UltramanGame.Runtime
         public float Power {get;private set;}
         public Vector3 Center=>volume.position;
         public float Age {get;private set;}
-        bool mebium,grigio;
+        bool mebium,grigio,atmos;
+        public void SetAtmos(bool value){atmos=value;}
         public void SetGrigio(bool value){grigio=value;volumeMaterial.SetFloat("_RoseBlend",value?1:0);}
         public void SetMebium(bool value){mebium=value;volumeMaterial.SetFloat("_WarmBlend",value?1:0);}
         public BeamCharge(Transform parent)
@@ -58,6 +59,7 @@ namespace UltramanGame.Runtime
             if(mebium&&brace.HasValue)
                 volume.position=Vector3.Lerp(brace.Value,origin,Mathf.SmoothStep(0,1,(Age-.30f)/.80f));
             if(grigio)volume.position=Vector3.Lerp(hands-Vector3.up*.12f,origin,Mathf.SmoothStep(0,1,(Age-.72f)/.38f));
+            if(atmos)volume.position=Vector3.Lerp(hands-Vector3.up*.20f,origin,Mathf.SmoothStep(0,1,(Age-.72f)/.38f));
             volume.rotation=Quaternion.LookRotation(axis,Vector3.up);
             float gathering=Mathf.Sin(Mathf.Clamp01(progress/.8f)*Mathf.PI*.5f);
             float collapse=Mathf.SmoothStep(0,1,(progress-.66f)/.34f);

@@ -13,8 +13,11 @@ namespace UltramanGame.Runtime
         readonly Material material,headMaterial;
         Color tint=new Color(.25f,.72f,1),accent=new Color(.90f,.98f,1);
         bool dual;
+        bool atmos;
+        readonly AtmosWave wave;
+        public AtmosWave Wave=>wave;
         readonly Transform head;
-        public bool Visible=>ribbon.enabled;
+        public bool Visible=>ribbon.enabled||wave.Visible;
         public Vector3 Tip {get;private set;}
         public float Power {get;private set;}
         public static float Travel(float age)=>Mathf.Clamp01((age-LaunchSeconds)/(Battle.BeamHitSeconds-LaunchSeconds));
@@ -22,6 +25,7 @@ namespace UltramanGame.Runtime
             (1-Mathf.SmoothStep(0,1,(age-(Battle.BeamSeconds-.28f))/.28f));
         public BeamStream(Transform parent)
         {
+            wave=new AtmosWave(parent);
             material=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("BeamStream")));
             ribbon=new GameObject("Zeperion traveling stream").AddComponent<LineRenderer>();ribbon.transform.SetParent(parent,false);
             ribbon.sharedMaterial=material;ribbon.positionCount=2;ribbon.numCapVertices=0;ribbon.widthMultiplier=.74f;
@@ -37,15 +41,17 @@ namespace UltramanGame.Runtime
         }
         public void SetProfile(Color beamTint,Color beamAccent,bool twin)
         {tint=beamTint;accent=beamAccent;dual=twin;material.SetColor("_BeamTint",tint);material.SetColor("_BeamAccent",accent);}
-        public void Clear(){ribbon.enabled=false;twinRibbon.enabled=false;head.gameObject.SetActive(false);Power=0;}
+        public void SetAtmos(bool value){if(atmos!=value)Clear();atmos=value;}
+        public void Clear(){ribbon.enabled=false;twinRibbon.enabled=false;head.gameObject.SetActive(false);wave.Clear();Power=0;}
         public void Tick(Camera camera,Vector3 origin,Vector3 target,float age,bool firing,float clock)
         {
             if(!firing){Clear();return;}
             Power=Envelope(age);float travel=Travel(age);
-            Tip=Vector3.Lerp(origin,target,travel);ribbon.enabled=true;
+            Tip=Vector3.Lerp(origin,target,travel);ribbon.enabled=!atmos;
+            wave.Sample(atmos,origin,target,age,tint,accent);
             ribbon.SetPosition(0,origin);ribbon.SetPosition(1,Tip);
             Vector3 lateral=Vector3.Cross(camera.transform.forward,Tip-origin).normalized*.095f;
-            twinRibbon.enabled=dual;
+            twinRibbon.enabled=dual&&!atmos;
             if(dual){twinRibbon.SetPosition(0,origin+lateral);twinRibbon.SetPosition(1,Tip+lateral);}
             ribbon.widthMultiplier=.74f*Mathf.Lerp(.55f,1,Power);
             twinRibbon.widthMultiplier=.52f*Mathf.Lerp(.55f,1,Power);
@@ -53,7 +59,7 @@ namespace UltramanGame.Runtime
             head.gameObject.SetActive(true);head.position=Tip-camera.transform.forward*.025f;head.rotation=camera.transform.rotation;
             float pulse=1+.06f*Mathf.Sin(clock*21);
             head.localScale=Vector3.one*(travel<1?.48f:.95f)*pulse;
-            headMaterial.color=Color.Lerp(tint,accent,.45f)*new Color(1,1,1,Power*(travel<1?.65f:.9f));
+            headMaterial.color=Color.Lerp(tint,accent,.45f)*new Color(1,1,1,Power*(atmos?.20f:travel<1?.65f:.9f));
         }
     }
 }
