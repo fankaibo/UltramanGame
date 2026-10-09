@@ -52,6 +52,8 @@ namespace UltramanGame.Editor
         }
         static void Run(string id,string version)
         {
+            if(!Resources.Load<GameObject>("Characters/"+id+"/"+id))
+            {Debug.Log("[RosterPunchReview] "+id+" skipped: missing skeletal model");return;}
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(270927);
             var world=new GameWorld();var state=new Battle();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
             var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
@@ -67,7 +69,8 @@ namespace UltramanGame.Editor
             var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             var csv=new StringBuilder("frame,action,age,health,leftX,leftY,leftZ,rightX,rightY,rightZ\n");float health=state.EnemyHealth,maxStep=0;var gaps=new float[2];var oldLeft=hero.StrikeOrigin(HeroAction.LeftPunch);var oldRight=hero.HandPosition;int contacts=0;
             var leftShoulder=Bone(hero.Root,"bip_upperArm_L","armBase_L");var rightShoulder=Bone(hero.Root,"bip_upperArm_R","armBase_R");
-            float maxOffhandReach=0,minHandSeparation=100;
+            float maxOffhandReach=0,minHandSeparation=100,maxLocalHandStep=0;
+            Vector3 oldLocalLeft=hero.Root.InverseTransformPoint(oldLeft),oldLocalRight=hero.Root.InverseTransformPoint(oldRight);
             try
             {
                 for(int f=0;f<150;f++)
@@ -76,9 +79,17 @@ namespace UltramanGame.Editor
                     hero.Update(state,world.Camera,dt,t);enemy.Update(state,world.Camera,dt,t);world.Tick(state,dt,t);
                     var left=hero.StrikeOrigin(HeroAction.LeftPunch);var right=hero.HandPosition;
                     maxStep=Mathf.Max(maxStep,Vector3.Distance(left,oldLeft),Vector3.Distance(right,oldRight));oldLeft=left;oldRight=right;
+                    Vector3 localLeft=hero.Root.InverseTransformPoint(left),localRight=hero.Root.InverseTransformPoint(right);
+                    maxLocalHandStep=Mathf.Max(maxLocalHandStep,Vector3.Distance(localLeft,oldLocalLeft),Vector3.Distance(localRight,oldLocalRight));
+                    oldLocalLeft=localLeft;oldLocalRight=localRight;
                     if(state.EnemyHealth<health)
                     {
-                        int side=state.Action==HeroAction.LeftPunch?0:1;gaps[side]=Gap(enemy,hero.StrikeOrigin(state.Action)+world.BattleAxis*.12f);
+                        int side=state.Action==HeroAction.LeftPunch?0:1;
+                        // Mebius's left strike uses the existing wrist sword;
+                        // its blade tip, rather than its hand, reaches the skin.
+                        Vector3 contact=HeroArsenal.Blade(id,state)?hero.BladeOrigin+hero.BladeDirection*HeroBlade.Length:
+                            hero.StrikeOrigin(state.Action)+world.BattleAxis*.12f;
+                        gaps[side]=Gap(enemy,contact);
                         Vector3 active=side==0?left:right,off=side==0?right:left,shoulder=side==0?rightShoulder.position:leftShoulder.position;
                         maxOffhandReach=Mathf.Max(maxOffhandReach,Vector3.Dot(off-shoulder,world.BattleAxis));
                         minHandSeparation=Mathf.Min(minHandSeparation,Vector3.Dot(active-off,world.BattleAxis));
@@ -88,11 +99,13 @@ namespace UltramanGame.Editor
                     csv.AppendLine(FormattableString.Invariant($"{f},{state.Action},{state.ActionAge:F5},{health},{left.x:F5},{left.y:F5},{left.z:F5},{right.x:F5},{right.y:F5},{right.z:F5}"));
                     if(id=="Mebius"&&f%2==0)CharacterReview.Save(world.Camera,target,$"{folder}/frames/{f/2:D4}.png");
                 }
-                string result=$"{version}/{id}: contacts={contacts} leftGap={gaps[0]:F4} rightGap={gaps[1]:F4} maxHandStep={maxStep:F4} offhandReach={maxOffhandReach:F4} handSeparation={minHandSeparation:F4}";
+                string result=$"{version}/{id}: contacts={contacts} leftGap={gaps[0]:F4} rightGap={gaps[1]:F4} maxHandStep={maxStep:F4} maxLocalHandStep={maxLocalHandStep:F4} offhandReach={maxOffhandReach:F4} handSeparation={minHandSeparation:F4}";
                 File.WriteAllText(folder+"/motion.csv",csv.ToString());Debug.Log("[RosterPunchReview] "+result);
                 if(contacts!=2||state.EnemyHealth!=48)throw new Exception("Invalid punch sequence");
                 if(version=="after"&&(gaps[0]>.30f||gaps[1]>.30f||maxStep>.70f))throw new Exception("Roster punch does not reach skin: "+result);
-                if(version=="after"&&at>=0&&id!="Tiga"&&(maxOffhandReach>.34f||minHandSeparation<.40f||maxStep>.45f))throw new Exception("Guard separation or punch continuity failed: "+result);
+                // Keep the world-space cap above. Arm continuity is measured
+                // relative to the actor, separately from the closing footstep.
+                if(version=="after"&&at>=0&&id!="Tiga"&&(maxOffhandReach>.34f||minHandSeparation<.40f||maxLocalHandStep>.45f))throw new Exception("Guard separation or punch continuity failed: "+result);
                 File.WriteAllText(folder+"/validation.txt",result);
             }
             finally{world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);}
