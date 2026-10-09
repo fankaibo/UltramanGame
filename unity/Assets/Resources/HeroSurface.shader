@@ -6,6 +6,9 @@ Shader "Training/HeroSurface" {
   _RimPower("Arcade rim falloff",Range(0.5,8))=3.2 _RimStrength("Arcade rim strength",Range(0,2))=.18
   _TextureArmor("Silver material separation",Range(0,1))=0
   _MicroDetail("Suit micro detail",Range(0,2))=.35
+  [Normal] _AuthoredNormal("Original source normal",2D)="bump"{}
+  _AuthoredSpecular("Original source specular mask",2D)="white"{}
+  _AuthoredNormalScale("Original normal strength",Range(0,1))=.75
   _CostumeFinish("Tiga costume finish",Range(0,1))=0
   _CostumeOcclusion("Local costume cavities",2D)="white"{}
   _SurfaceCavity("Original mesh cavities",2D)="white"{}
@@ -26,6 +29,11 @@ Shader "Training/HeroSurface" {
   CGPROGRAM
   #pragma surface surf Standard fullforwardshadows addshadow keepalpha finalcolor:FadeAdditive
   #pragma target 3.0
+  #pragma multi_compile_local __ _AUTHORED_SURFACE
+  #include "UnityStandardUtils.cginc"
+  #ifdef _AUTHORED_SURFACE
+   sampler2D _AuthoredNormal,_AuthoredSpecular;half _AuthoredNormalScale;
+  #endif
   sampler2D _MainTex,_CostumeOcclusion,_SurfaceCavity;fixed4 _Color,_EmissionColor,_RimColor;float4 _GuardPoint;
   half _CostumeFinish,_SurfaceCavityStrength;
   half4 _GuardColor;half _Metallic,_Glossiness,_TextureArmor,_MicroDetail,_EmissionAudit,_RimPower,_RimStrength;
@@ -125,6 +133,16 @@ Shader "Training/HeroSurface" {
     o.Occlusion=lerp(1,cavity,_SurfaceCavityStrength);
     o.Albedo*=lerp(1,cavity,.26*_SurfaceCavityStrength);
    }
+   #ifdef _AUTHORED_SURFACE
+    // Preserve the source artist's UV-aligned armor seams and fabric relief.
+    // This replaces the estimated color derivative, not an additional bump.
+    o.Normal=UnpackScaleNormal(tex2D(_AuthoredNormal,i.uv_MainTex),_AuthoredNormalScale);
+    // Source's reflection mask is not a PBR roughness map. Use it only to
+    // attenuate existing highlights in the authored dark creases, keeping
+    // the calibrated costume finish on bright regions.
+    float spec=saturate(dot(tex2D(_AuthoredSpecular,i.uv_MainTex).rgb,float3(.30,.59,.11)));
+    o.Smoothness*=lerp(.62,1,spec);o.Metallic*=lerp(.40,1,spec);
+   #endif
    float3 toward=_GuardPoint.xyz-i.worldPos;
    float distanceToLight=length(toward)/max(.01,_GuardPoint.w);
    float facing=smoothstep(-.15,.65,dot(normalize(WorldNormalVector(i,float3(0,0,1))),normalize(toward+float3(0,.00001,0))));

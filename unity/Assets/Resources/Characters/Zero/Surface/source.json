@@ -1,0 +1,66 @@
+{
+  "source_url": "https://sfmlab.com/project/0068ba82-4091-460a-a601-73ff6c5700ba/",
+  "source_author": "TengenGenesic / ultimo; enhancements credited to Perceptor",
+  "blender": "4.5.13 LTS",
+  "maps": [
+    {
+      "source": "artifacts/character-sources/roster/Zero/Ultimate_Zero/materials/models/ultimo/Ultraman_Zero/Ultraman_Zero_nm.vtf",
+      "source_sha256": "d47ba97120e4b8092a04851817220bcefd0bd926412ce41f349e4b0308eabc1b",
+      "output": "ZeroBodyNormal.png",
+      "output_sha256": "1871ca20c457a555fa1dab775e4ae36c4560ee8d707085bd630f270471ea404d",
+      "size": [
+        2048,
+        2048
+      ],
+      "green_inverted": true,
+      "channels_min": [
+        0.0,
+        0.011764705181121826,
+        0.5333333611488342,
+        1.0
+      ],
+      "channels_max": [
+        0.9725490212440491,
+        1.0,
+        0.9725490212440491,
+        1.0
+      ],
+      "channels_mean": [
+        0.4860995691088412,
+        0.5054565679575518,
+        0.9545062999166447,
+        1.0
+      ]
+    },
+    {
+      "source": "artifacts/character-sources/roster/Zero/Ultimate_Zero/materials/models/ultimo/Ultraman_Zero/Ultraman_Zero_spec.vtf",
+      "source_sha256": "accbe8941d2af82c74bd78757329ed4fdff7f2469fef498c6a2d7039b4a6aa3f",
+      "output": "ZeroBodySpecular.png",
+      "output_sha256": "5972dd05c7f48f4030e0b50537b3f290bb2fd07cb1677bc2f741261f28d667e9",
+      "size": [
+        2048,
+        2048
+      ],
+      "green_inverted": false,
+      "channels_min": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "channels_max": [
+        0.9725490212440491,
+        0.9882352948188782,
+        0.9725490212440491,
+        1.0
+      ],
+      "channels_mean": [
+        0.8392886224680913,
+        0.8529430145385322,
+        0.8392886224680913,
+        1.0
+      ]
+    }
+  ],
+  "notes": "Source texture decoding only. Existing UVs, albedo, FBX and rig remain unchanged."
+}

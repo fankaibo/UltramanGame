@@ -509,6 +509,16 @@ namespace UltramanGame.Runtime
                 if(cavity)
                 {mat.SetTexture("_SurfaceCavity",cavity);mat.SetFloat("_SurfaceCavityStrength",.82f);}
             }
+            if(character=="Zero"&&(name=="Zero_Ultraman_Zero"||name=="Zero_Head"||name=="Zero_Sluggers"))
+            {
+                // These three source materials share the same atlas and UVs.
+                // Eyes/timer remain separate emitters; absent data falls back
+                // to the existing costume shader without a missing texture.
+                var normal=Resources.Load<Texture2D>("Characters/Zero/Surface/ZeroBodyNormal");
+                var specular=Resources.Load<Texture2D>("Characters/Zero/Surface/ZeroBodySpecular");
+                if(normal&&specular)
+                {mat.SetTexture("_AuthoredNormal",normal);mat.SetTexture("_AuthoredSpecular",specular);mat.SetFloat("_AuthoredNormalScale",.75f);mat.EnableKeyword("_AUTHORED_SURFACE");}
+            }
             return mat;
         }
         public void SetPresentationOpacity(float opacity)
