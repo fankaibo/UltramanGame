@@ -15,6 +15,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield)
+            {
+                string hand=hero.ReadyLift(true)>.30f&&hero.ReadyLift(false)<0?"left":
+                    hero.ReadyLift(false)>.30f&&hero.ReadyLift(true)<0?"right":null;
+                if(hand!=null&&proofFrames.Add("ready-follow-"+hand))
+                {Debug.Log($"[LiveReadyProof] hand={hand} sequence={pose?.sequence} action={battle.Action}");StartCoroutine(SaveGuidedProof("ready-follow-"+hand));return;}
+            }
             // The phase-entry frame may still show the previous punch. Capture
             // the settled pause too, where an uncorrected Idle folds the arms.
             if(!photo.Active&&battle.Phase==GamePhase.Paused&&Time.unscaledTime-phaseStarted>=.5f&&proofFrames.Add("paused-ready"))

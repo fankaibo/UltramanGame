@@ -19,6 +19,11 @@ namespace UltramanGame.Runtime
         readonly bool monster;
         readonly string heroId;
         readonly HeroEngagementMotion engagement=new HeroEngagementMotion();
+        readonly LiveReadyPose liveReady=new LiveReadyPose();
+        bool liveReadyAllowed;
+        public float ReadyLift(bool left)=>liveReadyAllowed?liveReady.Y(left):0;
+        public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
+        {if(!monster)liveReady.Tick(frame,nowMs,input,state,dt,enabled);}
         Vector3 restHome;
         float ApproachDistance=>CombatSpacing.Approach(Vector3.Distance(restHome,monster&&opponent!=null?opponent.StancePosition:opponentHome));
         public Vector3 StancePosition=>home;
@@ -566,6 +571,7 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            liveReadyAllowed=preview<0&&LiveReadyPose.Ready(state);
             if(preview<0&&dt<=0&&lastSampleValid&&ReferenceEquals(lastSampleBattle,state)&&
                 Mathf.Approximately(lastSampleTime,time)&&lastSamplePhase==state.Phase&&
                 lastSampleEnemy==state.Enemy&&lastSampleAction==state.Action&&
@@ -1849,6 +1855,17 @@ namespace UltramanGame.Runtime
             // elbows and a slightly lower rear hand. Scale to each actual rig.
             Vector3 open=upper.position+forward*(span*(left?.80f:.74f))
                 -side*(sign*span*.06f)-Vector3.up*(span*(left?.25f:.36f));
+            if(liveReadyAllowed)
+            {
+                Vector3 offset=side*liveReady.X(left)+Vector3.up*liveReady.Y(left);
+                if(offset.sqrMagnitude>.000001f)
+                {
+                    Vector3 reach=open-upper.position+offset*span;
+                    // Keep soft, forward elbows even when the camera hand is
+                    // beside the face. No folded wrist or locked straight arm.
+                    open=upper.position+reach.normalized*Mathf.Clamp(reach.magnitude,span*.80f,span*.92f);
+                }
+            }
             float openness=1;
             if(!neutral&&state.IsPunch)
             {

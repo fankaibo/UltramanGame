@@ -126,6 +126,7 @@ def main():
     parser.add_argument('--log',type=Path,default=ROOT/'logs/guided-player.log')
     parser.add_argument('--memory-output',type=Path,help='Write same-process RSS/VSZ samples as TSV and a summary JSON')
     parser.add_argument('--memory-interval',type=float,default=1.0,help='Seconds between process memory samples')
+    parser.add_argument('--ready-follow',action='store_true',help='Move each hand before attacking and verify continuous ready-pose rendering')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
@@ -170,7 +171,7 @@ def main():
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
             initial_selection_done=False;initial_selection_at=0;replay_selection_sent=False;replay_selection_seen=False
-            volley_started=None
+            volley_started=None;ready_started=0
             replay_selection_direction='right'
             beam_release_until=0
             pose_contexts={};gesture_audit=[];guard_entry_contexts=set()
@@ -192,7 +193,7 @@ def main():
                         # right wave would land on the intentionally unavailable
                         # Zeta placeholder and produce no selection event.
                         replay_selection_direction='left' if hero_match.group(1)=='Grigio' else 'right'
-                    if options.gesture_wobble and '[Gesture]' in line and '挥拳' in line:
+                    if (options.gesture_wobble or options.ready_follow) and '[Gesture]' in line and '挥拳' in line:
                         # Log delivery is asynchronous. Attribute each decision
                         # to the pose packet it consumed, not the pose currently
                         # being sent after a Warning/Beam transition.
@@ -229,6 +230,7 @@ def main():
                         if cue=='Resume':guard=False
                         if cue=='Transform' and stage=='replay':replayed=True
                         if cue=='BattleStart' and replayed:replay_battle_at=now
+                        elif cue=='BattleStart' and options.ready_follow:ready_started=now
                     if '[Photo] automatic live viewfinder opened' in line:stage='photo'
                     if '[Photo] automatic capture complete' in line:
                         photos_seen+=1;stage='review';review_at=now
@@ -355,6 +357,16 @@ def main():
                                     if int((now-guard_started)/.8)%2==0:
                                         points[16 if hand==15 else 15].visibility=.1
                                         guard_overlap_frames+=1
+                if options.ready_follow and ready_started and phase=='Battle' and stage=='battle' and now-ready_started<3:
+                    elapsed=now-ready_started;points=landmarks_at(0);protected='ready-follow'
+                    # Explicit hands-down preparation, outside the existing chest guard.
+                    points[15].y=points[16].y=.76
+                    hand=15 if elapsed<.9 else 16 if 1.4<=elapsed<2.4 else None
+                    if hand is not None:
+                        local=elapsed if hand==15 else elapsed-1.4
+                        t=min(1,max(0,local/.35));t=t*t*(3-2*t)
+                        points[hand].y=points[hand].y+(.12-points[hand].y)*t
+                    tempo_started=None;volley_started=None
                 if options.tempo_skills and guard and not beam and now<guard_started:
                     # The tempo fixture rests at chest height and can already
                     # be guarding before Warning. Release that old guard so
@@ -368,7 +380,7 @@ def main():
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
                 publish_at=time.monotonic()
                 frame=factory.make(points)
-                if options.gesture_wobble:pose_contexts[frame['sequence']]=protected
+                if options.gesture_wobble or options.ready_follow:pose_contexts[frame['sequence']]=protected
                 if options.gesture_entry_noise and guard and not beam and 0<=now-guard_started<.7:
                     guard_entry_contexts.add(frame['sequence'])
                 if options.gesture_startup_noise or options.tempo_skills:
@@ -455,12 +467,18 @@ def main():
                 difference=np.abs(np.asarray(saved.convert('RGB').crop(region),dtype=np.int16)-np.asarray(screen.convert('RGB').crop(region),dtype=np.int16))
                 preview_error=float(np.percentile(difference,99))
                 if preview_error>2:raise RuntimeError(f'Photo preview differs from exported PNG: p99={preview_error}')
+            ready_shots=[]
+            if options.ready_follow:
+                ready_shots=['ready-follow-left','ready-follow-right']
+                if unwanted_attacks or any(not (folder/'native'/(name+'.png')).is_file() for name in ready_shots):
+                    raise RuntimeError(f'Ready follow did not render both hands or generated unwanted attacks: {unwanted_attacks}')
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'replay_selection_reset':True,
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
+            if ready_shots:result['ready_follow']={'shots':ready_shots,'unwanted_attacks':unwanted_attacks}
             if tempo_evidence:result['tempo_skills']=tempo_evidence
             result['battle_heroes']=hero_evidence
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
@@ -471,7 +489,7 @@ def main():
             print(json.dumps(result,ensure_ascii=False),flush=True)
         finally:
             stop_process(process)
-            if options.gesture_wobble:
+            if options.gesture_wobble or options.ready_follow:
                 (folder/'gesture-audit.json').write_text(json.dumps(dict(poses=pose_contexts,events=gesture_audit,guard_entry_sequences=sorted(guard_entry_contexts)),ensure_ascii=False,indent=2)+'\n')
             if options.gesture_startup_noise or options.tempo_skills:
                 (folder/'synthetic-poses.jsonl').write_text(''.join(json.dumps(row,separators=(',',':'))+'\n' for row in pose_trace))

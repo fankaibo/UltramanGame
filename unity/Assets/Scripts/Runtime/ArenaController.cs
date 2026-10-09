@@ -279,6 +279,7 @@ namespace UltramanGame.Runtime
             // Sample the contact pose first. The shared impact clock holds its
             // action age on following frames while sparks, light and recoil
             // continue to move. Never freeze the renderer on a pre-contact pose.
+            hero.ObserveReadyPose(pose,now,input,battle,dt,!keyboard&&review==null&&!showcase&&!settings&&!photo.Active);
             hero.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             enemy.Update(showcase?showcaseBattle:battle,world.Camera,dt,Time.unscaledTime,showcase?showcaseFrame:-1);
             if(damage)world.Hit(specialDamage,battle);
