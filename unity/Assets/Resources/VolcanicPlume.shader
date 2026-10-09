@@ -21,37 +21,41 @@ Shader "Training/VolcanicPlume" {
    }
    float density(float3 p){
     float h=p.y+.5;
-    float3 flow=p*float3(6.4,9,6.4)+float3(_Seed,-_Clock*.65,_Seed*.37);
-    // Three noise bands keep the silhouette soft while opening irregular gaps
-    // between puffs.  The low band moves the lobes as a group; the high band
-    // breaks up their edges so the volume does not read as a single cylinder.
-    float coarse=noise(flow*.44+float3(1.7,-.8,2.4));
-    float n=noise(flow)*.52+noise(flow*2.13+8)*.30+noise(flow*4.19-3)*.18;
-    float detail=noise(flow*1.63+float3(-3.2,4.6,1.1));
-    float drift=.035*sin(h*12-_Clock*.32+_Seed)+(.5-coarse)*.065;
-    float2 spine=float2(-.12+h*.23+drift,.015*sin(h*10+_Seed)+(.5-coarse)*.045);
-
-    // Two overlapping, tapering lobes form a broken billow.  Their offsets
-    // trade sides as the plume rises, producing a naturally pinched waist and
-    // a wider, uneven cap instead of one smooth radial shell.
-    float lobePhase=h*10.5-_Clock*.18+coarse*2.4;
-    float2 offset=float2(.085*sin(lobePhase),.045*cos(lobePhase*.83));
-    float lobeBias=.62+.24*smoothstep(.08,.72,h);
-    float radius=.048+pow(saturate(h),.58)*.255;
-    float radiusA=radius*(.84+.13*sin(h*8.2+coarse*4));
-    float radiusB=radius*(.74+.16*cos(h*7.3+coarse*3));
-    float bodyA=1-length((p.xz-(spine+offset))/radiusA);
-    float bodyB=1-length((p.xz-(spine-offset*.72))/radiusB);
-    float body=max(bodyA,bodyB*lobeBias);
-    // Low-frequency noise hollows the center of a few puffs, while detail
-    // noise only erodes the outer shell.  Both are bounded to keep fill rate
-    // close to the original 36-step ray march.
-    float hollow=(coarse-.43)*.45;
-    float shell=body+hollow+(n-.5)*.72+(detail-.5)*.22;
-    float base=smoothstep(0,.035,h);
-    float brokenCap=1-smoothstep(.73,.99,h);
-    float layers=.84+.16*saturate(.5+.5*sin(h*25+coarse*5.5+n*3.0));
-    return saturate(shell*2.45)*base*brokenCap*layers;
+    // Each parcel has a persistent index: the sampling window slides over
+    // rising parcels instead of recycling a whole column at once. Its radius
+    // grows with height; opposing offsets roll the rim away from the core.
+    const float spacing=.16;
+    float travel=_Clock*.085;
+    float nearest=floor((h-travel)/spacing);
+    float3 flow=p*float3(8,10,8)+float3(_Seed,-_Clock*.85,_Seed*.37);
+    float broad=noise(flow*.81+float3(1.7,-.8,2.4));
+    float detail=noise(flow*1.9+8)*.68+noise(flow*3.87-3)*.32;
+    float body=0;
+    [unroll] for(int parcel=-1;parcel<=2;parcel++){
+     float id=nearest+parcel;
+     float altitude=id*spacing+travel;
+     float age=saturate(altitude);
+     float phase=id*2.39996+_Seed*1.7;
+     float spread=.035+.225*pow(age,.68);
+     float sway=.018+.070*age;
+     float2 center=float2(-.12+age*.23,0)+
+       float2(sin(phase+age*4.1),cos(phase+age*3.2))*sway;
+     float3 delta=float3(p.x-center.x,h-altitude,p.z-center.y);
+     float3 radius=float3(spread*(1+.14*sin(phase)),.090+.092*age,spread*.91);
+     // Soft union preserves necks between broad caps without a row of balls.
+     float shell=1-length(delta/radius)+(broad-.5)*.62+(detail-.5)*.40;
+     float puff=smoothstep(-.13,.38,shell);
+     float life=smoothstep(-.14,.04,altitude)*(1-smoothstep(.77,1.14,altitude));
+     body=1-(1-body)*(1-puff*life);
+    }
+    // A narrow turbulent throat joins the parcels to the vent. It has no
+    // upper radial shell: billows, rather than a cone, define the silhouette.
+    float2 throatCenter=float2(-.12+h*.23,0);
+    float throat=1-length(p.xz-throatCenter)/(.040+.14*max(0,h));
+    throat=saturate((throat+(broad-.5)*.50)*2)*(1-smoothstep(.10,.36,h));
+    body=max(body,throat);
+    float erosion=.55+.45*smoothstep(.25,.70,broad*.6+detail*.4);
+    return body*erosion*smoothstep(0,.028,h)*(1-smoothstep(.86,.998,h));
    }
    float4 frag(v2f i):SV_Target {
     float3 ray=normalize(i.world-_WorldSpaceCameraPos);
@@ -72,9 +76,14 @@ Shader "Training/VolcanicPlume" {
      float d=density(p);
      if(d>.005){
       float h=p.y+.5;
-      float lightDensity=density(p+float3(-.055,.045,-.055));
-      float lighting=saturate(.48+(d-lightDensity)*1.8);
-      float3 color=lerp(float3(.043,.047,.056),float3(.25,.28,.32),lighting);
+      float lightDensity=density(p+float3(-.052,.040,-.060));
+      float distantDensity=density(p+float3(-.12,.095,-.14));
+      // A short directional shadow path darkens covered folds. This avoids
+      // lighting every near-facing parcel like white steam. Three lattice
+      // reads per density sample keep it below the previous ten per step.
+      float transmission=exp(-lightDensity*1.6-distantDensity*2.2);
+      float lighting=saturate(.18+transmission*.65+(d-lightDensity)*.8);
+      float3 color=lerp(float3(.050,.055,.065),float3(.40,.425,.46),lighting);
       // Ash swatches are display colors; heat below is emitted radiance.
       #ifndef UNITY_COLORSPACE_GAMMA
        color=GammaToLinearSpace(color);
@@ -83,7 +92,7 @@ Shader "Training/VolcanicPlume" {
       // stay opaque and directional instead of becoming orange fire sprites.
       float heat=pow(saturate(1-h*4.3),2)*(.65+_Surge*.5);
       color+=float3(2.5,.38,.035)*heat*(.35+.65*d);
-      float alpha=1-exp(-d*stride*2.1);
+      float alpha=1-exp(-d*stride*3.0);
       result.rgb+=(1-result.a)*color*alpha;result.a+=(1-result.a)*alpha;
       if(result.a>.985)break;
      }

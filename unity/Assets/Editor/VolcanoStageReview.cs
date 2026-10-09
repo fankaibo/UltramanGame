@@ -112,6 +112,17 @@ namespace UltramanGame.Editor
                 }
                 CharacterReview.Save(world.Camera,target,folder+"/repeat-a.png");stage.Tick(7.1f);CharacterReview.Save(world.Camera,target,folder+"/repeat-b.png");
                 if(!Equal(File.ReadAllBytes(folder+"/repeat-a.png"),File.ReadAllBytes(folder+"/repeat-b.png")))throw new Exception("Frozen stage changes without time");
+                // A close-up sequence reveals rising lobes and birth/death popping
+                // that a single battle screenshot cannot show. Use one clock for
+                // both versions, independently of the battle capture above.
+                Directory.CreateDirectory(folder+"/vent-frames");
+                world.Camera.transform.position=pivot+new Vector3(0,.5f,-6.5f);
+                world.Camera.transform.LookAt(pivot);
+                for(int frame=0;frame<120;frame++)
+                {
+                    stage.Tick(12+frame/30f);
+                    CharacterReview.Save(world.Camera,target,$"{folder}/vent-frames/{frame:D4}.png");
+                }
                 if(state.EnemyHealth!=50||state.HitsTaken!=0||state.Blocks!=1)throw new Exception("Stage capture changed battle result");
                 var files=new System.Collections.Generic.List<string>{"Scripts/Runtime/VolcanoStage.cs","Scripts/Runtime/VolcanicOutpost.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/CinematicCamera.cs","Scripts/Runtime/VolcanicEjecta.cs","Resources/VolcanicBomb.shader","Resources/VolcanicSpark.shader","Resources/MeteorCore.shader","Resources/OutpostSurface.shader","Resources/VolcanoGround.shader","Resources/VolcanicPlume.shader","Resources/VolcanicLava.shader","Editor/VolcanoStageReview.cs","Editor/BasaltTextureImport.cs"};
                 foreach(string file in Directory.GetFiles(Path.Combine(Application.dataPath,"Resources/Art/Basalt")))files.Add(file.Substring(Application.dataPath.Length+1));
@@ -124,7 +135,7 @@ namespace UltramanGame.Editor
                     foreach(string file in files)
                     {string path=Path.Combine(Application.dataPath,file);if(File.Exists(path))sources.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
                 File.WriteAllText(folder+"/sources.txt",sources.ToString());
-                string report=$"{version}: frames=240 samples=480 ventViews=3 repeat=passed health={state.EnemyHealth} blocks={state.Blocks} hurt={state.HitsTaken}";
+                string report=$"{version}: frames=240 samples=480 ventViews=3 ventFrames=120 repeat=passed health={state.EnemyHealth} blocks={state.Blocks} hurt={state.HitsTaken}";
                 File.WriteAllText(folder+"/validation.txt",report);Debug.Log("[VolcanoStageReview] "+report);
             }
             finally {world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);}
