@@ -16,7 +16,9 @@ namespace UltramanGame.Editor
         public static void After()=>Run(false);
         static void Run(bool before)
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/photo-framing/"+(before?"before":"after")));
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--photo-framing-output");
+            string output=at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/photo-framing");
+            string folder=Path.GetFullPath(Path.Combine(output,before?"before":"after"));
             Directory.CreateDirectory(folder);File.Delete(folder+"/validation.txt");var report=new StringBuilder();
             foreach(string id in before?new[]{"Tiga"}:new[]{"Tiga","Mebius","Zero","Geed","Grigio"})
             foreach(int width in id=="Tiga"?new[]{1920,2560}:new[]{1920})

@@ -12,7 +12,11 @@ namespace UltramanGame.Editor
 {
     public static class PhotoHeroReview
     {
-        static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/photo-3d/after"));
+        static string Folder
+        {
+            get {var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--photo-output");
+                return Path.GetFullPath(at>=0&&at+1<args.Length?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/photo-3d/after"));}
+        }
         public static void Run()
         {
             Directory.CreateDirectory(Folder);File.Delete(Folder+"/validation.txt");var report=new StringBuilder();
@@ -56,6 +60,9 @@ namespace UltramanGame.Editor
                         if(mat.HasProperty("_CostumeFinish")&&(mat.GetFloat("_CostumeFinish")!=source.GetFloat("_CostumeFinish")||
                             mat.GetTexture("_CostumeOcclusion")!=source.GetTexture("_CostumeOcclusion")))
                             throw new Exception("Photo lost costume finish: "+id);
+                        if(mat.HasProperty("_SurfaceCavity")&&(mat.GetTexture("_SurfaceCavity")!=source.GetTexture("_SurfaceCavity")||
+                            mat.GetFloat("_SurfaceCavityStrength")!=source.GetFloat("_SurfaceCavityStrength")))
+                            throw new Exception("Photo lost surface cavity: "+id);
                     }
                     foreach(bool portrait in new[]{false,true})
                     {
@@ -95,8 +102,8 @@ namespace UltramanGame.Editor
             foreach(string name in new[]{"half-body.png","full-body.png"})File.Copy(Path.Combine(proportions,name),Folder+"/"+name,true);
             File.WriteAllText(Folder+"/validation.txt",report.ToString());
             var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
-                foreach(string path in new[]{"Scripts/Runtime/PhotoComposition.cs","Scripts/Runtime/PhotoHero.cs","Scripts/Runtime/PhotoLighting.cs","Scripts/Runtime/RuntimeResources.cs","Scripts/Core/PhotoLayout.cs","Scripts/Runtime/RiggedActor.cs","Resources/HeroSurface.shader","Editor/CharacterAssetImport.cs","Editor/PhotoHeroReview.cs","Editor/PhotoReview.cs","Editor/PhotoCompositionChecks.cs"})
-                    sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
+                foreach(string path in new[]{"Scripts/Runtime/PhotoComposition.cs","Scripts/Runtime/PhotoHero.cs","Scripts/Runtime/PhotoLighting.cs","Scripts/Runtime/RuntimeResources.cs","Scripts/Core/PhotoLayout.cs","Scripts/Runtime/RiggedActor.cs","Scripts/Runtime/AnimatedActor.cs","Scripts/Runtime/PhotoGroundShadow.cs","Scripts/Runtime/FootPlantCalibration.cs","Resources/PhotoGroundMask.shader","Resources/PhotoGroundShadow.shader","Resources/HeroSurface.shader","Editor/CharacterAssetImport.cs","Editor/PhotoHeroReview.cs","Editor/PhotoReview.cs","Editor/PhotoCompositionChecks.cs","Editor/PhotoGroundingReview.cs","Editor/PhotoFramingReview.cs"})
+                    if(File.Exists(Path.Combine(Application.dataPath,path)))sources.AppendLine(path+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(Application.dataPath,path)))).Replace("-","").ToLowerInvariant());
             File.WriteAllText(Folder+"/sources.txt",sources.ToString());Debug.Log("[PhotoHeroReview] PASS\n"+report);
         }
         static Texture2D Person(bool portrait,out PoseFrame pose)

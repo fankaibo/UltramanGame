@@ -18,7 +18,7 @@ namespace UltramanGame.Runtime
             try
             {
                 if(!actor.IsRigged)throw new InvalidOperationException("Photo requires the selected 3D hero: "+id);
-                actor.Update(new Battle(),camera,0,0,7);
+                actor.PosePhoto();
                 Transform head=null,left=null,right=null;
                 foreach(var bone in Root.GetComponentsInChildren<Transform>())
                 {

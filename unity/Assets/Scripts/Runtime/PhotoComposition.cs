@@ -44,6 +44,7 @@ namespace UltramanGame.Runtime
                 backgroundQuad=fujiQuad;
                 float scale=Mathf.Max(16f/fuji.width,9f/fuji.height);fujiQuad.localScale=new Vector3(fuji.width*scale,fuji.height*scale,1);fujiQuad.localPosition=new Vector3(0,(fuji.height*scale-9)/2,2);
                 Hero=new PhotoHero(heroId,root.transform,camera);lighting=new PhotoLighting(root.transform);
+                PhotoGroundShadow.Create(root.transform,Hero.Root);
                 person=Layer("Person",null,out personQuad);person.renderQueue=3002;personQuad.gameObject.SetActive(false);
             }
             catch{Dispose();throw;}

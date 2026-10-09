@@ -520,6 +520,34 @@ namespace UltramanGame.Runtime
                 mat.renderQueue=fade?(int)RenderQueue.Transparent:-1;
             }
         }
+        // Photo capture owns a separate actor. Keep the victory upper body,
+        // but plant its boots using the same calibrated soles as combat before
+        // PhotoHero freezes the mesh. Preview sampling alone skips this IK.
+        public void PosePhoto()
+        {
+            var state=new Battle();
+            var leftAnchor=leftFootLocal;var rightAnchor=rightFootLocal;
+            var leftRotation=leftFootRest;var rightRotation=rightFootRest;
+            try
+            {
+                // Tiga's battle clip owns its feet, unlike the retargeted
+                // roster. Calibrate only this photo sample, without changing
+                // the reference soles used by ordinary battle animation.
+                if(!monster&&!retargetedPunch)
+                {
+                    Update(state,0,0,0);
+                    FootPlantCalibration.Apply(Root,leftFoot,surfaces,ref leftFootLocal,ref leftFootRest);
+                    FootPlantCalibration.Apply(Root,rightFoot,surfaces,ref rightFootLocal,ref rightFootRest);
+                }
+                Update(state,0,0,7);
+                if(!monster)PoseRetargetedFootwork(state,true);
+            }
+            finally
+            {
+                leftFootLocal=leftAnchor;rightFootLocal=rightAnchor;
+                leftFootRest=leftRotation;rightFootRest=rightRotation;
+            }
+        }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
             if(preview<0&&dt<=0&&lastSampleValid&&ReferenceEquals(lastSampleBattle,state)&&
@@ -1699,14 +1727,14 @@ namespace UltramanGame.Runtime
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,rightPole.sqrMagnitude>.0001f?rightPole:forward+lateral*.15f,right.y-home.y);
             leftFoot.rotation=lr;rightFoot.rotation=rr;
         }
-        void PoseRetargetedFootwork(Battle state)
+        void PoseRetargetedFootwork(Battle state,bool photo=false)
         {
             if(!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
             var facing=Quaternion.LookRotation(forward);var side=Vector3.Cross(Vector3.up,forward);
             Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
             float lift=0,advance=0,weight=1,stride=PunchTravel(state);
             bool punch=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
-            if(!punch)weight=retargetedPunch||engagement.Active?1:1-Mathf.SmoothStep(0,1,heroRecoveryAge/HeroRecoverySeconds);
+            if(!punch)weight=photo||retargetedPunch||engagement.Active?1:1-Mathf.SmoothStep(0,1,heroRecoveryAge/HeroRecoverySeconds);
             else
             {
                 float age=state.ActionAge;

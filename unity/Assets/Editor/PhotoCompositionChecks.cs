@@ -14,7 +14,8 @@ namespace UltramanGame.Editor
             {
                 var composition=new PhotoComposition();
                 var meshes=composition.Hero.Root.GetComponentsInChildren<MeshFilter>().Select(f=>f.sharedMesh).Where(m=>!EditorUtility.IsPersistent(m)).ToArray();
-                var materials=composition.Hero.Root.GetComponentsInChildren<Renderer>().SelectMany(r=>r.sharedMaterials).Distinct().ToArray();
+                var materials=composition.Hero.Root.parent.GetComponentsInChildren<Renderer>().SelectMany(r=>r.sharedMaterials).Distinct().ToArray();
+                var masks=materials.Select(m=>m.mainTexture).OfType<RenderTexture>().ToArray();
                 var lamps=composition.Hero.Root.parent.GetComponentsInChildren<Light>();
                 try
                 {
@@ -28,7 +29,7 @@ namespace UltramanGame.Editor
                     }
                     composition.Dispose();composition.Dispose();
                     if(composition.Preview)throw new Exception("Photo render target leaked during disposal");
-                    if(meshes.Any(m=>m)||materials.Any(m=>m)||lamps.Any(l=>l))
+                    if(meshes.Any(m=>m)||materials.Any(m=>m)||lamps.Any(l=>l)||masks.Any(m=>m))
                         throw new Exception("Photo resource leak, order="+destructionOrder+" meshes="+string.Join(",",meshes.Where(m=>m).Select(m=>m.name))+
                             " materials="+string.Join(",",materials.Where(m=>m).Select(m=>m.name))+" lights="+string.Join(",",lamps.Where(l=>l).Select(l=>l.name)));
                 }

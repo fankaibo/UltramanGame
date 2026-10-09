@@ -9,6 +9,7 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
+        public void PosePhoto()=>rigged?.PosePhoto();
         public ZeroSluggerRig Sluggers=>rigged?.Sluggers;
         public ZeroTwinShoot TwinShoot=>rigged?.TwinShoot;
         public MebiumShoot Mebium=>rigged?.Mebium;
