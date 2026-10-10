@@ -185,3 +185,7 @@ python3 scripts/guided_player_check.py --gesture-wobble --gesture-entry-noise \
 ## 2026-10-11 A-91 发行回放观察
 
 最终烟团改动发行回放 `artifacts/cinematic-combat/player/20261010T203636101418Z/validation.json` 的两个渲染窗口为 45.4／47.3 FPS；A-90 为 53.7／57.7。两者含同步 PNG 截图，设备连续运行状态未控制，因此只是下降信号，尚不能归因于烟团参数或宣称实际游玩下降相同比例。后续做无截图、同包/同场景、交替旧新参数的受控对比并记录 GPU/CPU 帧时间；不把本轮视觉改动算作 60 FPS 达标。用户要求帧率专项后置仍适用，若出现影响主线的持续卡顿则提前处理。
+
+## 2026-10-11 A-92 同进程三局 RSS
+
+同一 PID 57306 连续运行 369.8 秒，三次完整胜利、四张合成合照、三次续局及第四局开场；184 个 RSS 样本峰值 746.0 MiB、结束 330.0 MiB，逐局战斗后 10 秒中位数 499.0／355.3／313.9 MiB，未观察到逐局增长。首局截图更多，不能将下降称为优化成果。证据 `artifacts/tiga-three-rounds-20261011/memory.tsv` 与 `round-audit.json`。此次补齐同进程自动流程，未覆盖真人摄像头、AI 美化或换角色，也不等于 Unity reserved／图形资源总量或系统监控的 5 GB；完整性能专项继续保留。

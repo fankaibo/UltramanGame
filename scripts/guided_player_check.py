@@ -135,12 +135,14 @@ def main():
     parser.add_argument('--ranged-reaction',action='store_true',help='Require actual ranged recovery step lift, landing and return')
     parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Use the initial left selection gesture to choose this actual hero')
     parser.add_argument('--early-photo-choices',action='store_true',help='Choose during photo narration; require live voice and visible gesture progress')
+    parser.add_argument('--rounds',type=int,default=1,choices=(1,2,3),help='Complete this many rounds in one player process, then enter the next battle')
     parser.add_argument('--same-hero-replay',action='store_true',help='Keep the chosen hero for the next round; verify held replay pose cannot skip the release')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
     options=parser.parse_args()
     if not 60<=options.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
+    if options.rounds>1 and not options.same_hero_replay:parser.error("Multiple rounds require --same-hero-replay")
     if options.body_follow:options.ready_follow=True
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
@@ -186,6 +188,7 @@ def main():
             guard_entries=beam_entry_noise_frames=0
             guard_shape_frames=guard_reacquisitions=0;guard_confirmed=False
             guard_startup_overlap_frames=beam_startup_frames=0
+            completed_rounds=0;round_events=[]
             next_memory_sample=0.0
             tempo_started=None
             while time.monotonic()-started<options.timeout:
@@ -237,6 +240,9 @@ def main():
                             # held pose cannot fire a second beam accidentally.
                             beam_release_until=now+.75
                         if cue in ('Beam','Victory'):beam=False;guard=False
+                        if cue=='Victory':
+                            completed_rounds+=1
+                            round_events.append({'round':completed_rounds,'event':'victory','elapsed_s':round(age,3),'pid':process.pid})
                         if cue=='Warning':
                             guard=True;guard_started=now+(.30 if options.tempo_skills else 0);guard_confirmed=False
                         if cue in ('Block','Hurt'):guard=False
@@ -247,7 +253,13 @@ def main():
                             if options.same_hero_replay and now-replay_started_at<2.3:
                                 raise RuntimeError('Held photo replay gesture skipped fresh release before transformation')
                             replayed=True
-                        if cue=='BattleStart' and replayed:replay_battle_at=now
+                        if cue=='BattleStart' and replayed:
+                            round_events.append({'round':completed_rounds+1,'event':'resumed_battle','elapsed_s':round(age,3),'pid':process.pid})
+                            if completed_rounds>=options.rounds:replay_battle_at=now
+                            else:
+                                stage='battle';replayed=False;tempo_started=None;volley_started=None
+                                beam=False;guard=False;beam_release_until=0
+
                         elif cue=='BattleStart' and options.ready_follow:ready_started=now
                     if '[Photo] automatic live viewfinder opened' in line:stage='photo'
                     if '[Photo] automatic capture complete' in line:
@@ -429,6 +441,7 @@ def main():
                 if photo_at-publish_at>.2:
                     print(f'[GuidedLatency] stage={stage} age={age:.1f} poseMs={(pose_at-publish_at)*1000:.0f} previewMs={(preview_at-pose_at)*1000:.0f} photoMs={(photo_at-preview_at)*1000:.0f}',flush=True)
                 time.sleep(1/30)
+            if completed_rounds!=options.rounds:raise RuntimeError(f'Incomplete rounds: {completed_rounds}/{options.rounds}')
             if not replay_battle_at:raise RuntimeError(f'Guided loop did not complete within {options.timeout:g} seconds')
             if not review_loss_start:raise RuntimeError('Second-review pose dropout was not exercised')
             if not options.same_hero_replay and (not replay_selection_sent or not replay_selection_seen):
@@ -437,11 +450,20 @@ def main():
             for marker in required:
                 if marker not in output:raise RuntimeError('Missing '+marker)
             if re.search(r'NullReferenceException|Shader error|error CS\d',output):raise RuntimeError('Unity runtime error')
+            rounds=re.split(r'(?=\[Game\] cue=BattleStart )',output)[1:]
+            if len(rounds)!=options.rounds+1:raise RuntimeError('Missing next battle after completed rounds')
+            for index,round_log in enumerate(rounds[:-1]):
+                if not re.match(r'\[Game\] cue=BattleStart phase=Battle health=50 energy=0',round_log):
+                    raise RuntimeError(f'Round {index+1} retained prior health/energy')
+                if round_log.count('[Game] cue=Victory ')!=1 or '[Photo] gesture=play-again' not in round_log:
+                    raise RuntimeError(f'Round {index+1} did not finish through photo replay')
+                ids=re.findall(r'\[HeroProjectile\] launch .* sequence=(\d+)',round_log)
+                if len(ids)!=len(set(ids)):raise RuntimeError(f'Duplicate projectile in round {index+1}')
             tempo_evidence=None
             hero_evidence=re.findall(r'\[GuidedProofHero\] battle=([A-Za-z0-9]+)',output)
             if options.hero and (not hero_evidence or hero_evidence[0]!=options.hero):
                 raise RuntimeError(f'Requested hero was not selected through gesture: {options.hero}/{hero_evidence}')
-            if options.same_hero_replay and (len(hero_evidence)!=2 or hero_evidence[0]!=hero_evidence[1]):
+            if options.same_hero_replay and (len(hero_evidence)!=options.rounds+1 or len(set(hero_evidence))!=1):
                 raise RuntimeError(f'Replay changed the selected hero: {hero_evidence}')
             early_choices=None
             if options.early_photo_choices:
@@ -460,7 +482,7 @@ def main():
                 slow=statistics.median(float(row[0]) for row in attacks if row[2]=='LeftPunch')
                 fast=statistics.median(float(row[0]) for row in attacks if row[2]=='RightPunch')
                 if fast<slow*1.25:raise RuntimeError(f'Fast trajectory did not speed up the actual player: {slow}/{fast}')
-                if len(launches)<20 or len({row[2] for row in launches})!=len(launches):
+                if len(launches)<20 or options.rounds==1 and len({row[2] for row in launches})!=len(launches):
                     raise RuntimeError(f'Missing or duplicate remote launches: {launches}')
                 proof_shots={path.stem for path in (folder/'native').glob('*.png')}
                 if not {'light-bullet-left','light-bullet-right'}.issubset(proof_shots):
@@ -497,20 +519,25 @@ def main():
                 if options.gesture_startup_noise and (guard_startup_overlap_frames<4 or beam_startup_frames<20):
                     raise RuntimeError(f'Gesture startup not exercised: guardOverlap={guard_startup_overlap_frames} beamBias={beam_startup_frames}')
             filenames=re.findall(r'\[Photo\] saved source=synthetic size=1920x1080 file=(.+)',output)
-            if len(filenames)!=2 or len(set(filenames))!=2:raise RuntimeError('Expected two distinct TEST photos')
+            if len(filenames)!=options.rounds+1 or len(set(filenames))!=options.rounds+1:raise RuntimeError('Expected one photo per round plus first-round retake')
             for name in filenames:
                 path=Path.home()/'Downloads'/name.strip()
                 data=path.read_bytes()
                 if data[:8]!=b'\x89PNG\r\n\x1a\n':raise RuntimeError('Invalid saved PNG')
                 destination=folder/path.name;path.replace(destination);photos.append(str(destination))
-            with Image.open(photos[0]) as saved,Image.open(folder/'native/photo-Review.png') as screen:
-                if saved.size!=screen.size:raise RuntimeError('Photo preview/export resolution mismatch')
-                # Exclude the title and footer controls. The settled central
-                # review should display exactly the image saved to Downloads.
-                region=(int(saved.width*.05),int(saved.height*.15),int(saved.width*.91),int(saved.height*.83))
-                difference=np.abs(np.asarray(saved.convert('RGB').crop(region),dtype=np.int16)-np.asarray(screen.convert('RGB').crop(region),dtype=np.int16))
-                preview_error=float(np.percentile(difference,99))
-                if preview_error>2:raise RuntimeError(f'Photo preview differs from exported PNG: p99={preview_error}')
+            preview_errors=[]
+            for index,photo_path in enumerate(photos):
+                review_name='photo-Review.png' if index==0 else f'photo-Review-{index+1}.png'
+                with Image.open(photo_path) as saved,Image.open(folder/'native'/review_name) as screen:
+                    if saved.size!=screen.size:raise RuntimeError('Photo preview/export resolution mismatch')
+                    # Exclude the title and footer controls. The settled central
+                    # review should display exactly the image saved to Downloads.
+                    region=(int(saved.width*.05),int(saved.height*.15),int(saved.width*.91),int(saved.height*.83))
+                    difference=np.abs(np.asarray(saved.convert('RGB').crop(region),dtype=np.int16)-np.asarray(screen.convert('RGB').crop(region),dtype=np.int16))
+                    preview_error=float(np.percentile(difference,99))
+                    if preview_error>2:raise RuntimeError(f'Photo preview differs from exported PNG: p99={preview_error}')
+                preview_errors.append(preview_error)
+            preview_error=max(preview_errors)
             ready_shots=[]
             if options.ready_follow:
                 ready_shots=['ready-follow-left','ready-follow-right']
@@ -518,7 +545,7 @@ def main():
                 if unwanted_attacks or any(not (folder/'native'/(name+'.png')).is_file() for name in ready_shots):
                     raise RuntimeError(f'Ready follow did not render both hands or generated unwanted attacks: {unwanted_attacks}')
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',
-                'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
+                'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':len(photos),'completed_rounds':completed_rounds,'player_pid':process.pid,'round_events':round_events,'photo_preview_errors':preview_errors,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'replay_selection_reset':not options.same_hero_replay,
                 'same_hero_replay':options.same_hero_replay,

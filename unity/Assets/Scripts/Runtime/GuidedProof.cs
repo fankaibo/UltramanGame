@@ -305,6 +305,9 @@ namespace UltramanGame.Runtime
                 string kickKey=(battle.ActionAge<Battle.PunchHitSeconds?"kick-chamber":battle.ActionAge<.23f?"kick-contact":battle.ActionAge<.33f?"kick-retract":"kick-setdown")+kickSuffix;
                 if(!proofFrames.Contains(kickKey+(photo.Captures>0?"-after-photo":"")))key=kickKey;
             }
+            // Keep each saved photo's settled preview available for multi-round
+            // proof; a HashSet otherwise captures only the first review.
+            if(photo.Stage==PhotoStage.Review&&photo.Captures>1)key+="-"+photo.Captures;
             if(!photo.Active&&photo.Captures>0)key+="-after-photo";
             if(proofFrames.Contains(key))return;
             proofFrames.Add(key);StartCoroutine(SaveGuidedProof(key));
@@ -313,7 +316,7 @@ namespace UltramanGame.Runtime
         {
             proofBusy=true;
             // Read the settled review image, not the temporary shutter flash.
-            if(key=="photo-Review")yield return new WaitForSecondsRealtime(.35f);
+            if(key.StartsWith("photo-Review"))yield return new WaitForSecondsRealtime(.35f);
             yield return new WaitForEndOfFrame();
             var args=System.Environment.GetCommandLineArgs();int at=System.Array.IndexOf(args,"--proof-output");
             string folder=at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.Combine(System.Environment.CurrentDirectory,"artifacts/guided-arcade/native");Directory.CreateDirectory(folder);
