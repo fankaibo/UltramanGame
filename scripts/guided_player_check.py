@@ -178,6 +178,7 @@ def main():
             volley_started=None;ready_started=0
             replay_selection_direction='right'
             beam_release_until=0
+            beam_reset_releases=0
             pose_contexts={};gesture_audit=[];guard_entry_contexts=set()
             guard_started=0;protected='';unwanted_attacks=0;guard_noise_frames=beam_noise_frames=guard_overlap_frames=0
             guard_entries=beam_entry_noise_frames=0
@@ -190,6 +191,14 @@ def main():
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
                 complete=output.rfind('\n')+1;lines=output[parsed:complete].splitlines();parsed=complete
                 for line in lines:
+                    if '[Instruction] key=beam_reset ' in line and beam:
+                        # A long tracking outage clears the recognizer's old
+                        # release. Follow the actual spoken recovery cue: lower
+                        # both arms, then try again. Never bypass the receiver
+                        # or merely keep a now-unarmed beam pose forever.
+                        beam_release_until=now+2.0
+                        beam_reset_releases+=1
+                        print('[GuidedRecovery] heard beam_reset; lower both arms for 2 seconds',flush=True)
                     hero_match=re.search(r'\[HeroAtlasLights\] hero=([A-Za-z0-9]+)',line)
                     if hero_match:
                         # The release build remembers the last playable hero.
@@ -321,7 +330,7 @@ def main():
                 elif phase=='Battle' and stage=='battle':
                     if beam and now<beam_release_until:
                         # A short neutral/retract window arms the next beam.
-                        points=landmarks_at(4.15)
+                        points=landmarks_at(0)
                     else:
                         points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
                         if options.tempo_skills and not beam and not guard:
@@ -495,6 +504,7 @@ def main():
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'replay_selection_reset':True,
+                'beam_reset_releases':beam_reset_releases,
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if ready_shots:result['ready_follow']={'shots':ready_shots,'unwanted_attacks':unwanted_attacks}
