@@ -124,6 +124,11 @@ def retarget(rig):
     before=set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=str(Path('unity/Assets/Resources/Characters/Tiga/Tiga.fbx').resolve()))
     imported=set(bpy.data.objects)-before;target=next(o for o in imported if o.type=='ARMATURE')
+    # Retargeting reads only the reference skeleton. Its dense meshes otherwise
+    # reskin on every per-bone dependency-graph update despite never being used.
+    for obj in list(imported):
+        if obj.type=='MESH':
+            imported.remove(obj);bpy.data.objects.remove(obj,do_unlink=True)
     target_actions=[a for a in bpy.data.actions if 'Armature.001|' in a.name]
     mapping={'bip_pelvis':'hip','bip_spine_0':'spineLower','bip_spine_1':'spineUpper','bip_spine_2':'spineChest','bip_neck':'neckLower','bip_head':'head'}
     for side in ['L','R']:
@@ -144,6 +149,7 @@ def retarget(rig):
     rig.animation_data_create()
     for a in target_actions:
         name=a.name.split('|')[-1];action=bpy.data.actions.new(name);action.use_fake_user=True
+        print('[RosterRetarget] clip='+name+' frames='+str(tuple(a.frame_range)),flush=True)
         target.animation_data.action=a
         target.animation_data.use_nla=False
         if len(a.slots):target.animation_data.action_slot=a.slots[0]
