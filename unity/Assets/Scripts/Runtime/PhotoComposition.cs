@@ -130,9 +130,11 @@ namespace UltramanGame.Runtime
                 // per-delivery bound removes the visible "pop" from one noisy
                 // matte while the response term still follows a real child
                 // stepping closer or farther away over successive frames.
-                stablePersonScale=PhotoLayout.Smooth(stablePersonScale,layout.PersonScale,.20f,.028f);
+                stablePersonScale=PhotoLayout.SmoothScale(stablePersonScale,layout.PersonScale);
                 stablePersonX=PhotoLayout.Smooth(stablePersonX,layout.PersonX,.24f,.050f);
-                stableShoulderY=PhotoLayout.Smooth(stableShoulderY,layout.ShoulderY,.24f,.050f);
+                // Derive the vertical anchor from the accepted scale, not a
+                // separately lagging target. Feet/portrait edge stay grounded.
+                stableShoulderY=(layout.FullBody?-3.9f:-4.53f)+(shoulder-bounds.yMin)*stablePersonScale;
                 layout.PersonScale=stablePersonScale;layout.PersonX=stablePersonX;layout.ShoulderY=stableShoulderY;
             }
             FullBody=layout.FullBody;
@@ -145,14 +147,20 @@ namespace UltramanGame.Runtime
         {
             var pixels=texture.GetPixels32();int half=Mathf.Max(3,Mathf.RoundToInt(span*.14f));
             int left=Mathf.Clamp(Mathf.RoundToInt(center)-half,0,texture.width-1),right=Mathf.Clamp(Mathf.RoundToInt(center)+half,0,texture.width-1);
-            // Search only the narrow face column above the nose, excluding raised hands beside the head.
-            for(int y=bounds.yMax-1;y>Mathf.Max(bounds.yMin,nose);y--)
+            // Follow the face upward from the nose. Searching down from the
+            // entire silhouette's top mistakes a hand above the head for hair.
+            int start=Mathf.Clamp(Mathf.RoundToInt(nose),bounds.yMin,bounds.yMax-1);
+            int last=-1,gap=0;
+            int gapLimit=Mathf.Max(2,Mathf.RoundToInt(span*.025f));
+            for(int y=start;y<bounds.yMax;y++)
             {
                 int solid=0;for(int x=left;x<=right;x++)if(pixels[y*texture.width+x].a>128)solid++;
-                if(solid>(right-left+1)*.65f)return y+1;
+                if(solid>(right-left+1)*.65f){last=y;gap=0;}
+                else if(++gap>gapLimit)break;
             }
-            return nose+span*.28f;
+            return last>=start?last+1:nose+span*.28f;
         }
+
         static void PlaceBody(Transform quad,Material material,Texture2D texture,RectInt bounds,float scale,float anchorX,float anchorY,float x,float y)
         {
             material.SetVector("_Frame",new Vector4(bounds.x/(float)texture.width,bounds.y/(float)texture.height,bounds.width/(float)texture.width,bounds.height/(float)texture.height));

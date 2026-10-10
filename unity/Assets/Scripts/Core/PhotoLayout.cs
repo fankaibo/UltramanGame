@@ -31,6 +31,14 @@ namespace UltramanGame.Core
             if(delta<-cap)return current-cap;
             return proposed;
         }
+        // Scale is world units per source pixel (typically ~0.02), so an
+        // absolute 0.028 cap exceeds an entire person's scale. Bound its ratio.
+        public static float SmoothScale(float current,float target)
+        {
+            if(float.IsNaN(target)||float.IsInfinity(target)||target<=0)return current;
+            if(float.IsNaN(current)||float.IsInfinity(current)||current<=0)return target;
+            return Smooth(current,target,.20f,current*.025f);
+        }
         public static bool TryFit(PhotoBody person,PhotoBody hero,out PhotoLayout result,bool? fullBodyHint=null)
         {
             result=default;if(!person.Valid||!hero.Valid)return false;

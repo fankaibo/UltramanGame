@@ -52,6 +52,19 @@ static class PhotoLayoutChecks
         }
         check(maxScaleStep<=.028001f,"photo scale rejects one-frame matte jumps");
         check(scale>1.60f,"photo scale still converges during sustained real movement");
+        foreach(float initial in new[]{.008f,.018f,.04f})
+        {
+            float value=initial;
+            for(int i=0;i<48;i++)
+            {
+                float next=PhotoLayout.SmoothScale(value,initial*1.6f);
+                check(Math.Abs(next/value-1)<=.025001f,"source-pixel photo scale caps each delivery at 2.5 percent");
+                value=next;
+            }
+            check(Math.Abs(value/initial-1.6f)<.003f,"real distance compensation converges at camera cadence");
+            check(PhotoLayout.SmoothScale(value,-1)==value,"invalid negative scale is ignored");
+            check(PhotoLayout.SmoothScale(value,float.NaN)==value,"invalid scale target is ignored");
+        }
         float x=3.7f,maxPositionStep=0;
         foreach(float target in new[]{2.1f,4.9f,2.1f,4.9f,2.1f,4.9f})
         {
