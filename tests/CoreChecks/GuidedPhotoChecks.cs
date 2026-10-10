@@ -41,7 +41,7 @@ static class GuidedPhotoChecks
         Feed(false,false,12);check(Feed(true,true,40,false)==PhotoChoice.None,"stale camera frames cannot select another round");
         g.Reset();Feed(false,false,20,selecting:false,wrists:false);
         check(g.Armed,"lowered wrists outside laptop crop arm the menu during narration");
-        check(Feed(true,true,40,selecting:false)==PhotoChoice.None,"narration still prevents early selection");
+        check(Feed(true,true,40,selecting:false)==PhotoChoice.None,"preview settling gate prevents early selection");
         check(Feed(true,true,30)==PhotoChoice.PlayAgain,"raising hands after narrated release starts the next round without a second release");
         g.Reset();Feed(false,false,20,selecting:false);stamp+=300;
         Feed(true,true,20,selecting:false);
@@ -58,5 +58,16 @@ static class GuidedPhotoChecks
         g.Reset();Feed(false,false,12);lastFrame.streamId="replacement";lastFrame.sequence=1;
         g.Update(lastFrame,stamp);
         check(!g.Armed,"replacement camera stream cannot reuse an earlier release");
+        g.Reset();long captureStamp=stamp;
+        Feed(false,false,(int)(PhotoChoiceGesture.PreviewSeconds*20),selecting:false);
+        check(Feed(true,false,41)==PhotoChoice.Retake&&stamp-captureStamp<8000,
+            "released single hand can retake during an eight-second photo narration");
+        g.Reset();captureStamp=stamp;
+        Feed(false,false,(int)(PhotoChoiceGesture.PreviewSeconds*20),selecting:false);
+        check(Feed(true,true,26)==PhotoChoice.PlayAgain&&stamp-captureStamp<8000,
+            "released raised hands can replay during photo narration");
+        g.Reset();Feed(true,true,(int)(PhotoChoiceGesture.PreviewSeconds*20),selecting:false);
+        check(Feed(true,true,30)==PhotoChoice.None,
+            "early photo choices never reuse the held capture pose without lowering hands");
     }
 }

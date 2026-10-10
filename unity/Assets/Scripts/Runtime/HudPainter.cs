@@ -129,6 +129,7 @@ namespace UltramanGame.Runtime
             var ls=Map(.35f,.36f);var rs=Map(.65f,.36f);
             Vector2 le=Map(.22f,.57f),re=Map(.78f,.57f),lw=Map(.28f,.75f),rw=Map(.72f,.75f);
             if(pose=="transform") { le=Map(.17f,.26f);re=Map(.83f,.26f);lw=Map(.25f,.06f+wave*.05f);rw=Map(.75f,.06f+wave*.05f); }
+            if(pose=="retake") { le=Map(.17f,.26f);lw=Map(.25f,.06f); }
             if(pose=="punch") { re=Map(.76f,.40f);rw=Map(.70f+wave*.28f,.33f);lw=Map(.4f,.49f); }
             if(pose=="shield") { lw=Map(.52f,.42f);rw=Map(.48f,.42f);le=Map(.18f,.53f);re=Map(.82f,.53f); }
             if(pose=="beam") { le=Map(.40f,.60f);lw=Map(.40f,.24f);re=Map(.80f,.48f);rw=Map(.41f,.48f); }

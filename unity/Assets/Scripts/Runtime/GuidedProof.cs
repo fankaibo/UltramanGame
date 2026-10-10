@@ -15,6 +15,11 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(photo.Stage==PhotoStage.Review&&photo.ChoicesReady&&photo.ChoiceProgress>.20f)
+            {
+                string choiceKey="photo-choice-"+photo.ChoiceCandidate;
+                if(proofFrames.Add(choiceKey)){StartCoroutine(SaveGuidedProof(choiceKey));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield)
             {
                 string lean=hero.ReadyBodySide<-.30f?"left":hero.ReadyBodySide>.30f?"right":null;

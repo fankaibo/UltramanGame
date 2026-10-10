@@ -39,6 +39,9 @@ namespace UltramanGame.Core
     public enum PhotoChoice {None,Retake,PlayAgain}
     public sealed class PhotoChoiceGesture
     {
+        // A preview pause is enough; narration must not lock a deliberate
+        // released-and-raised choice until the whole sentence finishes.
+        public const double PreviewSeconds=2.5;
         const int ReleaseGraceMs=1000;
         string stream;
         long sequence,stamp;

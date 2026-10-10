@@ -230,9 +230,9 @@ namespace UltramanGame.Runtime
                             lastGuardIntent=input.GuardIntent;lastBeamIntent=input.BeamIntent;
                         }
                     }
-                    catch(ArgumentException) {pose=null;recognizer.Reset();input=default;}
+                    catch(ArgumentException) {pose=null;recognizer.ResetTracking();input=default;}
                 }
-                if(!PoseQuality.Present(pose,now)) {input=default;recognizer.Reset();}
+                if(!PoseQuality.Present(pose,now)) {input=default;recognizer.ResetTracking();}
                 input.Tracking=presence.Update(pose,now);held=input;
                 if(!keyboard&&battle.Phase==GamePhase.Waiting&&!photo.Active&&!settings&&!showcase)
                 {
@@ -403,7 +403,7 @@ namespace UltramanGame.Runtime
         void OpenSettings(bool audio=false)
         {draftMonsterHits=monsterHits;draftDifficulty=recognizer.Difficulty;draftResolution=DisplayPreferences.Quality;
          draftPhotoAi=PlayerPrefs.GetInt("photo.ai",1)==1;audioSettings=audio;videoSettings=false;settings=true;}
-        void CloseSettings(){settings=false;photo.ResumeGuidance();recognizer.Reset();held=default;}
+        void CloseSettings(){settings=false;photo.ResumeGuidance();recognizer.ResetTracking();held=default;}
         void ApplySettings()
         {
             sound.Save();recognizer.Difficulty=draftDifficulty;
@@ -422,7 +422,7 @@ namespace UltramanGame.Runtime
             photo.KeyboardMode=keyboard;
             // Only replace the input source: keep the round, selected hero and
             // any open settings/photo review, while discarding stale gestures.
-            recognizer.Reset();heroSelectionGesture.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
+            recognizer.ResetTracking();heroSelectionGesture.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
             lastTracking=false;gestureFeedbackUntil=0;cursorUntil=Time.unscaledTime+3;
             if(battle.Phase==GamePhase.Waiting&&!photo.Active)
             {sound.Reset();if(!keyboard&&!settings)sound.Speak("arcade_ready",1,GamePhase.Waiting);}

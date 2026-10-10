@@ -134,6 +134,8 @@ def main():
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
     parser.add_argument('--ranged-reaction',action='store_true',help='Require actual ranged recovery step lift, landing and return')
     parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Use the initial left selection gesture to choose this actual hero')
+    parser.add_argument('--early-photo-choices',action='store_true',help='Choose during photo narration; require live voice and visible gesture progress')
+    parser.add_argument('--same-hero-replay',action='store_true',help='Keep the chosen hero for the next round; verify held replay pose cannot skip the release')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
@@ -241,7 +243,10 @@ def main():
                         # Tracking loss cancels the game's unfinished warning.
                         # Do not keep holding a guard for an attack that no longer exists.
                         if cue=='Resume':guard=False
-                        if cue=='Transform' and stage=='replay':replayed=True
+                        if cue=='Transform' and stage=='replay':
+                            if options.same_hero_replay and now-replay_started_at<2.3:
+                                raise RuntimeError('Held photo replay gesture skipped fresh release before transformation')
+                            replayed=True
                         if cue=='BattleStart' and replayed:replay_battle_at=now
                         elif cue=='BattleStart' and options.ready_follow:ready_started=now
                     if '[Photo] automatic live viewfinder opened' in line:stage='photo'
@@ -273,7 +278,7 @@ def main():
                 if stage=='review':
                     # Wait through spoken preview instructions, lower hands to rearm,
                     # then retake once and select another round with both hands.
-                    if now-review_at<5:
+                    if now-review_at<(2.8 if options.early_photo_choices else 5):
                         points[15].visibility=points[16].visibility=.1
                     # A delivery outage longer than one second deliberately
                     # invalidates the old release gate. If no choice was made,
@@ -282,7 +287,7 @@ def main():
                     # the fresh release and full selection hold are valid.
                     review_age=now-review_at
                     retry_release=review_age>=20 and (review_age-20)%12<3
-                    if review_age>6 and not retry_release:
+                    if review_age>(2.8 if options.early_photo_choices else 6) and not retry_release:
                         points=landmarks_at(2.5)
                         if photos_seen==1:
                             points[16].y=.61
@@ -301,7 +306,9 @@ def main():
                     # the deliberate carousel pose visible long enough for a
                     # fresh packet to reach HeroSelectionGesture; this does
                     # not alter the game's own hold/release rules.
-                    if replay_age<6.0:
+                    if options.same_hero_replay:
+                        points=landmarks_at(2.5 if replay_age<1 or replay_age>=2.3 else 0)
+                    elif replay_age<6.0:
                         points=landmarks_at(0)
                     elif replay_age<8.8:
                         replay_selection_sent=True;points=selection_landmarks(replay_selection_direction)
@@ -401,7 +408,7 @@ def main():
                     points=landmarks_at(0);protected='';tempo_started=None
                 if stage=='photo' and not interrupted and '[Photo] countdown=4' in output:
                     interrupted=True;loss_start=now
-                if stage=='review' and photos_seen==2 and now-review_at>7 and not review_loss_start:
+                if stage=='review' and photos_seen==2 and now-review_at>(3.2 if options.early_photo_choices else 7) and not review_loss_start:
                     review_loss_start=now
                     print('[GuidedRecovery] interrupt second-review poses for 450 ms after hands-down release',flush=True)
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
@@ -424,7 +431,7 @@ def main():
                 time.sleep(1/30)
             if not replay_battle_at:raise RuntimeError(f'Guided loop did not complete within {options.timeout:g} seconds')
             if not review_loss_start:raise RuntimeError('Second-review pose dropout was not exercised')
-            if not replay_selection_sent or not replay_selection_seen:
+            if not options.same_hero_replay and (not replay_selection_sent or not replay_selection_seen):
                 raise RuntimeError(f'Photo replay did not restore hero selection: sent={replay_selection_sent} seen={replay_selection_seen}')
             required=['live cutout displayed','countdown interrupted','gesture=retake','gesture=play-again','automatic capture complete']
             for marker in required:
@@ -434,6 +441,16 @@ def main():
             hero_evidence=re.findall(r'\[GuidedProofHero\] battle=([A-Za-z0-9]+)',output)
             if options.hero and (not hero_evidence or hero_evidence[0]!=options.hero):
                 raise RuntimeError(f'Requested hero was not selected through gesture: {options.hero}/{hero_evidence}')
+            if options.same_hero_replay and (len(hero_evidence)!=2 or hero_evidence[0]!=hero_evidence[1]):
+                raise RuntimeError(f'Replay changed the selected hero: {hero_evidence}')
+            early_choices=None
+            if options.early_photo_choices:
+                early_choices=re.findall(r'\[PhotoChoice\] accepted=(Retake|PlayAgain) reviewAge=([\d.]+) voicePlaying=(True|False)',output)
+                if {row[0] for row in early_choices}!={'Retake','PlayAgain'} or any(row[2]!='True' for row in early_choices):
+                    raise RuntimeError(f'Choices did not respond during spoken guidance: {early_choices}')
+                for action in ('Retake','PlayAgain'):
+                    if not (folder/'native'/f'photo-choice-{action}.png').is_file():
+                        raise RuntimeError('Missing visible photo choice progress: '+action)
             if options.tempo_skills:
                 attacks=re.findall(r'\[AttackTempo\] ranged=True speed=([\d.]+) duration=([\d.]+) side=(LeftPunch|RightPunch)',output)
                 launches=re.findall(r'\[HeroProjectile\] launch side=(LeftPunch|RightPunch) speed=([\d.]+) sequence=(\d+)',output)
@@ -503,13 +520,15 @@ def main():
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':2,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
-                'replay_battle_started':True,'replay_selection_reset':True,
+                'replay_battle_started':True,'replay_selection_reset':not options.same_hero_replay,
+                'same_hero_replay':options.same_hero_replay,
                 'beam_reset_releases':beam_reset_releases,
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if ready_shots:result['ready_follow']={'shots':ready_shots,'unwanted_attacks':unwanted_attacks}
             if tempo_evidence:result['tempo_skills']=tempo_evidence
             result['battle_heroes']=hero_evidence
+            if early_choices:result['early_photo_choices']=[dict(action=a,review_seconds=float(s),during_voice=v=='True') for a,s,v in early_choices]
             if options.gesture_entry_noise:result['gesture_entry_noise']={'guards_acquired_before_700ms':guard_entries,'beam_noise_frames':beam_entry_noise_frames}
             if options.gesture_shape_noise:result['gesture_shape_noise']={'frames':guard_shape_frames,'unexpected_reacquisitions':guard_reacquisitions}
             if options.gesture_startup_noise:result['gesture_startup_noise']={'guard_overlap_frames':guard_startup_overlap_frames,'beam_bias_frames':beam_startup_frames}

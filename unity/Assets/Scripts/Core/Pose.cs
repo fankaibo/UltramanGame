@@ -150,8 +150,14 @@ namespace UltramanGame.Core
         // skipped before the child can see or hear the hero selection.
         public void Reset(bool requireTransformRelease)
         {
-            stream=null; lastSequence=lastStamp=0;
             transformReleaseRequired=requireTransformRelease;
+            ResetTracking();
+        }
+        // Missing/invalid camera frames are not a hands-down gesture. Keep
+        // the round's release latch while discarding stale motion history.
+        public void ResetTracking()
+        {
+            stream=null; lastSequence=lastStamp=0;
             ClearGestures();
         }
         void ClearGestures()

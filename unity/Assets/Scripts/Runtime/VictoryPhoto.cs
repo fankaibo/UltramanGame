@@ -29,7 +29,7 @@ namespace UltramanGame.Runtime
         bool enhancementReady,showEnhanced=true,comparePhotos;
         float enhancementMeanDelta,enhancementChangedPct,enhancementSubjectMeanDelta;
         int previousNumber;
-        double flashUntil,nextGuide,reviewReadyAt,nextSaveRetry;
+        double flashUntil,nextGuide,reviewReadyAt,reviewStartedAt,nextSaveRetry;
         public bool Active=>session.Stage!=PhotoStage.Closed;
         public PhotoStage Stage=>session.Stage;
         public bool HasLivePerson=>freshPerson;
@@ -39,6 +39,8 @@ namespace UltramanGame.Runtime
         public RenderTexture LivePicture=>composition?.Preview;
         public Texture SavedPicture=>saved;
         public float ChoiceProgress=>choice.Progress;
+        public PhotoChoice ChoiceCandidate=>choice.Candidate;
+        public bool ChoicesReady=>Stage==PhotoStage.Review&&Now>=reviewReadyAt;
         LocalPhotoEnhancement enhancement;
         public VictoryPhoto(int port,GameAudio sound=null) {this.port=port;this.sound=sound;}
         double Now=>Time.realtimeSinceStartupAsDouble;
@@ -89,9 +91,11 @@ namespace UltramanGame.Runtime
                     else message=enhancement.Status;
                     enhancement=null;
                 }
-                // Observe the hands-down release DURING the spoken review;
-                // only selecting a menu item waits for the narration to finish.
+                // Narration explains the choices; it does not disable them.
+                // A new hands-down release and a fresh full hold are still required.
                 var selected=choice.Update(pose,now,Now>=reviewReadyAt);
+                if(selected!=PhotoChoice.None)
+                    Debug.Log($"[PhotoChoice] accepted={selected} reviewAge={(Now-reviewStartedAt):F2} voicePlaying={sound?.VoicePlaying??false}");
                 if(selected==PhotoChoice.Retake) {Debug.Log("[Photo] gesture=retake");Prepare();}
                 if(selected==PhotoChoice.PlayAgain)
                 {Debug.Log("[Photo] gesture=play-again");Close();PlayAgainRequested=true;}
@@ -144,12 +148,9 @@ namespace UltramanGame.Runtime
                 // is no longer needed for review.
                 if(frame!=null)frame.Png=null;
                 choice.Reset();
-                // The narration already tells the player to lower then raise
-                // their hands.  A second multi-second grace period made the
-                // next round feel stuck; keep only a short buffer after the
-                // voice ends, while PhotoChoiceGesture still requires a fresh
-                // neutral interval before accepting the raised-hands pose.
-                reviewReadyAt=Now+Math.Max(2.5,Say("photo_saved")+.45);
+                reviewStartedAt=Now;
+                Say("photo_saved");
+                reviewReadyAt=reviewStartedAt+PhotoChoiceGesture.PreviewSeconds;
                 Debug.Log($"[Photo] automatic capture complete; frozen review; choiceReadyIn={(reviewReadyAt-Now):F2}s; hands-down gate active");
             }
             catch(UnityException e)
@@ -228,14 +229,18 @@ namespace UltramanGame.Runtime
             if(review)
             {
                 hud.Text(new Rect(32,617,600,30),message,17,HudPainter.Cyan);
-                bool reading=Now<reviewReadyAt;
+                bool reading=!ChoicesReady;
                 hud.Text(new Rect(32,647,1216,24),reading?"先放下双手，慢慢欣赏我们的合照":!choice.Armed?"先放下双手，再举高开始下一局":"单手举高重拍 · 双手举高再玩一次",18,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 if(KeyboardMode)
                 {
                     if(hud.Button(new Rect(378,677,244,32),"再拍一张 · 空格",HudPainter.Cyan,15))Retake();
                     if(hud.Button(new Rect(656,677,244,32),"再玩一次 · Enter",HudPainter.Gold,15))PlayAgain();
                 }
-                hud.Bar(new Rect(460,714,360,3),reading?0:choice.Progress,HudPainter.Gold);
+                else
+                {
+                    DrawChoice(hud,new Rect(284,675,344,42),PhotoChoice.Retake,"重拍一张","单手举高",HudPainter.Cyan);
+                    DrawChoice(hud,new Rect(652,675,344,42),PhotoChoice.PlayAgain,"再玩一次","双手举高",HudPainter.Gold);
+                }
             }
             else
             {
@@ -259,6 +264,16 @@ namespace UltramanGame.Runtime
             }
             float flash=(float)((flashUntil-Now)/.22);
             if(flash>0)hud.Box(new Rect(0,0,1280,720),new Color(1,1,1,Mathf.Clamp01(flash)*.55f));
+        }
+        void DrawChoice(HudPainter hud,Rect r,PhotoChoice option,string title,string instruction,Color accent)
+        {
+            bool active=ChoicesReady&&choice.Candidate==option;
+            Color color=ChoicesReady&&choice.Armed?accent:HudPainter.Muted;
+            hud.Rounded(r,active?new Color(accent.r,accent.g,accent.b,.18f):new Color(.04f,.10f,.16f,.90f),7);
+            hud.Figure(new Rect(r.x+12,r.y+2,36,36),option==PhotoChoice.Retake?"retake":"transform",0,color);
+            hud.Text(new Rect(r.x+62,r.y+3,135,31),title,20,color,bold:true);
+            hud.Text(new Rect(r.x+211,r.y+5,124,26),active?"识别到了 · 保持":instruction,13,color);
+            hud.Bar(new Rect(r.x+62,r.yMax-5,r.width-74,3),active?choice.Progress:0,color);
         }
         static void Corners(HudPainter hud,Rect r,Color color)
         {

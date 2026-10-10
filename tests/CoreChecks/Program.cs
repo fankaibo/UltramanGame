@@ -89,6 +89,18 @@ static class Program
             Check(Holds(r,"raised",50,x=>x.Transform)==0,"new round cannot reuse the photo hands-up pose");
             Holds(r,"neutral",20,x=>false);
             Check(Holds(r,"raised",50,x=>x.Transform)==1,"new round transforms after a fresh hands-down release");
+            r.Reset(requireTransformRelease:true);
+            // Restart clears the current pose; the runtime resets tracking
+            // until the first camera packet arrives. That must not unlock it.
+            for(int i=0;i<3;i++)r.ResetTracking();
+            Check(Holds(r,"raised",50,x=>x.Transform)==0,"empty camera frames after replay preserve the release gate");
+            r.Update(null,stamp);r.ResetTracking();
+            var changed=Pose("raised");changed.streamId="reconnected";r.Update(changed,stamp);
+            Check(Holds(r,"raised",50,x=>x.Transform)==0,"tracking loss and stream replacement cannot release a held replay pose");
+            Holds(r,"neutral",20,x=>false);
+            Check(Holds(r,"raised",50,x=>x.Transform)==1,"reconnected replay transforms after actual hands-down release");
+            var firstLaunch=new GestureRecognizer();firstLaunch.ResetTracking();
+            Check(Holds(firstLaunch,"raised",50,x=>x.Transform)==1,"first launch still accepts its initial deliberate raised-hands gesture");
             r.Update(null,stamp);Check(!Feed(r,"beam").Beam,"tracking loss clears held gesture");
             TrackingRegressions();
             FriendlyMotionRegressions();
