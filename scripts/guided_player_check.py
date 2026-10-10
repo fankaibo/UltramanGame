@@ -127,6 +127,7 @@ def main():
     parser.add_argument('--memory-output',type=Path,help='Write same-process RSS/VSZ samples as TSV and a summary JSON')
     parser.add_argument('--memory-interval',type=float,default=1.0,help='Seconds between process memory samples')
     parser.add_argument('--ready-follow',action='store_true',help='Move each hand before attacking and verify continuous ready-pose rendering')
+    parser.add_argument('--body-follow',action='store_true',help='Also lean in both directions and verify the displayed torso follows without accidental attacks')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
@@ -136,6 +137,7 @@ def main():
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
     options=parser.parse_args()
+    if options.body_follow:options.ready_follow=True
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     if options.volley_camera and not options.tempo_skills:parser.error('--volley-camera requires --tempo-skills')
@@ -357,7 +359,7 @@ def main():
                                     if int((now-guard_started)/.8)%2==0:
                                         points[16 if hand==15 else 15].visibility=.1
                                         guard_overlap_frames+=1
-                if options.ready_follow and ready_started and phase=='Battle' and stage=='battle' and now-ready_started<3:
+                if options.ready_follow and ready_started and phase=='Battle' and stage=='battle' and now-ready_started<(6.5 if options.body_follow else 3):
                     elapsed=now-ready_started;points=landmarks_at(0);protected='ready-follow'
                     # Explicit hands-down preparation, outside the existing chest guard.
                     points[15].y=points[16].y=.76
@@ -366,6 +368,13 @@ def main():
                         local=elapsed if hand==15 else elapsed-1.4
                         t=min(1,max(0,local/.35));t=t*t*(3-2*t)
                         points[hand].y=points[hand].y+(.12-points[hand].y)*t
+                    if options.body_follow and elapsed>=3:
+                        local=elapsed-3
+                        smooth=lambda t: max(0,min(1,t))**2*(3-2*max(0,min(1,t)))
+                        lean=smooth(local/.4) if local<1.1 else 1-2*smooth((local-1.1)/.9) if local<2.6 else -1+smooth((local-2.6)/.5)
+                        for index in (0,11,12,13,14,15,16):points[index].x+=lean*.13
+                        points[11].y+=lean*.035;points[12].y-=lean*.035
+                        protected='body-follow'
                     tempo_started=None;volley_started=None
                 if options.tempo_skills and guard and not beam and now<guard_started:
                     # The tempo fixture rests at chest height and can already
@@ -470,6 +479,7 @@ def main():
             ready_shots=[]
             if options.ready_follow:
                 ready_shots=['ready-follow-left','ready-follow-right']
+                if options.body_follow:ready_shots+=['ready-body-left','ready-body-right']
                 if unwanted_attacks or any(not (folder/'native'/(name+'.png')).is_file() for name in ready_shots):
                     raise RuntimeError(f'Ready follow did not render both hands or generated unwanted attacks: {unwanted_attacks}')
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',

@@ -22,6 +22,7 @@ namespace UltramanGame.Runtime
         readonly LiveReadyPose liveReady=new LiveReadyPose();
         bool liveReadyAllowed;
         public float ReadyLift(bool left)=>liveReadyAllowed?liveReady.Y(left):0;
+        public float ReadyBodySide=>liveReadyAllowed?liveReady.BodySide:0;
         public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
         {if(!monster)liveReady.Tick(frame,nowMs,input,state,dt,enabled);}
         Vector3 restHome;
@@ -157,6 +158,8 @@ namespace UltramanGame.Runtime
         readonly Quaternion[] stepLegRotations=new Quaternion[6];
         bool punchWeightApplied;
         Quaternion punchHipBase;
+        bool readyBodyApplied;
+        Quaternion readyPelvisBase,readySpineBase,readyHeadBase;
         readonly Dictionary<string,Transform> clawBones=new Dictionary<string,Transform>();
         readonly Transform[,,] clawFingers=new Transform[4,2,2];
         readonly Transform[,] clawThumbs=new Transform[2,2];
@@ -728,6 +731,8 @@ namespace UltramanGame.Runtime
                 leftThigh.localRotation=stepLegRotations[0];leftShin.localRotation=stepLegRotations[1];leftFoot.localRotation=stepLegRotations[2];
                 rightThigh.localRotation=stepLegRotations[3];rightShin.localRotation=stepLegRotations[4];rightFoot.localRotation=stepLegRotations[5];stepLegsApplied=false;
             }
+            if(readyBodyApplied)
+            {pelvis.localRotation=readyPelvisBase;upperSpine.localRotation=readySpineBase;head.localRotation=readyHeadBase;readyBodyApplied=false;}
             if(punchWeightApplied){pelvis.localRotation=punchHipBase;punchWeightApplied=false;}
             if(stepArmsApplied)
             {
@@ -1233,6 +1238,7 @@ namespace UltramanGame.Runtime
             if(!monster&&!kick&&preview<0&&state.Phase==GamePhase.Battle&&!state.Shield&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  state.Action==HeroAction.None&&punchLink.Weight>0))PosePunchWeight(state);
+            if(!monster&&!kick&&preview<0)PoseLiveReadyBody(state);
             if(retargetArms)
             {
                 if(!relaxedReady&&counterReach&&state.IsPunch&&!state.IsRangedPunch&&!kick&&!comboStrike&&!HeroArsenal.Blade(heroId,state))PoseCounterReach(state);
@@ -1729,6 +1735,30 @@ namespace UltramanGame.Runtime
             Root.position-=Vector3.up*drop;stepDrop+=drop;
             PoseLimb(leftThigh,leftShin,leftFoot,lf,1,forward-side*.15f,leftFootLocal.y);
             PoseLimb(rightThigh,rightShin,rightFoot,rf,1,forward+side*.15f,rightFootLocal.y);
+            leftFoot.rotation=lr;rightFoot.rotation=rr;
+        }
+        void PoseLiveReadyBody(Battle state)
+        {
+            if(!pelvis||!upperSpine||!head||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
+            float weight=liveReadyAllowed||state.Phase==GamePhase.Paused?1:state.Phase==GamePhase.Battle&&(state.IsPunch||state.Shield)?
+                1-Mathf.SmoothStep(0,1,clipAge/.10f):0;
+            float lean=liveReady.BodySide*weight,tilt=liveReady.BodyTilt*weight;
+            if(Mathf.Abs(lean)+Mathf.Abs(tilt)<.0001f)return;
+            var lateral=Vector3.Cross(Vector3.up,forward);
+            var lf=leftFoot.position;var rf=rightFoot.position;var lr=leftFoot.rotation;var rr=rightFoot.rotation;
+            var lp=leftShin.position-(leftThigh.position+lf)*.5f;var rp=rightShin.position-(rightThigh.position+rf)*.5f;
+            SaveStepLegs();readyPelvisBase=pelvis.localRotation;readySpineBase=upperSpine.localRotation;readyHeadBase=head.localRotation;readyBodyApplied=true;
+            Root.position+=lateral*(lean*.23f)-Vector3.up*(Mathf.Abs(lean)*.04f);
+            pelvis.rotation=Quaternion.AngleAxis(-3*lean,forward)*pelvis.rotation;
+            float roll=-13*lean+9*tilt;
+            upperSpine.rotation=Quaternion.AngleAxis(roll,forward)*upperSpine.rotation;
+            head.rotation=Quaternion.AngleAxis(-roll*.65f,forward)*head.rotation;
+            // Move the weight above the current soles; no skating, travelling
+            // or changes to the gameplay stance/contact coordinate system.
+            float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,lf),LegDrop(rightThigh,rightShin,rightFoot,rf));
+            Root.position-=Vector3.up*drop;stepDrop+=drop;
+            PoseLimb(leftThigh,leftShin,leftFoot,lf,1,lp.sqrMagnitude>.0001f?lp:forward-lateral*.15f,lf.y-home.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,rf,1,rp.sqrMagnitude>.0001f?rp:forward+lateral*.15f,rf.y-home.y);
             leftFoot.rotation=lr;rightFoot.rotation=rr;
         }
         void PosePunchWeight(Battle state)

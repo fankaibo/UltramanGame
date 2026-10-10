@@ -10,6 +10,9 @@ namespace UltramanGame.Core
         string stream;
         long sequence=-1;
         float lx,ly,rx,ry,txl,tyl,txr,tyr;
+        float bodySide,bodyTilt,targetSide,targetTilt;
+        public float BodySide=>bodySide;
+        public float BodyTilt=>bodyTilt;
         public float X(bool left)=>left?lx:rx;
         public float Y(bool left)=>left?ly:ry;
         public static bool Ready(Battle state)=>state!=null&&
@@ -19,24 +22,25 @@ namespace UltramanGame.Core
         {
             if(float.IsNaN(dt)||float.IsInfinity(dt)||dt<=0)return;
             if(!ReferenceEquals(observed,state))
-            {observed=state;stream=null;sequence=-1;lx=ly=rx=ry=txl=tyl=txr=tyr=0;}
+            {observed=state;stream=null;sequence=-1;lx=ly=rx=ry=txl=tyl=txr=tyr=bodySide=bodyTilt=targetSide=targetTilt=0;}
             // A confirmation hold is still preparation: keep showing the
             // hands until the actual shield/beam animation takes ownership.
             bool valid=enabled&&input.Tracking&&Ready(state)&&PoseQuality.Present(frame,nowMs);
             if(valid)
             {
-                if(frame.streamId!=stream){stream=frame.streamId;sequence=-1;txl=tyl=txr=tyr=0;}
+                if(frame.streamId!=stream){stream=frame.streamId;sequence=-1;txl=tyl=txr=tyr=targetSide=targetTilt=0;}
                 if(frame.sequence>sequence)
                 {
                     sequence=frame.sequence;
                     float width=PoseQuality.Distance(frame.points[11],frame.points[12]);
                     Target(frame.points[11],frame.points[15],width,out txl,out tyl);
                     Target(frame.points[12],frame.points[16],width,out txr,out tyr);
+                    BodyTarget(frame.points,width,out targetSide,out targetTilt);
                 }
             }
             else
             {
-                txl=tyl=txr=tyr=0;
+                txl=tyl=txr=tyr=targetSide=targetTilt=0;
                 // Re-enable from a fresh sample, including a frame retained
                 // across input-mode changes; stale frames still fail freshness.
                 sequence=-1;
@@ -44,6 +48,20 @@ namespace UltramanGame.Core
             float blend=1-(float)Math.Exp(-Math.Min(dt,.1f)/.10f);
             lx+=(txl-lx)*blend;ly+=(tyl-ly)*blend;
             rx+=(txr-rx)*blend;ry+=(tyr-ry)*blend;
+            float bodyBlend=1-(float)Math.Exp(-Math.Min(dt,.1f)/.14f);
+            bodySide+=(targetSide-bodySide)*bodyBlend;bodyTilt+=(targetTilt-bodyTilt)*bodyBlend;
+        }
+        static float DeadZone(float value,float limit)=>Math.Sign(value)*Math.Max(0,Math.Min(limit,Math.Abs(value))-.025f);
+        static void BodyTarget(PosePoint[] p,float width,out float side,out float tilt)
+        {
+            side=tilt=0;if(width<.08f)return;
+            // The shoulder slope is visible even in a half-body camera crop.
+            // Hip-relative lean deliberately ignores whole-person translation.
+            tilt=DeadZone((p[11].y-p[12].y)/width,.40f);
+            if(!PoseQuality.Reliable(p[23])||!PoseQuality.Reliable(p[24])||
+                PoseQuality.Distance(p[23],p[24])<width*.35f||
+                (p[23].y+p[24].y-p[11].y-p[12].y)*.5f<width*.5f)return;
+            side=DeadZone(-(p[11].x+p[12].x-p[23].x-p[24].x)*.5f/width,.60f);
         }
         static void Target(PosePoint shoulder,PosePoint wrist,float width,out float x,out float y)
         {

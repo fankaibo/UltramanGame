@@ -17,6 +17,9 @@ namespace UltramanGame.Runtime
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield)
             {
+                string lean=hero.ReadyBodySide<-.30f?"left":hero.ReadyBodySide>.30f?"right":null;
+                if(lean!=null&&proofFrames.Add("ready-body-"+lean))
+                {Debug.Log($"[LiveBodyProof] side={lean} value={hero.ReadyBodySide:F3} sequence={pose?.sequence} action={battle.Action}");StartCoroutine(SaveGuidedProof("ready-body-"+lean));return;}
                 string hand=hero.ReadyLift(true)>.30f&&hero.ReadyLift(false)<0?"left":
                     hero.ReadyLift(false)>.30f&&hero.ReadyLift(true)<0?"right":null;
                 if(hand!=null&&proofFrames.Add("ready-follow-"+hand))

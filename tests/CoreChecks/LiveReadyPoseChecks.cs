@@ -18,6 +18,7 @@ static class LiveReadyPoseChecks
     {
         foreach(int hz in new[]{15,30,60})
         {
+            BodyChecks(check,hz);
             var b=Start();var a=new LiveReadyPose();var scaled=new LiveReadyPose();float dt=1f/hz;long stamp=100000;var input=new PlayerInput{Tracking=true};
             for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Frame(stamp,.12f),stamp,input,b,dt,true);scaled.Tick(Frame(stamp,.12f,scale:.55f),stamp,input,b,dt,true);}
             check(a.Y(true)>.44f&&a.Y(false)<0&&a.X(true)<0&&a.X(false)>0,"live ready respects separate anatomical left and right "+hz);
@@ -52,5 +53,47 @@ static class LiveReadyPoseChecks
             }
             check(accidental==0,"live ready demonstration preserves real gesture ownership "+hz);
         }
+    }
+    static PoseFrame Lean(long stamp,float lean=1,float scale=1,float translation=0,bool hips=true)
+    {
+        var p=Frame(stamp,.76f,.76f);
+        foreach(int i in new[]{0,11,12,13,14,15,16})p.points[i].x+=lean*.13f;
+        p.points[11].y+=lean*.035f;p.points[12].y-=lean*.035f;
+        for(int i=0;i<p.points.Length;i++)
+        {p.points[i].x=.5f+(p.points[i].x-.5f)*scale+translation;p.points[i].y=.5f+(p.points[i].y-.5f)*scale;}
+        if(!hips)p.points[23].visibility=p.points[24].visibility=.1f;
+        return p;
+    }
+    static void BodyChecks(Action<bool,string> check,int hz)
+    {
+        var b=Start();var a=new LiveReadyPose();var scaled=new LiveReadyPose();var moved=new LiveReadyPose();
+        var input=new PlayerInput{Tracking=true};float dt=1f/hz;long stamp=400000;
+        for(int f=0;f<hz;f++)
+        {stamp+=1000/hz;a.Tick(Lean(stamp),stamp,input,b,dt,true);scaled.Tick(Lean(stamp,scale:.55f),stamp,input,b,dt,true);moved.Tick(Lean(stamp,translation:.05f),stamp,input,b,dt,true);}
+        check(a.BodySide<-.38f&&a.BodyTilt>.19f,"ready body follows lean and shoulder slope "+hz);
+        check(Math.Abs(a.BodySide-scaled.BodySide)<.0001f&&Math.Abs(a.BodyTilt-scaled.BodyTilt)<.0001f,"ready body camera scale invariant "+hz);
+        check(Math.Abs(a.BodySide-moved.BodySide)<.0001f,"whole-person translation does not change body lean "+hz);
+        float held=a.BodySide;
+        foreach(float time in new[]{0f,-1f,float.NaN,float.PositiveInfinity})a.Tick(Lean(++stamp,-1),stamp,input,b,time,true);
+        check(a.BodySide==held,"invalid delta cannot move ready body "+hz);
+        var stale=Lean(stamp);for(int f=0;f<hz;f++)a.Tick(stale,stamp+400+f*1000/hz,input,b,dt,true);
+        check(Math.Abs(a.BodySide)<.001f&&Math.Abs(a.BodyTilt)<.001f,"stale body sample releases "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Lean(stamp,-1),stamp,input,b,dt,true);}
+        check(a.BodySide>.38f&&a.BodyTilt<-.19f,"body responds symmetrically to opposite lean "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Lean(stamp,hips:false),stamp,input,b,dt,true);}
+        check(Math.Abs(a.BodySide)<.001f&&a.BodyTilt>.19f,"cropped hips preserve visible shoulder slope "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Lean(stamp),stamp,input,b,dt,false);}
+        check(Math.Abs(a.BodyTilt)<.001f,"keyboard mode releases body "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Lean(stamp,.02f),stamp,input,b,dt,true);}
+        check(Math.Abs(a.BodySide)<.001f&&Math.Abs(a.BodyTilt)<.001f,"camera jitter remains within body dead zone "+hz);
+        var invalid=Lean(++stamp);invalid.points[23].x=float.NaN;a.Tick(invalid,stamp,input,b,dt,true);
+        check(!float.IsNaN(a.BodySide),"invalid hip cannot poison body "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Lean(stamp),stamp,new PlayerInput{Tracking=true,BeamIntent=true},b,dt,true);}
+        check(a.BodySide<-.38f&&b.Punches==0&&b.Energy==0,"body display cannot score or cancel skill intent "+hz);
+        b.Tick(dt,new PlayerInput{Tracking=true,Shield=true});
+        for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Lean(stamp),stamp,input,b,dt,true);}
+        check(Math.Abs(a.BodySide)<.001f,"accepted guard owns body animation "+hz);
+        a.Tick(Lean(++stamp),stamp,input,Start(),dt,false);
+        check(a.BodySide==0&&a.BodyTilt==0,"new battle clears body offset "+hz);
     }
 }

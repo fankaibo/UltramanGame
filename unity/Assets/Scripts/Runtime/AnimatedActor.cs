@@ -12,6 +12,7 @@ namespace UltramanGame.Runtime
         public float ReadyLift(bool left)=>rigged?.ReadyLift(left)??0;
         public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
             =>rigged?.ObserveReadyPose(frame,nowMs,input,state,dt,enabled);
+        public float ReadyBodySide=>rigged?.ReadyBodySide??0;
         public void PosePhoto()=>rigged?.PosePhoto();
         public ZeroSluggerRig Sluggers=>rigged?.Sluggers;
         public ZeroTwinShoot TwinShoot=>rigged?.TwinShoot;
