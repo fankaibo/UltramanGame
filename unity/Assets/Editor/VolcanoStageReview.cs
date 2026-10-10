@@ -66,6 +66,7 @@ namespace UltramanGame.Editor
         }
         static void Render(string version)
         {
+            string extension=Array.IndexOf(Environment.GetCommandLineArgs(),"--review-jpeg")>=0?"jpg":"png";
             var bloomProbe=RenderTexture.GetTemporary(64,64,0);
             Debug.Log("[StageBloomSampling] temporaryFilter="+bloomProbe.filterMode);
             RenderTexture.ReleaseTemporary(bloomProbe);
@@ -103,7 +104,7 @@ namespace UltramanGame.Editor
                     foreach(var scan in scannedSurfaces)foreach(var body in bodies)
                         if(scan.bounds.Intersects(body.bounds))throw new Exception("Scanned terrain overlaps an actor: "+scan.transform.parent.name+" / "+body.name);
                     samples.AppendLine(FormattableString.Invariant($"{frame},{state.Enemy},{state.EnemyAge:F4},{state.EnemyHealth},{state.Blocks},{state.HitsTaken}"));
-                    if(frame%2==0)CharacterReview.Save(world.Camera,target,$"{folder}/frames/{frame/2:D4}.png");
+                    if(frame%2==0)CharacterReview.Save(world.Camera,target,$"{folder}/frames/{frame/2:D4}.{extension}");
                     if(frame==180||frame==420)CharacterReview.Save(world.Camera,target,$"{folder}/battle-{frame}.png");
                 }
                 File.WriteAllText(folder+"/sequence.csv",samples.ToString());
@@ -130,7 +131,7 @@ namespace UltramanGame.Editor
                 for(int frame=0;frame<120;frame++)
                 {
                     stage.Tick(12+frame/30f);
-                    CharacterReview.Save(world.Camera,target,$"{folder}/vent-frames/{frame:D4}.png");
+                    CharacterReview.Save(world.Camera,target,$"{folder}/vent-frames/{frame:D4}.{extension}");
                 }
                 if(state.EnemyHealth!=50||state.HitsTaken!=0||state.Blocks!=1)throw new Exception("Stage capture changed battle result");
                 var files=new System.Collections.Generic.List<string>{"Scripts/Runtime/VolcanoStage.cs","Scripts/Runtime/VolcanicOutpost.cs","Scripts/Runtime/GameWorld.cs","Scripts/Runtime/CinematicCamera.cs","Scripts/Runtime/VolcanicEjecta.cs","Resources/VolcanicBomb.shader","Resources/VolcanicSpark.shader","Resources/MeteorCore.shader","Resources/OutpostSurface.shader","Resources/VolcanoGround.shader","Resources/VolcanicPlume.shader","Resources/VolcanicLava.shader","Editor/VolcanoStageReview.cs","Editor/BasaltTextureImport.cs"};

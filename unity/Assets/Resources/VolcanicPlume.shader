@@ -28,7 +28,9 @@ Shader "Training/VolcanicPlume" {
     // grows with height; opposing offsets roll the rim away from the core.
     const float spacing=.16;
     int nearest=(int)floor((h-_FirstHeight)/spacing);
-    float3 flow=p*float3(8,10,8)+float3(_Seed,-_Clock*.85,_Seed*.37);
+    // Faster small eddies ride inside slower rising billows. Preserve the
+    // three cached texture reads per density evaluation.
+    float3 flow=p*float3(11,14,11)+float3(_Seed,-_Clock*.85,_Seed*.37);
     float broad=noise(flow*.81+float3(1.7,-.8,2.4));
     float detail=noise(flow*1.9+8)*.68+noise(flow*3.87-3)*.32;
     float body=0;
@@ -39,7 +41,7 @@ Shader "Training/VolcanicPlume" {
      float3 delta=float3(p.x,h,p.z)-center.xyz;
      // Soft union preserves necks between broad caps without a row of balls.
      float shell=1-length(delta*_ParcelRadii[id].xyz)+(broad-.5)*.62+(detail-.5)*.40;
-     float puff=smoothstep(-.13,.38,shell);
+     float puff=smoothstep(-.08,.24,shell);
      body=1-(1-body)*(1-puff*center.w);
     }
     // A narrow turbulent throat joins the parcels to the vent. It has no
@@ -48,7 +50,9 @@ Shader "Training/VolcanicPlume" {
     float throat=1-length(p.xz-throatCenter)/(.040+.14*max(0,h));
     throat=saturate((throat+(broad-.5)*.50)*2)*(1-smoothstep(.10,.36,h));
     body=max(body,throat);
-    float erosion=.55+.45*smoothstep(.25,.70,broad*.6+detail*.4);
+    // The old .55 density floor filled every pocket, making a smooth
+    // grey tube after integration. Let eddies excavate translucent folds.
+    float erosion=lerp(.28,1.05,smoothstep(.26,.68,broad*.58+detail*.42));
     return body*erosion*smoothstep(0,.028,h)*(1-smoothstep(.86,.998,h));
    }
    float4 frag(v2f i):SV_Target {
@@ -76,8 +80,8 @@ Shader "Training/VolcanicPlume" {
       // lighting every near-facing parcel like white steam. Three lattice
       // reads per density sample keep it below the previous ten per step.
       float transmission=exp(-lightDensity*1.6-distantDensity*2.2);
-      float lighting=saturate(.18+transmission*.65+(d-lightDensity)*.8);
-      float3 color=lerp(float3(.050,.055,.065),float3(.40,.425,.46),lighting);
+      float lighting=saturate(.10+transmission*.78+(d-lightDensity)*1.25);
+      float3 color=lerp(float3(.035,.042,.055),float3(.46,.49,.54),lighting);
       // Ash swatches are display colors; heat below is emitted radiance.
       #ifndef UNITY_COLORSPACE_GAMMA
        color=GammaToLinearSpace(color);

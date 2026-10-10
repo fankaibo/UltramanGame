@@ -181,3 +181,7 @@ python3 scripts/guided_player_check.py --gesture-wobble --gesture-entry-noise \
 
 - 失败 420 秒与成功 319.1 秒两轮均有长发布间隙（最大 14.701／10.906 秒），同时存在 Python 预览／照片发布耗时和 Unity 长帧。不能将全部异常归为游戏显示层，也不能仅凭系统交换量下结论。
 - 同进程 RSS 峰值分别 775.6／1014.9 MiB；成功后的新局进入 Battle 又出现追踪暂停。本次只补流程证据，不验收稳定 60 FPS、不宣布内存任务解决。游戏原始日志、姿态包和内存采样位于 `artifacts/live-body-20261010/guided-recheck/` 与 `guided-cue-recovery/`。
+
+## 2026-10-11 A-91 发行回放观察
+
+最终烟团改动发行回放 `artifacts/cinematic-combat/player/20261010T203636101418Z/validation.json` 的两个渲染窗口为 45.4／47.3 FPS；A-90 为 53.7／57.7。两者含同步 PNG 截图，设备连续运行状态未控制，因此只是下降信号，尚不能归因于烟团参数或宣称实际游玩下降相同比例。后续做无截图、同包/同场景、交替旧新参数的受控对比并记录 GPU/CPU 帧时间；不把本轮视觉改动算作 60 FPS 达标。用户要求帧率专项后置仍适用，若出现影响主线的持续卡顿则提前处理。

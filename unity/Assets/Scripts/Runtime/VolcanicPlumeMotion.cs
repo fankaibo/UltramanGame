@@ -26,12 +26,12 @@ namespace UltramanGame.Runtime
                 int id=first+i;
                 float altitude=id*Spacing+travel,age=Mathf.Clamp01(altitude);
                 float phase=id*2.39996f+seed*1.7f;
-                float spread=.035f+.225f*Mathf.Pow(age,.68f),sway=.018f+.070f*age;
-                Centers[i]=new Vector4(-.12f+age*.23f+Mathf.Sin(phase+age*4.1f)*sway,
+                float spread=.035f+.225f*Mathf.Pow(age,.68f),sway=.020f+.090f*age;
+                Centers[i]=new Vector4(-.12f+age*.19f+Mathf.Sin(phase+age*4.1f)*sway,
                     altitude,Mathf.Cos(phase+age*3.2f)*sway,
                     Ease(-.14f,.04f,altitude)*(1-Ease(.77f,1.14f,altitude)));
-                Radii[i]=new Vector4(1/(spread*(1+.14f*Mathf.Sin(phase))),
-                    1/(.090f+.092f*age),1/(spread*.91f),0);
+                Radii[i]=new Vector4(1/(spread*(1+.27f*Mathf.Sin(phase))),
+                    1/(.090f+.080f*age),1/(spread*.91f),0);
             }
             material.SetFloat(ClockId,time);material.SetFloat(FirstId,first*Spacing+travel);
             material.SetVectorArray(CentersId,Centers);material.SetVectorArray(RadiiId,Radii);
