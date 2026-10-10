@@ -20,13 +20,13 @@ namespace UltramanGame.Editor
             var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--photo-motion-output");
             string folder=Path.GetFullPath(args[at+1]);Directory.CreateDirectory(folder);
             var csv=new StringBuilder("case,frame,scale,crown,shoulder,heroScale,stepFraction,bottom\n");
-            foreach(string scenario in new[]{"overhead","matte-noise","head-gap","distance","pose-gap"})
+            foreach(string scenario in new[]{"overhead","matte-noise","head-gap","distance","pose-gap","double-noise","wide-pose"})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 using(var photo=new PhotoComposition(1280,720))
                 {
                     var heroScale=photo.Hero.Root.localScale;var heroPosition=photo.Hero.Root.localPosition;
-                    float previous=0,reference=0,maxStep=0,maxCrownError=0,maxFloorError=0;
+                    float previous=0,reference=0,maxStep=0,maxCrownError=0,maxFloorError=0,maxScaleDrift=0,wideRatio=1;
                     for(int frame=0;frame<48;frame++)
                     {
                         var texture=Input(scenario,frame,out var pose);
@@ -36,6 +36,8 @@ namespace UltramanGame.Editor
                             float scale=Value(photo,"stablePersonScale"),crown=Value(photo,"lastCrown");
                             float step=previous==0?0:Math.Abs(scale/previous-1);maxStep=Math.Max(maxStep,step);
                             if(frame==0)reference=scale;
+                            maxScaleDrift=Math.Max(maxScaleDrift,Math.Abs(scale/reference-1));
+                            if(frame==31)wideRatio=scale/reference;
                             if((scenario=="overhead"||scenario=="head-gap"||scenario=="pose-gap"))maxCrownError=Math.Max(maxCrownError,Math.Abs(crown-329));
                             var quad=(Transform)typeof(PhotoComposition).GetField("personQuad",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(photo);
                             float bottom=quad.localPosition.y-quad.localScale.y/2;maxFloorError=Math.Max(maxFloorError,Math.Abs(bottom+3.9f));
@@ -47,7 +49,10 @@ namespace UltramanGame.Editor
                         }
                         finally{UnityEngine.Object.DestroyImmediate(texture);}
                     }
-                    Debug.Log($"[PhotoMotionReview] {scenario} maxStep={maxStep:R} crownError={maxCrownError:R} finalScaleRatio={previous/reference:R} floorError={maxFloorError:R}");
+                    Debug.Log($"[PhotoMotionReview] {scenario} maxStep={maxStep:R} crownError={maxCrownError:R} finalScaleRatio={previous/reference:R} floorError={maxFloorError:R} maxScaleDrift={maxScaleDrift:R} wideRatio={wideRatio:R}");
+                    if(verify&&(scenario=="matte-noise"||scenario=="double-noise")&&maxScaleDrift>.001f)throw new Exception("Transient matte changed person size: "+scenario);
+                    if(verify&&scenario=="wide-pose"&&wideRatio>.85f)throw new Exception("Sustained wide pose did not fit");
+                    if(verify&&scenario=="distance"&&(wideRatio<1.06f||Math.Abs(previous/reference-1)>.02f))throw new Exception("Distance compensation failed");
                     if(verify&&(maxFloorError>.001f||maxStep>.02501f||((scenario=="overhead"||scenario=="head-gap"||scenario=="pose-gap")&&(maxCrownError>2||Math.Abs(previous/reference-1)>.001))))
                         throw new Exception("Photo scale/crown stability failed: "+scenario);
                 }
@@ -66,9 +71,9 @@ namespace UltramanGame.Editor
             // A lifted arm remains beside the head. The other hand crosses above
             // it, separated by clear air; body size and total bounds stay fixed.
             Rect(395,240,25,175,shirt);Rect(390,415,35,20,skin);
-            if(scenario!="matte-noise"&&scenario!="distance"&&frame>=8&&frame<32)Rect(292,392,56,28,skin);
+            if(scenario!="matte-noise"&&scenario!="double-noise"&&scenario!="wide-pose"&&scenario!="distance"&&frame>=8&&frame<32)Rect(292,392,56,28,skin);
             // Alternating segmentation outliers widen the matte, not the body.
-            if(scenario=="matte-noise"&&frame%2==1)Rect(40,240,30,25,shirt);
+            if((scenario=="matte-noise"&&frame%2==1)||(scenario=="double-noise"&&frame%5>=3)||(scenario=="wide-pose"&&frame>=8&&frame<32))Rect(40,240,30,25,shirt);
             if(scenario=="head-gap"&&frame>=8&&frame<32)Rect(290,310,60,2,new Color32(0,0,0,0));
             var p=new PosePoint[33];for(int i=0;i<33;i++)p[i]=new PosePoint(.5f,.5f,0);
             p[0]=new PosePoint(.5f,1-290f/480);p[11]=new PosePoint(1-272f/640,1-250f/480);p[12]=new PosePoint(1-368f/640,1-250f/480);

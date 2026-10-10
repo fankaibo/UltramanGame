@@ -24,6 +24,7 @@ namespace UltramanGame.Runtime
         // or away from the hero during the live viewfinder.
         bool layoutMeasured;
         float stablePersonScale,stablePersonX,stableShoulderY;
+        readonly PhotoScaleTarget scaleTarget=new PhotoScaleTarget();
         bool? committedFullBody;
         public bool FullBody {get;private set;}
         bool disposed,dirty=true;
@@ -113,6 +114,8 @@ namespace UltramanGame.Runtime
             // full-body measurement float a newly cropped camera frame.
             bool? fitHint=cropped?(bool?)false:committedFullBody??measuredFullBody;
             if(!PhotoLayout.TryFit(personBody,Hero.Body,out var layout,fitHint))return false;
+            bool acceptedTarget=scaleTarget.Accept(layout.PersonScale);
+            layout.PersonScale=scaleTarget.Value;
             if(!layoutMeasured)
             {
                 committedFullBody=layout.FullBody;
@@ -131,7 +134,9 @@ namespace UltramanGame.Runtime
                 // matte while the response term still follows a real child
                 // stepping closer or farther away over successive frames.
                 stablePersonScale=PhotoLayout.SmoothScale(stablePersonScale,layout.PersonScale);
-                stablePersonX=PhotoLayout.Smooth(stablePersonX,layout.PersonX,.24f,.050f);
+                // A rejected wider silhouette must not pull a family portrait
+                // sideways while its scale is held for confirmation.
+                stablePersonX=PhotoLayout.Smooth(stablePersonX,acceptedTarget?layout.PersonX:stablePersonX,.24f,.050f);
                 // Derive the vertical anchor from the accepted scale, not a
                 // separately lagging target. Feet/portrait edge stay grounded.
                 stableShoulderY=(layout.FullBody?-3.9f:-4.53f)+(shoulder-bounds.yMin)*stablePersonScale;
@@ -168,7 +173,7 @@ namespace UltramanGame.Runtime
             quad.localPosition=new Vector3(x+(bounds.center.x-anchorX)*scale,y+(bounds.center.y-anchorY)*scale,0);
         }
         public void ResetFraming()
-        {bodyMeasured=false;measuredFullBody=null;layoutMeasured=false;committedFullBody=null;stablePersonScale=stablePersonX=stableShoulderY=0;}
+        {bodyMeasured=false;measuredFullBody=null;layoutMeasured=false;committedFullBody=null;stablePersonScale=stablePersonX=stableShoulderY=0;scaleTarget.Reset();}
         public void HidePerson()
         {
             if(!personQuad.gameObject.activeSelf)return;

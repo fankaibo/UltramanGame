@@ -2,6 +2,26 @@ using System;
 
 namespace UltramanGame.Core
 {
+    // At an 8 Hz cutout cadence, one or two bad silhouettes must not slowly
+    // ratchet the person smaller. Confirm large target changes over three
+    // deliveries (~250 ms); ordinary distance tracking remains immediate.
+    public sealed class PhotoScaleTarget
+    {
+        public float Value {get;private set;}
+        float candidate;
+        int count;
+        public bool Accept(float target)
+        {
+            if(float.IsNaN(target)||float.IsInfinity(target)||target<=0)return false;
+            if(Value<=0||Math.Abs(target/Value-1)<=.08f)
+            {Value=target;count=0;return true;}
+            if(count==0||Math.Abs(target/candidate-1)>.04f)
+            {candidate=target;count=1;return false;}
+            if(++count<3)return false;
+            Value=target;count=0;return true;
+        }
+        public void Reset(){Value=0;candidate=0;count=0;}
+    }
     public struct PhotoBody
     {
         public float Left,Right,Bottom,Top,Center,Shoulder,Crown;

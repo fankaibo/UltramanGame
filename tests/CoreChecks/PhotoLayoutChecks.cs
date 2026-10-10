@@ -65,6 +65,22 @@ static class PhotoLayoutChecks
             check(PhotoLayout.SmoothScale(value,-1)==value,"invalid negative scale is ignored");
             check(PhotoLayout.SmoothScale(value,float.NaN)==value,"invalid scale target is ignored");
         }
+        var targetFilter=new PhotoScaleTarget();targetFilter.Accept(.02f);
+        float filtered=.02f;
+        for(int i=0;i<80;i++)
+        {
+            targetFilter.Accept(i%5>=3?.013f:.02f);
+            filtered=PhotoLayout.SmoothScale(filtered,targetFilter.Value);
+        }
+        check(Math.Abs(filtered-.02f)<.000001f,"repeated one/two-frame wide matte errors cannot ratchet person smaller");
+        targetFilter.Reset();targetFilter.Accept(.02f);
+        check(!targetFilter.Accept(.013f)&&!targetFilter.Accept(.0132f)&&targetFilter.Accept(.0131f),
+            "a sustained wider person/group is accepted after three consistent deliveries");
+        for(int i=0;i<48;i++)filtered=PhotoLayout.SmoothScale(filtered,targetFilter.Value);
+        check(Math.Abs(filtered/.0131f-1)<.003f,"confirmed group scale converges instead of locking photo size");
+        check(!targetFilter.Accept(float.NaN)&&!targetFilter.Accept(-1),"invalid framing targets are ignored");
+        targetFilter.Reset();
+        check(targetFilter.Accept(.04f)&&targetFilter.Value==.04f,"retake starts with fresh distance and scale");
         float x=3.7f,maxPositionStep=0;
         foreach(float target in new[]{2.1f,4.9f,2.1f,4.9f,2.1f,4.9f})
         {
