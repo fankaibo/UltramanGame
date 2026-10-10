@@ -266,7 +266,14 @@ def main():
                     # then retake once and select another round with both hands.
                     if now-review_at<5:
                         points[15].visibility=points[16].visibility=.1
-                    if now-review_at>6:
+                    # A delivery outage longer than one second deliberately
+                    # invalidates the old release gate. If no choice was made,
+                    # model lowering then raising again rather than holding a
+                    # now-disarmed pose forever. The game still decides whether
+                    # the fresh release and full selection hold are valid.
+                    review_age=now-review_at
+                    retry_release=review_age>=20 and (review_age-20)%12<3
+                    if review_age>6 and not retry_release:
                         points=landmarks_at(2.5)
                         if photos_seen==1:
                             points[16].y=.61
