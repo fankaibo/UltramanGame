@@ -39,6 +39,41 @@ static class EngagementChecks
         beam.Pause();bm.Tick(beam,.02f);check(bm.Weight==held,"pause freezes actual stance instead of teleporting home");
         Advance(beam,bm,2);check(bm.Weight==0,"resume returns an interrupted approach to home");
         bm.Tick(new Battle(),.02f);check(bm.Weight==0,"new round clears approach");
+        foreach(int hz in new[]{15,30,60})
+        {
+            float dt=1f/hz;var staged=Start(200);var stance=new HeroEngagementMotion();
+            for(int n=0;n<15;n++){staged.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Advance(staged,stance,.5f);}
+            staged.Tick(0,new PlayerInput{Tracking=true,Beam=true});
+            float start=stance.Weight,health=staged.EnemyHealth,old=start;bool split=false;
+            for(int f=0;f<hz;f++)
+            {
+                // Presentation advances while the real battle clock is held.
+                stance.Tick(staged,dt,true,true);split|=Math.Abs(stance.LeftFoot-stance.RightFoot)>.1f;
+                check(stance.Weight<=old+.00001f&&old-stance.Weight<.15f,"beam retreat is monotonic "+hz+"/"+f);old=stance.Weight;
+                stance.Tick(staged,0,true,true);check(stance.Weight==old,"held beam staging is idempotent "+hz+"/"+f);
+            }
+            check(start>.99f&&stance.Weight==0&&split,"beam plants two retreat steps before reveal "+hz);
+            check(staged.ActionAge==0&&staged.EnemyHealth==health&&staged.Energy==0,"presentation retreat never advances beam damage "+hz);
+            staged.Pause();stance.Tick(staged,.1f,true,true);check(stance.Weight==0,"paused prepared beam keeps stance "+hz);
+            stance.Tick(new Battle(),dt,true,true);check(stance.Weight==0,"new round clears staged beam "+hz);
+        }
+        var late=Start(200);var lateStance=new HeroEngagementMotion();
+        for(int n=0;n<15;n++){late.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Advance(late,lateStance,.5f);}
+        Advance(late,lateStance,.6f);float entering=lateStance.Weight;
+        check(lateStance.Retreating&&entering>0&&entering<1,"late beam fixture begins mid-retreat");
+        late.Tick(0,new PlayerInput{Tracking=true,Beam=true});lateStance.Tick(late,.02f,true,true);
+        check(lateStance.Weight<entering&&entering-lateStance.Weight<.07f,"late beam keeps retreat direction without a forward pop");
+        float pausedWeight=lateStance.Weight,pausedLeft=lateStance.LeftFoot;
+        late.Pause();lateStance.Tick(late,.1f,true,true);
+        check(lateStance.Weight==pausedWeight&&lateStance.LeftFoot==pausedLeft,"pause freezes both retreat and planted foot");
+        while(late.Phase==GamePhase.Paused)late.Tick(.02f,new PlayerInput{Tracking=true});
+        lateStance.Tick(late,0,true,true);
+        check(lateStance.Weight==pausedWeight&&lateStance.LeftFoot==pausedLeft,"resume preserves mid-step curve at zero time");
+        var far=Start(200);var farStance=new HeroEngagementMotion();
+        for(int n=0;n<15;n++){far.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true,RangedAttack=true});Advance(far,farStance,.5f);}
+        far.Tick(0,new PlayerInput{Tracking=true,Beam=true});
+        for(int n=0;n<60;n++)farStance.Tick(far,1f/60,true,true);
+        check(far.Action==HeroAction.Beam&&!farStance.Active&&farStance.LeftLift==0&&farStance.RightLift==0,"distant beam does not acquire melee footwork");
         var win=Start(10);var wm=new HeroEngagementMotion();for(int i=0;i<10;i++){win.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Advance(win,wm,.5f);}
         check(win.Phase==GamePhase.Victory&&wm.Weight==0,"final strike returns before victory staging");
     }

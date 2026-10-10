@@ -775,7 +775,7 @@ namespace UltramanGame.Runtime
             }
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
             punchLink.Tick(state,dt,!monster&&preview<0);
-            if(!monster){engagement.Tick(state,dt,preview<0);home=restHome+forward*(HeroApproachDistance*engagement.Weight);}
+            if(!monster){engagement.Tick(state,dt,preview<0,heroId=="Tiga");home=restHome+forward*(HeroApproachDistance*engagement.Weight);}
             if(!monster)
             {
                 if(state.Phase!=GamePhase.Battle)
@@ -1240,7 +1240,7 @@ namespace UltramanGame.Runtime
             bool pursuing=!retargetedPunch&&chaseAdvance>0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||state.Action==HeroAction.None&&heroRecoveryAge<HeroRecoverySeconds&&!state.Shield);
             bool approaching=!monster&&ApproachDistance>0&&state.Phase==GamePhase.Battle&&
-                state.Action!=HeroAction.Hurt&&state.Action!=HeroAction.Beam&&
+                state.Action!=HeroAction.Hurt&&(state.Action!=HeroAction.Beam||heroId=="Tiga")&&
                 (engagement.Active||state.IsPunch||state.Action==HeroAction.None&&heroRecoveryAge<HeroRecoverySeconds&&!state.Shield);
             if(preview<0&&!kick&&(plantedRoster||pursuing||approaching))
                 PoseRetargetedFootwork(state);
