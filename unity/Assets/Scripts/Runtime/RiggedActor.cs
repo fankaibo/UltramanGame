@@ -1963,7 +1963,8 @@ namespace UltramanGame.Runtime
             float prepare=Mathf.SmoothStep(0,1,age/(slugger?.06f:.045f));
             float releaseStart=slugger?.06f:.03f;
             float release=Mathf.SmoothStep(0,1,(age-releaseStart)/(AttackTempo.RangedLaunchSeconds-releaseStart));
-            float recover=Mathf.SmoothStep(0,1,(age-.20f)/(AttackTempo.RangedSeconds-.20f));
+            float recoveryStart=heroId=="Tiga"?.26f:.20f;
+            float recover=Mathf.SmoothStep(0,1,(age-recoveryStart)/(AttackTempo.RangedSeconds-recoveryStart));
             float coil=prepare*(1-release),reach=release*(1-recover);
             var side=Vector3.Cross(Vector3.up,forward);
             if(!contactLayerApplied){if(upperSpine)spineBase=upperSpine.localRotation;if(head)headBase=head.localRotation;}
@@ -1983,11 +1984,20 @@ namespace UltramanGame.Runtime
                     target=Vector3.Lerp(left?rangedExitLeft:rangedExitRight,guard,Mathf.SmoothStep(0,1,heroRecoveryAge/.14f));
                 if(state.IsRangedPunch&&left==activeLeft)
                 {
-                    // Zero guides a blade from the same side of the head;
-                    // energy casts load beside the ribs, then drive forward.
+                    // Zero guides a blade beside the head. Tiga loads just
+                    // behind the visible hand, avoiding a fast snap all the
+                    // way back to the ribs before extending the same arm.
                     var load=slugger&&head?head.position+side*(handSign*.28f)-forward*.02f-Vector3.up*.08f:
+                        heroId=="Tiga"?punchStart-forward*.14f-Vector3.up*.08f:
                         upper.position+forward*.04f+side*(handSign*.10f)-Vector3.up*.24f;
-                    var finish=upper.position+forward*(slugger?.68f:.88f)-side*(handSign*.06f)+Vector3.up*(slugger?.10f:-.04f);
+                    // Tiga's actual shoulder-to-wrist chain is ~1.08 units.
+                    // The old fixed 0.88 target left a 109-degree elbow at
+                    // release. Reach almost to the rig's length, with a soft
+                    // elbow instead of locking or stretching either bone.
+                    float extension=heroId=="Tiga"?
+                        (Vector3.Distance(upper.position,lower.position)+Vector3.Distance(lower.position,wrist.position))*.97f:
+                        slugger?.68f:.88f;
+                    var finish=upper.position+forward*extension-side*(handSign*.06f)+Vector3.up*(slugger?.10f:-.04f);
                     target=Vector3.Lerp(Vector3.Lerp(punchStart,load,prepare),finish,release);
                     target+=side*(handSign*.12f*Mathf.Sin(release*Mathf.PI));
                     target=Vector3.Lerp(target,guard,recover)+side*(handSign*.10f*Mathf.Sin(recover*Mathf.PI))-Vector3.up*(.08f*Mathf.Sin(recover*Mathf.PI));

@@ -58,7 +58,8 @@ namespace UltramanGame.Editor
                 }
                 string line=$"{id}-{hz} bothHands=true speeds=0.65/1.70 intentAndConfirmed=true preReleaseGuard=pass flightGuard=pass pause=pass newRound=pass rangeToMeleeGuard=pass guardHandStep={peakGuard:F4}";report.AppendLine(line);Debug.Log("[RangedCastTransitions] "+line);
             }
-            string folder=Path.GetFullPath("../artifacts/ranged-cast-20261009");Directory.CreateDirectory(folder);File.WriteAllText(folder+"/transitions.txt",report.ToString());
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--ranged-cast-output");
+            string folder=Path.GetFullPath(at>=0?args[at+1]:"../artifacts/ranged-cast-20261009");Directory.CreateDirectory(folder);File.WriteAllText(folder+"/transitions.txt",report.ToString());
         }
     }
 }
