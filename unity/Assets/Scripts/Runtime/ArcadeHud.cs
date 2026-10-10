@@ -15,6 +15,9 @@ namespace UltramanGame.Runtime
             var gold=HudPainter.Gold;var cyan=HudPainter.Cyan;
             bool opening=battle.Phase==GamePhase.Battle&&battleStartCueAt>=0&&time-battleStartCueAt<2.8f;
             bool cinematic=battle.Action==HeroAction.Beam;
+            // Threat closeups bring the hero into the left margin. Give this
+            // space back until the defence shot has fully returned.
+            bool rewards=!cinematic&&battle.Action!=HeroAction.Hurt&&!warning&&world.ThreatFocus<.02f;
             DrawArcadeRails(time,cinematic,warning,victory,transforming);
             DrawMotionBursts(time,cinematic,warning,victory,transforming);
             if(waiting||victory)hud.Fade(new Rect(0,0,1280,145),new Color(.004f,.014f,.035f,.87f));
@@ -22,57 +25,50 @@ namespace UltramanGame.Runtime
             {
                 DrawBattleHeader(ready,opening,cinematic);
                 if(cinematic)DrawFinisherCallout(time);
-                if(battle.Punches>0&&!cinematic)
+                if(battle.Punches>0&&rewards)
                 {
                     float pulse=time<hitUntil?Mathf.Clamp01(hitUntil-time):0;
                     bool comboActive=comboCount>=2&&time<comboUntil;
-                    // One counter changes meaning with the active string. Total
-                    // hits and the same combo no longer occupy three rows.
-                    // Keep the score cue legible at TV distance without
-                    // letting this side rail compete with the two fighters.
-                    // Side counters are secondary cabinet feedback. Keep them
-                    // readable from a TV, but let the fighters and the actual
-                    // contact flash remain the largest visual elements.
-                    hud.Text(new Rect(32,244,122,38),(comboActive?comboCount:battle.Punches).ToString("00"),22+(int)(pulse*2),new Color(1,.88f,.52f),bold:true);
-                    hud.Text(new Rect(34,282,122,15),comboActive?"连击":"命中",10,comboActive?gold:HudPainter.Muted,bold:true);
-                    hud.Line(new Vector2(34,307),new Vector2(82,307),gold,1);
+                    // One peripheral reward owns the count. Keep the center
+                    // free for the projectile lane, uppercuts and reaction lens.
+                    Rect badge=BattleHudLayout.Combo;
+                    float remaining=Mathf.Clamp01((comboUntil-time)/2.6f);
+                    Color accent=comboActive?gold:cyan;
+                    hud.Fade(badge,new Color(.008f,.025f,.05f,comboActive?.64f:.30f));
+                    hud.Box(new Rect(badge.x,badge.y+9,2,badge.height-18),new Color(accent.r,accent.g,accent.b,.8f));
+                    hud.Text(new Rect(badge.x+10,badge.y+2,112,43),(comboActive?comboCount:battle.Punches).ToString("00"),
+                        29+(int)(pulse*3),new Color(1,.88f,.52f),bold:true);
+                    hud.Text(new Rect(badge.x+12,badge.y+46,108,17),comboActive?"连击":"命中",11,
+                        comboActive?gold:HudPainter.Muted,bold:true);
+                    if(comboActive)
+                    {
+                        hud.Box(new Rect(badge.x+12,badge.yMax-8,108,2),new Color(.12f,.25f,.32f,.8f));
+                        hud.Box(new Rect(badge.x+12,badge.yMax-8,108*remaining,2),gold);
+                    }
                     for(int i=0;i<5;i++)
                     {
                         float earned=Mathf.Clamp01((battle.Punches-i*3)/3f);
                         Star(new Vector2(1240,242+i*22),5.0f,.10f+.82f*earned);
                     }
-                    if(comboActive)
-                    {
-                        // The reference cabinet keeps the current string in a
-                        // bright central badge. It gives a four-year-old an
-                        // immediate reward without covering either fighter.
-                        float age=Mathf.Clamp01((comboUntil-time)/2.6f);
-                        float pop=Mathf.Sin(Mathf.Clamp01(age*3f)*Mathf.PI)*.08f;
-                        float width=180*(1+pop),height=42*(1+pop),x=640-width*.5f;
-                        hud.Rounded(new Rect(x,91,width,height),new Color(.035f,.055f,.12f,.90f),9);
-                        hud.Line(new Vector2(x+12,100),new Vector2(x+50,100),gold,2);
-                        hud.Line(new Vector2(x+width-50,100),new Vector2(x+width-12,100),cyan,2);
-                        hud.Text(new Rect(x+10,96,width-20,29),$"{comboCount:00} 连击",20,new Color(1,.88f,.48f,Mathf.Clamp01(age*2f)),TextAnchor.MiddleCenter,true);
-                        StarBurst(new Vector2(x+8,114),10,Mathf.Clamp01(age*1.6f),gold);
-                        StarBurst(new Vector2(x+width-8,114),10,Mathf.Clamp01(age*1.6f),cyan);
-                    }
                 }
-                if(time<hitUntil&&!cinematic)
+
+                if(time<hitUntil&&rewards)
                 {
                     // Keep praise beside the combo counter: the monster's
                     // face and contact area must stay clear in the closer lens.
                     float age=1-(hitUntil-time),lift=Mathf.Clamp01(age)*12;
                     hud.Text(new Rect(33,341-lift,200,23),battle.Punches%5==0?"超棒连击！":"漂亮！",battle.Punches%5==0?14:13,new Color(1,.86f,.48f,Mathf.Clamp01((1-age)*2)),TextAnchor.MiddleLeft,true);
                     float burstAge=Mathf.Clamp01((1-age)*1.4f);
-                    Vector2 burstCenter=battle.Punches%5==0?new Vector2(515,270):new Vector2(225,350);
-                    StarBurst(burstCenter,24+12*(1-burstAge),burstAge,battle.Punches%5==0?gold:cyan);
+                    Vector2 burstCenter=new Vector2(BattleHudLayout.Combo.xMax-10,BattleHudLayout.Combo.y+22);
+                    StarBurst(burstCenter,8+4*(1-burstAge),burstAge,battle.Punches%5==0?gold:cyan);
                 }
                 if(lastDamage>0&&time-damagePopAt<.9f&&!cinematic)
                 {
                     float age=Mathf.Clamp01((time-damagePopAt)/.9f),lift=Mathf.SmoothStep(0,1,age)*6;
                     float alpha=1-Mathf.SmoothStep(0,1,age);
                     bool special=lastDamage>1;
-                    hud.Text(new Rect(1038,76-lift,144,24),"−"+lastDamage.ToString("00"),special?19:16,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
+                    Rect damage=BattleHudLayout.Damage;damage.y-=lift;
+                    hud.Text(damage,"−"+lastDamage.ToString("00"),special?19:16,new Color(1,special?.30f:.66f,.18f,alpha),TextAnchor.MiddleRight,true);
                 }
                 if(warning&&battle.Action!=HeroAction.Beam)
                 {
@@ -82,7 +78,7 @@ namespace UltramanGame.Runtime
                     string warningText=battle.Enemy==EnemyPhase.Attack?
                         (battle.Shield?"挡住它 · 保持护盾！":MonsterRockMotion.Active(battle)?"飞石来了 · 双手防御！":MonsterRayMotion.Active(battle)?"光线来了 · 双手防御！":"怪兽冲过来了！"):
                         (battle.Shield?"护盾准备好了":MonsterRockMotion.Active(battle)?"怪兽举起了石头":MonsterRayMotion.Active(battle)?"怪兽正在积蓄光线":"怪兽正在蓄力");
-                    hud.Text(new Rect(855,105,335,26),warningText,14,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
+                    hud.Text(BattleHudLayout.Warning,warningText,14,battle.Shield?cyan:gold,TextAnchor.MiddleRight,true);
                 }
             }
             if(waiting)

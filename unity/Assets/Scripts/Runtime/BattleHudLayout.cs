@@ -7,6 +7,9 @@ namespace UltramanGame.Runtime
     {
         public static Rect HeroPlate => new Rect(24, 10, 332, 50);
         public static Rect EnemyPlate => new Rect(924, 10, 332, 50);
+        public static Rect Combo => new Rect(28, 242, 140, 80);
+        public static Rect Damage => new Rect(928, 69, 54, 24);
+        public static Rect Warning => new Rect(988, 67, 268, 25);
         public static Rect Energy => new Rect(74, 42, 260, 9);
         public static Rect EnemyHealth => new Rect(946, 42, 260, 9);
         // Keep the instruction rail below the planted feet in the tighter
