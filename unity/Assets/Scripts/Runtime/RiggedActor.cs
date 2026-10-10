@@ -27,6 +27,17 @@ namespace UltramanGame.Runtime
         {if(!monster)liveReady.Tick(frame,nowMs,input,state,dt,enabled);}
         Vector3 restHome;
         float ApproachDistance=>CombatSpacing.Approach(Vector3.Distance(restHome,monster&&opponent!=null?opponent.StancePosition:opponentHome));
+        // Keep part of Tiga's long authored lunge in the shared melee stance.
+        // The same distance is removed from each strike, preserving contact
+        // while avoiding a full backwards/forwards shuffle between fists.
+        float CloseRangeCarry=>!monster&&heroId=="Tiga"?StrikeAdvance*.55f:0;
+        float HeroApproachDistance=>ApproachDistance+CloseRangeCarry;
+        // The old minimum .75 lunge assumes the original 2.7-unit stance.
+        // At closer range its body and leading foot must stop sooner together.
+        float CloseRushScale=>monster&&opponent!=null?Mathf.Clamp01(
+            (Vector3.Distance(restHome,opponent.StancePosition)-CombatSpacing.OriginalDistance+AnimatedActor.EnemyAdvance)/AnimatedActor.EnemyAdvance):1;
+        float MonsterTravel(Battle state)=>AnimatedActor.MonsterAdvance(state,ApproachDistance)*
+            (MonsterSlamMotion.Active(state)?1:CloseRushScale);
         public Vector3 StancePosition=>home;
         public float EngagementWeight=>engagement.Weight;
         readonly bool retargetedPunch;
@@ -764,7 +775,7 @@ namespace UltramanGame.Runtime
             }
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
             punchLink.Tick(state,dt,!monster&&preview<0);
-            if(!monster){engagement.Tick(state,dt,preview<0);home=restHome+forward*(ApproachDistance*engagement.Weight);}
+            if(!monster){engagement.Tick(state,dt,preview<0);home=restHome+forward*(HeroApproachDistance*engagement.Weight);}
             if(!monster)
             {
                 if(state.Phase!=GamePhase.Battle)
@@ -868,7 +879,7 @@ namespace UltramanGame.Runtime
                     fallTilt=-12f*stagger+20f*collapse;fallSide=-6f*collapse;
                     opacity=VictoryMotion.Opacity(phaseAge);
                 }
-                else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=MonsterStepMotion.ClawLeft(state.EnemyAttackCount)?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=AnimatedActor.MonsterAdvance(state,ApproachDistance);}
+                else if(state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack) {next=MonsterStepMotion.ClawLeft(state.EnemyAttackCount)?"AttackAlt":"Attack";sample=state.EnemyAge;Frame=2;travel=MonsterTravel(state);}
                 else if(state.Phase==GamePhase.Battle&&(beamRecoil.Active||hitAge<(heavyHit?.9f:MonsterRecoilMotion.Duration)))
                 {
                     next="Hurt";sample=beamRecoil.Active?beamRecoil.Clip:heavyHit?(hitAge>.14f?Mathf.Lerp(.14f,.4f,(hitAge-.14f)/.76f):hitAge):hitAge*.4f/MonsterRecoilMotion.Duration;Frame=heavyHit?6:5;
@@ -882,7 +893,7 @@ namespace UltramanGame.Runtime
                     // backwards through the authored shoulder/jaw animation.
                     windupSample=playing==next&&!float.IsNaN(windupSample)?Mathf.MoveTowards(windupSample,desired,dt*3.5f):desired;
                     sample=windupSample;
-                    Frame=3;travel=AnimatedActor.MonsterAdvance(state,ApproachDistance);
+                    Frame=3;travel=MonsterTravel(state);
                 }
                 // The two-handed slam has its own planted stance. Sampling
                 // the lunge underneath it leaves one shin folded sideways.
@@ -900,7 +911,7 @@ namespace UltramanGame.Runtime
                     next=kick||state.IsRangedPunch?"Idle":state.Action==HeroAction.LeftPunch?"LeftPunch":"RightPunch";
                     sample=kick?0:state.IsRangedPunch?time%clips["Idle"].length:state.ActionAge;
                     Frame=state.ActionAge<.07f?1:2;
-                    travel=kick?HeroKickMotion.Drive(state.ActionAge)*((StrikeAdvance+chaseAdvance)*.68f):AnimatedActor.Strike(state.ActionAge)*PunchTravel(state);
+                    travel=kick?HeroKickMotion.Drive(state.ActionAge)*((StrikeAdvance+chaseAdvance)*.68f-CloseRangeCarry):AnimatedActor.Strike(state.ActionAge)*PunchTravel(state);
                 }
                 else if(state.Action==HeroAction.Beam) {next=twinShoot!=null||mebiumShoot!=null||grigioShot!=null?"Idle":"Beam";sample=twinShoot!=null||mebiumShoot!=null||grigioShot!=null?0:Mathf.Min(1.9f,playing==next?clipAge+dt:0);Frame=4;}
                 else if(state.Action==HeroAction.Hurt)
@@ -1563,8 +1574,9 @@ namespace UltramanGame.Runtime
                 bool leadLeft=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
                 var l=MonsterStepMotion.Foot(state.EnemyAge,ApproachDistance,leadLeft);
                 var r=MonsterStepMotion.Foot(state.EnemyAge,ApproachDistance,!leadLeft);
-                left+=forward*l.Travel+Vector3.up*l.Lift;
-                right+=forward*r.Travel+Vector3.up*r.Lift;
+                float reach=CloseRushScale,lift=Mathf.Lerp(.45f,1,reach);
+                left+=forward*(l.Travel*reach)+Vector3.up*(l.Lift*lift);
+                right+=forward*(r.Travel*reach)+Vector3.up*(r.Lift*lift);
             }
             // Lower the hips only as far as the leg lengths need. Keep the
             // authored claw contact in world space while the knees take weight.
@@ -1731,7 +1743,7 @@ namespace UltramanGame.Runtime
             leftFoot.rotation=(beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*leftFootRest;
             rightFoot.rotation=(!beamRecoil.Left?Quaternion.AngleAxis(beamRecoil.Pitch,side):Quaternion.identity)*facing*rightFootRest;
         }
-        float PunchTravel(Battle state)=>state.IsRangedPunch?.10f:StrikeAdvance+chaseAdvance-(HeroArsenal.Blade(heroId,state)?.95f:0);
+        float PunchTravel(Battle state)=>state.IsRangedPunch?.10f:StrikeAdvance+chaseAdvance-CloseRangeCarry-(HeroArsenal.Blade(heroId,state)?.95f:0);
         void PoseCounterReach(Battle state)
         {
             bool left=state.Action==HeroAction.LeftPunch;
@@ -1858,8 +1870,8 @@ namespace UltramanGame.Runtime
                     if(state.Action==HeroAction.LeftPunch)right+=follow;else left+=follow;
                 }
             }
-            left+=forward*((engagement.LeftFoot-engagement.Weight)*ApproachDistance)+Vector3.up*(engagement.LeftLift*.10f);
-            right+=forward*((engagement.RightFoot-engagement.Weight)*ApproachDistance)+Vector3.up*(engagement.RightLift*.10f);
+            left+=forward*((engagement.LeftFoot-engagement.Weight)*HeroApproachDistance)+Vector3.up*(engagement.LeftLift*.10f);
+            right+=forward*((engagement.RightFoot-engagement.Weight)*HeroApproachDistance)+Vector3.up*(engagement.RightLift*.10f);
             // These imported clips lift both feet with the pelvis. Keep the
             // rear sole planted, land the leading foot before impact, and let
             // the knees take the travel instead of sliding the entire model.

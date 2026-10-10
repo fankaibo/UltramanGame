@@ -43,7 +43,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-homeOffset,0,.4f-homeOffset),EnemyHome=new Vector3(homeOffset,0,.4f+homeOffset);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){blade.BindActor(heroActor);projectile.BindSluggers(heroActor?.Sluggers);hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);fighterFraming.Bind(hero,enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){blade.BindActor(heroActor);projectile.BindSluggers(heroActor?.Sluggers);hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);enemy?.SetOpponent(hero);fighterFraming.Bind(hero,enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void SetHeroProfile(string id){heroId=id;effects.SetHeroProfile(id);projectile.SetHero(id);blade.SetHero(id);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
