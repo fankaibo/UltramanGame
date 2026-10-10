@@ -7,6 +7,7 @@ static class MotionChecks
     {
         public readonly GestureRecognizer Recognizer=new GestureRecognizer();
         public int Left,Right,Beams,Transforms,Forward;
+        public bool SawDefense,SawRightPunch,SawBeam;
         public PlayerInput Last;
         public string Stream="motion";
         public readonly int Fps;
@@ -19,6 +20,9 @@ static class MotionChecks
             Last=Recognizer.Update(frame,frame.capturedMs,beam,transform);
             if(Last.LeftPunch)Left++;if(Last.RightPunch)Right++;if(Last.Beam)Beams++;if(Last.Transform)Transforms++;
             if((Last.LeftPunch||Last.RightPunch)&&Recognizer.ForwardPunch)Forward++;
+            SawDefense|=Recognizer.ReferencePose=="P1-防御";
+            SawRightPunch|=Recognizer.ReferencePose=="P2-右拳";
+            SawBeam|=Recognizer.ReferencePose=="P3-哉佩利敖光线";
         }
         public void Hold(PosePoint[] points,float seconds=.6f,bool beam=false,bool transform=false)
         {for(int i=0;i<(int)Math.Ceiling(seconds*Fps);i++)Receive(Frame(points),beam,transform);}
@@ -46,12 +50,29 @@ static class MotionChecks
     {var p=Guard();p[right?16:15]=Point(right?.38f:.62f,.40f,-.48f);return p;}
     static PosePoint[] Beam()
     {var p=Guard();p[15]=Point(.60f,.30f,-.18f);p[16]=Point(.44f,.46f,-.20f);return p;}
+    // Geometry transcribed from the three child reference photos: crossed
+    // fists for P1, the photographed Tiga L/forearm pose for P3, and the
+    // camera-facing right-hand extension already used for P2.
+    static PosePoint[] PhotoDefense()
+    {var p=Guard();p[15]=Point(.42f,.27f,-.20f);p[16]=Point(.58f,.28f,-.20f);return p;}
     static PosePoint[] Push()
     {var p=Guard();p[15]=Point(.66f,.42f,-.47f);p[16]=Point(.34f,.42f,-.47f);return p;}
     static PosePoint[] Scale(PosePoint[] source,float factor)
     {var p=(PosePoint[])source.Clone();for(int i=0;i<33;i++) {p[i].x=.5f+(p[i].x-.5f)*factor;p[i].y=.5f+(p[i].y-.5f)*factor;p[i].z*=factor;}return p;}
     public static void Run(Action<bool,string> check)
     {
+        foreach(int fps in new[]{15,30,60})
+        {
+            var standard=new Trial(fps);standard.Recognizer.Difficulty=1;
+            var lowered=Guard();lowered[15].y=lowered[16].y=.75f;
+            standard.Hold(lowered,.7f);standard.Hold(Guard(),.10f);
+            check(!standard.Last.Shield,$"standard difficulty ignores a brief guard at {fps} fps");
+            standard.Hold(Guard(),.45f);check(standard.Last.Shield,$"standard difficulty accepts a deliberate guard at {fps} fps");
+            standard.Hold(Beam(),.65f,true);check(standard.Beams==0,$"standard difficulty requires a longer beam hold at {fps} fps");
+            standard.Hold(Beam(),.4f,true);check(standard.Beams==1,$"standard difficulty still accepts a clear beam at {fps} fps");
+            standard=new Trial(fps);standard.Recognizer.Difficulty=1;standard.Hold(Guard());standard.Move(Guard(),Forward());standard.Hold(Forward());
+            check(standard.Left==1&&standard.Right==0,$"standard difficulty preserves independent deliberate punches at {fps} fps");
+        }
         foreach(int fps in new[]{15,30,60})
         {
             var t=new Trial(fps);t.Hold(Guard());t.Move(Guard(),Forward());t.Hold(Forward(),1.5f);
@@ -61,6 +82,15 @@ static class MotionChecks
         }
         var trial=new Trial();trial.Hold(Guard());trial.Move(Guard(),Forward(true));trial.Hold(Forward(true));
         check(trial.Right==1&&trial.Left==0,"right-hand forward punch is independent");
+        trial=new Trial();trial.Hold(Guard(),.35f);trial.Hold(PhotoDefense(),.45f);
+        check(trial.Last.Shield&&trial.Left==0&&trial.Right==0&&trial.SawDefense,
+            "P1 crossed-fist photo pose owns defense without an attack");
+        trial=new Trial();trial.Hold(Guard(),.7f);trial.Hold(Beam(),.65f,true);
+        check(trial.Beams==1&&trial.Left==0&&trial.Right==0&&trial.SawBeam,
+            "P3 Tiga beam photo pose charges and fires once");
+        trial=new Trial();trial.Hold(Guard(),.35f);trial.Move(Guard(),Forward(true));trial.Hold(Forward(true));
+        check(trial.Right==1&&trial.Left==0&&trial.SawRightPunch,
+            "P2 photo pose awards only the right-hand punch");
         trial=new Trial();var highPunch=Forward();highPunch[15].y=.33f;
         trial.Hold(Guard(),beam:true);trial.Move(Guard(),highPunch,beam:true);trial.Hold(highPunch,1,true);
         check(trial.Left==1&&trial.Beams==0,"forward punch at shoulder height is not intercepted by a loose beam at full energy");
@@ -95,7 +125,7 @@ static class MotionChecks
         check(trial.Beams==1&&trial.Left==0&&trial.Right==0,"two-hand forward push provides one easy beam at full energy");
         trial=new Trial();trial.Hold(Guard(),beam:true);trial.Hold(Beam(),.22f,true);var gap=Beam();gap[15].visibility=.1f;
         trial.Hold(gap,.066f,true);check(trial.Beams==0,"occlusion cannot fire a partly charged beam");
-        trial.Hold(Beam(),.2f,true);
+        trial.Hold(Beam(),.55f,true);
         check(trial.Beams==1,"brief unreliable frames preserve but do not advance beam progress");
         trial.Hold(Guard(),.099f,true);trial.Hold(Beam(),1,true);
         check(trial.Beams==1,"short pose wobble cannot rearm a held beam");
@@ -105,15 +135,27 @@ static class MotionChecks
         check(trial.Beams==0&&trial.Recognizer.BeamProgress==0,"energy gate prevents unavailable beam charging");
         trial=new Trial();trial.Hold(Guard(),2,true);
         check(trial.Last.Shield&&trial.Beams==0&&trial.Left==0&&trial.Right==0,"held chest guard remains defense at full energy");
+        trial=new Trial();trial.Hold(Guard(),.8f,false);trial.Hold(Beam(),.9f,true);
+        check(trial.Beams==1&&trial.Left==0&&trial.Right==0,
+            "a neutral pose before EnergyReady arms the first finisher without a second reset");
+        trial=new Trial();trial.Hold(Guard());
         var close=Guard();close[15].z=close[16].z=-.5f;trial.Move(Guard(),close,beam:true);trial.Hold(close,1,true);
         check(trial.Beams==0,"close crossed hands do not become the two-hand beam");
+        trial=new Trial();var faceCover=Guard();faceCover[15]=Point(.58f,.02f,-.20f);faceCover[16]=Point(.42f,.18f,-.20f);
+        trial.Hold(faceCover,.42f);check(trial.Last.Shield&&trial.Left==0&&trial.Right==0,
+            "compact hands-over-face defense is not mistaken for a punch");
+        trial=new Trial();trial.Hold(Guard(),beam:true);trial.Hold(Beam(),.35f,true);
+        var lowWobble=Beam();lowWobble[15].y=.62f;lowWobble[16].y=.63f;
+        trial.Hold(lowWobble,.12f,true);trial.Hold(Beam(),.62f,true);
+        check(trial.Beams==1&&trial.Left==0&&trial.Right==0,
+            "brief low-wrist wobble cannot interrupt a charging finisher");
         trial=new Trial();var raised=Guard();raised[15].y=raised[16].y=.05f;
         trial.Hold(raised,1,transform:false);check(trial.Transforms==0,"battle phase does not generate transform gestures");
         foreach(int fps in new[]{15,30,60})
         {
             trial=new Trial(fps);var childL=Beam();childL[15].y=.41f;childL[16].y=.49f;
             trial.Hold(Guard());trial.Hold(childL,1,true);
-            check(trial.Beams==1,$"lower, short-arm L pose fires once at {fps} fps");
+            check(trial.Beams==0&&trial.Last.Shield,$"uneven low chest guard cannot become a beam at {fps} fps");
             trial=new Trial(fps);var shallowPush=Push();shallowPush[15].z=shallowPush[16].z=-.29f;
             trial.Hold(Guard());trial.Move(Guard(),shallowPush,beam:true);trial.Hold(shallowPush,1,true);
             check(trial.Beams==1&&trial.Left==0&&trial.Right==0,$"modest two-hand reach fires without full extension at {fps} fps");

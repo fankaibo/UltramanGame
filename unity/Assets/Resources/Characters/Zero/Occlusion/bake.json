@@ -1,0 +1,33 @@
+{
+  "character": "Zero",
+  "source": "unity/Assets/Resources/Characters/Zero/Zero.fbx",
+  "source_sha256": "d1a5d6dc3ea8b00bf72c841950eb3e81ab0ec91d24ab45129709fa8d438ae48e",
+  "blender": "4.5.13 LTS",
+  "resolution": [
+    1024,
+    1024
+  ],
+  "model_height": 1.5676856345380656,
+  "distance": 0.039192140863451644,
+  "rest_pose": true,
+  "only_local": true,
+  "samples": 32,
+  "ao_samples": 64,
+  "maps": [
+    {
+      "material": "Zero_Head",
+      "file": "Zero_Head.png",
+      "sha256": "afddc5db7b3ac18afd9cae732a433c0ec33871fcae4b0fcf70550f4fb802385c"
+    },
+    {
+      "material": "Zero_Sluggers",
+      "file": "Zero_Sluggers.png",
+      "sha256": "48889d58b515043540523947929d14101beafaf51bc72f72ba62ac52244f4eac"
+    },
+    {
+      "material": "Zero_Ultraman_Zero",
+      "file": "Zero_Ultraman_Zero.png",
+      "sha256": "b1200c4ea17c475b8187d7580afa1d44cb8c3fcf6cb28aa6f173eb9ee96cdf48"
+    }
+  ]
+}

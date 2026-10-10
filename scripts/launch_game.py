@@ -11,6 +11,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "unity/Builds/TigaTraining.app"
+
+# Keep every direct invocation on the same dependency set as the desktop
+# launcher.  Without this guard, `python3 scripts/launch_game.py` can silently
+# use the system interpreter, start Unity, and then fail the camera worker at
+# `import mediapipe` even though the project environment is healthy.
+PROJECT_PYTHON = ROOT / ".venv/bin/python"
+if PROJECT_PYTHON.is_file():
+    try:
+        current_python = Path(sys.executable).resolve()
+        project_python = PROJECT_PYTHON.resolve()
+    except OSError:
+        current_python = project_python = None
+    if current_python is not None and current_python != project_python:
+        os.execv(str(project_python), [str(project_python), str(Path(__file__).resolve()), *sys.argv[1:]])
+
 sys.path.insert(0, str(ROOT))
 from vision.supervision import CameraSession, stop_process
 
@@ -43,12 +58,19 @@ def main():
                 if log_path.exists():
                     log_path.replace(logs / "camera-previous.log")
                 camera_log = resources.enter_context(log_path.open("ab", buffering=0))
-                camera = resources.enter_context(CameraSession(ROOT, camera_log, demo=args.demo,
+                # `sys.executable` may resolve to uv's base interpreter on
+                # macOS, which drops the virtualenv site-packages for the
+                # worker. Keep the child on the same project environment.
+                camera_command = [str(PROJECT_PYTHON if PROJECT_PYTHON.is_file() else sys.executable),
+                    "-m", "vision", "--no-preview", "--game-preview", "--ready-json"]
+                if args.demo:
+                    camera_command.append("--demo")
+                camera = resources.enter_context(CameraSession(ROOT, camera_log, command=camera_command,
                     environment=environment, report=lambda message: print(message, flush=True)))
                 ports = camera.ports
             print("游戏正在启动。关闭游戏窗口会同时关闭本次相机服务。", flush=True)
-            command = [str(executable), "-screen-fullscreen", "0", "-screen-width", "1280",
-                       "-screen-height", "720", "-logFile", str(logs / "game-last.log")]
+            command = [str(executable), "-screen-fullscreen", "0" if args.keyboard or args.demo else "1",
+                       "-logFile", str(logs / "game-last.log")]
             if args.music:
                 command += ["--music", str(args.music.expanduser().resolve())]
             if args.keyboard:

@@ -9,9 +9,55 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
+        public float ReadyLift(bool left)=>rigged?.ReadyLift(left)??0;
+        public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
+            =>rigged?.ObserveReadyPose(frame,nowMs,input,state,dt,enabled);
+        public float ReadyBodySide=>rigged?.ReadyBodySide??0;
+        public void PosePhoto()=>rigged?.PosePhoto();
+        public ZeroSluggerRig Sluggers=>rigged?.Sluggers;
+        public ZeroTwinShoot TwinShoot=>rigged?.TwinShoot;
+        public MebiumShoot Mebium=>rigged?.Mebium;
+        public GrigioShot Grigio=>rigged?.Grigio;
+        public void PoseFinisherWeapons(Battle state)=>rigged?.PoseFinisherWeapons(state);
+        public void ResetFinisher()=>rigged?.ResetFinisher();
+        public Vector3 BladeOrigin=>rigged!=null?rigged.BladeOrigin:StrikeOrigin(HeroAction.LeftPunch);
+        public Vector3 BladeDirection=>rigged!=null?rigged.BladeDirection:forwardAxis;
+        public Vector3 BladeNormal=>rigged!=null?rigged.BladeNormal:Vector3.up;
+        public int DissolveStarts=>rigged?.DissolveStarts??0;
+        public int DissolveMotes=>rigged?.DissolveMotes??0;
+        public float StrikeAdvance=>rigged!=null?rigged.StrikeAdvance:PunchAdvance;
+        public float LinkedPunchWeight=>rigged?.LinkedPunchWeight??0;
+        public float ClawReactionAmount=>rigged?.ClawReactionAmount??0;
+        public float RecoveryWeight=>rigged?.RecoveryWeight??0;
+        public float StaggerAge=>rigged!=null?rigged.StaggerAge:10;
+        public bool StaggerLeft=>rigged!=null&&rigged.StaggerLeft;
+        public int StaggerLandings=>rigged!=null?rigged.StaggerLandings:0;
+        public bool RangedStepActive=>rigged?.RangedStepActive??false;
+        public float LaunchAge=>rigged!=null?rigged.LaunchAge:10;
+        public int LaunchLandings=>rigged!=null?rigged.LaunchLandings:0;
+        public float LaunchCamera=>rigged!=null?rigged.LaunchCamera:0;
+        public float BeamRecoilAge=>rigged!=null?rigged.BeamRecoilAge:10;
+        public bool BeamRecoilLeft=>rigged!=null&&rigged.BeamRecoilLeft;
+        public int BeamLandings=>rigged!=null?rigged.BeamLandings:0;
+        public float BeamChaseAdvance=>rigged!=null?rigged.BeamChaseAdvance:0;
         public Vector3 StrikeOrigin(HeroAction action) => rigged!=null?rigged.StrikeOrigin(action):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
+        public Vector3 StrikeContact(Battle state)=>rigged!=null&&HeroKickMotion.Active(state)?rigged.KickContact(state.Action):StrikeOrigin(state.Action);
         public Vector3 HandPosition => rigged!=null?rigged.HandPosition:Root.position+Vector3.up*2.2f;
+        public Vector3 EnemyStrikeOrigin(Battle state) => rigged!=null?rigged.EnemyStrikeOrigin(state.EnemyAttackCount):Root.position+forwardAxis*.6f+Vector3.up*2.4f;
         public Vector3 BeamOrigin => rigged!=null?rigged.BeamOrigin:Root.position+Vector3.up*2.7f;
+        public Vector3 RayOrigin=>rigged!=null?rigged.RayOrigin:Root.position+Vector3.up*3.32f+forwardAxis*.46f;
+        public Vector3 BeamContact => rigged!=null?rigged.BeamContact:Root.position+forwardAxis*.33f+Vector3.up*2.48f;
+        public Vector3 BeamSurfaceContact => rigged!=null?rigged.BeamSurfaceContact:BeamContact;
+        public Vector3 FootPosition(bool left) => rigged!=null?rigged.FootPosition(left):Root.position;
+        public Vector3 GroundContactPosition => rigged!=null?rigged.GroundContactPosition:Root.position;
+        public Vector3 StancePosition=>rigged!=null?rigged.StancePosition:home;
+        public float EngagementWeight=>rigged!=null?rigged.EngagementWeight:0;
+        public float GuardHandoffProgress=>rigged?.GuardHandoffProgress??1;
+        public bool CapturedFallActive=>rigged?.CapturedFallActive??false;
+        public bool CapturedRecoveryActive=>rigged?.CapturedRecoveryActive??false;
+        public void BindSurfaceImpact(Vector3 position){rigged?.BindSurfaceImpact(position);}
+        public void BindGuardImpact(Vector3 position){rigged?.BindGuardImpact(position);}
+        public void SetOpponent(AnimatedActor actor){rigged?.SetOpponent(actor);}
         public const float PunchAdvance=.75f, EnemyAdvance=.75f;
         readonly Transform picture;
         readonly Material material;
@@ -19,6 +65,7 @@ namespace UltramanGame.Runtime
         readonly float cellHeight;
         readonly float[] baseline=new float[8];
         readonly Vector3 home,forwardAxis;
+        readonly float approach;
         float lastHealth,hitAge=10,phaseAge;
         bool heavyHit;
         GamePhase previous;
@@ -32,7 +79,7 @@ namespace UltramanGame.Runtime
         {
             rigged=RiggedActor.CreateIfAvailable(name,position,opponentPosition,isMonster);
             if(rigged!=null){Root=rigged.Root;return;}
-            monster=isMonster;home=position;
+            monster=isMonster;home=position;approach=CombatSpacing.Approach(Vector3.Distance(position,opponentPosition));
             forwardAxis=Vector3.ProjectOnPlane(opponentPosition-position,Vector3.up).normalized;
             Root=new GameObject(name).transform;Root.position=home;
             var texture=Resources.Load<Texture2D>(monster?"Art/GolzaActions":"Art/TigaRear45Actions");
@@ -69,16 +116,29 @@ namespace UltramanGame.Runtime
             if(age<Battle.PunchHitSeconds)return Mathf.SmoothStep(0,1,age/Battle.PunchHitSeconds);
             return 1-Mathf.SmoothStep(0,1,(age-Battle.PunchHitSeconds)/(Battle.PunchSeconds-Battle.PunchHitSeconds));
         }
-        public static float MonsterAdvance(Battle state)
+        public static float MonsterAdvance(Battle state,float approach=0)
         {
             if(state.Phase!=GamePhase.Battle)return 0;
+            if(MonsterRayMotion.Active(state)||MonsterRockMotion.Active(state))return 0;
             if(state.Enemy==EnemyPhase.Windup)
                 return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/state.WarningDuration);
             if(state.Enemy!=EnemyPhase.Attack)return 0;
             float age=state.EnemyAge;
-            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance,Mathf.SmoothStep(0,1,age/Battle.EnemyHitSeconds));
-            if(age<Battle.EnemyHitSeconds+.12f)return EnemyAdvance;
-            return EnemyAdvance*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
+            if(MonsterSlamMotion.Variant(state.EnemyAttackCount))return MonsterSlamMotion.Travel(age);
+            if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance+approach,RushProgress(age/Battle.EnemyHitSeconds));
+            if(age<Battle.EnemyHitSeconds+.12f)return EnemyAdvance+approach;
+            return (EnemyAdvance+approach)*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
+        }
+        static float RushProgress(float t)
+        {
+            // The wider ranged stance needs a longer approach. A full-length
+            // smoothstep concentrates that distance into the middle two frames
+            // on a slow display. Short acceleration/deceleration ramps spread
+            // the travel across the same contact deadline, with no teleport.
+            t=Mathf.Clamp01(t);const float ramp=.10f,area=1-ramp;
+            if(t<ramp)return t*t/(2*ramp*area);
+            if(t>1-ramp){float end=1-t;return 1-end*end/(2*ramp*area);}
+            return (t-ramp*.5f)/area;
         }
         void SetFrame(int frame)
         {
@@ -90,7 +150,7 @@ namespace UltramanGame.Runtime
             if(rigged!=null){rigged.Update(state,dt,time,preview);return;}
             if(previous!=state.Phase) {previous=state.Phase;phaseAge=0;}
             phaseAge+=dt;hitAge+=dt;
-            if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=lastHealth-state.EnemyHealth>1;}
+            if(state.EnemyHealth<lastHealth) {hitAge=0;heavyHit=state.LastHitAction==HeroAction.Beam;}
             lastHealth=state.EnemyHealth;
             bool fighting=state.Phase==GamePhase.Battle;
             bool punch=fighting&&(state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch);
@@ -102,7 +162,7 @@ namespace UltramanGame.Runtime
                 {frame=7;forward=-Mathf.SmoothStep(0,1,phaseAge/2)*1.8f;opacity=1-Mathf.SmoothStep(0,1,(phaseAge-1)/2);}
                 else if(fighting&&state.Enemy==EnemyPhase.Attack)
                 {
-                    float age=state.EnemyAge;forward=MonsterAdvance(state);
+                    float age=state.EnemyAge;forward=MonsterAdvance(state,approach);
                     frame=age<.13f?1:age<Battle.EnemyHitSeconds+.15f?2:4;
                     tilt=forward*2;breath=0;
                     jump=age<Battle.EnemyHitSeconds?Mathf.Sin(age/Battle.EnemyHitSeconds*Mathf.PI)*.08f:0;
@@ -110,7 +170,7 @@ namespace UltramanGame.Runtime
                 else if(fighting&&hitAge<.35f)
                 {frame=heavyHit?6:5;forward=-Mathf.Sin(hitAge/.35f*Mathf.PI)*.22f;tilt=-Mathf.Sin(hitAge/.35f*Mathf.PI)*5;}
                 else if(fighting&&state.Enemy==EnemyPhase.Windup)
-                {frame=state.EnemyAge<.3f?1:3;forward=MonsterAdvance(state);tilt=-3*Mathf.Clamp01(state.EnemyAge/state.WarningDuration);breath=Mathf.Sin(time*8)*.012f;}
+                {frame=state.EnemyAge<.3f?1:3;forward=MonsterAdvance(state,approach);tilt=-3*Mathf.Clamp01(state.EnemyAge/state.WarningDuration);breath=Mathf.Sin(time*8)*.012f;}
                 else if(fighting&&state.Enemy==EnemyPhase.Recover)
                 {frame=state.EnemyAge<.55f?4:0;}
             }
@@ -121,14 +181,17 @@ namespace UltramanGame.Runtime
                 else if(state.Phase==GamePhase.Victory)
                 {frame=7;jump=Mathf.Abs(Mathf.Sin(Mathf.Min(phaseAge,2)*Mathf.PI))*.12f;}
                 else if(fighting&&state.Action==HeroAction.Hurt)
-                {frame=5;forward=-Mathf.Sin(Mathf.Clamp01(state.ActionAge/.55f)*Mathf.PI)*.18f;tilt=3;}
+                {
+                    float p=KnockdownMotion.Weight(state.ActionAge);
+                    frame=5;forward=-p*.18f;tilt=28*p;jump=-.14f*p;
+                }
                 else if(fighting&&state.Action==HeroAction.Beam)
                 {frame=4;forward=.1f;}
                 else if(fighting&&state.Shield)frame=3;
                 else if(punch)
                 {
                     frame=state.ActionAge<.065f?1:state.ActionAge<.25f?2:1;
-                    forward=Strike(state.ActionAge)*PunchAdvance;tilt=-Strike(state.ActionAge)*2;
+                    forward=Strike(state.ActionAge)*(state.IsRangedPunch?.10f:PunchAdvance+approach);tilt=-Strike(state.ActionAge)*2;
                 }
             }
             if(preview>=0) {frame=preview%8;forward=tilt=jump=0;opacity=scale=1;breath=0;}

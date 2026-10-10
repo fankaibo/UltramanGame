@@ -7,7 +7,7 @@ static class BattleBalanceChecks
     { for(int i=0;i<(int)Math.Ceiling(seconds/.02f);i++)battle.Tick(.02f,new PlayerInput {Tracking=true,Shield=shield}); }
     static Battle Start(int health=Battle.DefaultMonsterHits)
     {
-        var b=new Battle(health);b.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(b,2.4f);return b;
+        var b=new Battle(health);b.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});Step(b,Battle.TransformationSeconds+.2f);return b;
     }
     static void Hit(Battle b)
     {

@@ -1,0 +1,21 @@
+{
+  "character": "Grigio",
+  "vertices": 2970,
+  "clips": [
+    "Beam",
+    "Guard",
+    "Hurt",
+    "Idle",
+    "LeftPunch",
+    "RightPunch",
+    "Transform",
+    "Victory"
+  ],
+  "mesh_processing": "Connected subdivision before skinning; removed importer EdgeSplit to prevent shrink cracks.",
+  "rest_mesh": {
+    "verts": 17218,
+    "polys": 16941,
+    "components": 19,
+    "boundary_edges": 522
+  }
+}

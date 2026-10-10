@@ -48,6 +48,7 @@ static class EnemyAttackChecks
         Step(beam,2);check(beam.HitsTaken==hits,"canceled rush cannot land after beam protection ends");
         var win=Start(10);for(int i=0;i<9;i++)Punch(win);Rush(win,shield:true);
         hits=win.HitsTaken;win.Tick(.02f,new PlayerInput {Tracking=true,LeftPunch=true});Step(win,.2f);
-        check(win.Phase==GamePhase.Victory&&win.HitsTaken==hits,"winning punch stops incoming enemy contact");
+        check(win.Finishing&&win.EnemyHealth==0&&win.Enemy==EnemyPhase.Rest&&win.HitsTaken==hits,"winning punch immediately stops incoming enemy contact");
+        Step(win,Battle.PunchSeconds);check(win.Phase==GamePhase.Victory&&win.HitsTaken==hits,"winning punch recovery completes without retaliation");
     }
 }

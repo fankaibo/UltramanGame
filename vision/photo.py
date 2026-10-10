@@ -2,18 +2,19 @@
 import struct
 import time
 import math
+import sys
 
 from .bridge import LatestBridge, _Handler
 
 HEADER = struct.Struct("!4sqIBB")
-MAX_PNG_BYTES = 2 * 1024 * 1024
+MAX_PNG_BYTES = 8 * 1024 * 1024
 
 
 def encode_photo(png, captured_ms, synthetic, present):
     if not 33 <= len(png) <= MAX_PNG_BYTES or png[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Invalid photo PNG")
     width, height = struct.unpack("!II", png[16:24])
-    if png[12:16] != b"IHDR" or not 0 < width <= 640 or not 0 < height <= 480 or png[24:26] != b"\x08\x06":
+    if png[12:16] != b"IHDR" or not 0 < width <= 1280 or not 0 < height <= 960 or png[24:26] != b"\x08\x06":
         raise ValueError("Photo must be bounded 8-bit RGBA")
     if captured_ms <= 0 or type(synthetic) is not bool or type(present) is not bool:
         raise ValueError("Invalid photo metadata")
@@ -25,13 +26,23 @@ class _PhotoHandler(_Handler):
         bridge = self.server.bridge
         with bridge.changed:
             bridge.subscribers += 1
+            print("[PhotoStream] subscribed", file=sys.stderr, flush=True)
         try:
             super().handle()
         finally:
             with bridge.changed:
-                bridge.subscribers -= 1
-                if not bridge.subscribers:
+                # Clear the cached packet before exposing the zero-subscriber
+                # state.  The test and the camera worker both observe the
+                # count as a cheap liveness signal; publishing the count first
+                # leaves a tiny window where a closed client can still appear
+                # to have a stale frame.
+                remaining = bridge.subscribers - 1
+                if remaining <= 0:
                     bridge.latest = b""
+                    bridge.subscribers = 0
+                else:
+                    bridge.subscribers = remaining
+                print("[PhotoStream] released", file=sys.stderr, flush=True)
 
 
 class GamePhoto:
@@ -39,6 +50,8 @@ class GamePhoto:
         self.bridge = LatestBridge(port, _PhotoHandler, listener=listener)
         self.bridge.subscribers = 0
         self.next_at = 0
+        self.frames = 0
+        self.cv = None
 
     def due(self):
         return self.bridge.subscribers > 0 and time.monotonic() >= self.next_at
@@ -47,7 +60,15 @@ class GamePhoto:
         if not self.due():
             return
         self.next_at = time.monotonic() + .125
-        import cv2
+        if self.cv is None:
+            import cv2
+            # These images are bounded to 1280x960. OpenCV's default pool
+            # competes with Unity's render workers for tiny color/resize jobs;
+            # keep that CPU work on one thread in the camera process. This does
+            # not change MediaPipe or the separate native segmentation worker.
+            cv2.setNumThreads(1)
+            self.cv = cv2
+        cv2 = self.cv
         import numpy as np
         if synthetic:
             # Procedural test stand-in, deliberately recognisable as a drawing, never a real face.
@@ -77,7 +98,20 @@ class GamePhoto:
         rgba = cv2.flip(rgba, 1)
         ok, png = cv2.imencode(".png", rgba, [cv2.IMWRITE_PNG_COMPRESSION, 2])
         if ok:
-            self.bridge.publish(encode_photo(png.tobytes(), captured_ms, synthetic, bool(present)))
+            self.frames += 1
+            if self.frames == 1 or self.frames % 40 == 0:
+                print(f"[PhotoStream] frames={self.frames} present={present} ageMs={round(time.time()*1000-captured_ms)} size={rgba.shape[1]}x{rgba.shape[0]}", file=sys.stderr, flush=True)
+            packet = encode_photo(png.tobytes(), captured_ms, synthetic, bool(present))
+            # The worker can finish encoding while the last Unity subscriber
+            # closes. Re-check under the bridge condition before publishing;
+            # otherwise a packet can repopulate ``latest`` after the handler
+            # has cleared it, leaving stale photo data with zero subscribers.
+            with self.bridge.changed:
+                if self.bridge.subscribers <= 0:
+                    return
+                self.bridge.latest = packet
+                self.bridge.revision += 1
+                self.bridge.changed.notify_all()
 
     def __enter__(self):
         self.bridge.__enter__()

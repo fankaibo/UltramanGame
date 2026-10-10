@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, Matrix
 
 
 def import_source(source, output, sourceio):
@@ -69,7 +69,13 @@ def import_source(source, output, sourceio):
             eye = 'eyes' in slot.material.name.lower()
             mat = bpy.data.materials.new('GolzaEyes' if eye else 'GolzaHide')
             mat.use_nodes = True
-            shader = mat.node_tree.nodes.get('Principled BSDF')
+            # Node display names are localized in Chinese Blender. Select by
+            # type and explicitly connect the textured surface to the output.
+            shader = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            shader = shader or mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
+            material_output = next((n for n in mat.node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
+            material_output = material_output or mat.node_tree.nodes.new('ShaderNodeOutputMaterial')
+            mat.node_tree.links.new(shader.outputs['BSDF'], material_output.inputs['Surface'])
             shader.inputs['Roughness'].default_value = .54 if eye else .68
             texture = mat.node_tree.nodes.new('ShaderNodeTexImage')
             texture.image = images['GolzaEyes' if eye else 'GolzaBody']
@@ -118,7 +124,11 @@ def rig_controls(rig):
             ik.pole_subtarget = f'{pole}_{side}'
             ik.chain_count = 2
             ik.use_stretch = False
-            ik.pole_angle = 0
+            # Mirrored arm rest axes need opposite pole rotation; zero on both
+            # sides folds the left elbow into the chest while the right bends out.
+            # The mirrored left arm needs the opposite pole to keep its elbow
+            # outside the torso; the right side uses the source rest orientation.
+            ik.pole_angle = math.radians(120 if side=='L' else 20) if segment=='lowerArm' else 0
         foot = rig.pose.bones[f'bip_foot_{side}']
         planted = foot.constraints.new('COPY_ROTATION')
         planted.target = rig
@@ -132,7 +142,7 @@ def author(rig, targets, live_combat=False):
     scene = bpy.context.scene
     scene.render.fps = 60
     rest = {b.name: b.matrix_basis.copy() for b in rig.pose.bones}
-    control_names = list(targets) + ['bip_pelvis', 'bip_spine_1', 'bip_spine_2', 'bip_head', 'jaw'] + [f'tail_{i}' for i in range(1, 7)]
+    control_names = list(targets) + ['bip_pelvis', 'bip_spine_1', 'bip_spine_2', 'bip_head', 'jaw','bip_hand_L','bip_hand_R'] + [f'tail_{i}' for i in range(1, 7)]
 
     def rotate(name, axis, angle):
         bone = rig.pose.bones[name]
@@ -146,7 +156,13 @@ def author(rig, targets, live_combat=False):
             b.matrix_basis = rest[b.name]
         bpy.context.view_layer.update()
         p = dict(sink=.018, lean=5, yaw=0, jaw=3, head=0,
-                 left=(.30, -.23, 1.07), right=(-.30, -.23, 1.07), sway=0)
+                 # The source mesh's right shoulder sits farther inward after
+                 # mirrored IK bake, so give that hand a little extra lateral
+                 # clearance to keep both palms outside the chest silhouette.
+                 # Keep the resting claws bent in front of the ribcage.  The
+                 # earlier wide targets made the idle silhouette read as a
+                 # rigid T-pose even though the attack clip was asymmetric.
+                 left=(.30, -.24, 1.03), right=(-.30, -.24, 1.03), sway=0)
         p.update(pose)
         pelvis = rig.pose.bones['bip_pelvis']
         rotate('bip_pelvis', (0, 0, 1), p['yaw'])
@@ -170,11 +186,31 @@ def author(rig, targets, live_combat=False):
             point = targets[name].copy()
             if name.startswith('HandIK'):
                 point = Vector(p['left' if name.endswith('L') else 'right'])
+            elif name.startswith('Elbow_'):
+                point = Vector(p.get('elbow_l' if name.endswith('L') else 'elbow_r', targets[name]))
             elif name.startswith('FootIK'):
                 point += Vector(p.get('foot_l' if name.endswith('L') else 'foot_r', (0, 0, 0)))
             matrix.translation = point
             bone.matrix = matrix
         bpy.context.view_layer.update()
+        # Source wrists inherited forearm roll after IK. That turned one palm
+        # into the torso and left the other hanging from a raised elbow. Keep
+        # the claw's finger axis forward with a mild downward pitch, preserving
+        # the authored hand position and its skin weights.
+        for side,sign in [('L',1),('R',-1)]:
+            hand=rig.pose.bones['bip_hand_'+side]
+            finger=rig.pose.bones['bip_index_0_'+side]
+            thumb=rig.pose.bones['bip_thumb_0_'+side]
+            direction=(finger.head-hand.head).normalized()
+            desired=Vector((sign*.12,-1,-.28)).normalized()
+            normal=direction.cross(thumb.head-hand.head).normalized()*sign
+            down=Vector((0,0,-1));down=(down-desired*down.dot(desired)).normalized()
+            source=Matrix((direction,normal,direction.cross(normal))).transposed()
+            target=Matrix((desired,down,desired.cross(down))).transposed()
+            matrix=(target @ source.transposed()).to_4x4() @ hand.matrix
+            matrix.translation=hand.matrix.translation
+            hand.rotation_mode='QUATERNION';hand.matrix=matrix
+            bpy.context.view_layer.update()
         rig.animation_data.action = action
         for name in control_names:
             bone = rig.pose.bones[name]
@@ -185,12 +221,16 @@ def author(rig, targets, live_combat=False):
         'Idle': [(0, {}), (.5, dict(sink=.025, sway=3)), (1, dict(sink=.018, sway=-3)), (1.5, dict(sink=.012,sway=2)), (2, {})],
         'Windup': [(0, {}), (.4, dict(sink=.035, lean=-5, jaw=18, right=(-.40,.02,1.25), sway=9)),
                    (1.1, dict(sink=.06, lean=12, jaw=24,right=(-.37,.00,1.20),left=(.32,-.30,1.02),sway=-8)), (1.5, dict(sink=.05,lean=14,jaw=24,right=(-.38,.01,1.22),sway=9))],
-        'Attack': [(0, dict(sink=.05,lean=14,right=(-.38,.01,1.22),jaw=20)),
-                   (.16, dict(sink=.02,lean=15,foot_l=(0,-.10,.10),foot_r=(0,.04,0),right=(-.39,-.05,1.20),jaw=24,sway=-8)),
-                   (.30, dict(sink=.04,lean=16,foot_l=(0,-.16,0),foot_r=(0,.04,0),right=(-.20,-.40,1.20),jaw=20,sway=10)),
-                   (.4, dict(sink=.065,lean=18,yaw=-14,foot_l=(0,-.15,0),right=(.05,-.39,.93),left=(.27,-.17,1.08),jaw=24,sway=12)),
-                   (.55, dict(sink=.07,lean=16,yaw=-12,right=(.07,-.35,.9),foot_l=(0,-.12,0),sway=9)),
-                   (.8, dict(sink=.035,lean=6,foot_l=(0,-.05,.04),sway=-6)), (1.05,{})],
+        # The live attack is a readable single-claw lunge.  The near hand stays
+        # across the chest while the lead hand opens and reaches through the
+        # contact point; this keeps the silhouette from becoming a symmetric
+        # T-pose and gives the planted leg a visible weight transfer.
+        'Attack': [(0, dict(sink=.05,lean=14,yaw=0,jaw=24,right=(-.38,.01,1.22),sway=9)),
+                   (.16, dict(sink=.03,lean=13,yaw=-4,left=(.32,-.16,1.06),right=(-.32,-.27,1.20),jaw=25,sway=-6)),
+                   (.30, dict(sink=.05,lean=15,yaw=10,left=(.30,-.16,1.06),right=(-.18,-.43,1.13),jaw=26,sway=8)),
+                   (.4, dict(sink=.065,lean=15,yaw=14,left=(.31,-.16,1.04),right=(-.13,-.46,1.08),jaw=24,sway=10)),
+                   (.55, dict(sink=.06,lean=12,yaw=12,left=(.31,-.16,1.04),right=(-.02,-.44,1.02),sway=7)),
+                   (.8, dict(sink=.035,lean=7,yaw=2,left=(.34,-.14,1.05),right=(-.25,-.19,1.04),sway=-4)), (1.05,{})],
         'Hurt': [(0,{}),(.1,dict(lean=-14,sink=.05,yaw=10,jaw=18,right=(-.40,-.07,1.08),left=(.37,-.10,1.12),sway=14)),(.23,dict(lean=-7,sink=.04,jaw=8,sway=-7)),(.4,{})],
         'Defeat': [(0,{}),(.25,dict(lean=-18,jaw=25,sink=.03,sway=14)),(.8,dict(lean=16,sink=.12,jaw=12,right=(-.28,-.25,.92),left=(.29,-.25,.92),sway=-8)),
                    (1.5,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86))), (2.4,dict(lean=25,sink=.18,head=12,jaw=5,right=(-.24,-.27,.86),left=(.24,-.27,.86)))],
@@ -212,6 +252,29 @@ def author(rig, targets, live_combat=False):
                  ((0,0,0),(0,.30,.02)),((0,-.10,.04),(0,.12,0)),((0,0,0),(0,0,0))]
         for (_,pose),(left,right) in zip(motions['Attack'],offsets):
             pose.update(foot_l=left,foot_r=right)
+    # Swap sides and reflect only lateral X. Forward is always negative Y in
+    # Source/Blender space. Mirror after the live foot offsets are installed.
+    def mirror_claw(poses):
+        reflected=[]
+        for t, pose in poses:
+            if not pose:
+                reflected.append((t,{}))
+                continue
+            p=dict(pose)
+            left=pose.get('left',(.30,-.24,1.03))
+            right=pose.get('right',(-.30,-.24,1.03))
+            p['left']=(-right[0],right[1],right[2])
+            p['right']=(-left[0],left[1],left[2])
+            p['yaw']=-pose.get('yaw',0)
+            p['sway']=-pose.get('sway',0)
+            for a,b in (('foot_l','foot_r'),('elbow_l','elbow_r')):
+                if a in pose or b in pose:
+                    av,bv=pose.get(a,(0,0,0)),pose.get(b,(0,0,0))
+                    p[a]=(-bv[0],bv[1],bv[2]);p[b]=(-av[0],av[1],av[2])
+            reflected.append((t,p))
+        return reflected
+    motions['AttackAlt']=mirror_claw(motions['Attack'])
+    motions['WindupAlt']=mirror_claw(motions['Windup'])
     actions={}
     for name, poses in motions.items():
         action=bpy.data.actions.new(name);action.use_fake_user=True
@@ -229,8 +292,8 @@ def render(output, rig, actions):
     scene.render.engine='CYCLES';scene.cycles.samples=24;scene.cycles.use_denoising=True
     scene.render.resolution_x=800;scene.render.resolution_y=800;scene.render.resolution_percentage=100
     scene.world=bpy.data.worlds.new('Review world');scene.world.use_nodes=True
-    scene.world.node_tree.nodes['Background'].inputs[0].default_value=(.09,.11,.16,1)
-    scene.world.node_tree.nodes['Background'].inputs[1].default_value=.4
+    next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[0].default_value=(.09,.11,.16,1)
+    next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[1].default_value=.4
     camera=bpy.data.objects.new('Review camera',bpy.data.cameras.new('Review camera'));scene.collection.objects.link(camera);scene.camera=camera
     camera.data.type='ORTHO';camera.data.ortho_scale=2.25
     camera.location=(2.4,-4,2);camera.rotation_euler=(Vector((0,.15,.8))-camera.location).to_track_quat('-Z','Y').to_euler()
@@ -238,7 +301,7 @@ def render(output, rig, actions):
         data=bpy.data.lights.new(name,'AREA');data.energy=power;data.color=color;data.shape='DISK';data.size=size
         obj=bpy.data.objects.new(name,data);scene.collection.objects.link(obj);obj.location=loc
         obj.rotation_euler=(Vector((0,0,.9))-obj.location).to_track_quat('-Z','Y').to_euler()
-    for name,t in [('Idle',0),('Windup',1.1),('Attack',.4),('Hurt',.1),('Defeat',1.5)]:
+    for name,t in [('Idle',0),('Windup',1.1),('Attack',.4),('AttackAlt',.4),('Hurt',.1),('Defeat',1.5)]:
         rig.animation_data.action=actions[name];scene.frame_set(1+round(t*60))
         scene.render.filepath=str(output/(name+'.png'));bpy.ops.render.render(write_still=True)
 
@@ -258,7 +321,7 @@ def main():
         bpy.ops.object.select_all(action='DESELECT');rig.select_set(True)
         for o in meshes:o.select_set(True)
         bpy.context.view_layer.objects.active=rig
-        bpy.ops.export_scene.fbx(filepath=str(output/'Golza.fbx'),use_selection=True,object_types={'MESH','ARMATURE'},axis_forward='-Z',axis_up='Y',apply_scale_options='FBX_SCALE_ALL',add_leaf_bones=False,use_armature_deform_only=False,bake_anim=True,bake_anim_use_all_actions=True,bake_anim_use_nla_strips=False,bake_anim_force_startend_keying=True,bake_anim_simplify_factor=.1,path_mode='RELATIVE',use_mesh_modifiers=True)
+        bpy.ops.export_scene.fbx(filepath=str(output/'Golza.fbx'),use_selection=True,object_types={'MESH','ARMATURE'},axis_forward='-Z',axis_up='Y',apply_scale_options='FBX_SCALE_ALL',add_leaf_bones=False,use_armature_deform_only=False,bake_anim=True,bake_anim_use_all_actions=True,bake_anim_use_nla_strips=False,bake_anim_force_startend_keying=True,bake_anim_simplify_factor=0,path_mode='RELATIVE',use_mesh_modifiers=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(output/'Golza-review.blend'))
     if args.review:render(output,rig,actions)
     print('GOLZA_REVIEW',json.dumps(report))

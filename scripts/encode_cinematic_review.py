@@ -1,6 +1,7 @@
 """Encode actual Unity review frames and event-aligned local game audio."""
 import argparse
 import csv
+import json
 import subprocess
 from pathlib import Path
 
@@ -9,38 +10,47 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ffmpeg', default='ffmpeg')
     parser.add_argument('--baseline', type=Path, help='300-frame original RiggedReview output')
+    parser.add_argument('--folder',type=Path,help='Unity review output folder; defaults to artifacts/cinematic-combat')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    folder = root / 'artifacts/cinematic-combat'
-    frames = sorted((folder / 'frames').glob('frame-*.png'))
+    folder = args.folder.resolve() if args.folder else root / 'artifacts/cinematic-combat'
+    extension = 'jpg' if (folder / 'frames/frame-0000.jpg').exists() else 'png'
+    frames = sorted((folder / 'frames').glob(f'frame-*.{extension}'))
     if not (folder / 'validation.txt').exists():
         parser.error('a passed Unity full-battle render is required')
     for i, frame in enumerate(frames):
-        if frame.name != f'frame-{i:04d}.png':
+        if frame.name != f'frame-{i:04d}.{extension}':
             parser.error(f'non-contiguous frames at {i}')
     duration = len(frames) / 30
     sounds = []
     audio = root / 'unity/Assets/Resources/Audio'
     voice = root / 'unity/Assets/Resources/Voice'
     events = list(csv.DictReader((folder / 'events.csv').open()))
+    if not any(e['event'] == 'HeroHit' for e in events) or not any(e['event'] == 'BeamVisible' for e in events):
+        parser.error('render again: actual contact and beam-visible timestamps are required for audio sync')
     for e in events:
         at = float(e['seconds'])
         name = e['event']
-        effect = {'Transform': 'transform', 'Punch': 'swing', 'EnemyAttack': 'enemy_rush',
-                  'Block': 'shield', 'Hurt': 'impact', 'Resume': 'recover', 'Victory': 'victory'}.get(name)
+        effect = {'Transform': 'transform', 'Punch': 'swing', 'Warning': 'warning', 'EnemyAttack': 'enemy_rush',
+                  'Block': 'shield', 'Hurt': 'impact', 'HeroHit': 'impact',
+                  'BeamVisible': 'beam', 'Resume': 'recover', 'Victory': 'victory'}.get(name)
         if effect:
             sounds.append((audio / f'{effect}.wav', at, .62))
-        if name == 'Punch':
-            sounds.append((audio / 'impact.wav', at + .12, .58))
         if name == 'Beam':
             original = voice / 'beam_original.aiff'
             if original.exists():
                 sounds.append((original, at, .9))
-            sounds.append((audio / 'beam.wav', at + .98 + .28, .5))
     # This review uses the same game music/effects. Guided dialogue is exercised in
     # the real player test; it is not synthesized or falsely synchronized here.
+    music = audio / 'miracle_reappearance.mp3'
+    if not music.is_file():
+        music = audio / 'music_battle.wav'
+    (folder / 'audio-source.json').write_text(json.dumps({
+        'music': str(music.relative_to(root)), 'dialogue': 'not included',
+        'effects': 'event-aligned local files',
+    }, ensure_ascii=False, indent=2))
     cmd = [args.ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-framerate', '30',
-           '-i', str(folder / 'frames/frame-%04d.png'), '-stream_loop', '-1', '-i', str(audio / 'music_battle.wav')]
+           '-i', str(folder / f'frames/frame-%04d.{extension}'), '-stream_loop', '-1', '-i', str(music)]
     filters = [f'[1:a]volume=.18,atrim=0:{duration}[music]']
     mix = ['[music]']
     for i, (path, at, volume) in enumerate(sounds, 2):
