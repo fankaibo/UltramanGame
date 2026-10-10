@@ -1085,7 +1085,7 @@ namespace UltramanGame.Runtime
                 }
                 contactLayerApplied=true;
             }
-            if(!monster&&!kick&&!state.IsRangedPunch&&preview<0&&state.Phase==GamePhase.Battle&&
+            if(!monster&&!kick&&!state.IsRangedPunch&&comboStrike&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch))
             {
                 // The authored Tiga clip drives the hand and planted feet. Add a
@@ -1772,7 +1772,10 @@ namespace UltramanGame.Runtime
             float drive=punch?ContactPulse(state.ActionAge,0,.085f,Battle.PunchSeconds):0;
             float load=punch?ContactPulse(state.ActionAge,0,.14f,Battle.PunchSeconds):0;
             float coil=punchLink.Weight;
-            float yaw=-side*(ComboStrikeMotion.Active(state)?8:14)*drive+punchLink.Sign*4*coil;
+            bool captured=punch&&!ComboStrikeMotion.Active(state)&&!HeroArsenal.Blade(heroId,state);
+            float hip=captured?BoxingBodyMotion.Hip(state.ActionAge,state.IsRangedPunch):8*drive;
+            float chest=captured?BoxingBodyMotion.Chest(state.ActionAge,state.IsRangedPunch):0;
+            float yaw=-side*hip+punchLink.Sign*4*coil;
             var lateral=Vector3.Cross(Vector3.up,forward);
             var left=leftFoot.position;var right=rightFoot.position;
             var lr=leftFoot.rotation;var rr=rightFoot.rotation;
@@ -1786,10 +1789,15 @@ namespace UltramanGame.Runtime
             punchHipBase=pelvis.localRotation;punchWeightApplied=true;
             Root.position+=lateral*(-side*.05f*drive+punchLink.Sign*.02f*coil)-Vector3.up*(.045f*load+.02f*coil);
             pelvis.rotation=Quaternion.AngleAxis(yaw,Vector3.up)*pelvis.rotation;
-            if(head)
+            if(head||upperSpine)
             {
-                if(!contactLayerApplied){headBase=head.localRotation;if(upperSpine)spineBase=upperSpine.localRotation;}
-                head.rotation=Quaternion.AngleAxis(-yaw*.80f,Vector3.up)*head.rotation;contactLayerApplied=true;
+                if(!contactLayerApplied)
+                {if(head)headBase=head.localRotation;if(upperSpine)spineBase=upperSpine.localRotation;}
+                if(upperSpine&&captured)
+                    upperSpine.rotation=Quaternion.AngleAxis(-side*chest,Vector3.up)
+                        *Quaternion.AngleAxis(-4*drive,lateral)*upperSpine.rotation;
+                if(head)head.rotation=Quaternion.AngleAxis(-(yaw-side*chest)*.80f,Vector3.up)*head.rotation;
+                contactLayerApplied=true;
             }
             // Preserve the current clip/retargeted foot placements and sole
             // rotations while the pelvis twists above them. Never rotate both

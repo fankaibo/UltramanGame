@@ -51,6 +51,7 @@ static class Program
             BeamCloseupChecks.Run(Check);
         ImpactTimingChecks.Run(Check);
         PunchLinkChecks.Run(Check);
+        BoxingContinuityChecks.Run(Check);
         AttackTempoChecks.Run(Check);
         LiveReadyPoseChecks.Run(Check);
         RangedCameraChecks.Run(Check);

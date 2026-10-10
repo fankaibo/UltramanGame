@@ -34,6 +34,8 @@ namespace UltramanGame.Editor
             // ground-slam, monster-ray and alternating-punch beats visible in
             // the arcade reference without changing player input rules.
             var args=Environment.GetCommandLineArgs();
+            int outputAt=Array.IndexOf(args,"--review-output");
+            if(outputAt>=0&&outputAt+1<args.Length)outputFolder=args[outputAt+1];
             bool slam=Array.IndexOf(args,"--review-slam")>=0;
             bool ray=Array.IndexOf(args,"--review-ray")>=0;
             bool linked=Array.IndexOf(args,"--review-linked")>=0;
@@ -50,7 +52,7 @@ namespace UltramanGame.Editor
                 float dt=1/60f,time=frame*dt;var command=input.Next(battle,dt);
                 battle.Tick(world.BattleDelta(dt,battle),command);
                 while(battle.TryCue(out var cue))
-                {world.Cue(cue);events.AppendLine($"{time:F3},{cue},{battle.EnemyHealth},{battle.Energy}");}
+                {world.Cue(cue,battle);events.AppendLine($"{time:F3},{cue},{battle.EnemyHealth},{battle.Energy}");}
                 if(battle.Phase==GamePhase.Paused)paused=true;
                 hero.Update(battle,world.Camera,dt,time);enemy.Update(battle,world.Camera,dt,time);
                 if(battle.EnemyHealth<lastHealth)

@@ -23,6 +23,7 @@ namespace UltramanGame.Runtime
         public float ComboFocus=>comboCamera.Focus;
         public float ComboCameraAge=>comboCamera.Age;
         readonly RangedCameraMotion rangedCamera=new RangedCameraMotion();
+        readonly MeleeCameraMotion meleeCamera=new MeleeCameraMotion();
         public float RangedFocus=>rangedCamera.Focus;
         public bool TransformationCloseup {get;private set;}
         public bool MonsterEntranceCloseup {get;private set;}
@@ -153,7 +154,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -318,6 +319,7 @@ namespace UltramanGame.Runtime
             int oldShots=comboCamera.Shots;
             comboCamera.Tick(state,dt,Showcase||Closeup.Active);
             rangedCamera.Tick(state,dt,Showcase||Closeup.Active);
+            meleeCamera.Tick(state,dt,Showcase||Closeup.Active);
             exchangeCamera.Tick(state,dt,Showcase||Closeup.Active);
             if(comboCamera.Shots>oldShots&&Debug.isDebugBuild)Debug.Log($"[ComboCamera] begin side={comboCamera.Side} punches={state.Punches}");
             bool combat=state.Phase==GamePhase.Battle;
@@ -425,19 +427,15 @@ namespace UltramanGame.Runtime
                 // A short arcade lens move makes each exchange readable on a TV.
                 // It is intentionally small and uses the same deterministic battle clock
                 // as the actors, so it never changes gesture timing or gameplay state.
-                bool heroStrike=state.IsPunch&&!state.IsRangedPunch;
-                float strike=Mathf.Sin(Mathf.Clamp01(state.ActionAge/.42f)*Mathf.PI);
-                if(heroStrike)
+                float exchange=meleeCamera.Focus;
+                if(exchange>0)
                 {
-                    float side=state.Action==HeroAction.LeftPunch?-1:1;
-                    // Let every ordinary fist carry a small cabinet dolly. The
-                    // actor already advances on its own; this camera response
-                    // makes the contact read as a three-part beat instead of a
-                    // pose swap, while staying far below the dedicated combo
-                    // and finisher lenses.
-                    Camera.transform.position+=BattleAxis*(.52f*strike)+viewRight*(side*.22f*strike);
-                    target+=BattleAxis*(.30f*strike)+Vector3.up*(.09f*strike);
-                    dynamicZoom+=.72f*strike;
+                    // Keep one orbit direction and distance through alternating
+                    // fists and short gaps. Only contact recoil accents each hit.
+                    Camera.transform.position+=viewForward*(.82f*exchange)
+                        +viewRight*(meleeCamera.Side*.20f*meleeCamera.Travel*exchange);
+                    target+=BattleAxis*(.12f*exchange)+Vector3.up*(.10f*exchange);
+                    dynamicZoom+=.45f*exchange;
                 }
                 if(state.Action==HeroAction.Hurt)
                 {
@@ -596,7 +594,7 @@ namespace UltramanGame.Runtime
                 bool heroStrike=state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch;
                 float punchRoll=heroStrike
                     ?Mathf.Sin(Mathf.Clamp01(state.ActionAge/.38f)*Mathf.PI)
-                    * (state.Action==HeroAction.LeftPunch?1.55f:-1.55f):0;
+                    * (state.Action==HeroAction.LeftPunch?.45f:-.45f):0;
                 float rushRoll=state.Enemy==EnemyPhase.Attack
                     ?Mathf.Sin(Mathf.Clamp01(state.EnemyAge/Battle.EnemyAttackSeconds)*Mathf.PI)*
                     (MonsterStepMotion.ClawLeft(state.EnemyAttackCount)?-1.25f:1.25f):0;

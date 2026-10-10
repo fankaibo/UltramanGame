@@ -1,6 +1,7 @@
 """Encode actual Unity review frames and event-aligned local game audio."""
 import argparse
 import csv
+import json
 import subprocess
 from pathlib import Path
 
@@ -40,8 +41,15 @@ def main():
                 sounds.append((original, at, .9))
     # This review uses the same game music/effects. Guided dialogue is exercised in
     # the real player test; it is not synthesized or falsely synchronized here.
+    music = audio / 'miracle_reappearance.mp3'
+    if not music.is_file():
+        music = audio / 'music_battle.wav'
+    (folder / 'audio-source.json').write_text(json.dumps({
+        'music': str(music.relative_to(root)), 'dialogue': 'not included',
+        'effects': 'event-aligned local files',
+    }, ensure_ascii=False, indent=2))
     cmd = [args.ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-framerate', '30',
-           '-i', str(folder / 'frames/frame-%04d.png'), '-stream_loop', '-1', '-i', str(audio / 'music_battle.wav')]
+           '-i', str(folder / 'frames/frame-%04d.png'), '-stream_loop', '-1', '-i', str(music)]
     filters = [f'[1:a]volume=.18,atrim=0:{duration}[music]']
     mix = ['[music]']
     for i, (path, at, volume) in enumerate(sounds, 2):
