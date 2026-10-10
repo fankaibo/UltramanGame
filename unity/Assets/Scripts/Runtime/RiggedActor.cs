@@ -210,7 +210,7 @@ namespace UltramanGame.Runtime
         public int DissolveMotes=>dissolve?.ActiveMotes??0;
         readonly Vector3[] palmForwardLocal=new Vector3[2],palmUpLocal=new Vector3[2];
         static readonly string[] ClawFingerNames={"index","middle","ring","pinky"};
-        Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;Quaternion tailRootRotation;float tailHeight;
+        Transform[] tailJoints;Quaternion[] tailRest;Vector3[] tailPositions;float[] tailYaw;Quaternion tailRootRotation;float tailHeight;
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 KickContact(HeroAction action)=>FootPosition(action==HeroAction.LeftPunch)+forward*.14f;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
@@ -376,7 +376,7 @@ namespace UltramanGame.Runtime
                     palmUpLocal[side]=wrist.InverseTransformDirection(normal);
                 }
                 var tails=new List<Transform>();foreach(var joint in joints)if(joint.name.StartsWith("tail_",StringComparison.Ordinal))tails.Add(joint);
-                tails.Sort((a,b)=>string.CompareOrdinal(a.name,b.name));tailJoints=tails.ToArray();tailRest=new Quaternion[tailJoints.Length];tailPositions=new Vector3[tailJoints.Length];
+                tails.Sort((a,b)=>string.CompareOrdinal(a.name,b.name));tailJoints=tails.ToArray();tailRest=new Quaternion[tailJoints.Length];tailPositions=new Vector3[tailJoints.Length];tailYaw=new float[tailJoints.Length];
                 for(int i=0;i<tailJoints.Length;i++){tailRest[i]=tailJoints[i].localRotation;tailPositions[i]=tailJoints[i].localPosition;}
                 if(tailJoints.Length>0){tailHeight=Root.InverseTransformPoint(tailJoints[0].position).y;tailRootRotation=Quaternion.Inverse(Root.rotation)*tailJoints[0].rotation;}
             }
@@ -798,7 +798,7 @@ namespace UltramanGame.Runtime
             // replay the recoil. Chest yields first; planted knees take the
             // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
-            {observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=rockPrepare=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
+            {if(tailYaw!=null)Array.Clear(tailYaw,0,tailYaw.Length);observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=rockPrepare=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
             if(monster)
             {
                 if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack)beamRecoil.Clear();
@@ -1275,11 +1275,28 @@ namespace UltramanGame.Runtime
             {
                 for(int i=1;i<tailJoints.Length;i++)
                 {tailJoints[i].localRotation=tailRest[i];tailJoints[i].localPosition=tailPositions[i];}
-                tailJoints[0].rotation=Quaternion.LookRotation(forward,Vector3.up)*Quaternion.AngleAxis(Mathf.Sin(time*1.8f)*5,Vector3.up)*tailRootRotation;
+                tailJoints[0].rotation=Quaternion.LookRotation(forward,Vector3.up)*tailRootRotation;
                 var anchor=tailJoints[0].position;
                 if(state.Phase!=GamePhase.Victory||preview>=0)anchor.y=home.y+tailHeight+launch.Lift;
                 else anchor.y=Mathf.Max(home.y+.70f,anchor.y);
                 tailJoints[0].position=anchor;
+                if(!launch.Active&&preview<0&&state.Phase!=GamePhase.Victory)
+                {
+                    // Apply differences of cumulative headings. Adding the full
+                    // angle to all six bones would over-curl the tip. World-up
+                    // yaw keeps the existing floor clearance and every length.
+                    float previousYaw=0;
+                    for(int i=0;i<tailJoints.Length;i++)
+                    {
+                        float along=i/(float)Mathf.Max(1,tailJoints.Length-1);
+                        float target=MonsterTailMotion.Yaw(state,time,along,hitAge,contactSide);
+                        float blend=1-Mathf.Exp(-Mathf.Max(0,dt)/(.055f+along*.035f));
+                        tailYaw[i]=Mathf.Lerp(tailYaw[i],target,blend);
+                        tailJoints[i].rotation=Quaternion.AngleAxis(tailYaw[i]-previousYaw,Vector3.up)*tailJoints[i].rotation;
+                        previousYaw=tailYaw[i];
+                    }
+                }
+                else if(tailYaw!=null)Array.Clear(tailYaw,0,tailYaw.Length);
                 if(launch.Active)
                 {
                     // The tail lags the hip turn and curls upward through its
