@@ -39,8 +39,9 @@ namespace UltramanGame.Editor
             bool slam=Array.IndexOf(args,"--review-slam")>=0;
             bool ray=Array.IndexOf(args,"--review-ray")>=0;
             bool linked=Array.IndexOf(args,"--review-linked")>=0;
+            bool clawCycle=Array.IndexOf(args,"--review-claw-cycle")>=0;
             string extension=Array.IndexOf(args,"--review-jpeg")>=0?"jpg":"png";
-            var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback(slam,ray,linked);
+            var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback(slam,ray,linked,clawCycle:clawCycle);
             world.UseFighterFraming=Array.IndexOf(args,"--review-baseline-framing")<0;
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts",outputFolder));Directory.CreateDirectory(folder+"/frames");
@@ -70,7 +71,7 @@ namespace UltramanGame.Editor
                 if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.{extension}");output++;}
                 if(battle.Phase==GamePhase.Victory){if(victory<0)victory=time;if(time-victory>3)break;}
             }
-            if(battle.Phase!=GamePhase.Victory||battle.Punches!=32||beams!=2||battle.HitsTaken!=1||battle.Blocks<1||!paused)
+            if(battle.Phase!=GamePhase.Victory||battle.Punches!=32||beams!=2||battle.HitsTaken!=1||battle.Blocks<(clawCycle?4:1)||!paused)
                 throw new Exception($"Cinematic battle failed: phase={battle.Phase} punches={battle.Punches} beams={beams} blocks={battle.Blocks} hurt={battle.HitsTaken} paused={paused}");
             if(world.Camera.GetComponent<CinematicCamera>().RenderCount<output)throw new Exception("Post processing did not render");
             world.ResetPresentation();

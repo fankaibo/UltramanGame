@@ -77,6 +77,10 @@ namespace UltramanGame.Editor
             for(int s=0;s<2;s++)for(int f=0;f<4;f++)roots[s,f]=Bone(enemy.Root,"bip_"+fingers[f]+"_0_"+(s==0?"L":"R"));
             var args=Environment.GetCommandLineArgs();int outputAt=Array.IndexOf(args,"--claw-output");
             string output=outputAt>=0&&outputAt+1<args.Length?args[outputAt+1]:Path.Combine(Application.dataPath,"../../artifacts/claw-alignment");
+            int countAt=Array.IndexOf(args,"--claw-attacks");
+            int attackLimit=countAt>=0&&countAt+1<args.Length?int.Parse(args[countAt+1]):2;
+            if(attackLimit<2||attackLimit>5)throw new Exception("Claw attack count must be 2..5");
+            string extension=Array.IndexOf(args,"--review-jpeg")>=0?"jpg":"png";
             string folder=Path.GetFullPath(Path.Combine(output,version));
             Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
             var sources=new StringBuilder("Rendered UTC: "+DateTime.UtcNow.ToString("O")+"\nUnity: "+Application.unityVersion+"\n");
@@ -91,7 +95,7 @@ namespace UltramanGame.Editor
             var markers=new System.Collections.Generic.HashSet<string>();
             try
             {
-                for(int frame=0;frame<1900;frame++)
+                for(int frame=0;frame<6000;frame++)
                 {
                     const float dt=1/60f;float time=frame*dt;
                     state.Tick(world.BattleDelta(dt,state),new PlayerInput{Tracking=true,Shield=true});
@@ -121,7 +125,7 @@ namespace UltramanGame.Editor
                         world.Camera.transform.LookAt(enemy.Root.position+Vector3.up*2.30f);world.Camera.fieldOfView=32;
                         world.Camera.cullingMask=1<<ContactShadows.ActorLayer;world.Camera.clearFlags=CameraClearFlags.SolidColor;
                         world.Camera.backgroundColor=new Color(.055f,.075f,.11f);
-                        if(frame%2==0)CharacterReview.Save(world.Camera,rt,$"{folder}/frames/{image++:D4}.png");
+                        if(frame%2==0)CharacterReview.Save(world.Camera,rt,$"{folder}/frames/{image++:D4}.{extension}");
                         string key=state.Enemy+"-"+state.EnemyAttackCount;
                         if(state.Enemy==EnemyPhase.Attack&&state.EnemyAge<.37f)key=null;
                         if(key!=null&&markers.Add(key))CharacterReview.Save(world.Camera,rt,folder+"/"+key+".png");
@@ -129,12 +133,12 @@ namespace UltramanGame.Editor
                         world.Camera.transform.SetPositionAndRotation(savedPosition,savedRotation);world.Camera.fieldOfView=savedFov;
                         world.Camera.cullingMask=savedMask;world.Camera.clearFlags=savedClear;world.Camera.backgroundColor=savedColor;
                     }
-                    if(state.EnemyAttackCount>=2&&state.Enemy==EnemyPhase.Recover&&state.EnemyAge>.5f)break;
+                    if(state.EnemyAttackCount>=attackLimit&&state.Enemy==EnemyPhase.Recover&&state.EnemyAge>.5f)break;
                 }
                 File.WriteAllText(folder+"/motion.csv",csv.ToString());
                 string report=$"{version}: attacks={state.EnemyAttackCount} blocks={state.Blocks} maxWristBend={maxBend:F2} minForwardDot={minForward:F3} maxHandStep={maxHandStep:F4} frames={image}";
                 Debug.Log("[ClawPoseReview] "+report);
-                if(state.EnemyAttackCount!=2||state.Blocks!=2||image<100||maxHandStep>.7f)throw new Exception("Claw sequence incomplete or discontinuous: "+report);
+                if(state.EnemyAttackCount!=attackLimit||state.Blocks!=attackLimit||image<100||maxHandStep>.7f)throw new Exception("Claw sequence incomplete or discontinuous: "+report);
                 if(version=="after"&&maxBend>36)throw new Exception("Blended claw still folds back over its forearm: "+report);
                 File.WriteAllText(folder+"/validation.txt",report);
             }

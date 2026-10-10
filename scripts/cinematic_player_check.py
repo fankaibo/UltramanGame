@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--hero', choices=('Tiga','Mebius','Zero','Geed','Grigio','Zeta','DeckerStrong'), default='Tiga')
     parser.add_argument('--slam', action='store_true', help='Wait for the third, ground-slam attack before counterattacking')
     parser.add_argument('--ray', action='store_true', help='Exercise the fourth, head-ray attack before counterattacking')
+    parser.add_argument('--claw-cycle', action='store_true', help='Exercise all five monster attacks including the left claw')
     parser.add_argument('--linked', action='store_true', help='Queue the first three alternating fists during recovery')
     parser.add_argument('--guard-handoff', action='store_true', help='Interrupt the first landed melee with a shield and counterpunch')
     parser.add_argument('--finisher', action='store_true', help='Use 24 HP so the first beam is the final strike')
@@ -39,7 +40,7 @@ def main():
     with (root / 'logs/cinematic-player-console.log').open('w') as console:
         player = subprocess.Popen([str(binary), '--keyboard', '--review-playback', '--review-hero', args.hero, '--guided-proof',
                                    '--proof-output', str(native), '-screen-fullscreen', '0',
-                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else [])+(['--review-finisher'] if args.finisher else [])+(['--review-guard-handoff'] if args.guard_handoff else []),
+                                   '-screen-width', str(args.width), '-screen-height', str(args.height), '-logFile', str(log)]+(['--review-slam'] if args.slam else [])+(['--review-ray'] if args.ray else [])+(['--review-linked'] if args.linked else [])+(['--review-claw-cycle'] if args.claw_cycle else [])+(['--review-finisher'] if args.finisher else [])+(['--review-guard-handoff'] if args.guard_handoff else []),
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         timed_out_after_review=False
         try:
@@ -162,9 +163,9 @@ def main():
                 or ground_contacts.count('stagger') != stagger_landings or ground_contacts.count('beam-brace') != beam_braces
                 or len(ground_contacts) != live_output.count('[GroundImpact] sound=True')):
             raise RuntimeError('Ground contact event and audio were missing or duplicated')
-        if args.slam and ground_contacts.count('slam') != 1:
+        if (args.slam or args.claw_cycle) and ground_contacts.count('slam') != 1:
             raise RuntimeError('Expected exactly one third-attack ground slam')
-        if args.ray and (live_output.count('[MonsterRay] launch ') != 1 or live_output.count('[MonsterRayAudio] started') != 1 or live_output.count('[MonsterRayAudio] stopped') != 1 or '[BeamSurface] head-anchor=True vertices=3' not in output):
+        if (args.ray or args.claw_cycle) and (live_output.count('[MonsterRay] launch ') != 1 or live_output.count('[MonsterRayAudio] started') != 1 or live_output.count('[MonsterRayAudio] stopped') != 1 or '[BeamSurface] head-anchor=True vertices=3' not in output):
             raise RuntimeError('Missing head anchor, single ray or paired sound')
         if 'reaction=3.0' not in output:
             raise RuntimeError('Missing child reaction-time evidence')
@@ -217,10 +218,14 @@ def main():
     required += ('kick-chamber','kick-contact','kick-retract','kick-setdown')
     if not args.finisher:
         required += ('kick-chamber-air','kick-contact-air','kick-retract-air','kick-setdown-air')
-    if args.slam:
+    if args.slam or args.claw_cycle:
         required += ('slam-prepare','slam-swing','slam-ground','slam-wave','slam-rise')
-    if args.ray:
+    if args.ray or args.claw_cycle:
         required += ('ray-prepare','ray-travel','ray-block','ray-fade','ray-recover')
+    if args.claw_cycle:
+        required += ('monster-rush-left',)
+        if int(re.search(r'blocks=(\d+)', match[0])[1]) < 4:
+            raise RuntimeError('Incomplete five-attack monster cycle')
     if args.linked:
         required += ('punch-link-prepare','punch-link-handoff','engagement-held-stance')
     if args.hero == 'Mebius':
@@ -281,7 +286,7 @@ def main():
             raise RuntimeError(f'HUD color was encoded incorrectly: {best[1:] if best else None}')
         pixel=best[1]
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'linked':args.linked, 'guard_handoff':args.guard_handoff, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'claw_cycle':args.claw_cycle, 'linked':args.linked, 'guard_handoff':args.guard_handoff, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,

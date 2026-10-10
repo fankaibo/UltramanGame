@@ -5,6 +5,19 @@ static class ReviewPlaybackChecks
 {
     public static void Run(Action<bool,string> check)
     {
+        foreach(bool cycle in new[]{false,true})
+        {
+            var b=new Battle();var playback=new ReviewPlayback(clawCycle:cycle);
+            int firstPunchAttack=0;
+            for(int frame=0;frame<60*150&&b.Phase!=GamePhase.Victory;frame++)
+            {
+                b.Tick(1f/60,playback.Next(b,1f/60));
+                if(firstPunchAttack==0&&b.Punches>0)firstPunchAttack=b.EnemyAttackCount;
+                while(b.TryCue(out var cue)){}
+            }
+            check(firstPunchAttack==(cycle?5:2),"review waits for requested monster cycle "+cycle);
+            check(b.Phase==GamePhase.Victory&&b.Punches==32&&b.HitsTaken==1&&b.Blocks>=(cycle?4:1),"cycle preserves full battle outcome "+cycle);
+        }
         foreach(int hz in new[]{15,30,60})
         {
             var b=new Battle();var review=new ReviewPlayback(linkedPunches:true,guardHandoff:true);

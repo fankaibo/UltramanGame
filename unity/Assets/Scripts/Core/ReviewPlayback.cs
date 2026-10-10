@@ -8,13 +8,13 @@ namespace UltramanGame.Core
         public bool Interrupted {get;private set;}
         float nextPunch,lossAge=-1;
         bool alternate;
-        readonly bool groundSlam,headRay,linkedPunches;
+        readonly bool groundSlam,headRay,linkedPunches,clawCycle;
         public bool GuardHandoffEnabled {get;}
         public bool GuardHandoffObserved=>guardStage==2;
         int guardStage;float guardAt;bool counterLeft;
         int queuedFor;
-        public ReviewPlayback(bool groundSlam=false,bool headRay=false,bool linkedPunches=false,bool guardHandoff=false)
-        {this.groundSlam=groundSlam;this.headRay=headRay;this.linkedPunches=linkedPunches;GuardHandoffEnabled=guardHandoff;}
+        public ReviewPlayback(bool groundSlam=false,bool headRay=false,bool linkedPunches=false,bool guardHandoff=false,bool clawCycle=false)
+        {this.clawCycle=clawCycle;this.groundSlam=groundSlam;this.headRay=headRay;this.linkedPunches=linkedPunches;GuardHandoffEnabled=guardHandoff;}
         public PlayerInput Next(Battle battle,float dt)
         {
             Age+=dt;var input=new PlayerInput{Tracking=true};
@@ -25,7 +25,7 @@ namespace UltramanGame.Core
             if(battle.Phase==GamePhase.Paused)return input;
             // First take one harmless hit, then demonstrate a successful block.
             if(battle.HitsTaken==0)return input;
-            if(battle.Blocks<(headRay?3:groundSlam?2:1)){input.Shield=true;return input;}
+            if(battle.Blocks<(clawCycle?4:headRay?3:groundSlam?2:1)){input.Shield=true;return input;}
             if(GuardHandoffEnabled&&guardStage<2)
             {
                 if(guardStage==0&&battle.Punches==1&&battle.IsPunch&&battle.ActionAge>=.14f)

@@ -2390,12 +2390,15 @@ namespace UltramanGame.Runtime
             =>Root.position+Vector3.Cross(Vector3.up,forward)*((left?-1:1)*lateral)+Vector3.up*height+forward*depth;
         static Vector3 Bezier(Vector3 a,Vector3 b,Vector3 c,Vector3 d,float t)
         {t=Mathf.Clamp01(t);float u=1-t;return a*(u*u*u)+b*(3*u*u*t)+c*(3*u*t*t)+d*(t*t*t);}
-        void AimClaw(bool left,Vector3 target,float weight)
+        void AimClaw(bool left,Vector3 target,float weight,bool support=false)
         {
             var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
             Vector3 span=wrist.position-lower.position;Quaternion palm=wrist.rotation;
             var side=Vector3.Cross(Vector3.up,forward)*(left?-1:1);
-            PoseLimb(upper,lower,wrist,target,weight,side*.70f+Vector3.down*.45f,.30f);
+            // The free arm balances a swipe below the chest. Reusing the lead
+            // elbow pole forced that elbow sideways at shoulder height.
+            Vector3 pole=support?side*.35f+Vector3.down*.85f:side*.70f+Vector3.down*.45f;
+            PoseLimb(upper,lower,wrist,target,weight,pole,.30f);
             wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
         }
         void CorrectAttackArms(Battle state)
@@ -2411,7 +2414,7 @@ namespace UltramanGame.Runtime
                 :Bezier(follow,ClawPoint(left,-.18f,2.20f,.52f),ClawPoint(left,.55f,2.25f,.42f),ClawPoint(left,.60f,2.40f,.63f),(age-.62f)/.37f);
             float settle=1-Mathf.SmoothStep(0,1,(age-.82f)/.23f);
             AimClaw(left,target,.90f*settle);
-            AimClaw(!left,ClawPoint(!left,.43f,2.38f,.45f),.60f*settle);
+            AimClaw(!left,ClawPoint(!left,.55f,2.20f,.62f),.82f*settle,true);
         }
         static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 elbowTarget,Vector3 wristTarget,float blend)
         {
