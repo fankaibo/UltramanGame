@@ -29,6 +29,7 @@ namespace UltramanGame.Runtime
         public Vector3 BladePosition(int i)=>sluggers[i].position;
         public Vector3 BladeTrailTip(int i)=>bladeTrails[i].GetPosition(bladeTrails[i].positionCount-1);
         bool useSluggers;
+        bool useComet;
         Battle observed;
         int sequence=-1;
         Color tint=new Color(.18f,.7f,1);
@@ -90,7 +91,15 @@ namespace UltramanGame.Runtime
             var mesh=RuntimeResources.Own(parent,new Mesh{name="Zero crescent blade",vertices=vertices,triangles=triangles});mesh.RecalculateNormals();mesh.RecalculateBounds();return mesh;
         }
         public void SetHero(string id)
-        {useSluggers=HeroArsenal.Sluggers(id);if(ColorUtility.TryParseHtmlString(HeroRoster.At(HeroRoster.Index(id)).BeamTint,out var color))tint=color;Clear();}
+        {
+            useSluggers=HeroArsenal.Sluggers(id);useComet=id=="Tiga";
+            trailMat.shader=Resources.Load<Shader>(useComet?"ProjectileWake":"StrikeRibbon");
+            trail.widthMultiplier=useComet?.62f:.30f;
+            trail.positionCount=useComet?2:8;
+            trail.widthCurve=useComet?AnimationCurve.Constant(0,1,1):
+                new AnimationCurve(new Keyframe(0,0),new Keyframe(.8f,1),new Keyframe(1,.35f));
+            if(ColorUtility.TryParseHtmlString(HeroRoster.At(HeroRoster.Index(id)).BeamTint,out var color))tint=color;Clear();
+        }
         void HideFlight()
         {originalSluggers?.Restore();Visible=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);foreach(var line in bladeTrails)line.enabled=false;}
         public void Clear(){Started=false;HideFlight();accents.Clear();contacted=false;}
@@ -134,7 +143,7 @@ namespace UltramanGame.Runtime
             }
             float age=state.Shot.Age;
             Visible=age<=(useSluggers?AttackTempo.RangedSeconds:AttackTempo.RangedHitSeconds+.055f);
-            core.gameObject.SetActive(Visible&&!useSluggers);halo.gameObject.SetActive(Visible&&!useSluggers);wave.gameObject.SetActive(Visible&&!useSluggers);trail.enabled=Visible&&!useSluggers;
+            core.gameObject.SetActive(Visible&&!useSluggers);halo.gameObject.SetActive(Visible&&!useSluggers);wave.gameObject.SetActive(Visible&&!useSluggers&&!useComet);trail.enabled=Visible&&!useSluggers;
             foreach(var blade in sluggers)blade.gameObject.SetActive(Visible&&useSluggers&&!OriginalBlades);
             foreach(var line in bladeTrails)line.enabled=Visible&&useSluggers;
             if(!Visible){originalSluggers?.Restore();return;}
@@ -166,13 +175,19 @@ namespace UltramanGame.Runtime
             core.position=halo.position=wave.position=Tip;
             core.rotation=Quaternion.LookRotation(flightAxis);halo.rotation=camera.transform.rotation;
             wave.rotation=Quaternion.LookRotation(flightAxis)*Quaternion.Euler(0,0,age*320);
-            core.localScale=new Vector3(.25f,.25f,.65f);halo.localScale=Vector3.one*.85f;
+            core.localScale=useComet?new Vector3(.36f,.36f,.95f):new Vector3(.25f,.25f,.65f);halo.localScale=Vector3.one*(useComet?1.05f:.85f);
             wave.localScale=Vector3.one*(.50f+.08f*Mathf.Sin(t*Mathf.PI));
             coreMat.color=new Color(tint.r,tint.g,tint.b,fade);coreMat.SetFloat("_Age",age);
             haloMat.color=new Color(tint.r,tint.g,tint.b,.50f*fade);
             waveMat.color=new Color(tint.r,tint.g,tint.b,.60f*fade);
             trailMat.color=new Color(tint.r,tint.g,tint.b,.70f*fade);
-            for(int i=0;i<8;i++)trail.SetPosition(i,Vector3.Lerp(origin,end,Mathf.Max(0,t-.30f+i/7f*.30f)));
+            if(useComet)
+            {
+                trailMat.SetFloat("_Age",age);
+                float length=Mathf.Min(Vector3.Distance(origin,Tip),2.1f);
+                trail.SetPosition(0,Tip-flightAxis*length);trail.SetPosition(1,Tip);
+            }
+            else for(int i=0;i<8;i++)trail.SetPosition(i,Vector3.Lerp(origin,end,Mathf.Max(0,t-.30f+i/7f*.30f)));
         }
     }
 }

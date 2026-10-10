@@ -40,6 +40,16 @@ namespace UltramanGame.Editor
                         if(state.EnemyHealth<health){hits++;world.Hit(false,state);}health=state.EnemyHealth;world.Tick(state,dt,f*dt);
                         csv.AppendLine(FormattableString.Invariant($"{f},{state.Phase},{state.Action},{state.ActionAge:R},{state.Shot.Age:R},{health},{state.Energy},{hits},{world.Projectile.ImpactVisible}"));
                         if(hz==60&&f%2==0)Save(world.Camera,rt,Path.Combine(folder,$"{f/2:D4}.jpg"));
+                        if(hz==60&&f==36)
+                        {
+                            var wake=GameObject.Find("Light bullet short trail").GetComponent<LineRenderer>();
+                            var mesh=new Mesh();wake.BakeMesh(mesh,world.Camera,true);
+                            var detail=new StringBuilder();
+                            for(int i=0;i<wake.positionCount;i++)detail.AppendLine("point "+wake.GetPosition(i).ToString("R"));
+                            var vertices=mesh.vertices;var uv=mesh.uv;
+                            for(int i=0;i<vertices.Length;i++)detail.AppendLine($"vertex {vertices[i].ToString("R")} uv {uv[i].ToString("R")}");
+                            File.WriteAllText(Path.Combine(folder,"wake-mesh.txt"),detail.ToString());UnityEngine.Object.DestroyImmediate(mesh);
+                        }
                     }
                     if(hits!=3||world.Projectile.Impacts!=3||state.EnemyHealth!=47||state.Energy!=3)throw new Exception("Contact changed combat receipts");
                     if(world.Projectile.ImpactVisible)throw new Exception("Contact effects did not expire");
