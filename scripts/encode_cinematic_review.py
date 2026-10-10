@@ -14,11 +14,12 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     folder = args.folder.resolve() if args.folder else root / 'artifacts/cinematic-combat'
-    frames = sorted((folder / 'frames').glob('frame-*.png'))
+    extension = 'jpg' if (folder / 'frames/frame-0000.jpg').exists() else 'png'
+    frames = sorted((folder / 'frames').glob(f'frame-*.{extension}'))
     if not (folder / 'validation.txt').exists():
         parser.error('a passed Unity full-battle render is required')
     for i, frame in enumerate(frames):
-        if frame.name != f'frame-{i:04d}.png':
+        if frame.name != f'frame-{i:04d}.{extension}':
             parser.error(f'non-contiguous frames at {i}')
     duration = len(frames) / 30
     sounds = []
@@ -49,7 +50,7 @@ def main():
         'effects': 'event-aligned local files',
     }, ensure_ascii=False, indent=2))
     cmd = [args.ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-framerate', '30',
-           '-i', str(folder / 'frames/frame-%04d.png'), '-stream_loop', '-1', '-i', str(music)]
+           '-i', str(folder / f'frames/frame-%04d.{extension}'), '-stream_loop', '-1', '-i', str(music)]
     filters = [f'[1:a]volume=.18,atrim=0:{duration}[music]']
     mix = ['[music]']
     for i, (path, at, volume) in enumerate(sounds, 2):

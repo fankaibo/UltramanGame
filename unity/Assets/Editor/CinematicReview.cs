@@ -39,11 +39,14 @@ namespace UltramanGame.Editor
             bool slam=Array.IndexOf(args,"--review-slam")>=0;
             bool ray=Array.IndexOf(args,"--review-ray")>=0;
             bool linked=Array.IndexOf(args,"--review-linked")>=0;
+            string extension=Array.IndexOf(args,"--review-jpeg")>=0?"jpg":"png";
             var world=new GameWorld();var battle=new Battle();var input=new ReviewPlayback(slam,ray,linked);
+            world.UseFighterFraming=Array.IndexOf(args,"--review-baseline-framing")<0;
             var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts",outputFolder));Directory.CreateDirectory(folder+"/frames");
             File.Delete(folder+"/validation.txt");
-            foreach(var old in Directory.GetFiles(folder+"/frames","frame-????.png"))File.Delete(old);
+            foreach(string suffix in new[]{"png","jpg"})
+                foreach(var old in Directory.GetFiles(folder+"/frames","frame-????."+suffix))File.Delete(old);
             var target=new RenderTexture(1280,720,24,RenderTextureFormat.ARGB32){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16/9f;
             var events=new StringBuilder("seconds,event,health,energy\n");int beams=0,output=0;bool paused=false;float victory=-1;
             float lastHealth=battle.EnemyHealth;
@@ -64,7 +67,7 @@ namespace UltramanGame.Editor
                 world.Tick(battle,dt,time);enemy.SetPresentationOpacity(world.EnemyOpacity);
                 if(world.BeamStarted)
                 {beams++;events.AppendLine($"{time:F3},BeamVisible,{battle.EnemyHealth},{battle.Energy}");}
-                if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.png");output++;}
+                if(frame%2==0){CharacterReview.Save(world.Camera,target,$"{folder}/frames/frame-{output:0000}.{extension}");output++;}
                 if(battle.Phase==GamePhase.Victory){if(victory<0)victory=time;if(time-victory>3)break;}
             }
             if(battle.Phase!=GamePhase.Victory||battle.Punches!=32||beams!=2||battle.HitsTaken!=1||battle.Blocks<1||!paused)

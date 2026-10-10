@@ -24,6 +24,9 @@ namespace UltramanGame.Runtime
         public float ComboCameraAge=>comboCamera.Age;
         readonly RangedCameraMotion rangedCamera=new RangedCameraMotion();
         readonly MeleeCameraMotion meleeCamera=new MeleeCameraMotion();
+        readonly FighterFraming fighterFraming=new FighterFraming();
+        public float FighterFramingWeight=>fighterFraming.Weight;
+        public bool UseFighterFraming=true;
         public float RangedFocus=>rangedCamera.Focus;
         public bool TransformationCloseup {get;private set;}
         public bool MonsterEntranceCloseup {get;private set;}
@@ -40,7 +43,7 @@ namespace UltramanGame.Runtime
         public readonly Vector3 HeroHome=new Vector3(-homeOffset,0,.4f-homeOffset),EnemyHome=new Vector3(homeOffset,0,.4f+homeOffset);
         public Vector3 BattleAxis => (EnemyHome-HeroHome).normalized;
         AnimatedActor hero,enemy;
-        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){blade.BindActor(heroActor);projectile.BindSluggers(heroActor?.Sluggers);hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        public void BindActors(AnimatedActor heroActor,AnimatedActor enemyActor){blade.BindActor(heroActor);projectile.BindSluggers(heroActor?.Sluggers);hero=heroActor;enemy=enemyActor;hero?.SetOpponent(enemy);fighterFraming.Bind(hero,enemy);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void SetHeroProfile(string id){heroId=id;effects.SetHeroProfile(id);projectile.SetHero(id);blade.SetHero(id);}
         public Vector3 BeamOrigin => hero!=null&&hero.IsRigged?hero.BeamOrigin:HeroHome+BattleAxis*.72f+Vector3.up*2.72f;
         public Vector3 BeamTarget => enemy!=null?enemy.BeamSurfaceContact:EnemyHome+Vector3.up*2.48f-BattleAxis*.33f;
@@ -154,7 +157,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();fighterFraming.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -345,21 +348,8 @@ namespace UltramanGame.Runtime
                 monsterRim.color=state.Enemy==EnemyPhase.Attack?new Color(1,.30f,.08f):new Color(1,.20f,.055f);
             }
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
-            // Give the two fighters the visual priority of an arcade cabinet while
-            // retaining enough margin for the feet, effects and camera preview.
-            // Leave space above the helmets and below the planted feet for the
-            // edge HUD, including the return from a special-move close-up.
-            // The reference cabinet keeps the two fighters large in the
-            // playfield. Tighten the ordinary lens a little; dedicated beam,
-            // threat and combo compositions still take ownership below.
-            // The reference cabinet keeps the fighters close to the viewer.
-            // Tighten the ordinary lens one more step so the 16:9 living-room
-            // shot gives the actors the same visual priority as the portrait
-            // cabinet, while leaving the dedicated beam and fall compositions
-            // in control of their own framing.
-            // The reference cabinet keeps the fighters close to the viewer.
-            // Open the ordinary lens slightly for the wider weapon exchange.
-            // Dedicated beam, transformation and fall shots retain their framing.
+            // Dedicated shots retain their lenses; ordinary framing is fitted
+            // to the two animated bodies after composition below.
             float fieldOfView=Showcase||state.Phase==GamePhase.Victory||state.Phase==GamePhase.Transforming?32:battleView?(state.Action==HeroAction.Beam?26.8f:state.Shield?28.0f:28.5f):37;
             framingFieldOfView=Mathf.Lerp(framingFieldOfView,fieldOfView,dt*4);
             float dynamicZoom=0;
@@ -483,7 +473,8 @@ namespace UltramanGame.Runtime
                 // lens enlarges the helmets faster than the feet; raising the
                 // optical target moves the fighters down into the clear band
                 // below the top health plates.
-                target=Vector3.Lerp(target,lookAt+Vector3.up*.45f+BattleAxis*.06f,ComboFocus);
+                target=Vector3.Lerp(target,lookAt+Vector3.up*.45f+BattleAxis*.06f
+                    +(UseFighterFraming?viewRight*.24f:Vector3.zero),ComboFocus);
                 // The ordinary battle lens is already tight on a 16:9 TV. Keep
                 // this fifth-punch beat genuinely closer instead of widening it
                 // back out: the contact should read as a cabinet hit-stop while
@@ -533,6 +524,13 @@ namespace UltramanGame.Runtime
                 target=Vector3.Lerp(target,lookAt+Vector3.up*.35f+BattleAxis*.10f,weight);
                 Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,31.5f,weight);
             }
+            bool frameFighters=UseFighterFraming&&!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active
+                &&state.Action!=HeroAction.Beam;
+            float dedicated=Mathf.Clamp01(12*Mathf.Max(ThreatFocus,RangedFocus,ComboFocus,ExchangeFocus,launchFocus));
+            if(state.Action==HeroAction.Hurt||MonsterRayMotion.Active(state))dedicated=1;
+            if(!frameFighters)fighterFraming.Clear();
+            else fighterFraming.Tick(1-dedicated,dt);
+            target-=Vector3.up*(.10f*fighterFraming.Weight*(1-dedicated));
             Camera.transform.LookAt(Vector3.Lerp(target,HeroAnchor+BattleAxis*.2f+Vector3.up*2.60f,focus));
             if(HeroShot)
             {
@@ -604,6 +602,7 @@ namespace UltramanGame.Runtime
                 if(Mathf.Abs(roll)>.01f)
                     Camera.transform.rotation=Quaternion.AngleAxis(roll,Camera.transform.forward)*Camera.transform.rotation;
             }
+            if(frameFighters)fighterFraming.Apply(Camera,dt,dedicated);
             hero?.SetPresentationOpacity(MonsterEntranceCloseup?0:1);
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
             volcano.Tick(clock);

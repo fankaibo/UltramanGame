@@ -200,7 +200,7 @@ namespace UltramanGame.Editor
             }
             RenderTexture.active=target;
             var texture=new Texture2D(target.width,target.height,TextureFormat.RGB24,false);texture.ReadPixels(new Rect(0,0,target.width,target.height),0,0);texture.Apply();
-            File.WriteAllBytes(path,texture.EncodeToPNG());UnityEngine.Object.DestroyImmediate(texture);
+            File.WriteAllBytes(path,path.EndsWith(".jpg",StringComparison.OrdinalIgnoreCase)?texture.EncodeToJPG(92):texture.EncodeToPNG());UnityEngine.Object.DestroyImmediate(texture);
         }
     }
 }
