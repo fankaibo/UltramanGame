@@ -124,6 +124,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--output',type=Path,default=ROOT/'artifacts/guided-arcade')
     parser.add_argument('--log',type=Path,default=ROOT/'logs/guided-player.log')
+    parser.add_argument('--timeout',type=float,default=240,help='External verification deadline in seconds; does not alter game timing')
     parser.add_argument('--memory-output',type=Path,help='Write same-process RSS/VSZ samples as TSV and a summary JSON')
     parser.add_argument('--memory-interval',type=float,default=1.0,help='Seconds between process memory samples')
     parser.add_argument('--ready-follow',action='store_true',help='Move each hand before attacking and verify continuous ready-pose rendering')
@@ -137,6 +138,7 @@ def main():
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
     options=parser.parse_args()
+    if not 60<=options.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
     if options.body_follow:options.ready_follow=True
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
@@ -183,7 +185,7 @@ def main():
             guard_startup_overlap_frames=beam_startup_frames=0
             next_memory_sample=0.0
             tempo_started=None
-            while time.monotonic()-started<240:
+            while time.monotonic()-started<options.timeout:
                 if process.poll() is not None: raise RuntimeError('Player ended early')
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
                 complete=output.rfind('\n')+1;lines=output[parsed:complete].splitlines();parsed=complete
@@ -404,7 +406,7 @@ def main():
                 if photo_at-publish_at>.2:
                     print(f'[GuidedLatency] stage={stage} age={age:.1f} poseMs={(pose_at-publish_at)*1000:.0f} previewMs={(preview_at-pose_at)*1000:.0f} photoMs={(photo_at-preview_at)*1000:.0f}',flush=True)
                 time.sleep(1/30)
-            if not replay_battle_at:raise RuntimeError('Guided loop did not complete within 240 seconds')
+            if not replay_battle_at:raise RuntimeError(f'Guided loop did not complete within {options.timeout:g} seconds')
             if not review_loss_start:raise RuntimeError('Second-review pose dropout was not exercised')
             if not replay_selection_sent or not replay_selection_seen:
                 raise RuntimeError(f'Photo replay did not restore hero selection: sent={replay_selection_sent} seen={replay_selection_seen}')
