@@ -30,7 +30,7 @@ namespace UltramanGame.Editor
             var camera=new GameObject("Volume inspection camera").AddComponent<Camera>();camera.enabled=false;
             camera.depthTextureMode=DepthTextureMode.Depth;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.08f,.10f,.14f);
             camera.transform.position=new Vector3(0,2.8f,-7);camera.transform.LookAt(new Vector3(0,2.8f,0));camera.fieldOfView=45;camera.aspect=1;
-            var volume=GameObject.CreatePrimitive(PrimitiveType.Cube);volume.name="Volume depth inspection";volume.transform.position=new Vector3(0,2.8f,0);volume.transform.localScale=new Vector3(3.8f,5.6f,3.2f);
+            var volume=GameObject.CreatePrimitive(PrimitiveType.Cube);volume.name="Volume depth inspection";volume.transform.position=new Vector3(0,2.8f,0);volume.transform.localScale=new Vector3(VolcanicPlumeMotion.Width,5.6f,3.2f);
             var smoke=new Material(Resources.Load<Shader>("VolcanicPlume"));VolcanicPlumeMotion.Update(smoke,7.1f);smoke.SetFloat("_Surge",.8f);
             var densityNoise=VolcanoStage.CreatePlumeNoise();smoke.SetTexture("_Noise",densityNoise);
             var renderer=volume.GetComponent<Renderer>();renderer.sharedMaterial=smoke;renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;

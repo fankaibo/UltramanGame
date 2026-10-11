@@ -122,7 +122,7 @@ namespace UltramanGame.Runtime
                 VolcanicPlumeMotion.Update(material,0);
                 var origin=vents[i];origin.y=Height(origin.x,origin.z);
                 var volume=GameWorld.Primitive("Volumetric volcanic ash",PrimitiveType.Cube,transform,
-                    origin+new Vector3(.46f,2.83f,0),new Vector3(3.8f,5.6f,3.2f),material);
+                    origin+new Vector3(.46f,2.83f,0),new Vector3(VolcanicPlumeMotion.Width,5.6f,3.2f),material);
                 var renderer=volume.GetComponent<Renderer>();renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;renderer.receiveShadows=false;
             }
             ejecta=new VolcanicEjecta(transform,vents,Height);

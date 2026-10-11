@@ -12,7 +12,7 @@ Shader "Training/VolcanicPlume" {
    #include "UnityCG.cginc"
    UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
    sampler3D _Noise;
-   float _Seed,_Clock,_Surge;
+   float _Seed,_Clock,_Surge,_CrossScale;
    float _FirstHeight;
    float4 _ParcelCenters[10],_ParcelRadii[10];
    struct v2f {float4 pos:SV_POSITION;float3 world:TEXCOORD0;float4 screen:TEXCOORD1;};
@@ -30,7 +30,7 @@ Shader "Training/VolcanicPlume" {
     int nearest=(int)floor((h-_FirstHeight)/spacing);
     // Faster small eddies ride inside slower rising billows. Preserve the
     // three cached texture reads per density evaluation.
-    float3 flow=p*float3(11,14,11)+float3(_Seed,-_Clock*.85,_Seed*.37);
+    float3 flow=float3(p.x/_CrossScale,p.y,p.z)*float3(11,14,11)+float3(_Seed,-_Clock*.85,_Seed*.37);
     float broad=noise(flow*.81+float3(1.7,-.8,2.4));
     float detail=noise(flow*1.9+8)*.68+noise(flow*3.87-3)*.32;
     float body=0;
@@ -47,13 +47,16 @@ Shader "Training/VolcanicPlume" {
     // A narrow turbulent throat joins the parcels to the vent. It has no
     // upper radial shell: billows, rather than a cone, define the silhouette.
     float2 throatCenter=float2(-.12+h*.23,0);
-    float throat=1-length(p.xz-throatCenter)/(.040+.14*max(0,h));
+    float throat=1-length(float2(p.x/_CrossScale,p.z)-throatCenter)/(.040+.14*max(0,h));
     throat=saturate((throat+(broad-.5)*.50)*2)*(1-smoothstep(.10,.36,h));
     body=max(body,throat);
     // The old .55 density floor filled every pocket, making a smooth
     // grey tube after integration. Let eddies excavate translucent folds.
     float erosion=lerp(.28,1.05,smoothstep(.26,.68,broad*.58+detail*.42));
-    return body*erosion*smoothstep(0,.028,h)*(1-smoothstep(.86,.998,h));
+    // Entrainment opens the older, downwind ash while the newly
+    // erupted throat keeps its density. No extra ray-march samples.
+    float dilution=lerp(1,.58,smoothstep(.35,.96,h));
+    return body*erosion*dilution*smoothstep(0,.028,h)*(1-smoothstep(.86,.998,h));
    }
    float4 frag(v2f i):SV_Target {
     float3 ray=normalize(i.world-_WorldSpaceCameraPos);
@@ -74,14 +77,14 @@ Shader "Training/VolcanicPlume" {
      float d=density(p);
      if(d>.005){
       float h=p.y+.5;
-      float lightDensity=density(p+float3(-.052,.040,-.060));
-      float distantDensity=density(p+float3(-.12,.095,-.14));
+      float lightDensity=density(p+float3(-.052*_CrossScale,.040,-.060));
+      float distantDensity=density(p+float3(-.12*_CrossScale,.095,-.14));
       // A short directional shadow path darkens covered folds. This avoids
       // lighting every near-facing parcel like white steam. Three lattice
       // reads per density sample keep it below the previous ten per step.
       float transmission=exp(-lightDensity*1.6-distantDensity*2.2);
       float lighting=saturate(.10+transmission*.78+(d-lightDensity)*1.25);
-      float3 color=lerp(float3(.035,.042,.055),float3(.46,.49,.54),lighting);
+      float3 color=lerp(float3(.035,.042,.055),float3(.36,.40,.47),lighting);
       // Ash swatches are display colors; heat below is emitted radiance.
       #ifndef UNITY_COLORSPACE_GAMMA
        color=GammaToLinearSpace(color);
