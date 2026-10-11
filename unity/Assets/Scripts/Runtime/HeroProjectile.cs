@@ -93,6 +93,7 @@ namespace UltramanGame.Runtime
         public void SetHero(string id)
         {
             useSluggers=HeroArsenal.Sluggers(id);useComet=id=="Tiga";accents.MuzzleLighting=useComet;
+            coreMat.shader=Resources.Load<Shader>(useComet?"LightBullet":"SkillEnergy");
             trailMat.shader=Resources.Load<Shader>(useComet?"ProjectileWake":"StrikeRibbon");
             trail.widthMultiplier=useComet?.62f:.30f;
             trail.positionCount=useComet?2:8;
@@ -175,16 +176,16 @@ namespace UltramanGame.Runtime
             core.position=halo.position=wave.position=Tip;
             core.rotation=Quaternion.LookRotation(flightAxis);halo.rotation=camera.transform.rotation;
             wave.rotation=Quaternion.LookRotation(flightAxis)*Quaternion.Euler(0,0,age*320);
-            core.localScale=useComet?new Vector3(.36f,.36f,.95f):new Vector3(.25f,.25f,.65f);halo.localScale=Vector3.one*(useComet?1.05f:.85f);
+            core.localScale=useComet?new Vector3(.50f,.50f,1.16f):new Vector3(.25f,.25f,.65f);halo.localScale=Vector3.one*(useComet?.78f:.85f);
             wave.localScale=Vector3.one*(.50f+.08f*Mathf.Sin(t*Mathf.PI));
             coreMat.color=new Color(tint.r,tint.g,tint.b,fade);coreMat.SetFloat("_Age",age);
-            haloMat.color=new Color(tint.r,tint.g,tint.b,.50f*fade);
+            haloMat.color=new Color(tint.r,tint.g,tint.b,(useComet?.28f:.50f)*fade);
             waveMat.color=new Color(tint.r,tint.g,tint.b,.60f*fade);
             trailMat.color=new Color(tint.r,tint.g,tint.b,.70f*fade);
             if(useComet)
             {
                 trailMat.SetFloat("_Age",age);
-                float length=Mathf.Min(Vector3.Distance(origin,Tip),2.1f);
+                float length=Mathf.Min(Vector3.Distance(origin,Tip),1.4f);
                 trail.SetPosition(0,Tip-flightAxis*length);trail.SetPosition(1,Tip);
             }
             else for(int i=0;i<8;i++)trail.SetPosition(i,Vector3.Lerp(origin,end,Mathf.Max(0,t-.30f+i/7f*.30f)));

@@ -108,9 +108,9 @@ namespace UltramanGame.Editor
         }
         static void SaveMovie(Camera camera,RenderTexture rt,string path)
         {
-            var old=RenderTexture.active;var image=new Texture2D(rt.width,rt.height,TextureFormat.RGB24,false);
-            try{camera.Render();RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);image.Apply();File.WriteAllBytes(path,image.EncodeToJPG(85));}
-            finally{RenderTexture.active=old;UnityEngine.Object.DestroyImmediate(image);}
+            // Offline batch rendering has no player loop to refresh skinning.
+            // Bake the sampled pose on every movie frame, as for still images.
+            CharacterReview.Save(camera,rt,path);
         }
     }
 }
