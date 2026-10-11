@@ -74,7 +74,11 @@ namespace UltramanGame.Runtime
             // removes the visible snap at entry, contact and release without
             // changing camera speed, gameplay timing, or the central pose.
             float punch=punching?MotionBeat(state.ActionAge,.025f,.12f,.34f)*(combo?1.28f:1):0;
-            float rush=state.Enemy==EnemyPhase.Attack?MotionBeat(state.EnemyAge,.06f,.34f,.78f)*.85f:0;
+            // A thrown rock travels until .78 s; the melee envelope had
+            // already ended there, making the lens peak before the stone arrived.
+            float rush=state.Enemy==EnemyPhase.Attack?
+                (MonsterRockMotion.Active(state)?MotionBeat(state.EnemyAge,MonsterRockMotion.Launch,MonsterRockMotion.Contact,.98f):
+                MotionBeat(state.EnemyAge,.06f,.34f,.78f))*.85f:0;
             float hurt=state.Action==HeroAction.Hurt?MotionBeat(state.ActionAge,0,.10f,.42f)*.90f:0;
             float strength=Mathf.Max(punch,rush,hurt);
             if(strength<=0)return;

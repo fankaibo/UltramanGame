@@ -7,6 +7,8 @@ namespace UltramanGame.Runtime
     public sealed class MonsterRock
     {
         readonly Transform stone;
+        readonly BoulderDust dust;
+        public int ActiveDust=>dust.Visible;
         readonly Transform[] pieces=new Transform[7];
         Battle observed;
         Vector3 origin,destination,contact;
@@ -30,7 +32,7 @@ namespace UltramanGame.Runtime
             material.SetTexture("_ARM",Resources.Load<Texture2D>("Environment/ScannedRocks/rock_07_arm_2k"));
             stone=Rock(parent,"Golza thrown boulder",source,material,.70f);
             for(int i=0;i<pieces.Length;i++)pieces[i]=Rock(parent,"Broken boulder "+i,source,material,.10f+i%3*.045f);
-            Clear();
+            dust=new BoulderDust(parent);Clear();
         }
         static Transform Rock(Transform parent,string name,Mesh mesh,Material material,float size)
         {
@@ -43,9 +45,9 @@ namespace UltramanGame.Runtime
             float scale=size/Mathf.Max(.001f,Mathf.Max(mesh.bounds.size.x,Mathf.Max(mesh.bounds.size.y,mesh.bounds.size.z)));
             surface.localScale=Vector3.one*scale;surface.localPosition=-mesh.bounds.center*scale;return root;
         }
-        public void Clear(){Started=Flying=Holding=Fragments=false;stone.gameObject.SetActive(false);foreach(var p in pieces)p.gameObject.SetActive(false);}
+        public void Clear(){dust.Clear();Started=Flying=Holding=Fragments=false;stone.gameObject.SetActive(false);foreach(var p in pieces)p.gameObject.SetActive(false);}
         public void Impact(Vector3 position){contact=position;impacted=true;}
-        public void Tick(Battle state,Vector3 hand,Vector3 target,bool suppressed)
+        public void Tick(Battle state,Vector3 hand,Vector3 target,bool suppressed,Camera camera)
         {
             Started=false;
             if(!ReferenceEquals(observed,state)){observed=state;sequence=-1;Launches=0;impacted=false;}
@@ -66,6 +68,9 @@ namespace UltramanGame.Runtime
                 stone.position=Vector3.Lerp(origin,destination,MonsterRockMotion.Travel(age))+Vector3.up*MonsterRockMotion.Arc(age);
                 stone.rotation=Quaternion.Euler(age*470,age*230,age*140);
             }
+            if(state.Enemy==EnemyPhase.Attack||state.Enemy==EnemyPhase.Recover)
+                dust.Tick(state.EnemyAttackCount,state.Enemy==EnemyPhase.Recover?Battle.EnemyAttackSeconds+age:age,stone.position,impacted,contact,camera);
+            else dust.Clear();
             for(int i=0;i<pieces.Length;i++)
             {
                 var p=pieces[i];p.gameObject.SetActive(Fragments);if(!Fragments)continue;
