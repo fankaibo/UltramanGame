@@ -36,12 +36,14 @@ def main():
     mode.add_argument("--keyboard", action="store_true", help="仅启动键盘练习，不打开相机")
     mode.add_argument("--demo", action="store_true", help="合成动作测试，游戏明确显示测试标记，不打开相机")
     parser.add_argument("--music", type=Path, help="指定本机 MP3/WAV/OGG/AIFF 背景音乐")
+    parser.add_argument("--app", type=Path, default=APP, help="启动指定的本机候选包；默认使用正式试玩包")
     args = parser.parse_args()
-    if not APP.is_dir():
+    app = args.app.expanduser().resolve()
+    if not app.is_dir():
         print("尚未构建游戏。请先在 Unity 选择 UltramanGame → Build macOS Prototype。", file=sys.stderr)
         return 1
-    with (APP / "Contents/Info.plist").open("rb") as info:
-        executable = APP / "Contents/MacOS" / plistlib.load(info)["CFBundleExecutable"]
+    with (app / "Contents/Info.plist").open("rb") as info:
+        executable = app / "Contents/MacOS" / plistlib.load(info)["CFBundleExecutable"]
     logs = ROOT / "logs"
     logs.mkdir(exist_ok=True)
     camera = game = None

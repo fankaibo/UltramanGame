@@ -20,13 +20,16 @@ def main():
     parser.add_argument('--linked', action='store_true', help='Queue the first three alternating fists during recovery')
     parser.add_argument('--guard-handoff', action='store_true', help='Interrupt the first landed melee with a shield and counterpunch')
     parser.add_argument('--finisher', action='store_true', help='Use 24 HP so the first beam is the final strike')
+    parser.add_argument('--app',type=Path,help='Validate a candidate without replacing the normal playtest app')
+    parser.add_argument('--timeout',type=float,default=180,help='External review deadline; does not alter game clocks')
     args=parser.parse_args()
+    if not 60<=args.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
     root = Path(__file__).resolve().parents[1]
     started = datetime.now(timezone.utc)
     evidence = root / 'artifacts/cinematic-combat/player' / started.strftime('%Y%m%dT%H%M%S%fZ')
     native = evidence / 'native'
     native.mkdir(parents=True)
-    app = root / 'unity/Builds/TigaTraining.app'
+    app = args.app.expanduser().resolve() if args.app else root / 'unity/Builds/TigaTraining.app'
     with (app / 'Contents/Info.plist').open('rb') as stream:
         binary = app / 'Contents/MacOS' / plistlib.load(stream)['CFBundleExecutable']
     log = root / 'logs/cinematic-player.log'
@@ -44,7 +47,7 @@ def main():
                                   cwd=root, stdout=console, stderr=subprocess.STDOUT)
         timed_out_after_review=False
         try:
-            code = player.wait(timeout=180)
+            code = player.wait(timeout=args.timeout)
         except subprocess.TimeoutExpired:
             # The finisher review intentionally holds the victory screen so
             # its final-strike and photo handoff frames remain inspectable.
@@ -286,7 +289,7 @@ def main():
             raise RuntimeError(f'HUD color was encoded incorrectly: {best[1:] if best else None}')
         pixel=best[1]
     fps = [float(value) for value in re.findall(r'renderFps=(\d+\.\d+)', output)]
-    result = {'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'claw_cycle':args.claw_cycle, 'linked':args.linked, 'guard_handoff':args.guard_handoff, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
+    result = {'app':str(app),'result': 'passed', 'hero': args.hero, 'slam': args.slam, 'ray': args.ray, 'claw_cycle':args.claw_cycle, 'linked':args.linked, 'guard_handoff':args.guard_handoff, 'finisher':args.finisher, 'final_contact':final_contact[0], 'final_complete':final_complete[0], 'monster_rays': live_output.count('[MonsterRay] launch '), 'camera_used': False, 'wall_seconds': round(time.monotonic()-start, 2),
               'summary': match[0], 'fps_windows': fps,'requested_resolution':[args.width,args.height], 'stagger_landings':stagger_landings, 'combo_camera_shots':combo_shots, 'ground_contacts':ground_contacts,
               'launch_landings': launch_landings, 'started_utc': started.isoformat(), 'assembly_sha256': assembly_sha,
               'resources_sha256': resources_sha, 'hud_health_rgb': pixel, 'beam_volume_impacts': beam_impacts, 'beam_braces': beam_braces, 'contact_sounds':contacts,

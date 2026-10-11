@@ -79,7 +79,7 @@ namespace UltramanGame.Editor
             Debug.Log("[Build] configuration="+(release?"Release":"Development"));
             var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes=new[] { "Assets/Scenes/Arena.unity" },
-                locationPathName="Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,
+                locationPathName=System.Environment.GetEnvironmentVariable("ULTRAMAN_BUILD_OUTPUT")??"Builds/TigaTraining.app",target=BuildTarget.StandaloneOSX,
                 options=release?BuildOptions.None:BuildOptions.Development });
             if(report.summary.result!=BuildResult.Succeeded) throw new System.Exception("macOS build failed");
         }

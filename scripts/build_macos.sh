@@ -19,6 +19,13 @@ if [ ! -x "$game_editor" ]; then
   echo "未找到 Unity $game_version。可用 UNITY_EDITOR 指定编辑器可执行文件。" >&2
   exit 1
 fi
+# An alternate absolute output leaves a running playtest bundle untouched.
+game_build_output="${ULTRAMAN_BUILD_OUTPUT:-$PWD/unity/Builds/TigaTraining.app}"
+case "$game_build_output" in
+  /*.app) ;;
+  *) echo "ULTRAMAN_BUILD_OUTPUT 必须是以 .app 结尾的绝对路径" >&2; exit 2 ;;
+esac
+export ULTRAMAN_BUILD_OUTPUT="$game_build_output"
 mkdir -p logs
 bash scripts/build_native.sh
 game_python=python3
@@ -42,6 +49,6 @@ unity_rc=$?
 set -e
 unity_pid=""
 if [ "$unity_rc" -ne 0 ]; then exit "$unity_rc"; fi
-"$game_python" scripts/sign_macos.py
-echo "构建完成：unity/Builds/TigaTraining.app"
+"$game_python" scripts/sign_macos.py --app "$game_build_output"
+echo "构建完成：$game_build_output"
 echo "构建模式：$build_mode"

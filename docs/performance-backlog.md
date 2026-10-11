@@ -189,3 +189,7 @@ python3 scripts/guided_player_check.py --gesture-wobble --gesture-entry-noise \
 ## 2026-10-11 A-92 同进程三局 RSS
 
 同一 PID 57306 连续运行 369.8 秒，三次完整胜利、四张合成合照、三次续局及第四局开场；184 个 RSS 样本峰值 746.0 MiB、结束 330.0 MiB，逐局战斗后 10 秒中位数 499.0／355.3／313.9 MiB，未观察到逐局增长。首局截图更多，不能将下降称为优化成果。证据 `artifacts/tiga-three-rounds-20261011/memory.tsv` 与 `round-audit.json`。此次补齐同进程自动流程，未覆盖真人摄像头、AI 美化或换角色，也不等于 Unity reserved／图形资源总量或系统监控的 5 GB；完整性能专项继续保留。
+
+### 2026-10-11 补充：A-116 双进程验证负载
+
+为保留用户试玩，A-115 实时摄像头程序与 A-116 合成回放并行运行。候选帧率窗口 7.9／11.8，照片流多次达到约 0.8–2 秒延迟，重拍响应 25.21 秒导致验收失败。该运行不是受控的单进程前后对照，不能据此断言烟柱改动造成性能回退。合照期间 ArenaController.LateUpdate 已关闭战场摄像机，PhotoClient 也已有独立线程／最新帧槽；不要重复添加已有机制或降低新鲜度门槛。先单进程复验，若仍失败再按采集、编码、传输、解码、渲染分段定位。证据 `artifacts/plume-atmosphere-20261011/guided/partial-evidence.json`、`logs/a116-guided*.log`。

@@ -143,6 +143,7 @@ def main():
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
+    parser.add_argument('--app',type=Path,help='Validate a candidate without replacing the normal playtest app')
     options=parser.parse_args()
     if not 60<=options.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
     if options.body_follow:options.ready_follow=True
@@ -155,7 +156,7 @@ def main():
     if options.ranged_reaction and not options.volley_camera:parser.error('--ranged-reaction requires --volley-camera')
     if options.gesture_shape_noise and not options.gesture_wobble:parser.error('--gesture-shape-noise requires --gesture-wobble')
     if options.gesture_startup_noise and not options.gesture_entry_noise:parser.error('--gesture-startup-noise requires --gesture-entry-noise')
-    app=ROOT/'unity/Builds/TigaTraining.app'
+    app=options.app.expanduser().resolve() if options.app else ROOT/'unity/Builds/TigaTraining.app'
     binary=app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
     log=options.log.resolve();log.parent.mkdir(parents=True,exist_ok=True);log.write_text('')
     folder=options.output.resolve();folder.mkdir(parents=True,exist_ok=True)
@@ -167,7 +168,7 @@ def main():
         data=app/'Contents/Resources/Data'
         return {key:hashlib.sha256((data/file).read_bytes()).hexdigest()
                 for key,file in [('assembly_sha256','Managed/Assembly-CSharp.dll'),('resources_sha256','resources.assets')]}
-    build={'started_utc':datetime.now(timezone.utc).isoformat(),'before':build_hashes()}
+    build={'app':str(app),'started_utc':datetime.now(timezone.utc).isoformat(),'before':build_hashes()}
     for name in ('guided-validation.json','build.json'):(folder/name).unlink(missing_ok=True)
     factory=FrameFactory(source='synthetic');process=None;photos=[];pose_trace=[];memory_rows=[]
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
