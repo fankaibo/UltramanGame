@@ -106,7 +106,8 @@ namespace UltramanGame.Editor
         Battle projectileBattle;
         int shotSequence;
         float lastHealth=50;
-        bool projectileReview;
+        bool projectileReview,spatialReview,spatialBaseline;
+        Camera spatialCamera;
         float[] samples;
         readonly object gate=new object();
         readonly StringBuilder events=new StringBuilder("frame,event\n");
@@ -123,6 +124,7 @@ namespace UltramanGame.Editor
                 if(version!="before"&&version!="after")throw new Exception("Invalid review version");
                 int outputAt=Array.IndexOf(args,"--audio-output");
                 projectileReview=Array.IndexOf(args,"--audio-projectiles")>=0;
+                spatialReview=Array.IndexOf(args,"--audio-spatial")>=0;spatialBaseline=version=="before";
                 folder=Path.GetFullPath(outputAt>=0?Path.Combine(args[outputAt+1],version):Path.Combine(Application.dataPath,"../../artifacts/combat-audio/"+version));Directory.CreateDirectory(folder);
                 if(projectileReview)
                 {
@@ -131,7 +133,7 @@ namespace UltramanGame.Editor
                     projectileBattle.GiveInstructionTime(30);while(projectileBattle.TryCue(out _)){}
                 }
                 gameObject.AddComponent<AudioListener>();
-                gameObject.AddComponent<Camera>();
+                spatialCamera=gameObject.AddComponent<Camera>();spatialCamera.aspect=16f/9;
                 rate=AudioSettings.outputSampleRate;channels=AudioSettings.speakerMode==AudioSpeakerMode.Mono?1:2;
                 if(AudioSettings.speakerMode!=AudioSpeakerMode.Stereo&&channels!=1)throw new Exception("Review requires stereo or mono output");
                 Application.runInBackground=true;Application.targetFrameRate=60;QualitySettings.vSyncCount=0;
@@ -173,6 +175,7 @@ namespace UltramanGame.Editor
         }
         void Step()
         {
+                if(spatialReview){SpatialStep();return;}
                 if(projectileReview){ProjectileStep();return;}
                 sound.Tick(GamePhase.Battle,false,1/60f);
                 if(frame==12)Event("overlap-probe",()=>sound.Effect("probe"));
@@ -192,6 +195,44 @@ namespace UltramanGame.Editor
                 if(frame==840)Event("reset",()=>sound.Reset());
                 if(frame>=900){frame++;Finish();return;}
                 frame++;
+        }
+        void SpatialStep()
+        {
+            sound.Tick(GamePhase.Battle,false,1/60f);
+            if(channels!=2)throw new Exception("Stereo output is required to verify direction");
+            float side=frame<160?1:-1;
+            if(!spatialBaseline)sound.SetStage(spatialCamera,new Vector3(-2*side,0,5),new Vector3(2*side,0,5));
+            if(frame==30||frame==170)Event("launch-"+(frame==30?"left":"right"),()=>sound.ProjectileLaunch(1));
+            if(frame==90||frame==230)Event("contact-"+(frame==90?"right":"left"),()=>sound.ProjectileImpact());
+            if(frame==300)Event("center-probe",()=>sound.Effect("probe"));
+            if(frame==430)Event("reset",()=>sound.Reset());
+            if(frame>=480){frame++;Finish();return;}
+            frame++;
+        }
+        void SpatialChecks()
+        {
+            sound.Reset();sound.Tick(GamePhase.Battle,false,1/60f);
+            sound.SetStage(spatialCamera,new Vector3(-2,0,5),new Vector3(2,0,5));
+            if(sound.HeroPan>=-.1f||sound.EnemyPan<=.1f)throw new Exception("Screen space sides are reversed");
+            if(GameAudio.ScreenPan(spatialCamera,new Vector3(0,0,-1))!=0||GameAudio.ScreenPan(null,Vector3.zero)!=0||Mathf.Abs(GameAudio.ScreenPan(spatialCamera,new Vector3(500,0,1)))>.45f)throw new Exception("Invalid/hidden source or pan limit failed");
+            sound.Effect("probe",1,sound.HeroPan);
+            AudioSource held=null;foreach(var src in GetComponents<AudioSource>())if(src.isPlaying&&src.clip.name=="Review600Hz")held=src;
+            if(!held)throw new Exception("Missing tail probe");float original=held.panStereo;
+            sound.SetStage(spatialCamera,new Vector3(2,0,5),new Vector3(-2,0,5));sound.ProjectileLaunch(1);
+            if(held.panStereo!=original)throw new Exception("New lens retuned a playing tail");
+            bool right=false;foreach(var src in GetComponents<AudioSource>())if(src.isPlaying&&src.clip.name=="Hero light bullet"&&src.panStereo>0)right=true;
+            if(!right)throw new Exception("Mirrored launch did not change sides");
+            foreach(string field in new[]{"calm","battle","voice"})
+            {
+                var src=(AudioSource)typeof(GameAudio).GetField(field,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
+                if(src.panStereo!=0)throw new Exception("Music or narration panned");
+            }
+            sound.Reset();int count=GetComponents<AudioSource>().Length;
+            for(int i=0;i<40;i++){sound.SetStage(spatialCamera,new Vector3(i%2==0?-2:2,0,5),new Vector3(i%2==0?2:-2,0,5));sound.ProjectileImpact();}
+            if(GetComponents<AudioSource>().Length!=count)throw new Exception("Spatial effects allocated sources");
+            sound.Tick(GamePhase.Paused,false,.02f);
+            foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)throw new Exception("Pause retained positional effect");
+            File.WriteAllText(folder+"/spatial-checks.txt","camera sides, behind-camera fallback, null fallback, pan bound .45, mirrored shot, tail retained, music/voice centered, fixed pool and pause clear: passed\n");
         }
         void ProjectileStep()
         {
@@ -233,7 +274,8 @@ namespace UltramanGame.Editor
             }
             File.WriteAllText(folder+"/events.csv",events.ToString());
             File.WriteAllText(folder+"/capture.txt",FormattableString.Invariant($"rate={rate} channels={channels} frames={frame} samples={samples.Length} seconds={samples.Length/(float)(rate*channels):F4} peak={peak:F6} rms={Math.Sqrt(power/samples.Length):F6}\n"));
-            if(folder.EndsWith("/after"))Checks();
+            if(spatialReview)SpatialChecks();
+            else if(folder.EndsWith("/after"))Checks();
             var hashes=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
             foreach(string file in new[]{"Runtime/GameAudio.cs","Runtime/CombatAudioVoices.cs","Runtime/CombatImpactSounds.cs","Runtime/ArenaController.cs"})
             {string path=Path.Combine(Application.dataPath,"Scripts",file);hashes.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}

@@ -252,6 +252,7 @@ namespace UltramanGame.Runtime
             {presentedHits=battle.HitsTaken;comboCount=0;comboUntil=0;}
             if(battle.Phase!=lastPhase) {phaseStarted=Time.unscaledTime;lastPhase=battle.Phase;}
             sound.Tick(paused||settings||showcase?GamePhase.Paused:battle.Phase,muted,dt);
+            sound.SetStage(world.Camera,hero.Root.position+Vector3.up*1.7f,world.BeamTarget);
             while(battle.TryCue(out var cue))PlayCue(cue);
             bool damage=battle.EnemyHealth<lastHealth;bool specialDamage=battle.LastHitAction==HeroAction.Beam;
             if(damage)
@@ -260,7 +261,6 @@ namespace UltramanGame.Runtime
                 impact=special?.35f:.2f;hitUntil=Time.unscaledTime+1;
                 if(TraceEnabled)Debug.Log($"[ArcadeImpact] hold={(special?.14f:.065f):F3}s special={special} damage={lastDamage}");
                 if(battle.Finishing&&TraceEnabled)Debug.Log($"[FinalStrike] contact action={battle.Action} actionAge={battle.ActionAge:F3} health={battle.EnemyHealth}");
-                if(battle.LastDamageRanged)sound.ProjectileImpact();else sound.Hit(!special&&battle.Punches%5==0,special);
             }
             lastHealth=battle.EnemyHealth;enemyHealthDisplay=Mathf.Max(battle.EnemyHealth,Mathf.MoveTowards(enemyHealthDisplay,battle.EnemyHealth,Mathf.Max(30,monsterHits*1.8f)*dt));impact=Mathf.Max(0,impact-dt);
             world.Showcase=showcase;
@@ -274,11 +274,18 @@ namespace UltramanGame.Runtime
             int groundContacts=world.GroundContactCount;
             int rushSteps=world.MonsterRushSteps;
             world.Tick(showcase?showcaseBattle:battle,dt,Time.unscaledTime);
+            sound.SetStage(world.Camera,world.Projectile.Started?world.Projectile.Origin:hero.Root.position+Vector3.up*1.7f,world.BeamTarget);
+            if(damage)
+            {
+                if(battle.LastDamageRanged)sound.ProjectileImpact();else sound.Hit(!specialDamage&&battle.Punches%5==0,specialDamage);
+                if(TraceEnabled)Debug.Log($"[CombatStereo] contact pan={sound.EnemyPan:F3}");
+            }
             if(damage&&battle.LastDamageRanged&&TraceEnabled)
                 Debug.Log($"[RangedPresentation] impact hero={SelectedHero.Id} count={world.Projectile.Impacts} visible={world.Projectile.ImpactVisible}");
             if(world.Projectile.Started)
             {
                 sound.ProjectileLaunch(battle.Shot.Speed);
+                if(TraceEnabled)Debug.Log($"[CombatStereo] launch pan={sound.HeroPan:F3}");
                 if(TraceEnabled)Debug.Log($"[HeroProjectile] launch side={battle.Shot.Side} speed={battle.Shot.Speed:F3} sequence={battle.AttackSequence} origin={world.Projectile.Origin} target={world.BeamTarget} weapon={HeroArsenal.RangedName(SelectedHero.Id)}");
             }
             if(world.Rock.Started)

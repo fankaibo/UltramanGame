@@ -26,7 +26,7 @@ namespace UltramanGame.Runtime
         }
         public void SetVolume(float value)
         {volume=Mathf.Clamp01(value);for(int i=0;i<sources.Length;i++)sources[i].volume=volume*gains[i];}
-        public bool Play(AudioClip clip,float gain=1,float pitch=1,int priority=1)
+        public bool Play(AudioClip clip,float gain=1,float pitch=1,int priority=1,float pan=0)
         {
             if(!clip)return false;
             int slot=-1;
@@ -38,7 +38,7 @@ namespace UltramanGame.Runtime
                 if(slot<0)return false;
             }
             var s=sources[slot];s.Stop();s.clip=clip;gains[slot]=Mathf.Clamp01(gain);priorities[slot]=priority;order[slot]=++sequence;
-            s.pitch=Mathf.Clamp(pitch,.5f,2);s.volume=volume*gains[slot];s.priority=priority>=3?64:128;s.Play();LastPitch=s.pitch;
+            s.pitch=Mathf.Clamp(pitch,.5f,2);s.panStereo=Mathf.Clamp(pan,-.45f,.45f);s.volume=volume*gains[slot];s.priority=priority>=3?64:128;s.Play();LastPitch=s.pitch;
             return true;
         }
         public void Stop()

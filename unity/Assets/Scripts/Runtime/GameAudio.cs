@@ -23,6 +23,17 @@ namespace UltramanGame.Runtime
         bool phaseReported;
         int effectSequence,contactSequence,projectileContactSequence;
         float effectsDuck=1;
+        public float HeroPan {get;private set;}
+        public float EnemyPan {get;private set;}
+        public void SetStage(Camera camera,Vector3 hero,Vector3 enemy)
+        {HeroPan=ScreenPan(camera,hero);EnemyPan=ScreenPan(camera,enemy);}
+        public static float ScreenPan(Camera camera,Vector3 point)
+        {
+            if(!camera)return 0;
+            var p=camera.WorldToViewportPoint(point);
+            if(p.z<=0||float.IsNaN(p.x)||float.IsInfinity(p.x))return 0;
+            return Mathf.Clamp((p.x-.5f)*1.4f,-.45f,.45f);
+        }
         public bool VoicePlaying=>voice.isPlaying;
         public bool HasVoice(string key)=>clips.TryGetValue("Voice/"+key,out var clip)&&clip;
         public float VoiceLength(string key) {var clip=Clip("Voice/"+key);return clip?clip.length:0;}
@@ -295,7 +306,7 @@ namespace UltramanGame.Runtime
             if(Debug.isDebugBuild)Debug.Log("[Audio] music source=项目内导入《奇迹再现》 local=false");
             return true;
         }
-        public void Effect(string key,float gain=1)
+        public void Effect(string key,float gain=1,float pan=0)
         {
             if(muted)return;
             var clip=key=="impact"?fistContacts[contactSequence++%fistContacts.Length]:Clip("Audio/"+key);if(!clip)return;
@@ -305,13 +316,13 @@ namespace UltramanGame.Runtime
             float pitch=key=="swing"?(n%3==0?1.04f:n%3==1?.96f:1f):
                 key=="impact"?(n%2==0?1.03f:.97f):
                 key=="enemy_rush"?(n%2==0?.94f:1.02f):1f;
-            effects.Play(clip,gain,pitch,key=="beam"?3:1);
+            effects.Play(clip,gain,pitch,key=="beam"?3:1,pan);
         }
         public void Hit(bool heavy,bool beam)
         {
             if(muted)return;
             var clip=beam?beamContact:heavy?heavyContact:fistContacts[contactSequence++%fistContacts.Length];
-            effects.Play(clip,heavy?.90f:.80f,1,beam?3:heavy?2:1);
+            effects.Play(clip,heavy?.90f:.80f,1,beam?3:heavy?2:1,EnemyPan);
             if(heavy&&!beam)effects.Play(Clip("Audio/combo"),.36f,1,2);
             if(Debug.isDebugBuild)Debug.Log($"[CombatAudio] contact={(beam?"beam":heavy?"heavy":"fist")}");
         }
@@ -325,14 +336,14 @@ namespace UltramanGame.Runtime
             }
             var clip=AudioClip.Create("Hero light bullet",data.Length,1,rate,false);clip.SetData(data,0);return clip;
         }
-        public void ProjectileLaunch(float speed){if(!muted)effects.Play(projectileLaunch,.65f,Mathf.Lerp(.90f,1.12f,Mathf.InverseLerp(AttackTempo.Min,AttackTempo.Max,speed)),1);}
+        public void ProjectileLaunch(float speed){if(!muted)effects.Play(projectileLaunch,.65f,Mathf.Lerp(.90f,1.12f,Mathf.InverseLerp(AttackTempo.Min,AttackTempo.Max,speed)),1,HeroPan);}
         public void ProjectileImpact()
         {
             if(muted)return;
-            if(HeroId=="Tiga")effects.Play(projectileContacts[projectileContactSequence++%projectileContacts.Length],.48f,1,1);
-            else effects.Play(beamContact,.48f,1.22f,1);
+            if(HeroId=="Tiga")effects.Play(projectileContacts[projectileContactSequence++%projectileContacts.Length],.48f,1,1,EnemyPan);
+            else effects.Play(beamContact,.48f,1.22f,1,EnemyPan);
         }
-        public void RockLaunch(){if(!muted)Effect("enemy_rush",.65f);}
+        public void RockLaunch(){if(!muted)Effect("enemy_rush",.65f,EnemyPan);}
         public void RockImpact(){if(!muted)GroundContact(true);}
         void ApplyEffectsMix()
         {
@@ -380,11 +391,11 @@ namespace UltramanGame.Runtime
             {
                 case GameCue.Transform:Effect("transform");Speak("transform",4,state);break;
                 case GameCue.BattleStart:PlayBattleStinger();Speak("battle",3,state);break;
-                case GameCue.Punch:Effect("swing",.7f);break;
+                case GameCue.Punch:Effect("swing",.7f,HeroPan);break;
                 case GameCue.Warning:Effect("warning",.72f);Speak("warning",5,state);break;
-                case GameCue.EnemyAttack:Effect("enemy_rush",.85f);break;
-                case GameCue.Block:Effect("shield");Speak("block",2,state);break;
-                case GameCue.Hurt:Effect("impact",.7f);break;
+                case GameCue.EnemyAttack:Effect("enemy_rush",.85f,EnemyPan);break;
+                case GameCue.Block:Effect("shield",1,HeroPan);Speak("block",2,state);break;
+                case GameCue.Hurt:Effect("impact",.7f,HeroPan);break;
                 case GameCue.HeroLanded:Effect("impact",.45f);Effect("recover");Speak("recover",2,state);break;
                 case GameCue.EnergyReady:
                     pending.Clear();Effect("shield",.45f);Speak("energy",5,state);break;
