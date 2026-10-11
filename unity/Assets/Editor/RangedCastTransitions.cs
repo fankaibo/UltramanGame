@@ -19,6 +19,7 @@ namespace UltramanGame.Editor
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);world.SetHeroProfile(id);
                 string handNote="";Battle b=null;float dt=1f/hz,time=0,health=200,handStep=0;Vector3 oldLeft=Vector3.zero,oldRight=Vector3.zero;
+                float footStep=0,peakGuardFoot=0;var oldLeftFoot=hero.FootPosition(true);var oldRightFoot=hero.FootPosition(false);
                 int sequence=0;float peakSupport=0;
                 void Observe(PlayerInput input)
                 {
@@ -37,6 +38,8 @@ namespace UltramanGame.Editor
                     Observe(input);
                     hero.Update(b,world.Camera,dt,time);enemy.Update(b,world.Camera,dt,time);if(b.EnemyHealth<health)world.Hit(b.Action==HeroAction.Beam,b);health=b.EnemyHealth;world.Tick(b,dt,time);
                     peakSupport=Mathf.Max(peakSupport,hero.SupportLift(true),hero.SupportLift(false));
+                    var lf=hero.FootPosition(true);var rf=hero.FootPosition(false);
+                    footStep=Mathf.Max(footStep,Vector3.Distance(lf,oldLeftFoot),Vector3.Distance(rf,oldRightFoot));oldLeftFoot=lf;oldRightFoot=rf;
                     var left=hero.StrikeOrigin(HeroAction.LeftPunch);var right=hero.HandPosition;float jump=Mathf.Max(Vector3.Distance(left,oldLeft),Vector3.Distance(right,oldRight));if(jump>handStep){handStep=jump;handNote=$"action={b.Action} age={b.ActionAge} shield={b.Shield}";}oldLeft=left;oldRight=right;
                 }
                 // The recognizer sends ownership together with a confirmed
@@ -54,23 +57,26 @@ namespace UltramanGame.Editor
                     {
                         Start();Step(new PlayerInput{Tracking=true,LeftPunch=left,RightPunch=!left,RangedAttack=true,AttackSpeed=speed});
                         while(released?!b.Shot.Active:b.ActionAge<.04f)Step(new PlayerInput{Tracking=true});
-                        handStep=0;
+                        handStep=footStep=0;
                         if(intentFirst)for(int f=0;f<Mathf.CeilToInt(.12f/dt);f++)Step(new PlayerInput{Tracking=true,GuardIntent=true});
                         Idle(.8f,true);
                         peakGuard=Mathf.Max(peakGuard,handStep);
+                        peakGuardFoot=Mathf.Max(peakGuardFoot,footStep);
+                        if(id=="Tiga"&&hz==60&&footStep>.20f)throw new Exception($"Guard boot jump {left}/{speed}/{released}: {footStep}");
                         if(!b.Shield||b.Punches!=(released?1:0)||world.Projectile.Impacts!=(released?1:0))throw new Exception($"Guard takeover {id}-{hz} left={left} speed={speed} released={released}: shield={b.Shield} punches={b.Punches} impacts={world.Projectile.Impacts} action={b.Action}");
                         if(hz==60&&handStep>.65f)throw new Exception($"Guard hand jump {id}-{hz} left={left} speed={speed} released={released}: {handStep} {handNote}");
                     }
                     Start();Step(new PlayerInput{Tracking=true,LeftPunch=left,RightPunch=!left,RangedAttack=true,AttackSpeed=speed});while(!b.Shot.Active)Step(new PlayerInput{Tracking=true});
-                    b.Pause();Draw(0);var frozen=hero.HandPosition;var frozenRoot=hero.Root.position;for(int i=0;i<5;i++)Draw(0);
+                    b.Pause();Draw(0);var frozen=hero.HandPosition;var frozenRoot=hero.Root.position;var frozenLeftFoot=hero.FootPosition(true);var frozenRightFoot=hero.FootPosition(false);for(int i=0;i<5;i++)Draw(0);
                     if(Vector3.Distance(frozen,hero.HandPosition)>.001f||Vector3.Distance(frozenRoot,hero.Root.position)>.001f||world.Projectile.Visible)throw new Exception("Paused cast accumulates");
+                    if(Vector3.Distance(frozenLeftFoot,hero.FootPosition(true))>.001f||Vector3.Distance(frozenRightFoot,hero.FootPosition(false))>.001f)throw new Exception("Paused boots accumulate");
                     Start();if(world.Projectile.Visible||world.Projectile.LaunchVisible)throw new Exception("New round retained cast");
                     Step(new PlayerInput{Tracking=true,LeftPunch=left,RightPunch=!left,RangedAttack=true,AttackSpeed=speed});Idle(.8f);
                     Step(new PlayerInput{Tracking=true,LeftPunch=!left,RightPunch=left});Idle(.6f,true);
                     if(b.Punches!=1||!b.Shield)throw new Exception("Melee cancellation after range failed");
                 }
                 if(liveSupport&&peakSupport<.3f)throw new Exception("Live support fixture did not move support arm");
-                string line=$"{id}-{hz} bothHands=true speeds=0.65/1.70 intentAndConfirmed=true preReleaseGuard=pass flightGuard=pass pause=pass newRound=pass rangeToMeleeGuard=pass guardHandStep={peakGuard:F4} liveSupport={liveSupport} peakSupport={peakSupport:F4}";report.AppendLine(line);Debug.Log("[RangedCastTransitions] "+line);
+                string line=$"{id}-{hz} bothHands=true speeds=0.65/1.70 intentAndConfirmed=true preReleaseGuard=pass flightGuard=pass pause=pass newRound=pass rangeToMeleeGuard=pass guardHandStep={peakGuard:F4} guardFootStep={peakGuardFoot:F4} liveSupport={liveSupport} peakSupport={peakSupport:F4}";report.AppendLine(line);Debug.Log("[RangedCastTransitions] "+line);
             }
             var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--ranged-cast-output");
             string folder=Path.GetFullPath(at>=0?args[at+1]:"../artifacts/ranged-cast-20261009");Directory.CreateDirectory(folder);File.WriteAllText(folder+"/transitions.txt",report.ToString());

@@ -20,6 +20,7 @@ namespace UltramanGame.Runtime
         readonly string heroId;
         readonly HeroEngagementMotion engagement=new HeroEngagementMotion();
         readonly LiveReadyPose liveReady=new LiveReadyPose();
+        readonly FootContactRoll leftFootRoll,rightFootRoll;
         bool liveReadyAllowed,liveSupportAllowed;
         public float ReadyLift(bool left)=>liveReadyAllowed?liveReady.Y(left):0;
         public float SupportLift(bool left)=>liveSupportAllowed?liveReady.Y(left):0;
@@ -415,6 +416,8 @@ namespace UltramanGame.Runtime
                 FootPlantCalibration.Apply(Root,leftFoot,surfaces,ref leftFootLocal,ref leftFootRest);
                 FootPlantCalibration.Apply(Root,rightFoot,surfaces,ref rightFootLocal,ref rightFootRest);
             }
+            if(name=="Tiga")
+            {leftFootRoll=new FootContactRoll(leftFoot,surfaces,forward);rightFootRoll=new FootContactRoll(rightFoot,surfaces,forward);}
             leftFootClearance=leftFoot?Mathf.Max(.16f,leftFootLocal.y+.025f):.16f;
             rightFootClearance=rightFoot?Mathf.Max(.16f,rightFootLocal.y+.025f):.16f;
             if(monster)
@@ -653,7 +656,7 @@ namespace UltramanGame.Runtime
                 bool wasPunch=observedAction==HeroAction.LeftPunch||observedAction==HeroAction.RightPunch;
                 bool guardChange=same&&lastSampleShield!=state.Shield&&state.Action==HeroAction.None;
                 bool cancelled=same&&wasPunch&&state.Action==HeroAction.None&&state.ActionAge<Battle.PunchSeconds;
-                if(same&&!rangedRecovery&&!comboWasActive&&!kickWasActive&&(guardChange||cancelled))
+                if(same&&(!rangedRecovery||heroId=="Tiga")&&!comboWasActive&&!kickWasActive&&(guardChange||cancelled))
                 {guardHandoff.Begin();guardExitAge=1;}
                 else if(same&&(guardHandoff.Active||lastSampleShield)&&state.IsPunch&&observedAction!=state.Action)
                     guardHandoff.Begin(.06f);
@@ -1252,6 +1255,8 @@ namespace UltramanGame.Runtime
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch||
                  state.Action==HeroAction.None&&punchLink.Weight>0))PosePunchWeight(state);
             if(!monster&&!kick&&preview<0)PoseLiveReadyBody(state);
+            if(!monster&&!kick&&preview<0&&heroId=="Tiga"&&state.Phase==GamePhase.Battle&&state.IsRangedPunch&&!state.Shield)
+                PoseRangedFootDrive(state);
             if(retargetArms)
             {
                 if(!relaxedReady&&counterReach&&state.IsPunch&&!state.IsRangedPunch&&!kick&&!comboStrike&&!HeroArsenal.Blade(heroId,state))PoseCounterReach(state);
@@ -1838,6 +1843,22 @@ namespace UltramanGame.Runtime
             PoseLimb(leftThigh,leftShin,leftFoot,left,1,leftPole.sqrMagnitude>.0001f?leftPole:forward-lateral*.15f,left.y-home.y);
             PoseLimb(rightThigh,rightShin,rightFoot,right,1,rightPole.sqrMagnitude>.0001f?rightPole:forward+lateral*.15f,right.y-home.y);
             leftFoot.rotation=lr;rightFoot.rotation=rr;
+        }
+        void PoseRangedFootDrive(Battle state)
+        {
+            bool left=state.Action==HeroAction.LeftPunch;
+            float push=Mathf.SmoothStep(0,1,state.ActionAge/AttackTempo.RangedLaunchSeconds);
+            float settle=1-Mathf.SmoothStep(0,1,(state.ActionAge-.18f)/(AttackTempo.RangedSeconds-.18f));
+            var foot=left?leftFoot:rightFoot;var thigh=left?leftThigh:rightThigh;var shin=left?leftShin:rightShin;
+            var roll=left?leftFootRoll:rightFootRoll;if(roll==null||!foot||!thigh||!shin)return;
+            Vector3 pole=shin.position-(thigh.position+foot.position)*.5f;
+            roll.Target(18*push*settle,Vector3.Cross(Vector3.up,forward),out var target,out var rotation);
+            SaveStepLegs();
+            // Drive off the same side as the firing arm; the other boot keeps
+            // the existing support pose. Re-solve the knee without moving the
+            // pelvis or changing the hand/projectile trajectory.
+            PoseLimb(thigh,shin,foot,target,1,pole.sqrMagnitude>.0001f?pole:forward,target.y-home.y);
+            foot.rotation=rotation;
         }
         void PoseRetargetedFootwork(Battle state,bool photo=false)
         {
