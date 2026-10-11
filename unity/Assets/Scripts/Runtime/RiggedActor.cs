@@ -336,6 +336,7 @@ namespace UltramanGame.Runtime
                     mapped[i]=mat;
                 }
                 renderer.sharedMaterials=mapped;
+                if(name=="Tiga")TigaLensMesh.Apply(Root,renderer);
             }
             joints=model.GetComponentsInChildren<Transform>();
             foreach(var joint in joints)
@@ -466,7 +467,8 @@ namespace UltramanGame.Runtime
             bool emitter=(name.IndexOf("Eye",StringComparison.OrdinalIgnoreCase)>=0&&name.IndexOf("EyeRim",StringComparison.OrdinalIgnoreCase)<0)
                 ||name.IndexOf("Timer",StringComparison.OrdinalIgnoreCase)>=0||name.IndexOf("Crystal",StringComparison.OrdinalIgnoreCase)>=0;
             bool heroSurface=character!="Golza"&&!emitter;
-            var mat=kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):
+            bool tigaLens=character=="Tiga"&&name=="TigaEyesGlow";
+            var mat=tigaLens?new Material(Resources.Load<Shader>("TigaLens")):kaiju?new Material(Resources.Load<Shader>("KaijuSurface")):
                 heroSurface?new Material(Resources.Load<Shader>("HeroSurface")):new Material(Resources.Load<Material>("PrototypeSurface"));mat.name=name;
             mat.color=new Color(.72f,.77f,.85f);mat.SetFloat("_Metallic",heroSurface?.48f:.65f);mat.SetFloat("_Glossiness",heroSurface?.46f:.55f);
             if(heroSurface)
@@ -510,8 +512,9 @@ namespace UltramanGame.Runtime
             else if(name.Contains("EyeRim")) {mat.color=new Color(.03f,.04f,.05f);mat.SetFloat("_Metallic",.3f);}
             else if(name.Contains("EyesGlow")||name.Contains("Timer")||name.Contains("Crystal"))
             {
-                var color=name.Contains("EyesGlow")?new Color(1,.85f,.48f):new Color(.12f,.65f,1);
+                var color=tigaLens?new Color(1,.9822506f,.5209956f).gamma:name.Contains("EyesGlow")?new Color(1,.85f,.48f):new Color(.12f,.65f,1);
                 mat.color=color;mat.SetFloat("_Metallic",.1f);mat.EnableKeyword("_EMISSION");mat.SetColor("_EmissionColor",color*1.5f);
+                if(tigaLens){mat.SetFloat("_Metallic",0);mat.SetFloat("_Glossiness",.65f);}
             }
             var rosterTexture=Resources.Load<Texture2D>("Characters/"+character+"/Textures/"+name);
             if(rosterTexture)

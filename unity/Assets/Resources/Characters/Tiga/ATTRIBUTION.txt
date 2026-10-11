@@ -31,3 +31,11 @@ Costume surface update (2026-09-29):
 - The original color texture, mesh, rig and animation files remain unchanged.
 - Derived map follows the same source attribution and noncommercial restriction.
 TigaBodyOcclusion.png: 668e863354e20d75f41739cdc1e561917476e0a6f78e2b1cfdba5101d3cf8b45
+
+Eye cover surface update (2026-10-11, A-113):
+- The source EYESEMI Layer Weight/Fresnel and warm emission ramp were inspected
+  with embedded scripts disabled; scripts/inspect_tiga_lens.py records provenance.
+- TigaLens is a real-time approximation of angle-dependent transmission, not an
+  exact reproduction of the source's complete Blender shader graph.
+- Only runtime copies of the eye cover receive seam-smoothed normals; original
+  FBX geometry, UVs, skin weights and the black eye rim remain unchanged.
