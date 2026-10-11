@@ -20,13 +20,18 @@ namespace UltramanGame.Runtime
         readonly string heroId;
         readonly HeroEngagementMotion engagement=new HeroEngagementMotion();
         readonly LiveReadyPose liveReady=new LiveReadyPose();
+        readonly RangedCastPose rangedCast=new RangedCastPose();
         readonly FootContactRoll leftFootRoll,rightFootRoll;
         bool liveReadyAllowed,liveSupportAllowed;
         public float ReadyLift(bool left)=>liveReadyAllowed?liveReady.Y(left):0;
         public float SupportLift(bool left)=>liveSupportAllowed?liveReady.Y(left):0;
         public float ReadyBodySide=>liveReadyAllowed?liveReady.BodySide:0;
         public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
-        {if(!monster)liveReady.Tick(frame,nowMs,input,state,dt,enabled);}
+        {
+            if(monster)return;
+            liveReady.Tick(frame,nowMs,input,state,dt,enabled);
+            rangedCast.Tick(frame,nowMs,input,state,dt,enabled&&heroId=="Tiga");
+        }
         Vector3 restHome;
         float ApproachDistance=>CombatSpacing.Approach(Vector3.Distance(restHome,monster&&opponent!=null?opponent.StancePosition:opponentHome));
         // Keep part of Tiga's long authored lunge in the shared melee stance.
@@ -2046,7 +2051,11 @@ namespace UltramanGame.Runtime
                     float extension=heroId=="Tiga"?
                         (Vector3.Distance(upper.position,lower.position)+Vector3.Distance(lower.position,wrist.position))*.97f:
                         slugger?.68f:.88f;
-                    var finish=upper.position+forward*extension-side*(handSign*.06f)+Vector3.up*(slugger?.10f:-.04f);
+                    // Keep the accepted camera height throughout this cast.
+                    // Normalizing preserves the actual arm span; the hit still
+                    // goes to the same monster surface through HeroProjectile.
+                    var castDirection=heroId=="Tiga"?(forward+Vector3.up*rangedCast.Elevation).normalized:forward;
+                    var finish=upper.position+castDirection*extension-side*(handSign*.06f)+Vector3.up*(slugger?.10f:-.04f);
                     target=Vector3.Lerp(Vector3.Lerp(punchStart,load,prepare),finish,release);
                     target+=side*(handSign*.12f*Mathf.Sin(release*Mathf.PI));
                     target=Vector3.Lerp(target,guard,recover)+side*(handSign*.10f*Mathf.Sin(recover*Mathf.PI))-Vector3.up*(.08f*Mathf.Sin(recover*Mathf.PI));

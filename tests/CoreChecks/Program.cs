@@ -55,6 +55,7 @@ static class Program
         BoxingContinuityChecks.Run(Check);
         AttackTempoChecks.Run(Check);
         LiveReadyPoseChecks.Run(Check);
+        RangedCastPoseChecks.Run(Check);
         RangedCameraChecks.Run(Check);
         RangedReactionChecks.Run(Check);
         ArsenalChecks.Run(Check);
