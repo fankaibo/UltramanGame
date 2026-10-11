@@ -47,6 +47,7 @@ static class Program
         {
             if(args.Length==2&&args[0]=="--photo-response-audit"){PhotoResponseAudit.Run(args[1]);return 0;}
             PreviewChecks.Run(Check);
+            PoseReadClockChecks.Run(Check);
             ReviewPlaybackChecks.Run(Check);
             PhotoChecks.Run(Check);
             BeamCloseupChecks.Run(Check);

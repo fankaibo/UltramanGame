@@ -6,6 +6,7 @@ namespace UltramanGame.Runtime
 {
     public sealed partial class ArenaController : MonoBehaviour
     {
+        static readonly Func<string,PoseFrame> DecodePose=JsonUtility.FromJson<PoseFrame>;
         Battle battle=new Battle();
         readonly Battle showcaseBattle=new Battle();
         bool showcase;int showcaseFrame;
@@ -164,7 +165,7 @@ namespace UltramanGame.Runtime
             if(Input.GetKeyDown(KeyCode.F11))Screen.fullScreen=!Screen.fullScreen;
             if(Input.GetKeyDown(KeyCode.Escape)) { if(showcase)showcase=false;else if(settings)settings=false;else paused=!paused; }
             if(Input.GetKeyDown(KeyCode.R))Restart();
-            long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();float rawDt=Time.unscaledDeltaTime,dt=Mathf.Min(rawDt,.1f);
+            long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),frameStartedAt=now;float rawDt=Time.unscaledDeltaTime,dt=Mathf.Min(rawDt,.1f);
             sampleAge+=rawDt;
             if(TraceEnabled&&rawDt>.12f)Debug.Log($"[FrameTiming] age={sampleAge:F2} phase={battle.Phase} action={battle.Action} frameMs={rawDt*1000:F1}");
             if(TraceEnabled&&sampleWindows<2&&sampleAge>3)
@@ -181,13 +182,14 @@ namespace UltramanGame.Runtime
             else
             {
                 input=held;input.Transform=input.LeftPunch=input.RightPunch=input.Beam=false;
-                var line=client.TakeLatest();
-                if(line!=null)
+                try
                 {
-                    try
+                    var incoming=client.TakeLatestPose(DecodePose,out now);
+                    if(incoming!=null)
                     {
-                        var incoming=JsonUtility.FromJson<PoseFrame>(line);
-                        if(incoming!=null&&(incoming.streamId!=stream||incoming.sequence>sequence))
+                        if(TraceEnabled&&now-frameStartedAt>50)
+                            Debug.Log($"[PoseConsume] delayMs={now-frameStartedAt} captureAgeMs={now-incoming.capturedMs} frameClockFresh={PoseQuality.Fresh(incoming,frameStartedAt)} consumeClockFresh={PoseQuality.Fresh(incoming,now)} sequence={incoming.sequence}");
+                        if(incoming.streamId!=stream||incoming.sequence>sequence)
                         {
                             pose=incoming;stream=pose.streamId;sequence=pose.sequence;
                             // A charged finisher must remain available through the
@@ -229,8 +231,8 @@ namespace UltramanGame.Runtime
                             lastGuardIntent=input.GuardIntent;lastBeamIntent=input.BeamIntent;
                         }
                     }
-                    catch(ArgumentException) {pose=null;recognizer.ResetTracking();input=default;}
                 }
+                catch(ArgumentException) {pose=null;recognizer.ResetTracking();input=default;}
                 if(!PoseQuality.Present(pose,now)) {input=default;recognizer.ResetTracking();}
                 input.Tracking=presence.Update(pose,now);held=input;
 
