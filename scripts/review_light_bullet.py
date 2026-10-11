@@ -1,4 +1,5 @@
 """Verify identical gameplay/body samples and encode the actual Unity renders."""
+import argparse
 import csv
 import hashlib
 import json
@@ -11,11 +12,19 @@ BASELINE = '4c66497'
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--discharge', action='store_true', help='Review Tiga muzzle/contact instead of flight volume')
+    options = parser.parse_args()
+    global FOLDER, BASELINE
+    if options.discharge:
+        FOLDER = ROOT / 'artifacts/skill-discharge-20261012'
+        BASELINE = 'ddaca89'
+    changed = ('Scripts/Runtime/HeroProjectile.cs', 'Scripts/Runtime/RangedSkillAccent.cs') if options.discharge else ('Scripts/Runtime/HeroProjectile.cs', 'Resources/ProjectileWake.shader')
     sha = lambda data: hashlib.sha256(data).hexdigest()
     before = FOLDER / 'before/Tiga-60'
     after = FOLDER / 'after/Tiga-60'
     old_sources = dict(row.rsplit(' ', 1) for row in (before/'sources.txt').read_text().splitlines())
-    for name in ('Scripts/Runtime/HeroProjectile.cs', 'Resources/ProjectileWake.shader'):
+    for name in changed:
         source = subprocess.check_output(['git', 'show', f'{BASELINE}:unity/Assets/{name}'], cwd=ROOT)
         if sha(source) != old_sources[name]:
             raise RuntimeError('Wrong baseline source: '+name)
@@ -37,8 +46,10 @@ def main():
                 raise RuntimeError('Rendered source changed: '+name)
             sources[name] = expected
     gpu = (FOLDER/'gpu/validation.txt').read_text()
-    if sum(line.startswith('angle=') for line in gpu.splitlines()) != 5 or gpu.count('15/30/60Hz material/flight/zeroTime/pause/pool=pass') != 6:
+    if sum(line.startswith('angle=') for line in gpu.splitlines()) != 5 or (options.discharge and 'occlusion=pass wireCoils/disc/rays=hidden sparks=retained otherHeroes=restored clear/pool40=pass' not in gpu) or (not options.discharge and gpu.count('15/30/60Hz material/flight/zeroTime/pause/pool=pass') != 6):
         raise RuntimeError('Incomplete GPU or hero-switch checks')
+    if options.discharge and gpu.count('contact=headHidden impacts=1 nextRound=reset') != 3:
+        raise RuntimeError('Missing actual flight/contact handoff checks')
     for version in ('before', 'after'):
         frames = FOLDER/version/'Tiga-60/frames'
         if len(list(frames.glob('[0-9][0-9][0-9][0-9].jpg'))) != 150:

@@ -12,6 +12,14 @@ namespace UltramanGame.Runtime
         readonly LineRenderer ring;
         readonly Light spill,muzzleSpill;
         public bool MuzzleLighting {get;set;}
+        bool softDischarge;
+        public void SetTigaStyle(bool enabled)
+        {
+            Clear();softDischarge=enabled;
+            var shader=Resources.Load<Shader>(enabled?"SkillDischarge":"SkillEnergy");
+            muzzleMaterial.shader=impactMaterial.shader=shader;
+            if(enabled){muzzleMaterial.SetFloat("_Impact",0);impactMaterial.SetFloat("_Impact",1);}
+        }
         readonly RangedContactSparks sparks;
         Vector3 position,axis,side,up;
         Color tint;
@@ -53,7 +61,7 @@ namespace UltramanGame.Runtime
         {
             float appear=Mathf.SmoothStep(0,1,age/.065f),fade=1-Mathf.SmoothStep(0,1,(age-.12f)/.12f);
             float power=active?appear*fade:0;muzzle.gameObject.SetActive(power>.005f);
-            foreach(var line in muzzleArcs)line.enabled=power>.005f;
+            foreach(var line in muzzleArcs)line.enabled=power>.005f&&!softDischarge;
             // The visible muzzle, not a lamp behind the fighter, lights the
             // active wrist and nearby suit. It follows the same action clock.
             muzzleSpill.transform.position=origin+direction*.10f;muzzleSpill.color=Color.Lerp(color,Color.white,.35f);
@@ -62,6 +70,7 @@ namespace UltramanGame.Runtime
             Vector3 lateral=Vector3.Cross(Vector3.up,direction).normalized,vertical=Vector3.Cross(direction,lateral).normalized;
             muzzle.position=origin;muzzle.rotation=Quaternion.LookRotation(direction);muzzle.localScale=new Vector3(.42f,.42f,.65f)*(.4f+.6f*power);
             muzzleMaterial.color=new Color(color.r,color.g,color.b,power*.65f);muzzleMaterial.SetFloat("_Age",age);
+            if(softDischarge)return;
             for(int i=0;i<2;i++)
             {
                 var line=muzzleArcs[i];Tint(line,Color.Lerp(color,Color.white,.35f),power*.85f);
@@ -75,13 +84,19 @@ namespace UltramanGame.Runtime
         {
             sparks.Tick(dt);
             hitAge+=Mathf.Max(0,dt);float t=Mathf.Clamp01(hitAge/.30f),fade=1-t;
-            bool visible=hitAge<.30f;impact.gameObject.SetActive(visible);ring.enabled=visible;foreach(var line in rays)line.enabled=visible;
+            bool visible=hitAge<.30f;impact.gameObject.SetActive(visible);ring.enabled=visible&&!softDischarge;foreach(var line in rays)line.enabled=visible&&!softDischarge;
             spill.intensity=visible?fade*fade*1.8f:0;if(!visible)return;
             // Face the actual incoming path, then blow fragments back out of the skin.
             impact.position=position-axis*.10f;impact.rotation=Quaternion.LookRotation(axis);
             float size=.28f+.95f*Mathf.Sqrt(t);impact.localScale=new Vector3(size,size,.22f+.16f*t);
             impactMaterial.color=new Color(tint.r,tint.g,tint.b,fade*fade*.75f);impactMaterial.SetFloat("_Age",hitAge);
             spill.transform.position=position-axis*.28f;spill.color=tint;
+            if(softDischarge)
+            {
+                impact.position=position-axis*(.11f+.20f*t);
+                impact.localScale=new Vector3(size,size,.30f+.70f*t);
+                return;
+            }
             float radius=.12f+t*.95f;Tint(ring,Color.Lerp(tint,Color.white,.35f),fade*fade*.75f);
             for(int j=0;j<ring.positionCount;j++)
             {float angle=j/(float)(ring.positionCount-1)*Mathf.PI*2;ring.SetPosition(j,position-axis*.13f+(side*Mathf.Cos(angle)+up*Mathf.Sin(angle))*radius);}

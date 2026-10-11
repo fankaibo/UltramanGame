@@ -93,6 +93,7 @@ namespace UltramanGame.Runtime
         public void SetHero(string id)
         {
             useSluggers=HeroArsenal.Sluggers(id);useComet=id=="Tiga";accents.MuzzleLighting=useComet;
+            accents.SetTigaStyle(useComet);
             coreMat.shader=Resources.Load<Shader>(useComet?"LightBullet":"SkillEnergy");
             trailMat.shader=Resources.Load<Shader>(useComet?"ProjectileWake":"StrikeRibbon");
             trail.widthMultiplier=useComet?.62f:.30f;
@@ -144,7 +145,11 @@ namespace UltramanGame.Runtime
             }
             float age=state.Shot.Age;
             Visible=age<=(useSluggers?AttackTempo.RangedSeconds:AttackTempo.RangedHitSeconds+.055f);
-            core.gameObject.SetActive(Visible&&!useSluggers);halo.gameObject.SetActive(Visible&&!useSluggers);wave.gameObject.SetActive(Visible&&!useSluggers&&!useComet);trail.enabled=Visible&&!useSluggers;
+            // Once the actual hit is accepted, Tiga's contact flash owns the
+            // energy head. Keep only the fading wake; do not park a second
+            // white ellipsoid inside the monster during the impact hold.
+            bool headVisible=Visible&&!useSluggers&&(!useComet||!contacted);
+            core.gameObject.SetActive(headVisible);halo.gameObject.SetActive(headVisible);wave.gameObject.SetActive(Visible&&!useSluggers&&!useComet);trail.enabled=Visible&&!useSluggers;
             foreach(var blade in sluggers)blade.gameObject.SetActive(Visible&&useSluggers&&!OriginalBlades);
             foreach(var line in bladeTrails)line.enabled=Visible&&useSluggers;
             if(!Visible){originalSluggers?.Restore();return;}
