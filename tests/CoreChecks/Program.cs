@@ -45,6 +45,7 @@ static class Program
     {
         try
         {
+            if(args.Length==2&&args[0]=="--photo-response-audit"){PhotoResponseAudit.Run(args[1]);return 0;}
             PreviewChecks.Run(Check);
             ReviewPlaybackChecks.Run(Check);
             PhotoChecks.Run(Check);

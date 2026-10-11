@@ -6,6 +6,7 @@ ignored proof directory after validation.
 """
 import argparse
 import csv
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -28,6 +29,7 @@ from vision.demo import landmarks_at
 from vision.preview import GamePreview
 from vision.photo import GamePhoto
 from vision.supervision import stop_process
+from scripts.review_media import LatestReviewMedia
 
 
 def selection_landmarks(direction):
@@ -171,7 +173,13 @@ def main():
     build={'app':str(app),'started_utc':datetime.now(timezone.utc).isoformat(),'before':build_hashes()}
     for name in ('guided-validation.json','build.json'):(folder/name).unlink(missing_ok=True)
     factory=FrameFactory(source='synthetic');process=None;photos=[];pose_trace=[];memory_rows=[]
-    with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo:
+    # Media encoding can stall under GPU/CPU contention. Keep pose generation
+    # independent and never restamp an old image to make it appear fresh.
+    with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo,ExitStack() as media_cleanup:
+        preview_media=LatestReviewMedia(lambda request: preview.publish(None,request[0],request[1],'synthetic'), 'Review preview producer')
+        media_cleanup.callback(preview_media.close)
+        photo_media=LatestReviewMedia(lambda request: photo.publish(None,None,request[0],synthetic=True) if request[1] else None, 'Review photo producer')
+        media_cleanup.callback(photo_media.close)
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
             '--preview-port',str(preview.bridge.address[1]),'--photo-port',str(photo.bridge.address[1])]
@@ -394,10 +402,9 @@ def main():
                     pose_trace.append(dict(frame=frame,protected=protected,beam_available=beam,transform_available=phase=='Waiting'))
                 if not review_loss_start or now-review_loss_start>.45:bridge.publish(frame)
                 pose_at=time.monotonic()
-                preview.publish(None,points,frame['capturedMs'],'synthetic')
+                preview_media.publish((points,frame['capturedMs']))
                 preview_at=time.monotonic()
-                if not loss_start or now-loss_start>1.3:
-                    photo.publish(None,None,frame['capturedMs'],synthetic=True)
+                photo_media.publish((frame['capturedMs'],not loss_start or now-loss_start>1.3))
                 photo_at=time.monotonic()
                 if photo_at-publish_at>.2:
                     print(f'[GuidedLatency] stage={stage} age={age:.1f} poseMs={(pose_at-publish_at)*1000:.0f} previewMs={(preview_at-pose_at)*1000:.0f} photoMs={(photo_at-preview_at)*1000:.0f}',flush=True)
