@@ -6,6 +6,9 @@ namespace UltramanGame.Core
     // accepted casts keep the medium composition until the child stops.
     public sealed class RangedCameraMotion
     {
+        // Allow a young player time to retract and prepare the opposite hand.
+        // Warnings, shields and exclusive shots still bypass this hold.
+        const float BetweenCasts=1.45f;
         public float Focus=>Smooth(weight);
         public float Travel=>Smooth(age/2.4f);
         public int Side {get;private set;}
@@ -35,11 +38,11 @@ namespace UltramanGame.Core
                         // out. Keep its orbit until it has actually returned.
                         if(weight<.001f){age=0;Side=state.Action==HeroAction.LeftPunch?-1:1;}
                     }
-                    Casts++;hold=.65f;
+                    Casts++;hold=BetweenCasts;
                 }
             }
             if(!available){hold=0;Casts=0;}
-            else if(state.IsRangedPunch&&sequence==state.AttackSequence&&Casts>0)hold=.65f;
+            else if(state.IsRangedPunch&&sequence==state.AttackSequence&&Casts>0)hold=BetweenCasts;
             else hold=Math.Max(0,hold-dt);
             float desired=hold>0?(Casts>1?1:.45f):0;
             // Exact exponential response is independent of the render rate.

@@ -104,7 +104,7 @@ namespace UltramanGame.Editor
                 UnityEngine.Object.DestroyImmediate(root.gameObject);UnityEngine.Object.DestroyImmediate(camera.gameObject);if(wall)UnityEngine.Object.DestroyImmediate(wall);if(material)UnityEngine.Object.DestroyImmediate(material);
             }
         }
-        static void Save(Camera camera,RenderTexture rt,string path)
+        internal static void Save(Camera camera,RenderTexture rt,string path)
         {
             var old=RenderTexture.active;var image=new Texture2D(rt.width,rt.height,TextureFormat.RGB24,false);
             try{camera.Render();RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);image.Apply();File.WriteAllBytes(path,image.EncodeToJPG(85));}

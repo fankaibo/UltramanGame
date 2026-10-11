@@ -86,7 +86,7 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(345,53,590,67),"光之英雄 · 火山大决战",37,HudPainter.Ink,TextAnchor.MiddleCenter,true);
                 hud.Text(new Rect(415,120,450,32),"这一次，由你守护火山基地",20,cyan,TextAnchor.MiddleCenter);
                 DrawHeroSelection();
-                Guide(keyboard?"按空格，和"+SelectedHero.Name+"一起出发":"双手举高，和"+SelectedHero.Name+"一起出发","transform",cyan,keyboard?0:recognizer.TransformProgress);
+                Guide(keyboard?"按空格，和"+SelectedHero.Name+"一起出发":recognizer.TransformNeedsRelease?"先放下双手，再举高开始":"双手举高，和"+SelectedHero.Name+"一起出发","transform",cyan,keyboard?0:recognizer.TransformProgress);
             }
             else if(transforming)
             {

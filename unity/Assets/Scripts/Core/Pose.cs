@@ -95,7 +95,7 @@ namespace UltramanGame.Core
         bool guardLocked, beamLocked;
         float guardLockAge, guardLostAge, beamLockAge, beamLostAge;
         PosePoint guardLeft,guardRight;
-        float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,shieldHold,shieldGap,steady,wristLossAge;
+        float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,transformGap,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
         // Stable labels are useful for the in-game guide and camera-pose
         // diagnostics. They describe the reference pose that currently owns
@@ -123,6 +123,7 @@ namespace UltramanGame.Core
         // unchanged, while allowing the default child-friendly profile to
         // complete after a shorter, still deliberate hold.
         float BeamHold=>Level==0?.38f:BeamHoldSeconds+Level*.20f;
+        public bool TransformNeedsRelease => transformReleaseRequired;
         public float TransformProgress => Math.Min(1,transformHold/TransformHold);
         public const float BeamHoldSeconds=.50f;
         // A held finisher can lose the L angle for a few camera packets while
@@ -168,7 +169,7 @@ namespace UltramanGame.Core
             guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
             BeamNeedsRelease=false;
             ReferencePose="P0-准备";
-            beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=shieldHold=shieldGap=steady=0;
+            beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=transformGap=shieldHold=shieldGap=steady=0;
         }
         public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true,bool shieldPriority=false)
         {
@@ -612,9 +613,24 @@ namespace UltramanGame.Core
             // short settle window, but let the explicit two-hand safety pose
             // own input after the camera has delivered a few fresh frames.
             if (steady<.12f) return input;
-            transformHold=transformAvailable&&raised?transformHold+dt:0;
-            if (wristsReady && !raised) {transformFired=false;transformReleaseRequired=false;}
-            if (!transformReleaseRequired&&transformHold>=TransformHold&&!transformFired) { input.Transform=true; transformFired=true; }
+            // Start uses only visible image-plane geometry. Inferred shoulder
+            // depth can jump when arms rise; it must not raise the start threshold.
+            bool startWrists=PoseQuality.Reliable(fl,.45f)&&PoseQuality.Reliable(fr,.45f)&&
+                PoseQuality.Reliable(flw,.45f)&&PoseQuality.Reliable(frw,.45f);
+            bool startRaised=startWrists&&flw.y<fsy-.55f*fs&&frw.y<fsy-.55f*fs;
+            bool startLowered=startWrists&&flw.y>fl.y-.10f*fs&&frw.y>fr.y-.10f*fs;
+            if(startLowered){transformFired=false;transformReleaseRequired=false;}
+            if(!transformAvailable||startLowered){transformHold=transformGap=0;}
+            else if(startRaised){transformHold+=dt;transformGap=0;}
+            else
+            {
+                // Pause briefly on uncertain wrists; never count missing data
+                // as a release or as progress towards starting.
+                transformGap+=dt;
+                if(transformGap>.20f)transformHold=0;
+            }
+            if (startRaised&&!transformReleaseRequired&&transformHold>=TransformHold&&!transformFired)
+            { input.Transform=true; transformFired=true; }
             // A release/guard must be observed before a beam. Holding a pose while energy fills cannot auto-fire it.
             if(beamReleasePose&&!beamIntent)beamRelease=Math.Max(.25f,beamRelease);
             else if(beamWristsReady&&!beamIntent)beamRelease+=dt;else beamRelease=0;

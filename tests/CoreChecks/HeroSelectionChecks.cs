@@ -1,36 +1,51 @@
 using System;
 using UltramanGame.Core;
 
+// Waiting-page input: unilateral waves must not start, and raising hands must
+// survive camera depth noise without bypassing the post-photo release latch.
 static class HeroSelectionChecks
 {
-    static PoseFrame Frame(string kind,ref long stamp,ref long sequence)
-    {
-        stamp+=50;var p=new PosePoint[33];for(int i=0;i<p.Length;i++)p[i]=new PosePoint(.5f,.5f);
-        p[11]=new PosePoint(.65f,.30f);p[12]=new PosePoint(.35f,.30f);
-        p[13]=new PosePoint(.69f,.50f);p[14]=new PosePoint(.31f,.50f);
-        p[15]=new PosePoint(.67f,.60f);p[16]=new PosePoint(.33f,.60f);
-        if(kind=="left"){p[15]=new PosePoint(.90f,.02f);p[16]=new PosePoint(.33f,.60f);}
-        if(kind=="right"){p[15]=new PosePoint(.67f,.60f);p[16]=new PosePoint(.10f,.02f);}
-        if(kind=="both"){p[15]=new PosePoint(.90f,.02f);p[16]=new PosePoint(.10f,.02f);}
-        return new PoseFrame{schema=1,streamId="selection",sequence=++sequence,capturedMs=stamp,tracked=true,points=p};
-    }
     public static void Run(Action<bool,string> check)
     {
-        var g=new HeroSelectionGesture();long stamp=10000,sequence=0;
-        int left=0;for(int i=0;i<10;i++){var f=Frame("left",ref stamp,ref sequence);if(g.Update(f,stamp)<0)left++;}
-        check(left==1,"single raised left hand selects previous hero once");
-        for(int i=0;i<8;i++){var f=Frame("neutral",ref stamp,ref sequence);g.Update(f,stamp);}
-        int right=0;for(int i=0;i<10;i++){var f=Frame("right",ref stamp,ref sequence);if(g.Update(f,stamp)>0)right++;}
-        check(right==1,"single raised right hand selects next hero once");
-        for(int i=0;i<8;i++){var f=Frame("neutral",ref stamp,ref sequence);g.Update(f,stamp);}
-        for(int i=0;i<10;i++){var f=Frame("both",ref stamp,ref sequence);if(g.Update(f,stamp)!=0)throw new Exception("both hands selected a hero");}
-        check(g.Armed,"both raised hands do not consume selection ownership");
-        g.Consume();for(int i=0;i<10;i++){var f=Frame("left",ref stamp,ref sequence);if(g.Update(f,stamp)!=0)throw new Exception("held hand retriggered after consume");}
-        for(int i=0;i<5;i++){var f=Frame("neutral",ref stamp,ref sequence);g.Update(f,stamp);}
-        check(g.Armed,"hands-down release rearms selection after a change");
-        var stale=Frame("right",ref stamp,ref sequence);check(g.Update(stale,stamp+400)==0,"stale selection pose is ignored");
-        g.Reset();
-        int afterReset=0;for(int i=0;i<10;i++){var f=Frame("left",ref stamp,ref sequence);if(g.Update(f,stamp)<0)afterReset++;}
-        check(afterReset==1,"selection latch resets for a new round after photo replay");
+        foreach(int hz in new[]{15,30,60})
+        {
+            long stamp=10000,sequence=0;
+            var g=new GestureRecognizer();
+            int Feed(string kind,float seconds,bool available=true)
+            {
+                int fired=0;
+                for(int i=0;i<(int)(seconds*hz);i++)
+                {
+                    stamp+=(long)Math.Round(1000f/hz);
+                    var p=new PosePoint[33];for(int j=0;j<33;j++)p[j]=new PosePoint(.5f,.5f);
+                    p[11]=new PosePoint(.65f,.4f);p[12]=new PosePoint(.35f,.4f);
+                    p[13]=new PosePoint(.7f,.4f);p[14]=new PosePoint(.3f,.4f);
+                    p[15]=new PosePoint(.8f,.65f);p[16]=new PosePoint(.2f,.65f);
+                    if(kind=="left"||kind=="raised"||kind=="uncertain"||kind=="depth")p[15].y=.15f;
+                    if(kind=="right"||kind=="raised"||kind=="uncertain"||kind=="depth")p[16].y=.15f;
+                    if(kind=="depth")
+                    {p[11].z=.7f;p[12].z=-.7f;p[15].visibility=p[16].visibility=.5f;}
+                    if(kind=="uncertain")p[15].visibility=.1f;
+                    if(kind=="chest")p[15].y=p[16].y=.39f;
+                    var f=new PoseFrame{schema=1,streamId="start",sequence=++sequence,capturedMs=stamp,tracked=true,points=p};
+                    if(g.Update(f,stamp,false,available).Transform)fired++;
+                }
+                return fired;
+            }
+            check(Feed("left",1)==0&&Feed("right",1)==0,"single hand cannot start at "+hz);
+            check(Feed("depth",1.2f)==1,"visible raised hands start despite noisy depth / moderate confidence at "+hz);
+            check(Feed("depth",1)==0,"held raised hands trigger once at "+hz);
+            g.Reset(true);
+            check(Feed("raised",1)==0,"held photo gesture cannot skip waiting at "+hz);
+            check(Feed("uncertain",.15f)==0&&Feed("raised",1)==0,"uncertain wrists do not release replay at "+hz);
+            Feed("neutral",.4f);
+            check(Feed("raised",1)==1,"release then raise restarts at "+hz);
+            g.Reset();Feed("chest",1);
+            check(g.TransformProgress==0,"chest guard is not a start pose at "+hz);
+            g.Reset();Feed("raised",.35f);Feed("uncertain",.1f);
+            check(Feed("raised",.35f)==1,"brief wrist uncertainty pauses rather than erases start at "+hz);
+            g.Reset();
+            check(Feed("raised",.7f,false)==0&&Feed("raised",1)==1,"selection settling cannot consume transform before input is available at "+hz);
+        }
     }
 }

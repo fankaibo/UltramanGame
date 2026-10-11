@@ -11,7 +11,6 @@ namespace UltramanGame.Runtime
         bool showcase;int showcaseFrame;
         ReviewPlayback review;float reviewFinishedAt=-1;int reviewBeams;bool reviewPaused,reviewFinisher;
         readonly GestureRecognizer recognizer=new GestureRecognizer();
-        readonly HeroSelectionGesture heroSelectionGesture=new HeroSelectionGesture();
         readonly PlayerPresence presence=new PlayerPresence();
         PoseClient client;
         PreviewClient previewClient;
@@ -212,7 +211,7 @@ namespace UltramanGame.Runtime
                                 // become an accidental punch.
                                 (recognizer.BeamProgress<=0&&!held.BeamIntent);
                             input=recognizer.Update(pose,now,battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy,
-                                battle.Phase==GamePhase.Waiting,warningShieldPriority);
+                                battle.Phase==GamePhase.Waiting&&Time.unscaledTime-selectionChangedAt>=.5f,warningShieldPriority);
                             string detected=input.Beam?"必杀光线":input.Transform?"举手变身":input.LeftPunch||input.RightPunch?
                                 (recognizer.ForwardPunch?"向前挥拳":"侧前挥拳"):"";
                             if(detected.Length>0)
@@ -234,18 +233,7 @@ namespace UltramanGame.Runtime
                 }
                 if(!PoseQuality.Present(pose,now)) {input=default;recognizer.ResetTracking();}
                 input.Tracking=presence.Update(pose,now);held=input;
-                if(!keyboard&&battle.Phase==GamePhase.Waiting&&!photo.Active&&!settings&&!showcase)
-                {
-                    int selection=heroSelectionGesture.Update(pose,now);
-                    if(selection!=0)
-                    {
-                        SelectAdjacent(selection);
-                        // Selection owns the waiting frame. The existing half
-                        // second post-selection gate then prevents the same held
-                        // hand from being mistaken for transform.
-                        input.Transform=false;
-                    }
-                }
+
             }
             if(review!=null)input=review.Next(battle,dt);
             if(!keyboard&&battle.Phase==GamePhase.Waiting&&Time.unscaledTime>=waitingGuideAt&&!sound.VoicePlaying)
@@ -386,12 +374,6 @@ namespace UltramanGame.Runtime
         {
             photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
             battle=new Battle(monsterHits);recognizer.Reset(requireTransformRelease:true);presence.Reset();pose=null;held=default;
-            // Photo replay starts a fresh waiting screen.  The previous round
-            // may have consumed the one-hand selection latch, so clear it as
-            // well; otherwise the child can no longer change heroes after the
-            // first automatic photo.  Both recognizers still require the
-            // hands-down release before the same raised pose can transform.
-            heroSelectionGesture.Reset();
             // A photo round can leave the native worker on the same camera stream.
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
@@ -422,7 +404,7 @@ namespace UltramanGame.Runtime
             photo.KeyboardMode=keyboard;
             // Only replace the input source: keep the round, selected hero and
             // any open settings/photo review, while discarding stale gestures.
-            recognizer.ResetTracking();heroSelectionGesture.Reset();presence.Reset();held=default;pose=null;stream=null;sequence=0;
+            recognizer.ResetTracking();presence.Reset();held=default;pose=null;stream=null;sequence=0;
             lastTracking=false;gestureFeedbackUntil=0;cursorUntil=Time.unscaledTime+3;
             if(battle.Phase==GamePhase.Waiting&&!photo.Active)
             {sound.Reset();if(!keyboard&&!settings)sound.Speak("arcade_ready",1,GamePhase.Waiting);}

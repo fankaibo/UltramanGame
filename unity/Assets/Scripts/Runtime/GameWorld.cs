@@ -458,7 +458,7 @@ namespace UltramanGame.Runtime
                 // helmets, hands and projectile lane prominent; the lower legs
                 // can leave frame until a guard/return restores the wide arena.
                 Camera.transform.position+=viewForward*(2.05f*RangedFocus)
-                    +viewRight*(rangedCamera.Side*.24f*rangedCamera.Travel*RangedFocus);
+                    +viewRight*(rangedCamera.Side*.65f*rangedCamera.Travel*RangedFocus);
                 target+=Vector3.up*(.39f*RangedFocus)+BattleAxis*(.08f*RangedFocus);
                 Camera.fieldOfView-=.65f*RangedFocus;
             }

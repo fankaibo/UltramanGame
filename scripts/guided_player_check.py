@@ -31,7 +31,7 @@ from vision.supervision import stop_process
 
 
 def selection_landmarks(direction):
-    """Return a single raised hand pose for the waiting-page hero carousel."""
+    """Return a unilateral wave; it must not change the waiting-page hero."""
     points=landmarks_at(0)
     if direction=='left':
         points[15].x,points[15].y=.90,.02
@@ -59,14 +59,14 @@ def tempo_landmarks(seconds):
     return points
 
 
-def volley_landmarks(seconds):
+def volley_landmarks(seconds,cadence=.8):
     """Six alternating forward casts; the other hand rests below the guard."""
     points=tempo_landmarks(0)
     for index in (15,16):
         points[index].y=.80
         points[index].z=-.16
-    phase=seconds%.8
-    right=int(seconds/.8)%2==1
+    phase=seconds%cadence
+    right=int(seconds/cadence)%2==1
     hand=points[16 if right else 15]
     rise=min(1,phase/.12) if phase<.62 else max(0,1-(phase-.62)/.12)
     hand.y=.80-.36*rise;hand.z=-.16-.04*rise
@@ -132,21 +132,24 @@ def main():
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
+    parser.add_argument('--volley-cadence',type=float,default=.8,help='Seconds between the six camera-review casts (0.6 to 1.8)')
     parser.add_argument('--ranged-reaction',action='store_true',help='Require actual ranged recovery step lift, landing and return')
-    parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Use the initial left selection gesture to choose this actual hero')
+    parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Start the proof with this hero; gestures never change hero')
     parser.add_argument('--early-photo-choices',action='store_true',help='Choose during photo narration; require live voice and visible gesture progress')
     parser.add_argument('--rounds',type=int,default=1,choices=(1,2,3),help='Complete this many rounds in one player process, then enter the next battle')
+    parser.add_argument('--start-depth-noise',action='store_true',help='Verify start/replay with noisy inferred depth and moderate wrist confidence')
     parser.add_argument('--same-hero-replay',action='store_true',help='Keep the chosen hero for the next round; verify held replay pose cannot skip the release')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
     parser.add_argument('--gesture-startup-noise',action='store_true',help='Hide a wrist before guard confirmation and bias finisher depth from its first frame')
     options=parser.parse_args()
     if not 60<=options.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
-    if options.rounds>1 and not options.same_hero_replay:parser.error("Multiple rounds require --same-hero-replay")
     if options.body_follow:options.ready_follow=True
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     if options.volley_camera and not options.tempo_skills:parser.error('--volley-camera requires --tempo-skills')
+    if not .6<=options.volley_cadence<=1.8:parser.error('--volley-cadence must be between 0.6 and 1.8 seconds')
+    if options.volley_cadence!=.8 and not options.volley_camera:parser.error('--volley-cadence requires --volley-camera')
     if options.ranged_reaction and not options.volley_camera:parser.error('--ranged-reaction requires --volley-camera')
     if options.gesture_shape_noise and not options.gesture_wobble:parser.error('--gesture-shape-noise requires --gesture-wobble')
     if options.gesture_startup_noise and not options.gesture_entry_noise:parser.error('--gesture-startup-noise requires --gesture-entry-noise')
@@ -170,17 +173,12 @@ def main():
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
             '--preview-port',str(preview.bridge.address[1]),'--photo-port',str(photo.bridge.address[1])]
         if options.hero:
-            # Start on the next available card: the existing initial left-hand
-            # gesture must select the requested hero through the real carousel.
-            next_card={'Tiga':'Mebius','Mebius':'Zero','Zero':'Geed','Geed':'Grigio','Grigio':'Tiga'}
-            args+=['--proof-hero',next_card[options.hero]]
+            args+=['--proof-hero',options.hero]
         try:
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
-            initial_selection_done=False;initial_selection_at=0;replay_selection_sent=False;replay_selection_seen=False
             volley_started=None;ready_started=0
-            replay_selection_direction='right'
             beam_release_until=0
             beam_reset_releases=0
             pose_contexts={};gesture_audit=[];guard_entry_contexts=set()
@@ -204,13 +202,6 @@ def main():
                         beam_release_until=now+2.0
                         beam_reset_releases+=1
                         print('[GuidedRecovery] heard beam_reset; lower both arms for 2 seconds',flush=True)
-                    hero_match=re.search(r'\[HeroAtlasLights\] hero=([A-Za-z0-9]+)',line)
-                    if hero_match:
-                        # The release build remembers the last playable hero.
-                        # Grigio is the last currently available card, so a
-                        # right wave would land on the intentionally unavailable
-                        # Zeta placeholder and produce no selection event.
-                        replay_selection_direction='left' if hero_match.group(1)=='Grigio' else 'right'
                     if (options.gesture_wobble or options.ready_follow) and '[Gesture]' in line and '挥拳' in line:
                         # Log delivery is asynchronous. Attribute each decision
                         # to the pose packet it consumed, not the pose currently
@@ -250,7 +241,7 @@ def main():
                         # Do not keep holding a guard for an attack that no longer exists.
                         if cue=='Resume':guard=False
                         if cue=='Transform' and stage=='replay':
-                            if options.same_hero_replay and now-replay_started_at<2.3:
+                            if now-replay_started_at<2.3:
                                 raise RuntimeError('Held photo replay gesture skipped fresh release before transformation')
                             replayed=True
                         if cue=='BattleStart' and replayed:
@@ -267,12 +258,7 @@ def main():
                     if '[Photo] gesture=play-again' in line:
                         stage='replay';replay_started_at=now
                     if '[HeroSelection]' in line:
-                        if stage=='replay':replay_selection_seen=True
-                        elif options.hero:
-                            chosen=re.search(r'id=([A-Za-z0-9]+)',line)
-                            if not chosen or chosen[1]!=options.hero:
-                                raise RuntimeError('Initial gesture selected the wrong hero: '+line)
-                            initial_selection_at=now
+                        raise RuntimeError('Camera gestures unexpectedly changed hero: '+line)
                 if memory_output and age>=next_memory_sample:
                     rss_kib,vsz_kib,command=read_process_memory(process.pid)
                     memory_rows.append({'elapsed_s':round(age,3),'stage':stage,'phase':phase,
@@ -304,48 +290,17 @@ def main():
                         if photos_seen==1:
                             points[16].y=.61
                 elif stage=='replay':
-                    # The game deliberately gates a new round behind a fresh
-                    # hands-down release and the spoken "举起双手" cue. Keep
-                    # the synthetic player neutral until the audio window has
-                    # elapsed; holding the transform pose from the photo review
-                    # would correctly be rejected as stale input. Then exercise
-                    # one deliberate carousel gesture before transforming, so
-                    # the release path proves that a photo replay restores
-                    # selection ownership as well as the transform gate.
+                    # Hold the photo gesture first: it must not skip Waiting.
+                    # Then release and raise again without any hero-selection gesture.
                     replay_age=now-replay_started_at if replay_started_at else 0
-                    # Memory sampling and the first Metal frame can briefly
-                    # stall the player for more than one render interval. Keep
-                    # the deliberate carousel pose visible long enough for a
-                    # fresh packet to reach HeroSelectionGesture; this does
-                    # not alter the game's own hold/release rules.
-                    if options.same_hero_replay:
-                        points=landmarks_at(2.5 if replay_age<1 or replay_age>=2.3 else 0)
-                    elif replay_age<6.0:
-                        points=landmarks_at(0)
-                    elif replay_age<8.8:
-                        replay_selection_sent=True;points=selection_landmarks(replay_selection_direction)
-                    elif replay_age<9.8:
-                        points=landmarks_at(0)
-                    else:
-                        points=landmarks_at(2.5)
+                    points=landmarks_at(2.5 if replay_age<1 or replay_age>=2.3 else 0)
                 elif phase=='Waiting':
-                    # Consume the initial selection latch once, then release
-                    # before the first transform. This makes the later
-                    # post-photo reset assertion meaningful in the same run.
-                    if options.hero and not initial_selection_done:
-                        # Imported models can finish loading after the old 4.1 s
-                        # selection window. Wait for the actual selection event,
-                        # then release before transforming; never test the neighbour.
-                        if not initial_selection_at:points=selection_landmarks('left')
-                        elif now-initial_selection_at<.8:points=landmarks_at(0)
-                        else:
-                            initial_selection_done=True;points=landmarks_at(2.5)
-                    elif not initial_selection_done:
-                        if age<4.1:points=selection_landmarks('left')
-                        elif age<4.8:points=landmarks_at(0)
-                        else:
-                            initial_selection_done=True;points=landmarks_at(2.5)
-                    elif age>3:points=landmarks_at(2.5)
+                    # Exercise both unilateral waves, then raise both hands.
+                    # Neither unilateral pose may change the chosen hero.
+                    if age<3:points=selection_landmarks('left')
+                    elif age<4:points=selection_landmarks('right')
+                    elif age<4.5:points=landmarks_at(0)
+                    else:points=landmarks_at(2.5)
                 elif phase=='Battle' and stage=='battle':
                     if beam and now<beam_release_until:
                         # A short neutral/retract window arms the next beam.
@@ -354,8 +309,8 @@ def main():
                         points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
                         if options.tempo_skills and not beam and not guard:
                             if options.volley_camera and volley_started is None:volley_started=now
-                            if options.volley_camera and now-volley_started<4.8:
-                                points=volley_landmarks(now-volley_started);tempo_started=None
+                            if options.volley_camera and now-volley_started<6*options.volley_cadence:
+                                points=volley_landmarks(now-volley_started,options.volley_cadence);tempo_started=None
                             else:
                                 if tempo_started is None:tempo_started=now
                                 points=tempo_landmarks(now-tempo_started)
@@ -423,6 +378,9 @@ def main():
                 if stage=='review' and photos_seen==2 and now-review_at>(3.2 if options.early_photo_choices else 7) and not review_loss_start:
                     review_loss_start=now
                     print('[GuidedRecovery] interrupt second-review poses for 450 ms after hands-down release',flush=True)
+                if options.start_depth_noise and phase=='Waiting':
+                    points[11].z=.7;points[12].z=-.7
+                    points[15].visibility=points[16].visibility=.5
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
                 publish_at=time.monotonic()
                 frame=factory.make(points)
@@ -444,8 +402,6 @@ def main():
             if completed_rounds!=options.rounds:raise RuntimeError(f'Incomplete rounds: {completed_rounds}/{options.rounds}')
             if not replay_battle_at:raise RuntimeError(f'Guided loop did not complete within {options.timeout:g} seconds')
             if not review_loss_start:raise RuntimeError('Second-review pose dropout was not exercised')
-            if not options.same_hero_replay and (not replay_selection_sent or not replay_selection_seen):
-                raise RuntimeError(f'Photo replay did not restore hero selection: sent={replay_selection_sent} seen={replay_selection_seen}')
             required=['live cutout displayed','countdown interrupted','gesture=retake','gesture=play-again','automatic capture complete']
             for marker in required:
                 if marker not in output:raise RuntimeError('Missing '+marker)
@@ -462,8 +418,8 @@ def main():
             tempo_evidence=None
             hero_evidence=re.findall(r'\[GuidedProofHero\] battle=([A-Za-z0-9]+)',output)
             if options.hero and (not hero_evidence or hero_evidence[0]!=options.hero):
-                raise RuntimeError(f'Requested hero was not selected through gesture: {options.hero}/{hero_evidence}')
-            if options.same_hero_replay and (len(hero_evidence)!=options.rounds+1 or len(set(hero_evidence))!=1):
+                raise RuntimeError(f'Requested proof hero was not used: {options.hero}/{hero_evidence}')
+            if (len(hero_evidence)!=options.rounds+1 or len(set(hero_evidence))!=1):
                 raise RuntimeError(f'Replay changed the selected hero: {hero_evidence}')
             early_choices=None
             if options.early_photo_choices:
@@ -500,7 +456,7 @@ def main():
                     if not required.issubset(proof_shots):raise RuntimeError(f'Missing actual volley camera proof: {required-proof_shots}')
                     peaks=re.findall(r'\[RangedCameraProof\] ranged-volley-peak focus=([\d.]+)',output)
                     if not peaks or max(map(float,peaks))<.97:raise RuntimeError('Actual player did not reach the volley lens')
-                    tempo_evidence['volley_camera']=dict(shots=sorted(required),focus_max=max(map(float,peaks)))
+                    tempo_evidence['volley_camera']=dict(shots=sorted(required),focus_max=max(map(float,peaks)),input_cadence_seconds=options.volley_cadence)
                 if options.ranged_reaction:
                     required={'ranged-step-lift','ranged-step-land','ranged-step-return'}
                     if not required.issubset(proof_shots):raise RuntimeError(f'Missing actual ranged reaction proof: {required-proof_shots}')
@@ -547,8 +503,8 @@ def main():
             result={'result':'passed','seconds':round(time.monotonic()-started,1),'input':'synthetic camera poses',
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':len(photos),'completed_rounds':completed_rounds,'player_pid':process.pid,'round_events':round_events,'photo_preview_errors':preview_errors,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
-                'replay_battle_started':True,'replay_selection_reset':not options.same_hero_replay,
-                'same_hero_replay':options.same_hero_replay,
+                'replay_battle_started':True,'replay_selection_reset':False,'gesture_hero_changes':0,
+                'same_hero_replay':True,'start_depth_noise':options.start_depth_noise,
                 'beam_reset_releases':beam_reset_releases,
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}

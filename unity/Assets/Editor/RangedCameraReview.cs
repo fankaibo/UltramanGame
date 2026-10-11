@@ -10,8 +10,17 @@ namespace UltramanGame.Editor
 {
     public static class RangedCameraReview
     {
+        static string Root
+        {
+            get {var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--ranged-camera-output");return Path.GetFullPath(at>=0?args[at+1]:Path.Combine(Application.dataPath,"../../artifacts/ranged-camera-20261010"));}
+        }
+        static float Cadence
+        {
+            get {var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--cast-cadence");return at>=0?float.Parse(args[at+1],System.Globalization.CultureInfo.InvariantCulture):.8f;}
+        }
         public static void Before()=>Run(false);
         public static void After()=>Run(true);
+        public static void Framing()=>Run(true,false);
         public static void WaitingCoverage()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);var world=new GameWorld();world.Camera.aspect=16f/9;var b=new Battle();
@@ -20,7 +29,7 @@ namespace UltramanGame.Editor
         }
         public static void Lifecycle()
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/ranged-camera-20261010/lifecycle"));Directory.CreateDirectory(folder);
+            string folder=Path.Combine(Root,"lifecycle");Directory.CreateDirectory(folder);
             var report=new StringBuilder();
             foreach(int hz in new[]{15,30,60})foreach(string mode in new[]{"guard","melee","combo","warning","pause","showcase","reset","new-round","beam"})
             {
@@ -61,12 +70,12 @@ namespace UltramanGame.Editor
             {var ray=camera.ViewportPointToRay(new Vector3(x,y,0));if(!plane.Raycast(ray,out float distance))throw new Exception("Backdrop behind camera");var point=backdrop.InverseTransformPoint(ray.GetPoint(distance));max=Mathf.Max(max,Mathf.Abs(point.x),Mathf.Abs(point.y));}
             return max;
         }
-        static void Run(bool check)
+        static void Run(bool check,bool compare=true)
         {
-            string root=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/ranged-camera-20261010"));
+            string root=Root;
             string folder=root+(check?"/after":"/before");Directory.CreateDirectory(folder);
             var report=new StringBuilder();var gameplay=new StringBuilder();
-            foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int hz in id=="Tiga"?new[]{15,30,60}:new[]{60})
+            foreach(string id in Array.IndexOf(Environment.GetCommandLineArgs(),"--tiga-only")>=0?new[]{"Tiga"}:new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int hz in id=="Tiga"?new[]{15,30,60}:new[]{60})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(1070);
                 var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
@@ -81,14 +90,14 @@ namespace UltramanGame.Editor
                 float lateralMin=100,lateralMax=-100;var cameraTrace=new StringBuilder("frame,focus,x,y,z,fov\n");
                 try
                 {
-                    for(int frame=0;frame<hz*7;frame++)
+                    for(int frame=0;frame<hz*Mathf.Max(7,.6f+4*Cadence+4);frame++)
                     {
-                        var input=new PlayerInput{Tracking=true};for(int n=0;n<5;n++)if(frame==Mathf.RoundToInt((.6f+n*.8f)*hz))
+                        var input=new PlayerInput{Tracking=true};for(int n=0;n<5;n++)if(frame==Mathf.RoundToInt((.6f+n*Cadence)*hz))
                         {input.RangedAttack=true;input.LeftPunch=n%2==0;input.RightPunch=n%2==1;input.AttackSpeed=n==0?.65f:n==4?1.7f:1;}
                         var old=world.Camera.transform.position;Step(input);
                         maxSpeed=Mathf.Max(maxSpeed,Vector3.Distance(old,world.Camera.transform.position)/dt);
                         float focus=Focus(world);magnification=Mathf.Max(magnification,Size()/size);edge=Mathf.Max(edge,Coverage(world.Camera));
-                        if(frame>=hz*2&&frame<hz*4){minHeld=Mathf.Min(minHeld,focus);lateralMin=Mathf.Min(lateralMin,world.Camera.transform.position.x);lateralMax=Mathf.Max(lateralMax,world.Camera.transform.position.x);}
+                        if(frame>=hz*(.6f+Cadence+.8f)&&frame<hz*(.6f+4*Cadence+.15f)){minHeld=Mathf.Min(minHeld,focus);lateralMin=Mathf.Min(lateralMin,world.Camera.transform.position.x);lateralMax=Mathf.Max(lateralMax,world.Camera.transform.position.x);}
                         if(frame%Mathf.Max(1,hz/15)==0)foreach(var actor in new[]{hero,enemy})foreach(var skin in actor.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
                         {
                             skin.BakeMesh(mesh,true);foreach(var vertex in mesh.vertices)
@@ -103,7 +112,7 @@ namespace UltramanGame.Editor
                         world.Tick(b,0,time-dt);if(Vector3.Distance(pos,world.Camera.transform.position)>.0001f||Quaternion.Angle(rot,world.Camera.transform.rotation)>.05f||Mathf.Abs(fov-world.Camera.fieldOfView)>.001f)throw new Exception("Repeated camera sample drifts");
                         gameplay.AppendLine(FormattableString.Invariant($"{id},{hz},{frame},{b.Action},{b.ActionAge:F5},{b.Shot.Age:F5},{b.Punches},{b.EnemyHealth},{b.Energy},{b.Shot.Sequence}"));
                         cameraTrace.AppendLine(FormattableString.Invariant($"{frame},{focus:F5},{pos.x:F5},{pos.y:F5},{pos.z:F5},{fov:F5}"));
-                        if(movie&&frame%2==0)CharacterReview.Save(world.Camera,target,path+"/frames/"+(frame/2).ToString("D4")+".png");
+                        if(movie&&frame%2==0)RangedContactReview.Save(world.Camera,target,path+"/frames/"+(frame/2).ToString("D4")+".jpg");
                         if(frame==hz*3)CharacterReview.Save(world.Camera,target,path+"/volley.png");
                     }
                     string line=$"{id}/{hz} hits={b.Punches} scale={magnification:F3} held={minHeld:F3} rangeX={minX:F3}..{maxX:F3} rangeY={minY:F3}..{maxY:F3} upperMinY={upperMinY:F3} handsMinY={handMinY:F3} hudOverlap={overlaps} backdrop={edge:F3} cameraSpeed={maxSpeed:F3} lateralSwing={lateralMax-lateralMin:F3} residual={Focus(world):F5}";
@@ -115,7 +124,7 @@ namespace UltramanGame.Editor
                 finally{world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(mesh);}
             }
             File.WriteAllText(folder+"/validation.txt",report.ToString());File.WriteAllText(folder+"/gameplay.csv",gameplay.ToString());
-            if(check&&File.ReadAllText(root+"/before/gameplay.csv")!=gameplay.ToString())throw new Exception("Camera changed gameplay");
+            if(check&&compare&&File.ReadAllText(root+"/before/gameplay.csv")!=gameplay.ToString())throw new Exception("Camera changed gameplay");
             Debug.Log("[RangedCameraReview] PASS "+folder);
         }
     }

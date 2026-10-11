@@ -35,6 +35,25 @@ static class RangedCameraChecks
             check(camera.Focus==0,"presentation reset cannot replay a consumed cast "+hz);
             camera.Tick(new Battle(),dt);check(camera.Focus==0,"new round clears ranged camera "+hz);
 
+            // A child need not fire every 0.8 seconds to get one continuous shot.
+            // Mix slow/fast casts while preserving the same impact receipts.
+            foreach(float cadence in new[]{1.2f,1.4f,1.6f})
+            {
+                b=Start();camera=new RangedCameraMotion();float minimum=1;int oldSide=0;bool stable=true;
+                int spacing=(int)Math.Round(cadence*hz);
+                for(int f=0;f<spacing*5;f++)
+                {
+                    bool fire=f%spacing==0;int n=f/spacing;
+                    Step(new PlayerInput{Tracking=true,RangedAttack=fire,LeftPunch=fire&&n%2==0,RightPunch=fire&&n%2==1,AttackSpeed=n%2==0?.65f:1.7f});
+                    if(f==spacing+hz)oldSide=camera.Side;
+                    if(f>=spacing+hz){minimum=Math.Min(minimum,camera.Focus);stable&=camera.Side==oldSide;}
+                }
+                check(minimum>.95f&&stable,"child-paced volley keeps one lens at "+cadence+" seconds / "+hz);
+                check(b.Punches==5&&b.Energy==5,"child-paced lens preserves five impacts "+cadence+"/"+hz);
+                for(int f=0;f<hz*4;f++)Step(new PlayerInput{Tracking=true});
+                check(camera.Focus==0,"child-paced volley returns after stop "+cadence+"/"+hz);
+            }
+
             foreach(string mode in new[]{"pause","tracking","showcase","beam","melee","warning","hurt"})
             {
                 b=Start(mode!="warning"&&mode!="hurt");camera=new RangedCameraMotion();
