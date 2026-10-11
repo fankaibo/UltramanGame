@@ -19,6 +19,7 @@ static class LiveReadyPoseChecks
         foreach(int hz in new[]{15,30,60})
         {
             BodyChecks(check,hz);
+            SupportChecks(check,hz);
             var b=Start();var a=new LiveReadyPose();var scaled=new LiveReadyPose();float dt=1f/hz;long stamp=100000;var input=new PlayerInput{Tracking=true};
             for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Frame(stamp,.12f),stamp,input,b,dt,true);scaled.Tick(Frame(stamp,.12f,scale:.55f),stamp,input,b,dt,true);}
             check(a.Y(true)>.44f&&a.Y(false)<0&&a.X(true)<0&&a.X(false)>0,"live ready respects separate anatomical left and right "+hz);
@@ -52,6 +53,33 @@ static class LiveReadyPoseChecks
                 if(result.LeftPunch||result.RightPunch||result.Beam||result.Shield)accidental++;
             }
             check(accidental==0,"live ready demonstration preserves real gesture ownership "+hz);
+        }
+    }
+    static void SupportChecks(Action<bool,string> check,int hz)
+    {
+        foreach(bool left in new[]{false,true})
+        {
+            var b=Start();var a=new LiveReadyPose();float dt=1f/hz;long stamp=600000;
+            b.Tick(dt,new PlayerInput{Tracking=true,RangedAttack=true,LeftPunch=left,RightPunch=!left,AttackSpeed=.65f});
+            for(int f=0;f<Math.Ceiling(hz*.30f);f++)
+            {
+                b.Tick(dt,new PlayerInput{Tracking=true});stamp+=1000/hz;
+                a.Tick(Frame(stamp,.12f,.12f),stamp,new PlayerInput{Tracking=true},b,dt,true);
+            }
+            check(b.IsRangedPunch&&a.Y(!left)>.3f,"support hand continues camera follow during ranged cast "+hz+"/"+left);
+            check(Math.Abs(a.Y(left))<.001f&&!LiveReadyPose.Ready(b)&&a.BodySide==0,
+                "active ranged arm and torso stay authored "+hz+"/"+left);
+            int punches=b.Punches;float energy=b.Energy;
+            for(int f=0;f<hz;f++)
+            {
+                stamp+=1000/hz;var frame=Frame(stamp,.12f,.12f);frame.points[left?16:15].visibility=.1f;
+                a.Tick(frame,stamp,new PlayerInput{Tracking=true},b,dt,true);
+            }
+            check(Math.Abs(a.Y(!left))<.001f&&b.Punches==punches&&b.Energy==energy,
+                "occluded support fades without awarding attacks "+hz+"/"+left);
+            b.Pause();
+            for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Frame(stamp,.12f,.12f),stamp,new PlayerInput{Tracking=true},b,dt,true);}
+            check(Math.Abs(a.Y(!left))<.001f,"pause owns both hands after cast "+hz+"/"+left);
         }
     }
     static PoseFrame Lean(long stamp,float lean=1,float scale=1,float translation=0,bool hips=true)

@@ -17,6 +17,7 @@ namespace UltramanGame.Core
         public float Y(bool left)=>left?ly:ry;
         public static bool Ready(Battle state)=>state!=null&&
             (state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&!state.Shield);
+        public static bool RangedSupport(Battle state)=>state!=null&&state.Phase==GamePhase.Battle&&state.IsRangedPunch&&!state.Shield;
         static float Clamp(float value,float min,float max)=>Math.Max(min,Math.Min(max,value));
         public void Tick(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
         {
@@ -25,7 +26,7 @@ namespace UltramanGame.Core
             {observed=state;stream=null;sequence=-1;lx=ly=rx=ry=txl=tyl=txr=tyr=bodySide=bodyTilt=targetSide=targetTilt=0;}
             // A confirmation hold is still preparation: keep showing the
             // hands until the actual shield/beam animation takes ownership.
-            bool valid=enabled&&input.Tracking&&Ready(state)&&PoseQuality.Present(frame,nowMs);
+            bool valid=enabled&&input.Tracking&&(Ready(state)||RangedSupport(state))&&PoseQuality.Present(frame,nowMs);
             if(valid)
             {
                 if(frame.streamId!=stream){stream=frame.streamId;sequence=-1;txl=tyl=txr=tyr=targetSide=targetTilt=0;}
@@ -35,7 +36,14 @@ namespace UltramanGame.Core
                     float width=PoseQuality.Distance(frame.points[11],frame.points[12]);
                     Target(frame.points[11],frame.points[15],width,out txl,out tyl);
                     Target(frame.points[12],frame.points[16],width,out txr,out tyr);
-                    BodyTarget(frame.points,width,out targetSide,out targetTilt);
+                    if(RangedSupport(state))
+                    {
+                        // Only the unused hand keeps following the player.
+                        // Accepted attacks retain their authored fist/body path.
+                        if(state.Action==HeroAction.LeftPunch)txl=tyl=0;else txr=tyr=0;
+                        targetSide=targetTilt=0;
+                    }
+                    else BodyTarget(frame.points,width,out targetSide,out targetTilt);
                 }
             }
             else

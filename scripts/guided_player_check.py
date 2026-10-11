@@ -131,6 +131,7 @@ def main():
     parser.add_argument('--body-follow',action='store_true',help='Also lean in both directions and verify the displayed torso follows without accidental attacks')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
+    parser.add_argument('--support-follow',action='store_true',help='Require both passive-hand camera-follow shots during real ranged attacks')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
     parser.add_argument('--volley-cadence',type=float,default=.8,help='Seconds between the six camera-review casts (0.6 to 1.8)')
     parser.add_argument('--ranged-reaction',action='store_true',help='Require actual ranged recovery step lift, landing and return')
@@ -147,6 +148,7 @@ def main():
     if options.body_follow:options.ready_follow=True
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
+    if options.support_follow and not options.tempo_skills:parser.error('--support-follow requires --tempo-skills')
     if options.volley_camera and not options.tempo_skills:parser.error('--volley-camera requires --tempo-skills')
     if not .6<=options.volley_cadence<=1.8:parser.error('--volley-cadence must be between 0.6 and 1.8 seconds')
     if options.volley_cadence!=.8 and not options.volley_camera:parser.error('--volley-cadence requires --volley-camera')
@@ -421,6 +423,16 @@ def main():
                 raise RuntimeError(f'Requested proof hero was not used: {options.hero}/{hero_evidence}')
             if (len(hero_evidence)!=options.rounds+1 or len(set(hero_evidence))!=1):
                 raise RuntimeError(f'Replay changed the selected hero: {hero_evidence}')
+            support_evidence=None
+            if options.support_follow:
+                support_evidence=re.findall(r'\[RangedSupportProof\] side=(left|right) lift=([\d.]+) action=(LeftPunch|RightPunch)',output)
+                if {row[0] for row in support_evidence}!={'left','right'}:
+                    raise RuntimeError('Both support hands were not shown during ranged attacks')
+                for side,lift,action in support_evidence:
+                    if float(lift)<=.16 or (side=='left')!=(action=='RightPunch'):
+                        raise RuntimeError('Live follow took ownership of the firing hand')
+                    if not (folder/'native'/f'ranged-support-{side}.png').is_file():
+                        raise RuntimeError('Missing support-hand native screenshot')
             early_choices=None
             if options.early_photo_choices:
                 early_choices=re.findall(r'\[PhotoChoice\] accepted=(Retake|PlayAgain) reviewAge=([\d.]+) voicePlaying=(True|False)',output)
@@ -504,7 +516,7 @@ def main():
                 'keyboard_mouse_events':0,'real_images_saved':0,'automatic_photos':len(photos),'completed_rounds':completed_rounds,'player_pid':process.pid,'round_events':round_events,'photo_preview_errors':preview_errors,'retake':True,'play_again':True,
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'replay_selection_reset':False,'gesture_hero_changes':0,
-                'same_hero_replay':True,'start_depth_noise':options.start_depth_noise,
+                'ranged_support':support_evidence,'same_hero_replay':True,'start_depth_noise':options.start_depth_noise,
                 'beam_reset_releases':beam_reset_releases,
                 'photo_preview_p99_error':preview_error,'photos':photos}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}

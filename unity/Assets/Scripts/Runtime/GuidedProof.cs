@@ -30,6 +30,14 @@ namespace UltramanGame.Runtime
                 if(hand!=null&&proofFrames.Add("ready-follow-"+hand))
                 {Debug.Log($"[LiveReadyProof] hand={hand} sequence={pose?.sequence} action={battle.Action}");StartCoroutine(SaveGuidedProof("ready-follow-"+hand));return;}
             }
+            if(!photo.Active&&battle.IsRangedPunch&&battle.ActionAge>=.13f&&battle.ActionAge<=.23f)
+            {
+                bool supportLeft=battle.Action==HeroAction.RightPunch;
+                string supportKey="ranged-support-"+(supportLeft?"left":"right");
+                float lift=hero.SupportLift(supportLeft);
+                if(lift>.16f&&proofFrames.Add(supportKey))
+                {Debug.Log($"[RangedSupportProof] side={(supportLeft?"left":"right")} lift={lift:F3} action={battle.Action} sequence={pose?.sequence}");StartCoroutine(SaveGuidedProof(supportKey));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt&&hero.CapturedFallActive)
             {
                 string fall=battle.ActionAge>=.20f&&battle.ActionAge<.34f?"hero-fall-unbalanced":

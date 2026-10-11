@@ -20,8 +20,9 @@ namespace UltramanGame.Runtime
         readonly string heroId;
         readonly HeroEngagementMotion engagement=new HeroEngagementMotion();
         readonly LiveReadyPose liveReady=new LiveReadyPose();
-        bool liveReadyAllowed;
+        bool liveReadyAllowed,liveSupportAllowed;
         public float ReadyLift(bool left)=>liveReadyAllowed?liveReady.Y(left):0;
+        public float SupportLift(bool left)=>liveSupportAllowed?liveReady.Y(left):0;
         public float ReadyBodySide=>liveReadyAllowed?liveReady.BodySide:0;
         public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
         {if(!monster)liveReady.Tick(frame,nowMs,input,state,dt,enabled);}
@@ -587,6 +588,7 @@ namespace UltramanGame.Runtime
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
             liveReadyAllowed=preview<0&&LiveReadyPose.Ready(state);
+            liveSupportAllowed=preview<0&&LiveReadyPose.RangedSupport(state);
             if(preview<0&&dt<=0&&lastSampleValid&&ReferenceEquals(lastSampleBattle,state)&&
                 Mathf.Approximately(lastSampleTime,time)&&lastSamplePhase==state.Phase&&
                 lastSampleEnemy==state.Enemy&&lastSampleAction==state.Action&&
@@ -1925,11 +1927,15 @@ namespace UltramanGame.Runtime
             // elbows and a slightly lower rear hand. Scale to each actual rig.
             Vector3 open=upper.position+forward*(span*(left?.80f:.74f))
                 -side*(sign*span*.06f)-Vector3.up*(span*(left?.25f:.36f));
-            if(liveReadyAllowed)
+            bool followSupport=liveSupportAllowed&&left!=(state.Action==HeroAction.LeftPunch);
+            if(liveReadyAllowed||followSupport)
             {
                 Vector3 offset=side*liveReady.X(left)+Vector3.up*liveReady.Y(left);
                 if(offset.sqrMagnitude>.000001f)
                 {
+                    // A smaller offset stays within the defensive envelope
+                    // while the other arm fires; recovery can open naturally.
+                    if(followSupport)compact+=offset*(span*.55f);
                     Vector3 reach=open-upper.position+offset*span;
                     // Keep soft, forward elbows even when the camera hand is
                     // beside the face. No folded wrist or locked straight arm.
