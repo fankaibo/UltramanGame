@@ -58,18 +58,27 @@ namespace UltramanGame.Editor
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             var world=new GameWorld();var state=Ready();var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
-            enemy.Update(state,world.Camera,0,0);float health=state.EnemyHealth,maxJump=0,maxHeadStep=0;int contacts=0;
+            enemy.Update(state,world.Camera,0,0);float health=state.EnemyHealth,maxJump=0,maxStepContact=0,maxHeadStep=0;int contacts=0;
             var head=Bone(enemy.Root,"bip_head");var oldHead=head.position;
             for(int i=0;i<300;i++)
             {
                 var oldRoot=enemy.Root.position;
+                bool stepping=enemy.StaggerAge<MonsterStaggerMotion.Duration||enemy.LaunchAge<MonsterLaunchMotion.Duration;
                 state.Tick(1/60f,new PlayerInput{Tracking=true,LeftPunch=i%36==0,RightPunch=i%36==18});
                 enemy.Update(state,world.Camera,1/60f,i/60f);
-                if(state.EnemyHealth<health){contacts++;maxJump=Mathf.Max(maxJump,Vector3.ProjectOnPlane(enemy.Root.position-oldRoot,Vector3.up).magnitude);}
+                if(state.EnemyHealth<health)
+                {
+                    contacts++;float shift=Vector3.ProjectOnPlane(enemy.Root.position-oldRoot,Vector3.up).magnitude;
+                    // The tenth hit now deliberately launches the monster and
+                    // the fifth uses a recovery step. Those authored root moves
+                    // are not a reset of an ordinary planted recoil.
+                    stepping|=enemy.StaggerAge<MonsterStaggerMotion.Duration||enemy.LaunchAge<MonsterLaunchMotion.Duration;
+                    if(stepping)maxStepContact=Mathf.Max(maxStepContact,shift);else maxJump=Mathf.Max(maxJump,shift);
+                }
                 maxHeadStep=Mathf.Max(maxHeadStep,Vector3.Distance(head.position,oldHead));oldHead=head.position;health=state.EnemyHealth;
             }
-            if(contacts<10||maxJump>.035f||maxHeadStep>.45f)throw new Exception($"Rapid combo discontinuity: contacts={contacts} rootJump={maxJump} headStep={maxHeadStep}");
-            Debug.Log($"[StaggerRapid] contacts={contacts} contactRootJump={maxJump:F5} maxHeadStep={maxHeadStep:F4}");
+            if(contacts<10||maxJump>.035f||maxStepContact>.10f||maxHeadStep>.45f)throw new Exception($"Rapid combo discontinuity: contacts={contacts} rootJump={maxJump} headStep={maxHeadStep}");
+            Debug.Log($"[StaggerRapid] contacts={contacts} ordinaryContactRootJump={maxJump:F5} stepOrLaunchContactTravel={maxStepContact:F5} maxHeadStep={maxHeadStep:F4}");
         }
         static void Render(string version)
         {

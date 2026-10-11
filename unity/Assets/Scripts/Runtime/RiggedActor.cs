@@ -86,6 +86,8 @@ namespace UltramanGame.Runtime
         string playing;
         float clipAge, phaseAge, blendLeft, hitAge=10, lastHealth, poseOpacity=1;
         float heroRecoveryAge=10;
+        bool recoilTorsoCarry;
+        Quaternion recoilChestStart,recoilHeadStart;
         // Keep the post-contact weight transfer visible long enough for a TV
         // viewer to read the planted foot and the next shoulder load. This is
         // presentation time only; Battle still ends the punch at PunchSeconds.
@@ -605,10 +607,18 @@ namespace UltramanGame.Runtime
                 lastSamplePunches==state.Punches&&lastSampleBlocks==state.Blocks&&
                 lastSampleShield==state.Shield)
                 return;
+            // Capture the visible upper body before undoing last frame's
+            // additive layers. A second ordinary hit must not reset its chest
+            // and head while the hips still carry the preceding recoil.
+            bool continuingRecoil=monster&&preview<0&&ReferenceEquals(observedBattle,state)&&
+                previous==GamePhase.Battle&&playing=="Hurt"&&!heavyHit&&!launch.Active&&!beamRecoil.Active&&hitAge<MonsterRecoilMotion.Duration;
+            Quaternion visibleChest=upperSpine?upperSpine.rotation:Quaternion.identity;
+            Quaternion visibleHead=head?head.rotation:Quaternion.identity;
             // The terminal strike survives a tracking pause. Retain its visible
             // pose and recoil clock instead of sampling Idle beneath the pause.
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&state.EnemyHealth<=0)return;
             if(preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Paused&&guardHandoff?.Active==true)return;
+            if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack||hitAge>=.22f)recoilTorsoCarry=false;
             twinShoot?.Observe(state,dt,preview);
             mebiumShoot?.Observe(state,dt,preview);
             grigioShot?.Observe(state,dt,preview);
@@ -841,7 +851,7 @@ namespace UltramanGame.Runtime
             observedBlocks=state.Blocks;
             float guardRecoil=ContactPulse(guardAge,0,.09f,.54f);
             phaseAge+=dt;hitAge+=dt;
-            if(state.Phase!=GamePhase.Battle){hitAge=10;recoilStart=Vector3.zero;recoilStartYaw=0;}
+            if(state.Phase!=GamePhase.Battle){hitAge=10;recoilStart=Vector3.zero;recoilStartYaw=0;recoilTorsoCarry=false;}
             else if(state.EnemyHealth<lastHealth)
             {
                 // Preserve only a previous ordinary impulse. A sustained beam
@@ -855,6 +865,8 @@ namespace UltramanGame.Runtime
                 recoilStartYaw=carryPose?Vector3.SignedAngle(forward,Root.forward,Vector3.up):0;
                 hitAge=0;heavyHit=state.LastHitAction==HeroAction.Beam;contactSide=state.LastHitAction==HeroAction.LeftPunch?-1:state.LastHitAction==HeroAction.RightPunch?1:0;
                 accentHit=!heavyHit&&!state.LastHitRanged&&ComboStrikeMotion.Active(state);
+                recoilTorsoCarry=continuingRecoil&&!heavyHit&&!accentHit&&state.Enemy!=EnemyPhase.Attack;
+                if(recoilTorsoCarry){recoilChestStart=visibleChest;recoilHeadStart=visibleHead;}
                 if(monster&&preview<0&&state.LastHitAction==HeroAction.Beam)
                 {stagger.Clear();launch.Clear();beamRecoil.Begin((state.Punches/Battle.MaxEnergy)%2==1);}
                 if(monster&&rangedPressure.Step){stagger.Begin(rangedPressure.Left);rangedStep=true;}
@@ -1239,6 +1251,13 @@ namespace UltramanGame.Runtime
                         *Quaternion.AngleAxis(contactSide*7*follow,Vector3.up)*head.rotation;
                 }
                 contactLayerApplied=true;
+                if(recoilTorsoCarry&&hitAge<.22f)
+                {
+                    // Bring the chest across first, then let the head follow. Carry
+                    // only the pose; damage and input clocks are unchanged.
+                    if(upperSpine)upperSpine.rotation=Quaternion.Slerp(recoilChestStart,upperSpine.rotation,Mathf.SmoothStep(0,1,hitAge/.14f));
+                    if(head)head.rotation=Quaternion.Slerp(recoilHeadStart,head.rotation,Mathf.SmoothStep(0,1,hitAge/.22f));
+                }
                 if(!launch.Active)AnchorMonsterFeet();
             }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&next=="Idle"&&state.Enemy==EnemyPhase.Rest&&!launch.Active)
