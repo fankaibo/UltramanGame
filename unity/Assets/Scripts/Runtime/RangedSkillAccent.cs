@@ -10,7 +10,8 @@ namespace UltramanGame.Runtime
         readonly Material muzzleMaterial,impactMaterial;
         readonly LineRenderer[] muzzleArcs=new LineRenderer[2],rays=new LineRenderer[10];
         readonly LineRenderer ring;
-        readonly Light spill;
+        readonly Light spill,muzzleSpill;
+        public bool MuzzleLighting {get;set;}
         readonly RangedContactSparks sparks;
         Vector3 position,axis,side,up;
         Color tint;
@@ -28,6 +29,8 @@ namespace UltramanGame.Runtime
             for(int i=0;i<rays.Length;i++)rays[i]=Line(parent,material,"Directional energy fragment "+i,8,.035f);
             ring=Line(parent,material,"Ranged contact wave",49,.055f);
             spill=new GameObject("Ranged contact spill").AddComponent<Light>();spill.transform.SetParent(parent,false);spill.type=LightType.Point;spill.range=1.8f;spill.shadows=LightShadows.None;
+            muzzleSpill=new GameObject("Ranged muzzle spill").AddComponent<Light>();muzzleSpill.transform.SetParent(parent,false);
+            muzzleSpill.type=LightType.Point;muzzleSpill.range=1.45f;muzzleSpill.shadows=LightShadows.None;
             sparks=new RangedContactSparks(parent);Clear();
         }
         public static Transform Volume(Transform parent,string name,out Material material)
@@ -44,13 +47,17 @@ namespace UltramanGame.Runtime
         static void Tint(LineRenderer line,Color color,float alpha)
         {line.startColor=new Color(color.r,color.g,color.b,0);line.endColor=new Color(color.r,color.g,color.b,alpha);}
         public void Clear()
-        {muzzle.gameObject.SetActive(false);impact.gameObject.SetActive(false);foreach(var line in muzzleArcs)line.enabled=false;foreach(var line in rays)line.enabled=false;ring.enabled=false;spill.intensity=0;hitAge=10;sparks.Clear();}
+        {muzzle.gameObject.SetActive(false);impact.gameObject.SetActive(false);foreach(var line in muzzleArcs)line.enabled=false;foreach(var line in rays)line.enabled=false;ring.enabled=false;spill.intensity=0;muzzleSpill.intensity=0;hitAge=10;sparks.Clear();}
         public void NewRound(){Clear();Impacts=0;}
         public void Launch(bool active,float age,Vector3 origin,Vector3 direction,Color color)
         {
             float appear=Mathf.SmoothStep(0,1,age/.065f),fade=1-Mathf.SmoothStep(0,1,(age-.12f)/.12f);
             float power=active?appear*fade:0;muzzle.gameObject.SetActive(power>.005f);
             foreach(var line in muzzleArcs)line.enabled=power>.005f;
+            // The visible muzzle, not a lamp behind the fighter, lights the
+            // active wrist and nearby suit. It follows the same action clock.
+            muzzleSpill.transform.position=origin+direction*.10f;muzzleSpill.color=Color.Lerp(color,Color.white,.35f);
+            muzzleSpill.intensity=MuzzleLighting?power*1.15f:0;
             if(power<=.005f)return;
             Vector3 lateral=Vector3.Cross(Vector3.up,direction).normalized,vertical=Vector3.Cross(direction,lateral).normalized;
             muzzle.position=origin;muzzle.rotation=Quaternion.LookRotation(direction);muzzle.localScale=new Vector3(.42f,.42f,.65f)*(.4f+.6f*power);

@@ -470,7 +470,7 @@ namespace UltramanGame.Runtime
                 // Keep the suit readable against the dark Fuji plate. The
                 // shader applies this only at grazing angles, so the rim
                 // supports depth without flattening the costume colours.
-                mat.SetColor("_RimColor",new Color(.10f,.42f,1));mat.SetFloat("_RimPower",3.2f);mat.SetFloat("_RimStrength",.16f);
+                mat.SetColor("_RimColor",character=="Tiga"?new Color(.35f,.50f,.72f):new Color(.10f,.42f,1));mat.SetFloat("_RimPower",3.2f);mat.SetFloat("_RimStrength",character=="Tiga"?.04f:.16f);
                 // Keep the high-resolution Tiga suit restrained while giving
                 // the smaller downloaded atlases a little stable surface
                 // breakup at the 45-degree battle distance.
@@ -478,7 +478,7 @@ namespace UltramanGame.Runtime
             }
             else if(kaiju)
             {
-                mat.SetColor("_RimColor",new Color(1,.15f,.035f));mat.SetFloat("_RimPower",2.6f);mat.SetFloat("_RimStrength",.22f);
+                mat.SetColor("_RimColor",new Color(.85f,.32f,.16f));mat.SetFloat("_RimPower",2.6f);mat.SetFloat("_RimStrength",.055f);
             }
             if(name.StartsWith("Golza",StringComparison.Ordinal))
             {

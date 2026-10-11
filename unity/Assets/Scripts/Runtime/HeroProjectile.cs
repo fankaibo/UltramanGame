@@ -92,7 +92,7 @@ namespace UltramanGame.Runtime
         }
         public void SetHero(string id)
         {
-            useSluggers=HeroArsenal.Sluggers(id);useComet=id=="Tiga";
+            useSluggers=HeroArsenal.Sluggers(id);useComet=id=="Tiga";accents.MuzzleLighting=useComet;
             trailMat.shader=Resources.Load<Shader>(useComet?"ProjectileWake":"StrikeRibbon");
             trail.widthMultiplier=useComet?.62f:.30f;
             trail.positionCount=useComet?2:8;

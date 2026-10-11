@@ -122,15 +122,15 @@ namespace UltramanGame.Runtime
             key.shadows=LightShadows.Soft;key.shadowStrength=.78f;key.shadowBias=.025f;key.shadowNormalBias=.06f;
             Directional(root,"Ash sky fill",new Color(.18f,.24f,.52f),.28f,new Vector3(25,130,0));
             Directional(root,"Lava rim",new Color(1,.28f,.10f),.32f,new Vector3(18,155,0));
-            var arcadeFill=Point(root,"Arcade character fill",new Color(.68f,.78f,1),9);
-            arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=1.68f;
+            var arcadeFill=Point(root,"Arcade character fill",new Color(.78f,.83f,.94f),9);
+            arcadeFill.transform.position=new Vector3(-1.4f,3.8f,-3.2f);arcadeFill.intensity=1.05f;
             arcadeFill.shadows=LightShadows.None;
             // A cabinet uses colored edge light to keep the fighters readable
             // against a dark stage. These two small, shadowless sources breathe
             // with the combat clocks instead of flattening the Fuji backdrop.
-            heroRim=Point(root,"Hero blue rim",new Color(.14f,.60f,1),7.2f);
+            heroRim=Point(root,"Hero blue rim",new Color(.35f,.50f,.72f),4.2f);
             heroRim.shadows=LightShadows.None;
-            monsterRim=Point(root,"Monster ember rim",new Color(1,.23f,.065f),7.2f);
+            monsterRim=Point(root,"Monster ember rim",new Color(.85f,.32f,.16f),4.4f);
             monsterRim.shadows=LightShadows.None;
             QualitySettings.shadowDistance=30;QualitySettings.antiAliasing=4;QualitySettings.shadows=ShadowQuality.All;
             QualitySettings.shadowResolution=UnityEngine.ShadowResolution.High;QualitySettings.pixelLightCount=6;
@@ -335,17 +335,17 @@ namespace UltramanGame.Runtime
             float beamPulse=state.Action==HeroAction.Beam?Mathf.Clamp01(state.ActionAge/1.15f):0;
             heroRim.transform.position=HeroAnchor-BattleAxis*1.15f+Vector3.up*2.35f;
             monsterRim.transform.position=EnemyHome+BattleAxis*1.05f+Vector3.up*2.35f;
-            heroRim.intensity=Showcase?.68f:combat?.62f+punchPulse*1.75f+beamPulse*1.55f:state.Phase==GamePhase.Transforming?1.2f:.40f;
-            monsterRim.intensity=Showcase?.54f:combat?.54f+enemyPulse*1.55f+warningPulse*1.05f:state.Phase==GamePhase.Victory?Mathf.Max(0,.84f-arcade.PhaseAge*.3f):.30f;
+            heroRim.intensity=Showcase?.32f:combat?.28f+(state.IsRangedPunch?0:punchPulse*.25f)+beamPulse*.65f:state.Phase==GamePhase.Transforming?.85f:.24f;
+            monsterRim.intensity=Showcase?.28f:combat?.25f+enemyPulse*.55f+warningPulse*.35f:state.Phase==GamePhase.Victory?Mathf.Max(0,.50f-arcade.PhaseAge*.3f):.20f;
             if(state.Phase==GamePhase.Victory)
             {
-                heroRim.color=new Color(.18f,.66f,1);
-                monsterRim.color=new Color(1,.28f,.08f);
+                heroRim.color=new Color(.35f,.56f,.85f);
+                monsterRim.color=new Color(.85f,.38f,.20f);
             }
             else
             {
-                heroRim.color=state.Action==HeroAction.Beam?new Color(.20f,.78f,1):new Color(.12f,.56f,1);
-                monsterRim.color=state.Enemy==EnemyPhase.Attack?new Color(1,.30f,.08f):new Color(1,.20f,.055f);
+                heroRim.color=state.Action==HeroAction.Beam?new Color(.30f,.65f,1):new Color(.35f,.50f,.72f);
+                monsterRim.color=state.Enemy==EnemyPhase.Attack?new Color(1,.38f,.18f):new Color(.85f,.32f,.16f);
             }
             bool battleView=state.Phase==GamePhase.Battle||state.Phase==GamePhase.Paused||state.Phase==GamePhase.Victory;
             // Dedicated shots retain their lenses; ordinary framing is fitted
