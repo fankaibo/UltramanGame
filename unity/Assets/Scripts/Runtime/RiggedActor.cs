@@ -2359,7 +2359,20 @@ namespace UltramanGame.Runtime
             // poses toward a chest-level target; attack and hurt clips retain
             // their authored reach and contact timing.
             float blend=state.Enemy==EnemyPhase.Rest?.34f:state.Enemy==EnemyPhase.Windup?.20f:state.Enemy==EnemyPhase.Recover?.24f:0;
-            if(state.Phase!=GamePhase.Battle||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
+            bool waiting=state.Phase==GamePhase.Waiting;
+            if((state.Phase!=GamePhase.Battle&&!waiting)||blend<=0||!upperArm||!leftUpperArm||!forearm||!leftForearm)return;
+            // Relax toward a lowered elbow and an open forward claw during the
+            // playable rest. Fade out before the authored strike and return
+            // only after its follow-through, keeping the contact hand intact.
+            float relaxed=waiting||state.Enemy==EnemyPhase.Rest?1:
+                state.Enemy==EnemyPhase.Windup?1-Mathf.SmoothStep(0,1,state.EnemyAge/.65f):
+                state.Enemy==EnemyPhase.Recover?Mathf.SmoothStep(0,1,(state.EnemyAge-.45f)/.70f):0;
+            if(!waiting)
+            {
+                if(beamRecoil.Active||launch.Active)relaxed=0;
+                else relaxed*=Mathf.SmoothStep(0,1,(hitAge-MonsterRecoilMotion.Duration)/.20f);
+            }
+            blend=Mathf.Lerp(blend,.90f,relaxed);
             var right=Vector3.Cross(Vector3.up,forward).normalized;
             // Keep the nearer claw lower and closer to the ribs while the far
             // claw floats a little forward. The imported clip put both wrists
@@ -2374,12 +2387,16 @@ namespace UltramanGame.Runtime
             // A kaiju guard is asymmetrical: one claw owns the foreground while
             // the other stays closer to the ribs. Equal forward targets made both
             // hands flatten into one prop on a three-quarter TV shot.
+            var leftElbow=center-right*.48f+forward*(.02f+depth*.35f)+Vector3.up*(.01f+lift);
+            var leftWrist=center-right*.52f+forward*(.16f+depth)+Vector3.up*(lift*.65f);
+            var rightElbow=center+right*.46f+forward*(.04f-depth*.30f)+Vector3.up*(.10f-lift*.75f);
+            var rightWrist=center+right*.53f+forward*(.33f-depth)+Vector3.up*(.04f-lift*.45f);
             SolveArm(leftUpperArm,leftForearm,leftHand,
-                center-right*.48f+forward*(.02f+depth*.35f)+Vector3.up*(.01f+lift),
-                center-right*.52f+forward*(.16f+depth)+Vector3.up*(lift*.65f),blend);
+                Vector3.Lerp(leftElbow,center-right*.67f-forward*.12f-Vector3.up*.30f,relaxed),
+                Vector3.Lerp(leftWrist,center-right*.61f+forward*(.36f+depth)-Vector3.up*(.14f-lift),relaxed),blend);
             SolveArm(upperArm,forearm,hand,
-                center+right*.46f+forward*(.04f-depth*.30f)+Vector3.up*(.10f-lift*.75f),
-                center+right*.53f+forward*(.33f-depth)+Vector3.up*(.04f-lift*.45f),blend);
+                Vector3.Lerp(rightElbow,center+right*.63f-forward*.10f-Vector3.up*.22f,relaxed),
+                Vector3.Lerp(rightWrist,center+right*.55f+forward*(.50f-depth)+Vector3.up*(.02f-lift),relaxed),blend);
             // A restrained chest/head breath keeps the corrected arms attached
             // to a living creature while the child is waiting for the next
             // instruction. It is small enough to preserve the authored roar

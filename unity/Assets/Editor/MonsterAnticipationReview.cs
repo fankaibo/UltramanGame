@@ -21,7 +21,9 @@ namespace UltramanGame.Editor
         }
         public static void Validate()
         {
-            string folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/monster-anticipation"));Directory.CreateDirectory(folder);File.Delete(folder+"/flow-validation.txt");var report=new StringBuilder();
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--anticipation-output");
+            string folder=at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/monster-anticipation"));
+            Directory.CreateDirectory(folder);File.Delete(folder+"/flow-validation.txt");var report=new StringBuilder();
             foreach(int rate in new[]{15,30,60})foreach(bool extended in new[]{false,true})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
