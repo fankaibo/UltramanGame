@@ -43,8 +43,14 @@ namespace UltramanGame.Runtime
         // At closer range its body and leading foot must stop sooner together.
         float CloseRushScale=>monster&&opponent!=null?Mathf.Clamp01(
             (Vector3.Distance(restHome,opponent.StancePosition)-CombatSpacing.OriginalDistance+AnimatedActor.EnemyAdvance)/AnimatedActor.EnemyAdvance):1;
-        float MonsterTravel(Battle state)=>AnimatedActor.MonsterAdvance(state,ApproachDistance)*
-            (MonsterSlamMotion.Active(state)?1:CloseRushScale);
+        readonly MonsterRetreatMotion retreat=new MonsterRetreatMotion();
+        public float RushAge=>retreat.Age;
+        bool retreatDistanceActive;
+        float retreatApproach,retreatScale;
+        public float RushApproach=>retreatDistanceActive?retreatApproach:ApproachDistance;
+        float RushScale=>retreatDistanceActive?retreatScale:CloseRushScale;
+        float MonsterTravel(Battle state)=>AnimatedActor.MonsterAdvance(state,RushApproach)*
+            (MonsterSlamMotion.Active(state)?1:RushScale);
         public Vector3 StancePosition=>home;
         public float EngagementWeight=>engagement.Weight;
         readonly bool retargetedPunch;
@@ -600,6 +606,7 @@ namespace UltramanGame.Runtime
         }
         public void Update(Battle state,float dt,float time,int preview=-1)
         {
+            if(monster)retreat.Observe(state,preview<0);
             liveReadyAllowed=preview<0&&LiveReadyPose.Ready(state);
             liveSupportAllowed=preview<0&&LiveReadyPose.RangedSupport(state);
             if(preview<0&&dt<=0&&lastSampleValid&&ReferenceEquals(lastSampleBattle,state)&&
@@ -612,11 +619,26 @@ namespace UltramanGame.Runtime
                 lastSamplePunches==state.Punches&&lastSampleBlocks==state.Blocks&&
                 lastSampleShield==state.Shield)
                 return;
+            if(monster)
+            {
+                retreatDistanceActive=preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Recover&&retreat.Age>=0;
+                // A counterpunch advances the hero's stance quickly. Replacing
+                // the withdrawing feet's remaining distance in one frame made
+                // them snap backwards. Adapt body and feet through one bounded
+                // distance channel; the original attack/contact path is intact.
+                if(retreatDistanceActive)
+                {
+                    retreatApproach=Mathf.MoveTowards(retreatApproach,ApproachDistance,Mathf.Max(0,dt)*2.4f);
+                    retreatScale=Mathf.MoveTowards(retreatScale,CloseRushScale,Mathf.Max(0,dt)*1.2f);
+                }
+                else {retreatApproach=ApproachDistance;retreatScale=CloseRushScale;}
+            }
             // Capture the visible upper body before undoing last frame's
             // additive layers. A second ordinary hit must not reset its chest
             // and head while the hips still carry the preceding recoil.
             bool continuingRecoil=monster&&preview<0&&ReferenceEquals(observedBattle,state)&&
                 previous==GamePhase.Battle&&playing=="Hurt"&&!heavyHit&&!launch.Active&&!beamRecoil.Active&&hitAge<MonsterRecoilMotion.Duration;
+            Vector3 retreatVisibleRoot=Root.position;
             Quaternion visibleChest=upperSpine?upperSpine.rotation:Quaternion.identity;
             Quaternion visibleHead=head?head.rotation:Quaternion.identity;
             // The terminal strike survives a tracking pause. Retain its visible
@@ -866,7 +888,8 @@ namespace UltramanGame.Runtime
                 // Continue from a still-settling hit when punches arrive quickly.
                 // Do not carry a lunge displacement into a different hit pose.
                 bool carryPose=playing=="Hurt"||playing=="Idle";
-                recoilStart=carryPose?Vector3.ProjectOnPlane(Root.position-home-staggerTravel-beamTravel,Vector3.up):Vector3.zero;
+                recoilStart=carryPose?Vector3.ProjectOnPlane(Root.position-home-staggerTravel-beamTravel-
+                    (monster&&retreat.Age>=0?forward*MonsterTravel(state):Vector3.zero),Vector3.up):Vector3.zero;
                 recoilStartYaw=carryPose?Vector3.SignedAngle(forward,Root.forward,Vector3.up):0;
                 hitAge=0;heavyHit=state.LastHitAction==HeroAction.Beam;contactSide=state.LastHitAction==HeroAction.LeftPunch?-1:state.LastHitAction==HeroAction.RightPunch?1:0;
                 accentHit=!heavyHit&&!state.LastHitRanged&&ComboStrikeMotion.Active(state);
@@ -890,6 +913,7 @@ namespace UltramanGame.Runtime
             lastHealth=state.EnemyHealth;
             recoveryWeight=monster&&preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Recover&&!beamRecoil.Active&&!launch.Active
                 ?MonsterRecoveryMotion.Weight(state.EnemyAge)*Mathf.SmoothStep(0,1,(hitAge-MonsterRecoilMotion.Duration)/.18f):0;
+            if(monster&&(launch.Active||beamRecoil.Active||stagger.Active))retreat.Cancel();
             string next="Idle";float sample=time%clips["Idle"].length,travel=0,opacity=1,fallTilt=0,fallSide=0,fallDrop=0;
             Frame=0;
             if(monster)
@@ -920,6 +944,7 @@ namespace UltramanGame.Runtime
                     sample=windupSample;
                     Frame=3;travel=MonsterTravel(state);
                 }
+                if(state.Enemy==EnemyPhase.Recover&&retreat.Age>=0)travel=MonsterTravel(state);
                 // The two-handed slam has its own planted stance. Sampling
                 // the lunge underneath it leaves one shin folded sideways.
                 if(preview<0&&(MonsterSlamMotion.Active(state)||MonsterRayMotion.Active(state)||MonsterRockMotion.Active(state))&&next!="Hurt"){next="Idle";sample=0;}
@@ -1305,8 +1330,11 @@ namespace UltramanGame.Runtime
                 comboExitApplied=true;
             }
             if(monster&&preview<0&&state.Phase==GamePhase.Battle&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state)&&!MonsterRockMotion.Active(state)&&
-                (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||(next=="Idle"&&state.Enemy==EnemyPhase.Recover)))
+                (next=="Windup"||next=="WindupAlt"||next=="Attack"||next=="AttackAlt"||((next=="Idle"||next=="Hurt"&&retreat.Age>=0)&&state.Enemy==EnemyPhase.Recover)))
                 PoseMonsterStep(state);
+            if(monster&&preview<0&&retreatDistanceActive&&retreat.Age>=0&&lastSampleValid&&
+                ReferenceEquals(lastSampleBattle,state)&&lastSamplePhase==GamePhase.Battle)
+                SettleRetreatHips(retreatVisibleRoot,dt);
             if(monster&&preview<0&&state.Phase==GamePhase.Transforming)PoseMonsterEntrance(state.TransformationAge);
             staggerTravel=Vector3.zero;
             if(monster&&preview<0&&stagger.Active)PoseStaggerStep();
@@ -1601,14 +1629,14 @@ namespace UltramanGame.Runtime
             Vector3 left=home+facing*leftFootLocal,right=home+facing*rightFootLocal;
             float weight=1;
             if(state.Enemy==EnemyPhase.Windup)weight=Mathf.SmoothStep(0,1,state.EnemyAge/.20f);
-            else if(state.Enemy==EnemyPhase.Attack)
+            else if(retreat.Age>=0)
             {
                 // Extra range belongs to lifted steps, not a translation of
                 // both soles. Each planted interval keeps its world target.
                 bool leadLeft=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
-                var l=MonsterStepMotion.Foot(state.EnemyAge,ApproachDistance,leadLeft);
-                var r=MonsterStepMotion.Foot(state.EnemyAge,ApproachDistance,!leadLeft);
-                float reach=CloseRushScale,lift=Mathf.Lerp(.45f,1,reach);
+                var l=MonsterStepMotion.Foot(retreat.Age,RushApproach,leadLeft);
+                var r=MonsterStepMotion.Foot(retreat.Age,RushApproach,!leadLeft);
+                float reach=RushScale,lift=Mathf.Lerp(.45f,1,reach);
                 left+=forward*(l.Travel*reach)+Vector3.up*(l.Lift*lift);
                 right+=forward*(r.Travel*reach)+Vector3.up*(r.Lift*lift);
             }
@@ -1633,6 +1661,22 @@ namespace UltramanGame.Runtime
                 PoseLimb(upperArm,forearm,hand,clawRight,1,side,.30f);
                 leftHand.rotation=rotationLeft;hand.rotation=rotationRight;AlignClawWrists();
             }
+        }
+        void SettleRetreatHips(Vector3 visible,float dt)
+        {
+            // The feet still have weight during a counterattack. A newly
+            // sampled recoil can lift the hips out of the old leg correction
+            // in one frame. Let the pelvis catch up without moving its soles.
+            if(dt<=0||!leftFoot||!rightFoot)return;
+            Vector3 settled=Vector3.MoveTowards(visible,Root.position,dt*7.5f);
+            if((settled-Root.position).sqrMagnitude<.000001f)return;
+            Vector3 l=leftFoot.position,r=rightFoot.position;
+            Quaternion lr=leftFoot.rotation,rr=rightFoot.rotation;
+            Root.position=settled;
+            var side=Vector3.Cross(Vector3.up,forward);
+            PoseLimb(leftThigh,leftShin,leftFoot,l,1,forward-side*.20f,leftFootLocal.y);
+            PoseLimb(rightThigh,rightShin,rightFoot,r,1,forward+side*.20f,rightFootLocal.y);
+            leftFoot.rotation=lr;rightFoot.rotation=rr;
         }
         void PoseRockThrow(Battle state,float dt)
         {

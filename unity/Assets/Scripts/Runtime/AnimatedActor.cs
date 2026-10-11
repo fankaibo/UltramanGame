@@ -9,6 +9,8 @@ namespace UltramanGame.Runtime
         public readonly Transform Root;
         readonly RiggedActor rigged;
         public bool IsRigged => rigged!=null;
+        public float RushAge=>rigged?.RushAge??-1;
+        public float RushApproach=>rigged?.RushApproach??approach;
         public float ReadyLift(bool left)=>rigged?.ReadyLift(left)??0;
         public float SupportLift(bool left)=>rigged?.SupportLift(left)??0;
         public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
@@ -123,12 +125,12 @@ namespace UltramanGame.Runtime
             if(MonsterRayMotion.Active(state)||MonsterRockMotion.Active(state))return 0;
             if(state.Enemy==EnemyPhase.Windup)
                 return -.16f*Mathf.SmoothStep(0,1,state.EnemyAge/state.WarningDuration);
-            if(state.Enemy!=EnemyPhase.Attack)return 0;
-            float age=state.EnemyAge;
-            if(MonsterSlamMotion.Variant(state.EnemyAttackCount))return MonsterSlamMotion.Travel(age);
+            if(state.Enemy!=EnemyPhase.Attack&&state.Enemy!=EnemyPhase.Recover)return 0;
+            float age=state.EnemyAge+(state.Enemy==EnemyPhase.Recover?Battle.EnemyAttackSeconds:0);
+            if(MonsterSlamMotion.Variant(state.EnemyAttackCount))return state.Enemy==EnemyPhase.Attack?MonsterSlamMotion.Travel(age):0;
             if(age<Battle.EnemyHitSeconds)return Mathf.Lerp(-.16f,EnemyAdvance+approach,RushProgress(age/Battle.EnemyHitSeconds));
-            if(age<Battle.EnemyHitSeconds+.12f)return EnemyAdvance+approach;
-            return (EnemyAdvance+approach)*(1-Mathf.SmoothStep(0,1,(age-Battle.EnemyHitSeconds-.12f)/(Battle.EnemyAttackSeconds-Battle.EnemyHitSeconds-.12f)));
+            if(age<.72f)return EnemyAdvance+approach;
+            return (EnemyAdvance+approach)*(1-Mathf.SmoothStep(0,1,(age-.72f)/(MonsterStepMotion.TrailReturnLanding-.72f)));
         }
         static float RushProgress(float t)
         {

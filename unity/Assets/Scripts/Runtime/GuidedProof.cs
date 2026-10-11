@@ -52,7 +52,7 @@ namespace UltramanGame.Runtime
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&(battle.Enemy==EnemyPhase.Attack||battle.Enemy==EnemyPhase.Recover)&&world.MonsterRushSteps>0)
             {
                 string step=world.MonsterRushBeat==1&&battle.EnemyAge>=MonsterStepMotion.ApproachLanding&&battle.EnemyAge<.34f?"rush-support-land":
-                    world.MonsterRushBeat==2&&battle.EnemyAge>=.89f?"rush-return-lead":
+                    world.MonsterRushBeat==2&&enemy.RushAge>=MonsterStepMotion.LeadReturnLanding(0)-.11f?"rush-return-lead":
                     world.MonsterRushBeat==3&&(battle.Enemy==EnemyPhase.Recover||battle.EnemyAge>=MonsterStepMotion.TrailReturnLanding)?"rush-return-trail":null;
                 if(step!=null&&proofFrames.Add(step)){StartCoroutine(SaveGuidedProof(step));return;}
             }

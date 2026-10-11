@@ -246,7 +246,8 @@ namespace UltramanGame.Runtime
             if(state.Punches>previousPunches)
                 atmosphere.GroundBurst(hero.FootPosition(HeroKickMotion.Active(state)?state.Action!=HeroAction.LeftPunch:state.Action==HeroAction.LeftPunch),-axis,false);
             if(state.EnemyAttackCount!=previousAttack){previousEnemyAge=0;RushStepBeat=0;}
-            if(state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount))
+            float motionAge=enemy.RushAge>=0?enemy.RushAge:state.EnemyAge;
+            if((state.Enemy==EnemyPhase.Attack||enemy.RushAge>=0)&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount))
             {
                 bool left=MonsterStepMotion.LeadLeft(state.EnemyAttackCount);
                 bool slam=MonsterSlamMotion.Variant(state.EnemyAttackCount);
@@ -256,29 +257,23 @@ namespace UltramanGame.Runtime
                     var finish=hero.Root.position+axis*.55f;finish.y=0;
                     groundImpact.Burst(start,finish-start,"slam",Vector3.Distance(start,finish));
                 }
-                float approach=CombatSpacing.Approach(Vector3.Distance(hero.StancePosition,enemy.StancePosition));
-                if(!slam&&approach<.01f&&previousEnemyAge<.08f&&state.EnemyAge>=.08f)
+                float approach=enemy.RushApproach;
+                if(!slam&&approach<.01f&&previousEnemyAge<.08f&&motionAge>=.08f)
                     atmosphere.GroundBurst(enemy.FootPosition(!left),axis,true);
-                if(!slam&&approach>=.01f&&previousEnemyAge<MonsterStepMotion.ApproachLanding&&state.EnemyAge>=MonsterStepMotion.ApproachLanding)
+                if(!slam&&approach>=.01f&&previousEnemyAge<MonsterStepMotion.ApproachLanding&&motionAge>=MonsterStepMotion.ApproachLanding)
                     RushFoot(enemy.FootPosition(!left),axis,1);
-                if(!slam&&previousEnemyAge<MonsterStepMotion.LandingSeconds&&state.EnemyAge>=MonsterStepMotion.LandingSeconds)
+                if(!slam&&previousEnemyAge<MonsterStepMotion.LandingSeconds&&motionAge>=MonsterStepMotion.LandingSeconds)
                     GroundBurst(enemy.FootPosition(left),axis,true,"rush");
                 float back=MonsterStepMotion.LeadReturnLanding(approach);
-                if(!slam&&previousEnemyAge<back&&state.EnemyAge>=back)
+                if(!slam&&previousEnemyAge<back&&motionAge>=back)
                 {
                     if(approach>=.01f)RushFoot(enemy.FootPosition(left),-axis,2);
                     else atmosphere.GroundBurst(enemy.FootPosition(left),-axis,false);
                 }
-                if(!slam&&approach>=.01f&&previousEnemyAge<MonsterStepMotion.TrailReturnLanding&&state.EnemyAge>=MonsterStepMotion.TrailReturnLanding)
+                if(!slam&&approach>=.01f&&previousEnemyAge<MonsterStepMotion.TrailReturnLanding&&motionAge>=MonsterStepMotion.TrailReturnLanding)
                     RushFoot(enemy.FootPosition(!left),-axis,3);
             }
-            // A slow frame can cross the last landing and the attack boundary
-            // together. The sampled Recover stance has that trailing foot on
-            // its home target, so emit its remaining landing once there.
-            if(state.Enemy==EnemyPhase.Recover&&previousMotionEnemy==EnemyPhase.Attack&&
-                state.EnemyAttackCount==previousAttack&&RushStepBeat==2)
-                RushFoot(enemy.FootPosition(!MonsterStepMotion.LeadLeft(state.EnemyAttackCount)),-axis,3);
-            previousEnemyAge=state.EnemyAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;previousMotionEnemy=state.Enemy;
+            previousEnemyAge=motionAge;previousAttack=state.EnemyAttackCount;previousPunches=state.Punches;previousMotionEnemy=state.Enemy;
         }
         void RushFoot(Vector3 position,Vector3 direction,int beat)
         {
