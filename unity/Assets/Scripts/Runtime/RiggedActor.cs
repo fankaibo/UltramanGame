@@ -1318,6 +1318,8 @@ namespace UltramanGame.Runtime
                 else if(retargetedPunch)PoseRetargetedArms(state);
                 else PoseTigaArms(state,comboStrike);
             }
+            if(!monster&&!kick&&preview<0&&heroId=="Tiga"&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.Beam)
+                PoseTigaBeamSupport();
             if(comboStrike&&!kick)PoseComboStrike(state);
             if(!monster&&!kick&&preview<0&&guardExitAge<.14f)PoseGuardExit(dt);
             if(kick)PoseKick(state);
@@ -2200,6 +2202,21 @@ namespace UltramanGame.Runtime
                 PoseLimb(upper,lower,wrist,target,blend,side*(sign*.45f)+Vector3.down,.30f);
                 wrist.rotation=Quaternion.FromToRotation(previousForearm,wrist.position-lower.position)*palm;
             }
+        }
+        void PoseTigaBeamSupport()
+        {
+            if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
+            // Keep the gathering clip, then bring the supporting palm under
+            // the emitting elbow. The right arm still owns the beam origin.
+            float weight=Mathf.SmoothStep(0,1,(clipAge-.80f)/.45f);
+            if(weight<=0)return;
+            stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
+            stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
+            var palm=leftHand.rotation;var span=leftHand.position-leftForearm.position;
+            var side=Vector3.Cross(Vector3.up,forward);
+            var target=forearm.position-forward*.10f-Vector3.up*.13f;
+            PoseLimb(leftUpperArm,leftForearm,leftHand,target,weight,-side*.75f+Vector3.down*.35f+forward*.12f,.30f);
+            leftHand.rotation=Quaternion.FromToRotation(span,leftHand.position-leftForearm.position)*palm;
         }
         void PoseTigaArms(Battle state,bool combo)
         {

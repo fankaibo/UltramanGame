@@ -35,8 +35,8 @@ namespace UltramanGame.Runtime
             head=GameWorld.Primitive("Zeperion contact glow",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,headMaterial);
             Clear();
         }
-        public void SetProfile(Color beamTint,Color beamAccent,bool twin)
-        {tint=beamTint;accent=beamAccent;dual=twin;material.SetColor("_BeamTint",tint);material.SetColor("_BeamAccent",accent);}
+        public void SetProfile(Color beamTint,Color beamAccent,bool twin,bool axial=false)
+        {tint=beamTint;accent=beamAccent;dual=twin;material.SetColor("_BeamTint",tint);material.SetColor("_BeamAccent",accent);material.SetFloat("_Axial",axial?1:0);}
         public void Clear(){ribbon.enabled=false;twinRibbon.enabled=false;head.gameObject.SetActive(false);Power=0;}
         public void Tick(Camera camera,Vector3 origin,Vector3 target,float age,bool firing,float clock)
         {

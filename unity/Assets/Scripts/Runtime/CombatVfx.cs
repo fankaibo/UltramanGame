@@ -91,13 +91,13 @@ namespace UltramanGame.Runtime
             // This short-lived, small light needs per-pixel falloff on the
             // low-poly skin instead of being demoted to broad vertex lighting.
             hitLight.renderMode=LightRenderMode.ForcePixel;
-            beam.SetProfile(beamTint,beamAccent,beamDual);
+            beam.SetProfile(beamTint,beamAccent,beamDual,true);
         }
         public void SetHeroProfile(string heroId)
         {
             var hero=HeroRoster.At(HeroRoster.Index(heroId));
             beamTint=ParseColor(hero.BeamTint,Ice);beamAccent=ParseColor(hero.BeamAccent,Color.white);beamDual=hero.BeamDual;chestMounted=heroId=="Zero";beamCharge.SetMebium(heroId=="Mebius");beamCharge.SetGrigio(heroId=="Grigio");muzzleLight.color=heroId=="Mebius"||heroId=="Grigio"?beamTint:Ice;
-            beam.SetProfile(beamTint,beamAccent,beamDual);
+            beam.SetProfile(beamTint,beamAccent,beamDual,heroId=="Tiga");
         }
         static Color ParseColor(string value,Color fallback)
         {return ColorUtility.TryParseHtmlString(value,out var parsed)?parsed:fallback;}
