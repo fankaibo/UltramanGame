@@ -103,6 +103,10 @@ namespace UltramanGame.Editor
     public sealed class AudioMixRecording : MonoBehaviour
     {
         GameAudio sound;
+        Battle projectileBattle;
+        int shotSequence;
+        float lastHealth=50;
+        bool projectileReview;
         float[] samples;
         readonly object gate=new object();
         readonly StringBuilder events=new StringBuilder("frame,event\n");
@@ -117,7 +121,15 @@ namespace UltramanGame.Editor
                 var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--audio-version");
                 string version=at>=0?args[at+1]:"after";
                 if(version!="before"&&version!="after")throw new Exception("Invalid review version");
-                folder=Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combat-audio/"+version));Directory.CreateDirectory(folder);
+                int outputAt=Array.IndexOf(args,"--audio-output");
+                projectileReview=Array.IndexOf(args,"--audio-projectiles")>=0;
+                folder=Path.GetFullPath(outputAt>=0?Path.Combine(args[outputAt+1],version):Path.Combine(Application.dataPath,"../../artifacts/combat-audio/"+version));Directory.CreateDirectory(folder);
+                if(projectileReview)
+                {
+                    projectileBattle=new Battle(50);projectileBattle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
+                    while(projectileBattle.Phase!=GamePhase.Battle)projectileBattle.Tick(.02f,new PlayerInput{Tracking=true});
+                    projectileBattle.GiveInstructionTime(30);while(projectileBattle.TryCue(out _)){}
+                }
                 gameObject.AddComponent<AudioListener>();
                 gameObject.AddComponent<Camera>();
                 rate=AudioSettings.outputSampleRate;channels=AudioSettings.speakerMode==AudioSpeakerMode.Mono?1:2;
@@ -161,6 +173,7 @@ namespace UltramanGame.Editor
         }
         void Step()
         {
+                if(projectileReview){ProjectileStep();return;}
                 sound.Tick(GamePhase.Battle,false,1/60f);
                 if(frame==12)Event("overlap-probe",()=>sound.Effect("probe"));
                 if(frame==36)Event("overlapping-swing",()=>sound.Effect("swing",.7f));
@@ -179,6 +192,34 @@ namespace UltramanGame.Editor
                 if(frame==840)Event("reset",()=>sound.Reset());
                 if(frame>=900){frame++;Finish();return;}
                 frame++;
+        }
+        void ProjectileStep()
+        {
+            sound.Tick(GamePhase.Battle,false,1/60f);
+            var input=new PlayerInput{Tracking=true};
+            if(frame==30||frame==130||frame==210||frame==240||frame==270||frame==390)
+            {
+                input.RangedAttack=true;input.LeftPunch=frame==130||frame==240;input.RightPunch=!input.LeftPunch;
+                input.AttackSpeed=frame==30?.65f:frame==130?1f:1.7f;
+                events.AppendLine(frame+",input-"+input.AttackSpeed);
+            }
+            projectileBattle.Tick(1/60f,input);
+            while(projectileBattle.TryCue(out var cue))
+                if(cue==GameCue.Punch)sound.Cue(cue,GamePhase.Battle);
+            if(projectileBattle.EnemyHealth<lastHealth)
+                Event("projectile-contact",()=>sound.ProjectileImpact());
+            lastHealth=projectileBattle.EnemyHealth;
+            if(projectileBattle.Shot.Sequence>shotSequence)
+            {shotSequence=projectileBattle.Shot.Sequence;Event("projectile-launch",()=>sound.ProjectileLaunch(projectileBattle.Shot.Speed));}
+            if(frame==360)Event("warning-voice",()=>sound.Speak("warning",5,GamePhase.Battle));
+            if(frame==460)Event("reset",()=>sound.Reset());
+            if(frame==480)Event("beam-contact-reference",()=>Hit(false,true));
+            if(frame>=600)
+            {
+                if(lastHealth!=44||projectileBattle.Energy!=6)throw new Exception("Projectile review did not deliver six actual hits");
+                frame++;Finish();return;
+            }
+            frame++;
         }
         void Finish()
         {
@@ -213,12 +254,44 @@ namespace UltramanGame.Editor
             pool.Stop();foreach(var source in sources)if(source.isPlaying)throw new Exception("Reset left a voice playing");
             report.AppendLine("independent pitch, bounded polyphony, priority stealing, per-clip mix gain and stop: passed");
             Destroy(owner);
-            sound.Tick(GamePhase.Battle,true,1/60f);sound.Hit(true,false);sound.Effect("swing");
+            sound.Tick(GamePhase.Battle,true,1/60f);sound.Hit(true,false);sound.Effect("swing");sound.ProjectileLaunch(1);sound.ProjectileImpact();
             foreach(var source in GetComponents<AudioSource>())if(!source.loop&&source.isPlaying)throw new Exception("Mute allowed a transient");
-            sound.Tick(GamePhase.Battle,false,1/60f);sound.Hit(false,false);sound.Tick(GamePhase.Paused,false,1/60f);
+            sound.Tick(GamePhase.Battle,false,1/60f);sound.Hit(false,false);sound.ProjectileLaunch(1);sound.ProjectileImpact();sound.Tick(GamePhase.Paused,false,1/60f);
             foreach(var source in GetComponents<AudioSource>())if(!source.loop&&source.isPlaying)throw new Exception("Pause retained an effect or voice");
             report.AppendLine("mute rejects new transients and pause clears active transients: passed");
+            if(projectileReview)
+            {
+                var original=(AudioClip)typeof(GameAudio).GetField("beamContact",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
+                var contacts=(AudioClip[])typeof(GameAudio).GetField("projectileContacts",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
+                WriteClip(original,"legacy-contact.wav");
+                for(int i=0;i<contacts.Length;i++)WriteClip(contacts[i],"projectile-contact-"+i+".wav");
+                sound.Reset();sound.HeroId="Tiga";sound.Tick(GamePhase.Battle,false,1/60f);
+                int count=GetComponents<AudioSource>().Length;
+                for(int i=0;i<40;i++)sound.ProjectileImpact();
+                int active=0;
+                foreach(var source in GetComponents<AudioSource>())
+                    if(!source.loop&&source.isPlaying)
+                    {active++;if(!source.clip.name.StartsWith("ProjectileContact"))throw new Exception("Tiga bullet reused a finisher sound");}
+                if(active==0||active>10||count!=GetComponents<AudioSource>().Length)throw new Exception("Projectile voices escaped their fixed pool");
+                sound.Reset();sound.HeroId="Zero";sound.ProjectileImpact();
+                bool legacy=false;foreach(var source in GetComponents<AudioSource>())if(source.isPlaying&&source.clip==original)legacy=true;
+                if(!legacy)throw new Exception("Other hero contact unexpectedly changed");
+                sound.Reset();sound.HeroId="Tiga";
+                report.AppendLine("Tiga dedicated contact, fixed pool under 40 hits, other hero contact preserved: passed");
+            }
             File.WriteAllText(folder+"/checks.txt",report.ToString());
+        }
+        void WriteClip(AudioClip clip,string name)
+        {
+            var data=new float[clip.samples*clip.channels];clip.GetData(data,0);
+            foreach(float value in data)if(float.IsNaN(value)||float.IsInfinity(value)||Mathf.Abs(value)>=.98f)throw new Exception("Contact sample clips or is invalid");
+            if(Mathf.Abs(data[0])>.001f||Mathf.Abs(data[data.Length-1])>.001f)throw new Exception("Contact has an abrupt endpoint");
+            using(var writer=new BinaryWriter(File.Create(folder+"/"+name)))
+            {
+                writer.Write(Encoding.ASCII.GetBytes("RIFF"));writer.Write(36+data.Length*4);writer.Write(Encoding.ASCII.GetBytes("WAVEfmt "));writer.Write(16);writer.Write((short)3);writer.Write((short)clip.channels);
+                writer.Write(clip.frequency);writer.Write(clip.frequency*clip.channels*4);writer.Write((short)(clip.channels*4));writer.Write((short)32);writer.Write(Encoding.ASCII.GetBytes("data"));writer.Write(data.Length*4);
+                foreach(float value in data)writer.Write(value);
+            }
         }
         void Fail(Exception e){Debug.LogException(e);recording=false;EditorApplication.Exit(1);}
     }

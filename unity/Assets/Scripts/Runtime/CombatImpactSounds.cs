@@ -4,6 +4,31 @@ namespace UltramanGame.Runtime
 {
     public static class CombatImpactSounds
     {
+        // A brief plasma crack for individual bullets. Keep the finisher's
+        // long, low impact separate so fast casts have a readable rhythm.
+        public static AudioClip CreateProjectile(int variation=0)
+        {
+            const int rate=44100;const float duration=.36f;
+            var data=new float[Mathf.RoundToInt(rate*duration)];
+            var random=new System.Random(261011+variation*71);
+            float fast=0,slow=0,phase=0,previous=0,dc=0,peak=0;
+            for(int i=0;i<data.Length;i++)
+            {
+                float t=i/(float)rate,noise=(float)random.NextDouble()*2-1;
+                fast=Mathf.Lerp(fast,noise,.62f);slow=Mathf.Lerp(slow,noise,.075f);
+                float bodyPhase=2*Mathf.PI*(88*t+110*.018f*(1-Mathf.Exp(-t/.018f)));
+                float body=Mathf.Sin(bodyPhase)*Mathf.Exp(-t/.065f)*.48f;
+                phase+=2*Mathf.PI*(520+(1000+variation*45)*Mathf.Exp(-t/.024f))/rate;
+                float plasma=Mathf.Sin(phase)*Mathf.Exp(-t/.035f)*.14f;
+                float crack=(fast-slow)*Mathf.Exp(-t/.014f)*.78f;
+                float sparks=(fast-slow)*Mathf.Exp(-t/.060f)*.16f;
+                float value=(body+plasma+crack+sparks)*Mathf.Min(1,t/.0015f)*Mathf.Clamp01((duration-t)/.025f);
+                dc=.99886f*(dc+value-previous);previous=value;
+                data[i]=dc*Mathf.Clamp01((data.Length-1-i)/(rate*.02f));peak=Mathf.Max(peak,Mathf.Abs(data[i]));
+            }
+            for(int i=0;i<data.Length;i++)data[i]*=.76f/Mathf.Max(.001f,peak);
+            var clip=AudioClip.Create("ProjectileContact"+variation,data.Length,1,rate,false);clip.SetData(data,0);return clip;
+        }
         // Original layered foley synthesis: contact crack, low body weight,
         // rough surface rattle and short reflections. No voice or song samples.
         public static AudioClip Create(int tier,int variation=0)
