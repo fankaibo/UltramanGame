@@ -53,10 +53,19 @@ namespace UltramanGame.Editor
                     fx.Clear();fx.Impact(Vector3.zero,kind==1,blocked:kind==2,hurt:kind==3,direction:Vector3.right);Tick();
                     if((fx.ActiveContactCount>0)!=(kind==0))throw new Exception("Normal punch flash leaked into beam/block/hurt");
                 }
-                fx.Impact(Vector3.zero,false);Tick();state.Pause();Tick();if(fx.ActiveContactCount!=0)throw new Exception("Pause retained contact");
+                fx.Clear();fx.Impact(Vector3.zero,false,direction:Vector3.right);Tick();
+                int outward=0;
+                foreach(var line in root.GetComponentsInChildren<LineRenderer>())
+                {
+                    if(line.name!="Impact streak"||!line.enabled)continue;
+                    if(line.GetPosition(0).x>=0)throw new Exception("Melee fragment enters the struck surface");
+                    outward++;
+                }
+                if(outward!=16)throw new Exception("Melee fragment pool missing");
+                state.Pause();Tick();if(fx.ActiveContactCount!=0)throw new Exception("Pause retained contact");
                 state=new Battle();Tick();if(fx.ActiveContactCount!=0)throw new Exception("New round retained contact");
                 report.AppendLine($"GPU visiblePixels={visible} comboPixels={comboPixels} changingPixels={moving} zeroTime={repeat} foregroundLeak={leak} expired=passed pool=6 clear=passed");
-                report.AppendLine("normal-punch=visible beam/block/hurt=separate pause=cleared newRound=cleared");
+                report.AppendLine("normal-punch=visible outward-fragments=16 beam/block/hurt=separate pause=cleared newRound=cleared");
                 File.WriteAllText(Folder+"/validation.txt",report.ToString());Debug.Log("[StrikeContactChecks] "+report);
             }
             finally{camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(pixels);}

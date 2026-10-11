@@ -111,12 +111,21 @@ namespace UltramanGame.Runtime
         {var light=new GameObject(name).AddComponent<Light>();light.transform.SetParent(parent,false);light.type=LightType.Point;light.color=color;light.range=range;light.intensity=0;return light;}
         static void Tint(LineRenderer line,Color color,float alpha)
         {color.a=alpha;line.startColor=color;color.a=0;line.endColor=color;}
-        public void Burst(Vector3 position,int count,float force,bool warm)
+        public void Burst(Vector3 position,int count,float force,bool warm,Vector3 surfaceNormal=default)
         {
             for(int i=0;i<count;i++)
             {
                 var s=sparks[sparkIndex++%sparks.Length];s.Position=position;s.Age=0;s.Life=Random.Range(.28f,.62f);
                 s.Velocity=(Random.onUnitSphere*Random.Range(2,4.5f)+Vector3.up*.8f)*force;s.Width=Random.Range(.012f,.033f);
+                // Pyrotechnic fragments leave the struck surface rather than
+                // half of the burst disappearing inside the monster's chest.
+                if(surfaceNormal.sqrMagnitude>.001f)
+                {
+                    var normal=surfaceNormal.normalized;
+                    float inward=Vector3.Dot(s.Velocity,normal);
+                    if(inward<0)s.Velocity-=normal*inward*2;
+                    s.Velocity+=normal*.45f*force;
+                }
                 s.Line.SetPosition(0,position);s.Line.SetPosition(1,position);s.Line.widthMultiplier=s.Width;
                 Tint(s.Line,warm?Warm:Color.Lerp(Ice,Color.white,Random.value*.7f),.85f);s.Line.enabled=true;
             }
@@ -141,29 +150,21 @@ namespace UltramanGame.Runtime
             }
             atmosphere.Hit(position,special,blocked,!volumetric,combo);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
-            contactWaveAge=0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
+            bool punch=!special&&!blocked&&!hurt;
+            contactWaveAge=punch?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
             contactWaveLife=special?.36f:blocked?.28f:combo?.25f:hurt?.23f:.20f;
             contactWaveSize=special?2.15f:blocked?1.22f:combo?1.08f:hurt?.92f:.82f;
-            Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special));
-            bool punch=!special&&!blocked&&!hurt;
+            Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special),punch?-direction:Vector3.zero);
             if(punch)
             {
                 strikeContact.Hit(position,direction==Vector3.zero?Vector3.right:direction,combo);
-                // Ordinary contacts need the same one-frame arcade punctuation
-                // as the reference cabinet. Keep the flash short and local so
-                // it reads as fist-to-chest impact, not a second finisher.
-                // Keep the directional contact card, but add a short local
-                // expanding ring. The reference cabinet makes a punch read
-                // as a contact event before the sparks disperse; the old
-                // point flare had no silhouette against Golza's dark chest.
-                // This is presentation-only and remains anchored to the
-                // measured fist contact, so it cannot change damage timing.
-                FlashAt(position,combo?1.12f:.82f,combo?.20f:.14f,
-                    new Color(1,.72f,.26f,combo?.92f:.78f),true);
+                // One hot, irregular contact card owns the flash. Additional
+                // concentric billboards and equal-angle rays used to obscure
+                // the actual fist-to-surface contact like a target marker.
             }
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             if(!blocked&&!punch&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=punch?(combo?9:6):special?(volumetric?6:14):blocked?9:7;
+            int rayCount=punch?0:special?(volumetric?6:14):blocked?9:7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
