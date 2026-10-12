@@ -20,26 +20,25 @@ Shader "Training/EnergyShield" {
   return smoothstep(.5-max(fwidth(border)*1.2,.018),.5,border);
  }
  half4 frag(v2f i):SV_Target {
-  float rim=pow(1-abs(dot(normalize(i.normal),normalize(_WorldSpaceCameraPos-i.world))),1.8);
-  // Keep a thin, animated perimeter so the shield reads as a deliberate
-  // energy barrier at the living-room distance.  The center remains quiet;
-  // the existing rim and impact wave still carry the actual contact.
-  float radial=length(i.local*float2(2.02,1.76));
-  float edgeBand=smoothstep(.66,.84,radial)*(1-smoothstep(.84,1.01,radial));
-  float arcPhase=.52+.48*sin(atan2(i.local.y,i.local.x)*4.0+_Clock*2.6);
-  float edgeGlow=edgeBand*(.48+.52*pow(saturate(arcPhase),2));
-  // Object-plane cells avoid the doubled, stretched latitude grid that made
-  // the old sphere look like a wireframe. Keep the center transparent at rest.
+  // A flattened sphere is seen obliquely during combat. A broad Fresnel
+  // term filled most of it with blue at that angle and concealed the fight.
+  float rim=pow(1-abs(dot(normalize(i.normal),normalize(_WorldSpaceCameraPos-i.world))),4.5);
+  float radial=length(i.local*2);
+  float angle=atan2(i.local.y,i.local.x);
+  float flow=.62+.38*sin(angle*5-_Clock*1.6+sin(angle*11+_Clock)*.4);
+  float edge=smoothstep(.945,.975,radial)*(1-smoothstep(.988,1.001,radial));
+  float filament=edge*(.45+.55*flow);
+  // The lattice only conducts an actual impact. At rest the center is a
+  // nearly clear film, with the animated perimeter defining its boundary.
   float cells=hexEdge(i.local*float2(11,12.4));
   float d=length((i.local-_HitPoint.xy)*float2(1,1.12));
   float age=max(0,_HitAge),fade=saturate(1-age/.58);
   float wave=exp(-pow((d-age*1.9)/.026,2))*fade;
   float echo=exp(-pow((d-age*1.3)/.018,2))*fade*.45;
-  float core=exp(-d*d/ .013)*pow(saturate(1-age/.19),2);
+  float core=exp(-d*d/.013)*pow(saturate(1-age/.19),2);
   float localGlow=(wave+echo)*.85+core;
-  float idlePulse=.86+.14*sin(_Clock*2.1);
-  float alpha=_Color.a*(rim*1.02+edgeGlow*.52+cells*(.032+localGlow*.5)+localGlow*.66+.009)*idlePulse;
-  float3 color=lerp(_Color.rgb*(1+rim*.72),float3(.76,.96,1),saturate(localGlow+edgeGlow*.32));
+  float alpha=_Color.a*(rim*.20+filament*.65+cells*localGlow*.40+localGlow*.66+.002);
+  float3 color=lerp(_Color.rgb,float3(.70,.94,1),saturate(localGlow+filament*.40));
   return half4(color,saturate(alpha));
  }
  ENDCG }

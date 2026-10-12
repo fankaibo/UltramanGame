@@ -17,7 +17,6 @@ namespace UltramanGame.Runtime
         readonly BeamCharge beamCharge;
         readonly BeamStream beam;
         readonly LineRenderer attackRing;
-        readonly LineRenderer shieldHex;
         readonly LineRenderer contactWave;
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
@@ -82,7 +81,6 @@ namespace UltramanGame.Runtime
             charge=GameWorld.Primitive("Beam energy focus",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,chargeMaterial);
             beam=new BeamStream(parent);
             attackRing=Line(parent,"Monster attack ground ring",64,.05f);
-            shieldHex=Line(parent,"Shield six-sided energy edge",7,.035f);
             // A camera-facing contact wave gives a TV-sized hit a readable
             // expansion beat in addition to the point flare. It shares the
             // exact Impact clock, so it cannot outlive a pause or introduce a
@@ -153,7 +151,9 @@ namespace UltramanGame.Runtime
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
             bool punch=!special&&!blocked&&!hurt;
             bool localContact=punch||(hurt&&!special&&!blocked);
-            contactWaveAge=localContact?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
+            // The shield surface already carries the contact wave; a second
+            // camera-facing circle made it look detached from the barrier.
+            contactWaveAge=localContact||blocked?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
             contactWaveLife=special?.36f:blocked?.28f:combo?.25f:hurt?.23f:.20f;
             contactWaveSize=special?2.15f:blocked?1.22f:combo?1.08f:hurt?.92f:.82f;
             Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special),localContact?-direction:Vector3.zero);
@@ -166,7 +166,7 @@ namespace UltramanGame.Runtime
             }
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             if(!blocked&&!localContact&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=localContact?0:special?(volumetric?6:14):blocked?9:7;
+            int rayCount=localContact||blocked?0:special?(volumetric?6:14):7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
@@ -225,7 +225,7 @@ namespace UltramanGame.Runtime
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
-            attackRing.enabled=shieldHex.enabled=contactWave.enabled=false;
+            attackRing.enabled=contactWave.enabled=false;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;shieldHitWorld=Vector3.zero;shieldHitPending=false;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
@@ -342,27 +342,6 @@ namespace UltramanGame.Runtime
             shield.position=shieldCenter-axis*(compression*.12f);
             shield.rotation=Quaternion.LookRotation(axis,Vector3.up);
             shield.localScale=new Vector3(1.9f+compression*.12f,2.15f+compression*.07f,.38f-compression*.13f);
-            shieldHex.enabled=active&&state.Shield;
-            if(shieldHex.enabled)
-            {
-                // The sphere shader keeps the barrier volumetric, while this
-                // short six-sided edge gives the living-room viewer the same
-                // unmistakable silhouette as the reference cabinet. Draw it
-                // from the final shield transform so impact compression and
-                // camera-facing orientation stay in the same clock.
-                float radiusX=(1.9f+compression*.12f)*.50f;
-                float radiusY=(2.15f+compression*.07f)*.50f;
-                Vector3 center=shield.position+axis*.205f;
-                for(int i=0;i<shieldHex.positionCount;i++)
-                {
-                    float angle=Mathf.PI*.5f+i*Mathf.PI*2/(shieldHex.positionCount-1);
-                    shieldHex.SetPosition(i,center+shield.right*Mathf.Cos(angle)*radiusX+shield.up*Mathf.Sin(angle)*radiusY);
-                }
-                float hitPulse=1-Mathf.SmoothStep(0,1,Mathf.Clamp01(shieldHitAge/.58f));
-                var edge=new Color(.20f,.78f,1,.30f+.30f*hitPulse+.06f*Mathf.Sin(clock*2.4f));
-                shieldHex.startColor=edge;edge.a=0;shieldHex.endColor=edge;
-                shieldHex.widthMultiplier=.026f+.020f*hitPulse;
-            }
             if(shieldHitPending)
             {
                 shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(shieldHitWorld));
