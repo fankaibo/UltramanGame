@@ -16,7 +16,7 @@ namespace UltramanGame.Runtime
         readonly Material shieldMaterial,chargeMaterial;
         readonly BeamCharge beamCharge;
         readonly BeamStream beam;
-        readonly LineRenderer warningRing,attackRing;
+        readonly LineRenderer attackRing;
         readonly LineRenderer shieldHex;
         readonly LineRenderer contactWave;
         readonly Light muzzleLight,hitLight;
@@ -81,7 +81,6 @@ namespace UltramanGame.Runtime
             chargeMaterial=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("EnergyFlare")));
             charge=GameWorld.Primitive("Beam energy focus",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,chargeMaterial);
             beam=new BeamStream(parent);
-            warningRing=Line(parent,"Monster warning ground ring",64,.035f);
             attackRing=Line(parent,"Monster attack ground ring",64,.05f);
             shieldHex=Line(parent,"Shield six-sided energy edge",7,.035f);
             // A camera-facing contact wave gives a TV-sized hit a readable
@@ -226,7 +225,7 @@ namespace UltramanGame.Runtime
             foreach(var f in flashes){f.Age=10;f.Quad.gameObject.SetActive(false);}
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
-            warningRing.enabled=attackRing.enabled=shieldHex.enabled=contactWave.enabled=false;
+            attackRing.enabled=shieldHex.enabled=contactWave.enabled=false;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;shieldHitWorld=Vector3.zero;shieldHitPending=false;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
@@ -371,14 +370,8 @@ namespace UltramanGame.Runtime
             }
             shieldMaterial.SetFloat("_Clock",clock);shieldMaterial.SetFloat("_HitAge",shieldHitAge);
             Vector3 enemyGround=end-Vector3.up*2.6f+axis*AnimatedActor.MonsterAdvance(state);
-            bool warning=active&&state.Enemy==EnemyPhase.Windup;
             bool attack=active&&state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount);
-            warningRing.enabled=warning;attackRing.enabled=attack;
-            if(warning)
-            {
-                float p=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
-                GroundRing(warningRing,enemyGround,.45f+p*.85f,new Color(1,.38f,.10f,.16f+p*.28f));
-            }
+            attackRing.enabled=attack;
             if(attack)
             {
                 float p=Mathf.Clamp01(state.EnemyAge/Battle.EnemyHitSeconds);

@@ -87,7 +87,7 @@ namespace UltramanGame.Runtime
             public void Hide(){Root.gameObject.SetActive(false);}
         }
         readonly Vector3 home,target,forward;
-        readonly LineRenderer charge;
+        readonly MonsterWindupDust windupDust;
         readonly LineRenderer rushRing;
         readonly LineRenderer[] rushFootprints=new LineRenderer[2];
         readonly LineRenderer[] rushWakes=new LineRenderer[3];
@@ -104,7 +104,7 @@ namespace UltramanGame.Runtime
         {
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
             glow=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")) {color=Color.white});
-            charge=Line(parent,"Monster charge",48,.035f,true);
+            windupDust=new MonsterWindupDust(parent);
             // A ground-plane pressure ring gives the body rush a readable
             // volume cue on a 16:9 television. It expands with the same
             // EnemyAge as the feet and dust, so it cannot get out of sync or
@@ -126,26 +126,17 @@ namespace UltramanGame.Runtime
         }
         static void ColorLine(LineRenderer line,Color color,float alpha)
         {color.a=alpha;line.startColor=line.endColor=color;}
-        static void Circle(LineRenderer line,Vector3 center,Camera camera,float radius)
-        {
-            for(int i=0;i<line.positionCount;i++)
-            {
-                float angle=i*Mathf.PI*2/line.positionCount;
-                line.SetPosition(i,center+camera.transform.right*Mathf.Cos(angle)*radius+camera.transform.up*Mathf.Sin(angle)*radius);
-            }
-        }
         public void Clear()
-        {attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
+        {attackNumber=impactAttack=-1;pendingImpact=false;windupDust.Clear();rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
         {impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;}
-        public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null,Vector3? heroStance=null)
+        public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null,Vector3? heroStance=null,Vector3? leftFoot=null,Vector3? rightFoot=null,bool suppressed=false)
         {
             bool active=state.Phase==GamePhase.Battle;
             if(!active){impactAttack=-1;pendingImpact=false;}
             // Older preview callers send the cue without Battle. Bind that cue
             // on its next sample rather than letting its contact follow the hand.
             if(active&&pendingImpact){impactAttack=state.EnemyAttackCount;pendingImpact=false;}
-            bool warning=active&&state.Enemy==EnemyPhase.Windup&&!MonsterRayMotion.Active(state)&&!MonsterRockMotion.Active(state);
             bool attack=active&&state.Enemy==EnemyPhase.Attack;
             Vector3 destination=heroStance??target;
             float approach=CombatSpacing.Approach(Vector3.Distance(home,destination));
@@ -165,13 +156,8 @@ namespace UltramanGame.Runtime
                     sweepDirection=Vector3.Lerp(sweepDirection,motion.normalized,1-Mathf.Exp(-dt*28)).normalized;
                 previousHand=clawPosition;
             }
-            charge.enabled=warning;
-            if(warning)
-            {
-                float p=Mathf.Clamp01(state.EnemyAge/state.WarningDuration);
-                Circle(charge,monster+Vector3.up*3.1f-camera.transform.forward*.2f,camera,.35f+p*.24f);
-                ColorLine(charge,Amber,.20f+p*.45f);
-            }
+            var footSide=Vector3.Cross(Vector3.up,forward);
+            windupDust.Tick(state,camera,leftFoot??monster-footSide*.35f,rightFoot??monster+footSide*.35f,forward,suppressed);
             // The reference arcade shot makes the enemy's whole body travel as
             // one readable beat.  A short, camera-facing heat wake connects the
             // planted body to its forward step; claws keep their own brighter

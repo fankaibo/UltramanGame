@@ -617,7 +617,8 @@ namespace UltramanGame.Runtime
             if(!Showcase)hero?.PoseFinisherWeapons(state);
             blade.Tick(state,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,BattleAxis,BeamTarget,Showcase||Closeup.Active);
             rock.Tick(state,enemy?.StrikeOrigin(HeroAction.RightPunch)??BeamTarget,ShieldCenter,Showcase||Closeup.Active,Camera);
-            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null,HeroAnchor);
+            monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null,HeroAnchor,
+                enemy?.FootPosition(true),enemy?.FootPosition(false),Showcase||Closeup.Active);
             monsterRay.Tick(state,Camera,enemy?.RayOrigin??EnemyHome+Vector3.up*3.32f-BattleAxis*.46f,
                 state.Shield?ShieldCenter+Vector3.up*.26f:HeroAnchor+Vector3.up*2,Showcase||Closeup.Active);
             bool firing=active&&!Closeup.Active&&state.Action==HeroAction.Beam&&state.ActionAge>BeamStream.LaunchSeconds;

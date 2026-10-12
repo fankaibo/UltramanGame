@@ -11,6 +11,7 @@ namespace UltramanGame.Editor
     public static class ThreatCameraReview
     {
         public static void Before()=>Render("before","Tiga",true);
+        public static void EffectsAfter()=>Render("after","Tiga",true,true);
         public static void After(){foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})Render("after",id,id=="Tiga");}
         public static void Release(){After();Flow();}
         static Battle Ready(bool charged=false)
@@ -66,7 +67,7 @@ namespace UltramanGame.Editor
             {var ray=camera.ViewportPointToRay(new Vector3(x,y,0));if(!plane.Raycast(ray,out float d))throw new Exception("Backdrop behind camera");var p=backdrop.InverseTransformPoint(ray.GetPoint(d));max=Mathf.Max(max,Mathf.Abs(p.x),Mathf.Abs(p.y));}
             return max;
         }
-        static void Render(string version,string id,bool film)
+        static void Render(string version,string id,bool film,bool unchangedCamera=false)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(928);
             var world=new GameWorld();var state=Ready();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
@@ -106,7 +107,13 @@ namespace UltramanGame.Editor
                 }
                 string report=$"{id}/{version} blocks={state.Blocks} hurt={state.HitsTaken} health={state.EnemyHealth} viewport=({minX:F3},{minY:F3})-({maxX:F3},{maxY:F3}) backdropEdge={edge:F3} cameraStep={maxStep:F4} peakTop={peakTop:F3} monsterMagnification={peakSize/baseSize:F3}";
                 if(state.Blocks!=1||state.HitsTaken!=0||state.EnemyHealth!=50||edge>.49f)throw new Exception(report);
-                if(version=="after"&&(peakTop>.87f||minX<.1f||maxX>.9f||peakSize/baseSize<1.15f||maxStep>.09f))throw new Exception("Unsafe or ineffective threat framing: "+report);
+                if(version=="after"&&!unchangedCamera&&(peakTop>.87f||minX<.1f||maxX>.9f||peakSize/baseSize<1.15f||maxStep>.09f))throw new Exception("Unsafe or ineffective threat framing: "+report);
+                if(unchangedCamera)
+                {
+                    string baseline=Path.GetFullPath(Path.Combine(folder,"../../before",id));
+                    if(File.ReadAllText(baseline+"/sequence.csv")!=samples.ToString()||File.ReadAllText(baseline+"/camera.csv")!=cameraSamples.ToString())
+                        throw new Exception("Warning FX changed battle or camera");
+                }
                 File.WriteAllText(folder+"/sequence.csv",samples.ToString());File.WriteAllText(folder+"/camera.csv",cameraSamples.ToString());
                 File.WriteAllText(folder+"/validation.txt",report);Debug.Log("[ThreatCameraReview] "+report);
             }
