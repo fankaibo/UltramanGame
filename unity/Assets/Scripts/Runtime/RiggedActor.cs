@@ -136,6 +136,7 @@ namespace UltramanGame.Runtime
         GamePhase previous;
         bool heavyHit,accentHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
+        Transform tigaLeftThumb,tigaRightThumb;
         Transform head,upperSpine,pelvis,jaw;
         Quaternion jawBase;
         bool jawLayerApplied;
@@ -355,6 +356,8 @@ namespace UltramanGame.Runtime
             foreach(var joint in joints)
             {
                 joint.gameObject.layer=ContactShadows.ActorLayer;
+                if(name=="Tiga"&&joint.name=="Thumb1_L")tigaLeftThumb=joint;
+                if(name=="Tiga"&&joint.name=="Thumb1_R")tigaRightThumb=joint;
                 if(joint.name=="HandBase_R"||joint.name=="bip_hand_R")hand=joint;
                 if(joint.name=="ForearmBase_R"||joint.name=="bip_lowerArm_R")forearm=joint;
                 if(joint.name=="HandBase_L"||joint.name=="bip_hand_L")leftHand=joint;
@@ -1997,6 +2000,21 @@ namespace UltramanGame.Runtime
         }
         static float PunchReach(float age)=>age<Battle.PunchHitSeconds?StrikeApproach(age/Battle.PunchHitSeconds):
             1-Mathf.SmoothStep(0,1,(age-.15f)/(Battle.PunchSeconds-.15f));
+        void PoseTigaReadyFist(Transform lower,Transform wrist,bool left,float weight)
+        {
+            var thumb=left?tigaLeftThumb:tigaRightThumb;
+            if(heroId!="Tiga"||!thumb||weight<=0)return;
+            // The source ready clip folds the arm and turns the palm upward.
+            // Retargeting only its endpoint carries that supination into the
+            // open stance. Roll the forearm and hand together, around the
+            // elbow-to-wrist axis, keeping both joint positions unchanged.
+            var axis=(wrist.position-lower.position).normalized;
+            var radial=Vector3.ProjectOnPlane(thumb.position-wrist.position,axis);
+            var upright=Vector3.ProjectOnPlane(Vector3.up-forward*.20f,axis);
+            if(radial.sqrMagnitude<.000001f||upright.sqrMagnitude<.01f)return;
+            float roll=Vector3.SignedAngle(radial,upright,axis);
+            lower.rotation=Quaternion.AngleAxis(roll*Mathf.Clamp01(weight),axis)*lower.rotation;
+        }
         void PoseRelaxedReadyArms(Battle state,float blend)
         {
             if(!leftUpperArm||!leftForearm||!leftHand||!upperArm||!forearm||!hand)return;
@@ -2012,6 +2030,7 @@ namespace UltramanGame.Runtime
                 // buffered shoulder load from the underlying battle state.
                 PoseLimb(upper,lower,wrist,ReadyHand(state,upper,lower,wrist,left,side,true),blend,side*(sign*.45f)+Vector3.down,.30f);
                 wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+                PoseTigaReadyFist(lower,wrist,left,blend);
             }
         }
         Vector3 ReadyHand(Battle state,Transform upper,Transform lower,Transform wrist,bool left,Vector3 side,bool neutral=false)
@@ -2119,6 +2138,7 @@ namespace UltramanGame.Runtime
                 var palm=wrist.rotation;var span=wrist.position-lower.position;
                 PoseLimb(upper,lower,wrist,target,1,side*(handSign*.55f)+Vector3.down*.75f,.30f);
                 wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+                PoseTigaReadyFist(lower,wrist,left,state.IsRangedPunch&&left==activeLeft?1-reach:1);
             }
         }
         void PoseMebiumArms(Battle state)
@@ -2258,6 +2278,7 @@ namespace UltramanGame.Runtime
                 Vector3 pole=Vector3.Lerp(side*(sign*.45f)+Vector3.down,side*(sign*.65f)+Vector3.down*.5f,active?motion:0);
                 PoseLimb(upper,lower,wrist,target,blend,pole,.30f);
                 wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
+                if(!combo)PoseTigaReadyFist(lower,wrist,left,blend*(active?1-motion:1));
             }
         }
         void SaveStepLegs()
