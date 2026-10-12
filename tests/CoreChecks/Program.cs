@@ -46,6 +46,9 @@ static class Program
         try
         {
             if(args.Length==2&&args[0]=="--photo-response-audit"){PhotoResponseAudit.Run(args[1]);return 0;}
+            if(args.Length==4&&args[0]=="--pose-replay")
+            {PoseReplayAudit.Run(args[1],args[2],int.Parse(args[3]));return 0;}
+            PoseReplayAudit.Checks(Check);
             PreviewChecks.Run(Check);
             PoseReadClockChecks.Run(Check);
             ReviewPlaybackChecks.Run(Check);

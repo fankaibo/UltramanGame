@@ -45,7 +45,7 @@ def run_demo(args, bridge, preview=None, photo=None):
 def run_camera(args, bridge, preview=None, photo=None):
     import cv2
     from .capture import LatestCapture
-    from .model import create_landmarker, model_image
+    from .model import create_landmarker, camera_model_image
     from .async_cutout import AsyncPersonCutout
     if not args.model.is_file():
         raise RuntimeError("模型未准备好，请先运行 scripts/setup.sh。")
@@ -82,7 +82,7 @@ def run_camera(args, bridge, preview=None, photo=None):
                 stamp = max(previous_stamp+1, int((captured_at-start)*1000))
                 previous_stamp = stamp
                 inference_start = time.monotonic()
-                result = model.detect_for_video(model_image(cv2.resize(image,(640,round(image.shape[0]*640/image.shape[1]))) if image.shape[1]>640 else image), stamp)
+                result = model.detect_for_video(camera_model_image(image), stamp)
                 inference_seconds += time.monotonic()-inference_start
                 frames += 1
                 landmarks = result.pose_landmarks[0] if result.pose_landmarks else None

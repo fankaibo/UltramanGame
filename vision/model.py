@@ -24,3 +24,9 @@ def model_image(bgr):
     converted = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGBA if USE_METAL else cv2.COLOR_BGR2RGB)
     return mp.Image(image_format=mp.ImageFormat.SRGBA if USE_METAL else mp.ImageFormat.SRGB,
                     data=converted)
+
+
+def camera_model_image(bgr):
+    """Identical input sizing for the live camera and offline diagnostic replay."""
+    return model_image(cv2.resize(bgr, (640, round(bgr.shape[0]*640/bgr.shape[1])))
+                       if bgr.shape[1] > 640 else bgr)
