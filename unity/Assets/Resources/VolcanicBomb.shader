@@ -20,15 +20,19 @@ Shader "Training/VolcanicBomb" {
    // Use broad, broken hot patches for cooling ejecta. The old narrow
    // threshold turned the noise lattice into repeated red scribbles when a
    // fragment was viewed against the dark sky.
-   float cracks=smoothstep(.46,.76,n)*.72+smoothstep(.52,.82,detail)*.28;
+   // A cooling bomb is mostly opaque basalt with exposed molten pockets.
+   // Growing the crust as heat drops prevents the solid body from remaining
+   // an orange polyhedron after its surrounding glow has already cooled.
+   float crust=1-heat;
+   float pockets=smoothstep(.49+crust*.20,.75+crust*.12,n*.78+detail*.22);
    // Integrate subpixel crust detail rather than showing a blinking orange
    // wire pattern when a distant fragment covers only a handful of pixels.
    float footprint=max(length(ddx(i.uv_MainTex*8)),length(ddy(i.uv_MainTex*8)));
    float detailWeight=1-smoothstep(.45,1.6,footprint);
-   cracks=lerp(.38,cracks,detailWeight);detail=lerp(.5,detail,detailWeight);
+   pockets=lerp(.22*heat,pockets,detailWeight);detail=lerp(.5,detail,detailWeight);
    float3 fire=lerp(float3(.6,.025,.001),float3(3.2,.78,.07),heat*heat);
    o.Albedo=lerp(float3(.021,.018,.017),float3(.095,.065,.048),detail);
-   o.Emission=fire*pow(heat,1.35)*(.08+.72*cracks);
+   o.Emission=fire*pow(heat,2.4)*pockets*1.2;
    o.Metallic=0;o.Smoothness=.10;o.Occlusion=.75+.25*detail;
   }
   ENDCG

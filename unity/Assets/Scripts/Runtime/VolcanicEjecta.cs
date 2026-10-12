@@ -167,9 +167,11 @@ namespace UltramanGame.Runtime
                 Color state=new Color(heat,(i*.618033f)%1,fade,1);
                 for(int v=0;v<FaceVertices;v++)
                 {int at=i*FaceVertices+v;rockVertices[at]=point+rotation*rockShape[at]*size;rockNormals[at]=rotation*rockShapeNormals[at];rockColors[at]=state;}
-                float opacity=alive?Mathf.SmoothStep(0,1,age/.08f)*heat*.6f:0;
+                // The solid crust stays on the ballistic path. Its glow pulls
+                // back as it cools instead of floating around it like a lamp.
+                float opacity=alive?Mathf.SmoothStep(0,1,age/.08f)*heat*heat*.52f:0;
                 var tail=landed?point-Vector3.up*.002f:f.Point(Mathf.Max(0,age-.032f));
-                Streak(i,point,tail,view,f.Size*(landed?1.5f:2.3f),heat,opacity*(1-fade)*(landed?.3f:1));
+                Streak(i,point,tail,view,f.Size*(landed?1.25f:Mathf.Lerp(1.05f,1.65f,heat)),heat,opacity*(1-fade)*(landed?.3f:1));
                 if(alive){ActiveBombs++;PeakHeat=Mathf.Max(PeakHeat,heat);}
             }
             for(int i=0;i<SparkCount;i++)

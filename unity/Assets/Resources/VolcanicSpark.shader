@@ -23,8 +23,11 @@ Shader "Training/VolcanicSpark" {
     float tail=exp(-across*across*42)*pow(along,.55)*(1-along)*.26;
     float halo=exp(-across*across*5.5-(along-.76)*(along-.76)*9)*.17;
     float energy=saturate(head*1.25+tail+halo);
-    float3 hot=lerp(float3(.88,.06,.004),float3(3.2,.86,.10),saturate(head*1.4));
-    return half4(hot*energy*i.color.a,0);
+    // Vertex RGB carries the fragment's current temperature. A fixed orange
+    // palette kept cooling rocks white-hot and made every halo look alike.
+    // Keep the hot center, but let the rock cool through red to dark crust.
+    float3 radiance=i.color.rgb*lerp(.65,1.25,saturate(head*1.4));
+    return half4(radiance*energy*i.color.a,0);
    }
   ENDCG }
  }
