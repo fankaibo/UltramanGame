@@ -42,7 +42,7 @@ def selection_landmarks(direction):
     return points
 
 
-def tempo_landmarks(seconds):
+def tempo_landmarks(seconds, high_hands=False):
     """Alternate real receiver trajectories: slow left, fast right, with retraction."""
     points=landmarks_at(0)
     for point in points:point.z=-.1
@@ -58,6 +58,12 @@ def tempo_landmarks(seconds):
     if active>duration+.16:extension=max(0,1-(active-duration-.16)/.30)
     hand=points[16 if right else 15]
     hand.x+=(-.04 if right else .04)*extension;hand.y-=.04*extension;hand.z-=.28*extension
+    if high_hands:
+        # Both fists stay beside the face, including the whole retraction.
+        # Reach has visible foreshortening plus depth, never a hands-down reset.
+        points[13].y=points[14].y=.39
+        points[15].y=points[16].y=.20
+        hand.x+=(-.04 if right else .04)*extension
     return points
 
 
@@ -133,6 +139,7 @@ def main():
     parser.add_argument('--body-follow',action='store_true',help='Also lean in both directions and verify the displayed torso follows without accidental attacks')
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
+    parser.add_argument('--high-hands',action='store_true',help='Keep fists above shoulders throughout ordinary attacks, defense and the beam-release interval')
     parser.add_argument('--support-follow',action='store_true',help='Require both passive-hand camera-follow shots during real ranged attacks')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
     parser.add_argument('--volley-cadence',type=float,default=.8,help='Seconds between the six camera-review casts (0.6 to 1.8)')
@@ -149,6 +156,8 @@ def main():
     options=parser.parse_args()
     if not 60<=options.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
     if options.body_follow:options.ready_follow=True
+    if options.high_hands and (not options.tempo_skills or options.volley_camera or options.ready_follow or options.gesture_shape_noise or options.gesture_entry_noise):
+        parser.error('--high-hands requires --tempo-skills and cannot mix with volley/ready/shape/entry fixtures (entry deliberately lowers hands)')
     if options.memory_interval<=0:parser.error('--memory-interval must be greater than zero')
     if options.gesture_entry_noise and not options.gesture_wobble:parser.error('--gesture-entry-noise requires --gesture-wobble')
     if options.support_follow and not options.tempo_skills:parser.error('--support-follow requires --tempo-skills')
@@ -315,7 +324,7 @@ def main():
                 elif phase=='Battle' and stage=='battle':
                     if beam and now<beam_release_until:
                         # A short neutral/retract window arms the next beam.
-                        points=landmarks_at(0)
+                        points=tempo_landmarks(0,True) if options.high_hands else landmarks_at(0)
                     else:
                         points=landmarks_at(13.5 if beam else 10.5 if guard else 4+(age%1.1)/1.1*2)
                         if options.tempo_skills and not beam and not guard:
@@ -324,8 +333,9 @@ def main():
                                 points=volley_landmarks(now-volley_started,options.volley_cadence);tempo_started=None
                             else:
                                 if tempo_started is None:tempo_started=now
-                                points=tempo_landmarks(now-tempo_started)
+                                points=tempo_landmarks(now-tempo_started,options.high_hands)
                         else:tempo_started=None
+                        if options.high_hands and guard and not beam:points=tempo_landmarks(0,True)
                         if options.gesture_wobble and beam:
                             points[15].z=points[16].z=-.10
                             hold_age=now-beam_release_until
@@ -379,7 +389,7 @@ def main():
                         points[11].y+=lean*.035;points[12].y-=lean*.035
                         protected='body-follow'
                     tempo_started=None;volley_started=None
-                if options.tempo_skills and guard and not beam and now<guard_started:
+                if options.tempo_skills and not options.high_hands and guard and not beam and now<guard_started:
                     # The tempo fixture rests at chest height and can already
                     # be guarding before Warning. Release that old guard so
                     # this audit exercises a new, initially biased acquisition.
@@ -399,7 +409,7 @@ def main():
                 if options.gesture_entry_noise and guard and not beam and 0<=now-guard_started<.7:
                     guard_entry_contexts.add(frame['sequence'])
                 if options.gesture_startup_noise or options.tempo_skills:
-                    pose_trace.append(dict(frame=frame,protected=protected,beam_available=beam,transform_available=phase=='Waiting'))
+                    pose_trace.append(dict(frame=frame,protected=protected,beam_available=beam,transform_available=phase=='Waiting',phase=phase,stage=stage))
                 if not review_loss_start or now-review_loss_start>.45:bridge.publish(frame)
                 pose_at=time.monotonic()
                 preview_media.publish((points,frame['capturedMs']))
@@ -525,8 +535,13 @@ def main():
                 'photo_dropout_recovered':True,'review_pose_dropout_recovered':bool(review_loss_start),
                 'replay_battle_started':True,'replay_selection_reset':False,'gesture_hero_changes':0,
                 'ranged_support':support_evidence,'same_hero_replay':True,'start_depth_noise':options.start_depth_noise,
-                'beam_reset_releases':beam_reset_releases,
+                'beam_reset_releases':beam_reset_releases,'high_hands':options.high_hands,
                 'photo_preview_p99_error':preview_error,'photos':photos}
+            if options.high_hands:
+                high_rows=[row for row in pose_trace if row['phase']=='Battle' and row['stage']=='battle' and not row['beam_available']]
+                lowered=sum(any(row['frame']['points'][hand]['y']>=row['frame']['points'][shoulder]['y'] for hand,shoulder in ((15,11),(16,12))) for row in high_rows)
+                if len(high_rows)<120 or lowered:raise RuntimeError(f'High-hand coverage incomplete: frames={len(high_rows)} lowered={lowered}')
+                result['high_hand_coverage']={'ordinary_battle_frames':len(high_rows),'lowered_hand_frames':lowered}
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if ready_shots:result['ready_follow']={'shots':ready_shots,'unwanted_attacks':unwanted_attacks}
             if tempo_evidence:result['tempo_skills']=tempo_evidence

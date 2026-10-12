@@ -66,6 +66,7 @@ static class Program
         GuidedPhotoChecks.Run(Check);
         GuardBeamChecks.Run(Check);
         GestureIntentChecks.Run(Check);
+        HighHandGestureChecks.Run(Check);
         GestureBattleChecks.Run(Check);
             PhotoLayoutChecks.Run(Check);
             HeroSelectionChecks.Run(Check);

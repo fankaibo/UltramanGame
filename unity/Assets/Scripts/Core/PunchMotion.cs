@@ -12,6 +12,10 @@ namespace UltramanGame.Core
         bool latched;
         float peakOut,peakDepth,releaseHold,candidateHold;
         long firedAt;
+        // Face-level boxing starts above the shoulder. Use the same envelope
+        // for the current wrist and its history, otherwise a high retracted
+        // fist never supplies a starting point for the next forward reach.
+        const float HighestPunchY=-1.10f;
         public bool ForwardStrike { get; private set; }
         public float LastScore { get; private set; }
         public float PlaybackSpeed { get; private set; } = 1;
@@ -44,13 +48,14 @@ namespace UltramanGame.Core
                 else return false;
             }
             bool forward=false,lateral=false;float velocity=0;
-            // Hands can be a little above/below the shoulder, but simply raising or dropping an arm is not a punch.
-            if(current.Y>=-.45f && current.Y<=.78f)
+            // Height admits a natural face guard; forward/lateral travel must
+            // still dominate vertical motion. Raising an arm is not a punch.
+            if(current.Y>=HighestPunchY && current.Y<=.78f)
             {
                 for(int i=0;i<count;i++)
                 {
                     var old=history[i];long age=stamp-old.Stamp;
-                    if(age<60 || age>650 || old.Y<-.45f)continue;
+                    if(age<60 || age>650 || old.Y<HighestPunchY)continue;
                     float outTravel=current.X-old.X,depthTravel=current.Depth-old.Depth,vertical=Math.Abs(current.Y-old.Y);
                     forward|=depthTravel>=.32f*deliberate && current.Depth>.35f*deliberate && depthTravel>vertical*.8f &&
                         depthTravel>Math.Abs(outTravel)*.65f;
