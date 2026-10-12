@@ -362,12 +362,14 @@ namespace UltramanGame.Runtime
             float h=160*Mathf.Tan(27*Mathf.Deg2Rad*.5f);
             var texture=backdropMaterial.mainTexture;
             float aspect=texture?texture.width/(float)texture.height:16f/9f;
-            // The victory pan looks farther left than the combat lens. Grow
-            // the distant plate with that pan so its edge never enters view.
+            // The victory camera still pans toward the hero, but the mountain
+            // must keep one world scale as warning and victory shots change.
             float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
                 ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*(BeamReactionCloseup?1.95f:TransformationCloseup||MonsterEntranceCloseup?1.56f:Mathf.Lerp(1.5f,1.7f,victoryFraming));
-            scale*=Mathf.Lerp(1,1.32f,ThreatFocus);
+            // Full-round corner projection needs 1.764 at 16:9. The fixed
+            // 1.85 overscan leaves room for recoil/roll without pumping Fuji
+            // in and out. The model preview retains its original plate.
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*(Showcase?1.5f:1.85f);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
