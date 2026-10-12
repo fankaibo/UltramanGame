@@ -87,7 +87,7 @@ namespace UltramanGame.Runtime
             public void Hide(){Root.gameObject.SetActive(false);}
         }
         readonly Vector3 home,target,forward;
-        readonly LineRenderer charge,shock;
+        readonly LineRenderer charge;
         readonly LineRenderer rushRing;
         readonly LineRenderer[] rushFootprints=new LineRenderer[2];
         readonly LineRenderer[] rushWakes=new LineRenderer[3];
@@ -95,8 +95,6 @@ namespace UltramanGame.Runtime
         readonly ClawSweep[] claws=new ClawSweep[3];
         readonly Material glow;
         static readonly Color Amber=new Color(1,.40f,.10f),Ice=new Color(.25f,.86f,1);
-        float hitAge=10;
-        Color hitColor;
         bool blockedImpact,pendingImpact;
         Vector3 hitPosition,previousHand,sweepDirection;
         int attackNumber=-1,impactAttack=-1;
@@ -107,7 +105,6 @@ namespace UltramanGame.Runtime
             home=monsterHome;target=heroHome;forward=(target-home).normalized;
             glow=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("SoftGlow")) {color=Color.white});
             charge=Line(parent,"Monster charge",48,.035f,true);
-            shock=Line(parent,"Monster contact",48,.07f,true);
             // A ground-plane pressure ring gives the body rush a readable
             // volume cue on a 16:9 television. It expands with the same
             // EnemyAge as the feet and dust, so it cannot get out of sync or
@@ -138,13 +135,13 @@ namespace UltramanGame.Runtime
             }
         }
         public void Clear()
-        {hitAge=10;attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=shock.enabled=rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
+        {attackNumber=impactAttack=-1;pendingImpact=false;charge.enabled=rushRing.enabled=false;foreach(var footprint in rushFootprints)footprint.enabled=false;foreach(var wake in rushWakes)wake.enabled=false;foreach(var dust in rushDust)dust.Hide();foreach(var claw in claws)claw.Visible=false;}
         public void Impact(bool blocked,Vector3 position,int attack)
-        {hitAge=0;impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;hitColor=blocked?Ice:Amber;}
+        {impactAttack=attack;pendingImpact=attack<0;hitPosition=position;blockedImpact=blocked;}
         public void Tick(Battle state,Camera camera,float dt,Vector3? hand=null,Vector3? heroStance=null)
         {
             bool active=state.Phase==GamePhase.Battle;
-            if(!active){hitAge=10;impactAttack=-1;pendingImpact=false;}else hitAge+=dt;
+            if(!active){impactAttack=-1;pendingImpact=false;}
             // Older preview callers send the cue without Battle. Bind that cue
             // on its next sample rather than letting its contact follow the hand.
             if(active&&pendingImpact){impactAttack=state.EnemyAttackCount;pendingImpact=false;}
@@ -278,11 +275,8 @@ namespace UltramanGame.Runtime
                     claw.Draw(camera,tip,sweepDirection,i,growth,fade,tint);
                 }
             }
-            // Blue ripples now live on the shield surface at the claw contact.
-            // Keep this free-standing shock ring only for an unblocked hit.
-            shock.enabled=active&&hitAge<.38f&&!blockedImpact;
-            if(shock.enabled)
-            {Circle(shock,hitPosition,camera,Mathf.Lerp(.13f,1.05f,hitAge/.38f));ColorLine(shock,hitColor,(1-hitAge/.38f)*.85f);}
+            // CombatVfx owns the unblocked surface flash; shield ripples own
+            // blocked hits. Do not overlay another camera-facing target ring.
         }
     }
 }

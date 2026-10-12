@@ -208,9 +208,13 @@ namespace UltramanGame.Runtime
             if(cue==GameCue.Hurt)
             {
                 Vector3 impact=HeroAnchor+Vector3.up*2;
+                // A melee contact belongs on the costume's front, not inside
+                // the stance origin. Projectiles retain their collision point.
+                if(hero!=null&&state!=null&&!MonsterRayMotion.Variant(state.EnemyAttackCount)&&!MonsterRockMotion.Variant(state.EnemyAttackCount))
+                    impact=hero.BeamContact;
                 if(state!=null&&MonsterRayMotion.Variant(state.EnemyAttackCount))monsterRay.Impact(impact,false);
                 if(state!=null&&MonsterRockMotion.Variant(state.EnemyAttackCount))rock.Impact(impact);
-                effects.Impact(impact,false,false,true);
+                effects.Impact(impact,false,false,true,direction:-BattleAxis);
                 monsterEffects.Impact(false,impact,state?.EnemyAttackCount??-1);Kick(.055f);
             }
             if(cue==GameCue.HeroLanded)landingPending=true;

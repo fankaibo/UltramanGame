@@ -22,7 +22,7 @@ namespace UltramanGame.Runtime
         readonly Light muzzleLight,hitLight;
         readonly Material lineMaterial;
         readonly ImpactAtmosphere atmosphere;
-        readonly StrikeContactBurst strikeContact;
+        readonly StrikeContactBurst strikeContact,hurtContact;
         readonly GroundImpact groundImpact;
         readonly BeamImpactVolume beamImpact;
         public bool BeamImpactVisible=>beamImpact.Visible;
@@ -32,6 +32,7 @@ namespace UltramanGame.Runtime
         public float ChargePower=>beamCharge.Power;
         public Vector3 ChargeCenter=>beamCharge.Center;
         public int ActiveContactCount=>strikeContact.ActiveCount;
+        public int ActiveHurtContactCount=>hurtContact.ActiveCount;
         public int ActiveGroundStones=>groundImpact.ActiveStones;
         public int ActiveGroundDust=>groundImpact.ActiveClouds;
         public float GroundImpactAge=>groundImpact.LastAge;
@@ -62,6 +63,7 @@ namespace UltramanGame.Runtime
         {
             atmosphere=new ImpactAtmosphere(parent);
             strikeContact=new StrikeContactBurst(parent);
+            hurtContact=new StrikeContactBurst(parent,"Hero damage contact");
             groundImpact=new GroundImpact(parent);
             beamImpact=new BeamImpactVolume(parent);
             beamCharge=new BeamCharge(parent);
@@ -151,20 +153,21 @@ namespace UltramanGame.Runtime
             atmosphere.Hit(position,special,blocked,!volumetric,combo);
             Color color=blocked||special?Ice:hurt?Warm:new Color(1,.75f,.38f);
             bool punch=!special&&!blocked&&!hurt;
-            contactWaveAge=punch?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
+            bool localContact=punch||(hurt&&!special&&!blocked);
+            contactWaveAge=localContact?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
             contactWaveLife=special?.36f:blocked?.28f:combo?.25f:hurt?.23f:.20f;
             contactWaveSize=special?2.15f:blocked?1.22f:combo?1.08f:hurt?.92f:.82f;
-            Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special),punch?-direction:Vector3.zero);
-            if(punch)
+            Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special),localContact?-direction:Vector3.zero);
+            if(localContact)
             {
-                strikeContact.Hit(position,direction==Vector3.zero?Vector3.right:direction,combo);
+                (punch?strikeContact:hurtContact).Hit(position,direction==Vector3.zero?Vector3.right:direction,combo,punch?1:1.4f);
                 // One hot, irregular contact card owns the flash. Additional
                 // concentric billboards and equal-angle rays used to obscure
                 // the actual fist-to-surface contact like a target marker.
             }
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
-            if(!blocked&&!punch&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=punch?0:special?(volumetric?6:14):blocked?9:7;
+            if(!blocked&&!localContact&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
+            int rayCount=localContact?0:special?(volumetric?6:14):blocked?9:7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
@@ -189,12 +192,12 @@ namespace UltramanGame.Runtime
             // The spark is bright, but its reflected light must remain near the
             // fist. A four-unit punch light also lit the head, belly and knees,
             // flattening the skin into gold during every ordinary strike.
-            hitLight.range=punch?(combo?1.10f:.80f):4;
-            hitLightPower=punch?(combo?2.1f:1.65f):3;
-            hitLightDuration=punch?(combo?.18f:.16f):.22f;
+            hitLight.range=localContact?(combo?1.10f:.80f):4;
+            hitLightPower=localContact?(combo?2.1f:1.65f):3;
+            hitLightDuration=localContact?(combo?.18f:.16f):.22f;
             // Keep the reflected-light source just in front of the contact,
             // rather than buried in the chest where outward normals reject it.
-            hitLight.transform.position=position-(punch?direction.normalized*.22f:Vector3.zero);
+            hitLight.transform.position=position-(localContact?direction.normalized*.22f:Vector3.zero);
             hitLight.color=color;hitLightAge=0;
         }
         public void Combo(Vector3 position)
@@ -214,7 +217,7 @@ namespace UltramanGame.Runtime
         public void Clear()
         {
             atmosphere.Clear();
-            strikeContact.Clear();
+            strikeContact.Clear();hurtContact.Clear();
             groundImpact.Clear();
             beamImpact.Clear();
             beamCharge.Clear();
@@ -285,7 +288,7 @@ namespace UltramanGame.Runtime
             clock+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){Clear();return;}
             atmosphere.Tick(camera,dt);
-            strikeContact.Tick(camera,dt);
+            strikeContact.Tick(camera,dt);hurtContact.Tick(camera,dt);
             groundImpact.Tick(camera,dt);
             beamImpact.Tick(dt);
             ActiveSparkCount=0;

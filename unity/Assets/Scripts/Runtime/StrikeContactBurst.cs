@@ -8,19 +8,19 @@ namespace UltramanGame.Runtime
         sealed class Contact {public Transform Root;public Material Material;public Vector3 Direction;public float Age=10,Life,Size;}
         readonly Contact[] contacts=new Contact[6];int index;
         public int ActiveCount {get;private set;}
-        public StrikeContactBurst(Transform parent)
+        public StrikeContactBurst(Transform parent,string label="Directional punch contact")
         {
             for(int i=0;i<contacts.Length;i++)
             {
                 var mat=RuntimeResources.Own(parent,new Material(Resources.Load<Shader>("StrikeContact")));
-                var quad=GameWorld.Primitive("Directional punch contact",PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,mat);
+                var quad=GameWorld.Primitive(label,PrimitiveType.Quad,parent,Vector3.zero,Vector3.one,mat);
                 quad.GetComponent<Renderer>().shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
                 quad.gameObject.SetActive(false);contacts[i]=new Contact{Root=quad,Material=mat};
             }
         }
-        public void Hit(Vector3 position,Vector3 direction,bool combo)
+        public void Hit(Vector3 position,Vector3 direction,bool combo,float sizeScale=1)
         {
-            var c=contacts[index++%contacts.Length];c.Age=0;c.Life=combo?.29f:.23f;c.Size=combo?1.95f:1.50f;c.Direction=direction;
+            var c=contacts[index++%contacts.Length];c.Age=0;c.Life=combo?.29f:.23f;c.Size=(combo?1.95f:1.50f)*Mathf.Clamp(sizeScale,.5f,1.5f);c.Direction=direction;
             c.Root.position=position;c.Material.SetFloat("_Seed",index*.618f);c.Material.SetFloat("_Power",combo?1:.85f);
             c.Root.gameObject.SetActive(true);
         }
