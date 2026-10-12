@@ -13,7 +13,7 @@ namespace UltramanGame.Runtime
             bool victory=battle.Phase==GamePhase.Victory,ready=battle.Energy>=Battle.MaxEnergy;
             bool warning=battle.Enemy==EnemyPhase.Windup||battle.Enemy==EnemyPhase.Attack;
             var gold=HudPainter.Gold;var cyan=HudPainter.Cyan;
-            bool opening=battle.Phase==GamePhase.Battle&&battleStartCueAt>=0&&time-battleStartCueAt<2.8f;
+            float opening=BattleOpeningAlpha(time);
             bool cinematic=battle.Action==HeroAction.Beam;
             // Threat closeups bring the hero into the left margin. Give this
             // space back until the defence shot has fully returned.
@@ -265,7 +265,7 @@ namespace UltramanGame.Runtime
             }
         }
 
-        void DrawBattleHeader(bool ready,bool opening,bool cinematic)
+        void DrawBattleHeader(bool ready,float opening,bool cinematic)
         {
             // During the beam, retain only peripheral energy/health strips.
             // The reaction lens can bring either actor through the old portraits.
@@ -283,10 +283,12 @@ namespace UltramanGame.Runtime
                 hud.Text(new Rect(212,17,130,17),ready?"必杀已就绪":$"光线 {battle.Energy:0} / 15",10,ready?HudPainter.Gold:HudPainter.Muted,TextAnchor.MiddleRight);
                 hud.Text(new Rect(1032,13,166,23),"哥尔赞",14,HudPainter.Ink,TextAnchor.MiddleRight,true);
                 hud.Text(new Rect(932,17,92,17),$"{Mathf.CeilToInt(battle.EnemyHealth)} / {battle.MaxHealth}",10,HudPainter.Muted);
-                if(!opening)
+                float scoreAlpha=Time.unscaledTime-battleStartCueAt<.2f?0:1-opening;
+                if(scoreAlpha>.001f)
                 {
-                    hud.Text(new Rect(485,11,310,19),"火山大决战",11,HudPainter.Muted,TextAnchor.MiddleCenter);
-                    hud.Text(new Rect(485,31,310,24),$"{ArcadeScore():000000}",17,new Color(1,.82f,.42f),TextAnchor.MiddleCenter,true);
+                    var muted=HudPainter.Muted;muted.a*=scoreAlpha;
+                    hud.Text(new Rect(485,11,310,19),"火山大决战",11,muted,TextAnchor.MiddleCenter);
+                    hud.Text(new Rect(485,31,310,24),$"{ArcadeScore():000000}",17,new Color(1,.82f,.42f,scoreAlpha),TextAnchor.MiddleCenter,true);
                 }
             }
             for(int i=0;i<Battle.MaxEnergy;i++)
@@ -350,17 +352,24 @@ namespace UltramanGame.Runtime
             hud.Line(new Vector2(x+99,y+126),new Vector2(x+202,y+126),new Color(.24f,.72f,1,alpha*(.45f+.35f*pulse)),2);
         }
 
-        // A short cabinet-style cut-in makes the transition out of the
-        // transformation readable on a TV. It fades before the first enemy
-        // warning so the actors and the camera remain the focus of the round.
+        float BattleOpeningAlpha(float time)
+        {
+            if(battle.Phase!=GamePhase.Battle||battleStartCueAt<0)return 0;
+            float age=time-battleStartCueAt;if(age<0)return 0;
+            float fadeAt=battleStartDismissAt<0?1.25f:
+                Mathf.Min(1.25f,Mathf.Max(.35f,battleStartDismissAt-battleStartCueAt));
+            return Mathf.SmoothStep(.42f,1f,Mathf.Clamp01(age/.16f))*
+                (1-Mathf.SmoothStep(0,1,Mathf.Clamp01((age-fadeAt)/.22f)));
+        }
+        // One peripheral opening cue yields to the first accepted response.
+        // Do not place a second FIGHT overlay across the outgoing skill lane.
         void DrawBattleStartCue()
         {
             if(battle.Phase!=GamePhase.Battle)return;
             float age=Time.unscaledTime-battleStartCueAt;
-            if(battleStartCueAt<0||age<0||age>2.8f)return;
+            float alpha=BattleOpeningAlpha(Time.unscaledTime);
+            if(alpha<=.001f)return;
             float intro=Mathf.SmoothStep(.42f,1f,Mathf.Clamp01(age/.16f));
-            float outro=1-Mathf.SmoothStep(0,1,Mathf.Clamp01((age-1.80f)/1.0f));
-            float alpha=Mathf.Clamp01(intro*outro);
             float scale=Mathf.Lerp(.88f,1f,intro);
             // Keep the opening cue legible at TV distance without stealing the
             // upper third of the playfield.  The reference cabinet uses a
@@ -375,15 +384,6 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(x+14,y+4,126,16),SelectedHero.Name,11,new Color(.74f,.88f,1,alpha),TextAnchor.MiddleLeft,true);
             hud.Text(new Rect(x+width-140,y+4,126,16),"哥尔赞",11,new Color(1,.72f,.42f,alpha),TextAnchor.MiddleRight,true);
             hud.Text(new Rect(x+14,y+20,width-28,23),"VS · 开战！",18,new Color(1,.88f,.53f,alpha),TextAnchor.MiddleCenter,true);
-            float fightAge=Mathf.Clamp01((age-.42f)/.74f);
-            float fightFade=Mathf.Clamp01(Mathf.Min(fightAge*3f,(1-fightAge)*3f))*alpha;
-            if(fightFade>.001f)
-            {
-                float center=640,top=98;
-                hud.Line(new Vector2(center-150,top),new Vector2(center+150,top),new Color(.24f,.82f,1,fightFade*.24f),2);
-                hud.Line(new Vector2(center-128,top+48),new Vector2(center+128,top+48),new Color(1,.57f,.20f,fightFade*.18f),2);
-                hud.Text(new Rect(center-190,top+5,380,38),"FIGHT!",30,new Color(1,.91f,.62f,fightFade),TextAnchor.MiddleCenter,true);
-            }
         }
         void BattlePlate(Rect r,Color accent,bool right)
         {

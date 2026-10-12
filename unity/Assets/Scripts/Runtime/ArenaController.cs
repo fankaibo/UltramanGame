@@ -45,7 +45,7 @@ namespace UltramanGame.Runtime
         float gestureFeedbackUntil;
         bool lastGuardIntent,lastBeamIntent;
         long sequence;
-        float captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
+        float captionUntil,lastHealth=Battle.DefaultMonsterHits,enemyHealthDisplay=Battle.DefaultMonsterHits,impact,phaseStarted,battleStartCueAt=-1,battleStartDismissAt=-1,hintAt=12,hitUntil,beamHelpAt,damagePopAt;
         int presentedPunches,presentedHits,comboCount;
         float comboUntil;
         int lastDamage;
@@ -245,6 +245,15 @@ namespace UltramanGame.Runtime
             { lastTracking=input.Tracking;if(TraceEnabled)Debug.Log($"[Input] tracking={lastTracking} mode={(keyboard?"keyboard":pose?.source??"camera")} health={battle.EnemyHealth} energy={battle.Energy}"); }
             if(battle.Phase==GamePhase.Waiting&&Time.unscaledTime-selectionChangedAt<.5f)input.Transform=false;
             battle.Tick(world.BattleDelta(dt,battle),input);
+            // The first accepted response hands the screen over to gameplay.
+            // This only retires the visual opening badge; spoken guidance and
+            // the child's reaction allowance still own their existing clocks.
+            if(battle.Phase==GamePhase.Battle&&battleStartDismissAt<0&&
+                (battle.AttackSequence>0||battle.Shield||battle.Enemy!=EnemyPhase.Rest))
+            {
+                battleStartDismissAt=Time.unscaledTime;
+                if(TraceEnabled)Debug.Log($"[OpeningCue] yield age={battleStartDismissAt-battleStartCueAt:F3} attack={battle.AttackSequence} shield={battle.Shield}");
+            }
             if(battle.Punches>presentedPunches)
             {
                 comboCount=Time.unscaledTime<=comboUntil?comboCount+(battle.Punches-presentedPunches):battle.Punches-presentedPunches;
@@ -367,7 +376,7 @@ namespace UltramanGame.Runtime
             if(cue==GameCue.Punch&&HeroArsenal.Blade(SelectedHero.Id,battle)&&TraceEnabled)Debug.Log("[HeroWeapon] 梦比姆光剑");
             switch(cue)
             {
-                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;hintAt=Time.unscaledTime+12;break;
+                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;battleStartDismissAt=-1;hintAt=Time.unscaledTime+12;break;
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
                 case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
@@ -387,7 +396,7 @@ namespace UltramanGame.Runtime
             // Reset the envelope cursor so the first frames of the new round are
             // always eligible to re-arm the raised-hands transform gesture.
             stream=null;sequence=0;lastTracking=false;paused=settings=showcase=false;
-            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;battleStartCueAt=-1;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
+            lastHealth=enemyHealthDisplay=battle.MaxHealth;impact=0;captionUntil=0;battleStartCueAt=battleStartDismissAt=-1;hitUntil=0;damagePopAt=0;lastDamage=0;gestureFeedbackUntil=0;hintAt=Time.unscaledTime+12;beamHelpAt=Time.unscaledTime+6;sound.Reset();world.ResetPresentation();
             presentedPunches=presentedHits=comboCount=0;comboUntil=0;
             if(!keyboard)sound.Speak("arcade_ready",1,GamePhase.Waiting);
         }
