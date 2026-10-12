@@ -2017,6 +2017,14 @@ namespace UltramanGame.Runtime
             float sign=left?-1:1;
             float span=Vector3.Distance(upper.position,lower.position)+Vector3.Distance(lower.position,wrist.position);
             Vector3 compact=upper.position+forward*.28f-side*(sign*.10f)-Vector3.up*.15f;
+            if(heroId=="Tiga"&&state.IsRangedPunch&&left!=(state.Action==HeroAction.LeftPunch))
+            {
+                // Keep the unused fist ahead of its own shoulder. The former
+                // fixed 0.28-unit target folded the long Tiga arm to ~33 deg
+                // and put a raised fist against the neck. A half-reach guard
+                // reads as protection while the other arm fully extends.
+                compact=upper.position+forward*(span*.58f)+side*(sign*span*.06f)-Vector3.up*(span*.14f);
+            }
             // A relaxed martial stance reaches toward the opponent, with soft
             // elbows and a slightly lower rear hand. Scale to each actual rig.
             Vector3 open=upper.position+forward*(span*(left?.80f:.74f))

@@ -96,7 +96,10 @@ namespace UltramanGame.Editor
                 File.WriteAllText(folder+"/extension.csv",extension.ToString());File.WriteAllText(folder+"/trace.csv",csv.ToString());File.WriteAllText(folder+"/body.csv",body.ToString());
                 string pose=$"hipDrop={restHip-minHip:F4} supportReach={maxOtherReach:F4} supportAtRelease={maxSupportRelease:F4} headReach={minHeadDistance:F4} maxHandStep={maxStep:F4} ground={ground:F4}";
                 File.WriteAllText(folder+"/pose.txt",pose);Debug.Log("[RangedCastPose] "+id+"-"+hz+" "+pose);
-                if(version=="after"&&(restHip-minHip>.25f||maxSupportRelease>.55f||ground<-.05f||hz==60&&maxStep>.65f))throw new Exception("Invalid ranged body/support: "+pose);
+                // Tiga now protects ahead of the shoulder instead of folding
+                // the unused fist into the neck; it must still stay well short
+                // of the ~1.05-unit emitting arm and keep its planted body.
+                if(version=="after"&&(restHip-minHip>.25f||maxSupportRelease>(id=="Tiga"?.75f:.55f)||ground<-.05f||hz==60&&maxStep>.65f))throw new Exception("Invalid ranged body/support: "+pose);
                 if(version=="after"&&id=="Zero"&&hz==60&&minHeadDistance>.45f)throw new Exception("Missing head-slugger preparation");
                 string result=$"{id}-{hz} hits={hits} launches={world.Projectile.Launches} impacts={world.Projectile.Impacts} health={b.EnemyHealth} energy={b.Energy} flight={flight} return={back} launchVolume={launchLight} impactVolume={impactLight} pool=stable pause=pass";
                 File.WriteAllText(folder+"/validation.txt",result);Debug.Log("[RangedCast] "+result);
