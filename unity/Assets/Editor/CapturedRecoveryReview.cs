@@ -13,30 +13,41 @@ namespace UltramanGame.Editor
     {
         static string Folder=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_CAPTURED_REVIEW")??Path.Combine(Application.dataPath,"../../artifacts/mocap-recovery-20261010/runtime-ready"));
         public static void Preview()=>Run("Tiga",60,true);
+        public static void TigaRates(){foreach(int hz in new[]{15,30,60})Run("Tiga",hz,hz==60);}
         public static void After()
         {
             foreach(string hero in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})
                 foreach(int hz in new[]{15,30,60})Run(hero,hz,hero=="Tiga"&&hz==60);
+            foreach(int hz in new[]{15,30,60})Run("Tiga",hz,false,true);
+            KnockdownReview.CheckInterruptions(.05f);
             KnockdownReview.CheckInterruptions();
             KnockdownReview.CheckInterruptions(.2f);KnockdownReview.CheckInterruptions(.52f);
         }
-        static void Run(string id,int hz,bool movie)
+        static void Run(string id,int hz,bool movie,bool castEntry=false)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(1073);
             var world=new GameWorld();var b=new Battle();
             var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
             if(!hero.IsRigged)throw new Exception("Missing skeleton "+id);
-            float dt=1f/hz,time=0;int landings=0;
+            float dt=1f/hz,time=0;int landings=0;bool castSent=false,castInterrupted=false;
             void Step(PlayerInput input)
             {
+                bool wasPunch=b.IsPunch;
                 time+=dt;b.Tick(world.BattleDelta(dt,b),input);
+                if(wasPunch&&b.Action==HeroAction.Hurt)castInterrupted=true;
                 while(b.TryCue(out var cue)){world.Cue(cue,b);if(cue==GameCue.HeroLanded)landings++;}
                 hero.Update(b,world.Camera,dt,time);enemy.Update(b,world.Camera,dt,time);world.Tick(b,dt,time);
             }
             Step(new PlayerInput{Tracking=true,Transform=true});int waited=0;
-            while(b.Action!=HeroAction.Hurt&&waited++<hz*40)Step(new PlayerInput{Tracking=true});
+            while(b.Action!=HeroAction.Hurt&&waited++<hz*40)
+            {
+                bool cast=castEntry&&!castSent&&b.Enemy==EnemyPhase.Attack&&b.EnemyAge>=.24f;
+                Step(new PlayerInput{Tracking=true,LeftPunch=cast,RangedAttack=cast,AttackSpeed=.65f});
+                castSent|=cast;
+            }
+            if(castEntry&&!castInterrupted)throw new Exception("Test did not interrupt a cast");
             if(b.Action!=HeroAction.Hurt)throw new Exception("No hit setup");
-            string output=Folder+"/"+id+"-"+hz;Directory.CreateDirectory(output);if(movie)Directory.CreateDirectory(output+"/frames");
+            string output=Folder+"/"+id+(castEntry?"-cast":"")+"-"+hz;Directory.CreateDirectory(output);if(movie)Directory.CreateDirectory(output+"/frames");
             var rt=new RenderTexture(1280,720,24){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;
             var mesh=new Mesh();var skins=hero.Root.GetComponentsInChildren<SkinnedMeshRenderer>();
             var tracked=hero.Root.GetComponentsInChildren<Transform>().Where(t=>new[]{"hip","bip_pelvis","HandBase_L","HandBase_R","bip_hand_L","bip_hand_R","Foot_L","Foot_R","bip_foot_L","bip_foot_R"}.Contains(t.name)).ToArray();
@@ -74,7 +85,7 @@ namespace UltramanGame.Editor
                     if(movie&&frame%2==0)CharacterReview.Save(world.Camera,rt,$"{output}/frames/{frame/2:D4}.png");
                 }
                 bool recovered=b.Action==HeroAction.None;Step(new PlayerInput{Tracking=true,Shield=true});
-                string result=$"{id}-{hz} capturedSamples={captured} fallSamples={falls} minimumY={lowest:F6} maximumJointStep={maxStep:F6} repeatError={repeat:F6} hits={b.HitsTaken} landings={landings} recovered={recovered} shield={b.Shield} lowest=({lowestDetail})";
+                string result=$"{id}-{hz} capturedSamples={captured} fallSamples={falls} minimumY={lowest:F6} maximumJointStep={maxStep:F6} repeatError={repeat:F6} hits={b.HitsTaken} landings={landings} recovered={recovered} shield={b.Shield} castInterrupted={castInterrupted} lowest=({lowestDetail})";
                 File.WriteAllText(output+"/trace.csv",csv.ToString());File.WriteAllText(output+"/metrics.txt",result);Debug.Log("[CapturedRecoveryReview] "+result);
                 if(falls<5||captured<10||lowest<-.05f||repeat>.001f||landings!=1||b.HitsTaken!=1||b.Action!=HeroAction.None||!b.Shield||!saved.All(x=>x))throw new Exception("Captured recovery failed: "+result);
             }

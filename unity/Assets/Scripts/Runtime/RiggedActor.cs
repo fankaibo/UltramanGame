@@ -85,10 +85,10 @@ namespace UltramanGame.Runtime
         Quaternion kickExitLeftRotation,kickExitRightRotation;
         float guardExitAge=1;
         Vector3 guardExitLeft,guardExitRight;
-        readonly Quaternion[] kickHitRotations;
-        readonly Vector3[] kickHitPositions;
-        bool kickHitEntry;
-        Vector3 kickHitRoot;Quaternion kickHitFacing;float kickHitLeftFloor,kickHitRightFloor;
+        readonly Quaternion[] hurtEntryRotations;
+        readonly Vector3[] hurtEntryPositions;
+        bool hurtEntry;
+        Vector3 hurtEntryRoot;Quaternion hurtEntryFacing;float hurtEntryLeftFloor,hurtEntryRightFloor;
         readonly List<Material> materials=new List<Material>();
         readonly List<Material> eyeMaterials=new List<Material>();
         readonly List<Material> coreMaterials=new List<Material>();
@@ -411,7 +411,7 @@ namespace UltramanGame.Runtime
             attackRotations=new Quaternion[joints.Length];attackPositions=new Vector3[joints.Length];
             attackExitRotations=new Quaternion[joints.Length];attackExitPositions=new Vector3[joints.Length];
             defeatEntryRotations=new Quaternion[joints.Length];defeatEntryPositions=new Vector3[joints.Length];
-            kickHitRotations=new Quaternion[monster?0:joints.Length];kickHitPositions=new Vector3[monster?0:joints.Length];
+            hurtEntryRotations=new Quaternion[monster?0:joints.Length];hurtEntryPositions=new Vector3[monster?0:joints.Length];
             comboExitStart=new Quaternion[joints.Length];comboExitBase=new Quaternion[joints.Length];comboExitMask=new bool[joints.Length];
             if(!monster&&upperSpine)for(int i=0;i<joints.Length;i++)comboExitMask[i]=joints[i]==upperSpine||joints[i].IsChildOf(upperSpine);
             Root.position=home;Root.rotation=Quaternion.LookRotation(forward,Vector3.up);
@@ -690,6 +690,18 @@ namespace UltramanGame.Runtime
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)&&
                 (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
             {punchStart=StrikeOrigin(state.Action);counterReach=ReferenceEquals(observedBattle,state)&&(lastSampleShield||guardHandoff?.Active==true);}
+            if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle||state.Action!=HeroAction.Hurt)hurtEntry=false;
+            else if(kickWasActive||heroId=="Tiga"&&observedAction!=HeroAction.Hurt)
+            {
+                // Keep the visible Tiga pose at every hit entry, including
+                // ordinary ready/punch arms. Capture before guard layers are
+                // restored; their hidden base is not what the player saw.
+                // Other heroes retain the existing kick interruption path.
+                hurtEntry=true;hurtEntryRoot=Root.position;hurtEntryFacing=Root.rotation;
+                hurtEntryLeftFloor=Mathf.Min(leftFoot.position.y,home.y+leftFootClearance);
+                hurtEntryRightFloor=Mathf.Min(rightFoot.position.y,home.y+rightFootClearance);
+                for(int i=0;i<joints.Length;i++){hurtEntryPositions[i]=joints[i].localPosition;hurtEntryRotations[i]=joints[i].localRotation;}
+            }
             if(guardHandoff!=null)
             {
                 bool same=preview<0&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Battle;
@@ -708,16 +720,6 @@ namespace UltramanGame.Runtime
             if(!monster&&rangedRecovery&&state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&
                 (observedAction==HeroAction.LeftPunch||observedAction==HeroAction.RightPunch||rangedToGuard))
             {rangedExitLeft=leftHand.position;rangedExitRight=hand.position;}
-            if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle||state.Action!=HeroAction.Hurt)kickHitEntry=false;
-            else if(kickWasActive)
-            {
-                // Hurt must begin from the extended boot the child saw, not
-                // the idle leg hidden underneath the additive kick solve.
-                kickHitEntry=true;kickHitRoot=Root.position;kickHitFacing=Root.rotation;
-                kickHitLeftFloor=Mathf.Min(leftFoot.position.y,home.y+leftFootClearance);
-                kickHitRightFloor=Mathf.Min(rightFoot.position.y,home.y+rightFootClearance);
-                for(int i=0;i<joints.Length;i++){kickHitPositions[i]=joints[i].localPosition;kickHitRotations[i]=joints[i].localRotation;}
-            }
             if(kickWasActive&&!kick&&lastKickAge<.34f&&ReferenceEquals(observedBattle,state)&&state.Phase==GamePhase.Battle&&state.Action!=HeroAction.Hurt)
             {
                 kickExitAge=0;kickExitLeft=leftFoot.position;kickExitRight=rightFoot.position;kickExitRoot=Root.position;
@@ -1427,16 +1429,16 @@ namespace UltramanGame.Runtime
                 for(int i=1;i<joints.Length;i++)
                 {joints[i].localPosition=Vector3.Lerp(defeatEntryPositions[i],joints[i].localPosition,blend);joints[i].localRotation=Quaternion.Slerp(defeatEntryRotations[i],joints[i].localRotation,blend);}
             }
-            if(kickHitEntry&&state.ActionAge<.16f)
+            if(hurtEntry&&state.ActionAge<.16f)
             {
                 float blend=Mathf.SmoothStep(0,1,state.ActionAge/.16f);
-                Root.SetPositionAndRotation(Vector3.Lerp(kickHitRoot,Root.position,blend),Quaternion.Slerp(kickHitFacing,Root.rotation,blend));
+                Root.SetPositionAndRotation(Vector3.Lerp(hurtEntryRoot,Root.position,blend),Quaternion.Slerp(hurtEntryFacing,Root.rotation,blend));
                 for(int i=1;i<joints.Length;i++)
-                {joints[i].localPosition=Vector3.Lerp(kickHitPositions[i],joints[i].localPosition,blend);joints[i].localRotation=Quaternion.Slerp(kickHitRotations[i],joints[i].localRotation,blend);}
+                {joints[i].localPosition=Vector3.Lerp(hurtEntryPositions[i],joints[i].localPosition,blend);joints[i].localRotation=Quaternion.Slerp(hurtEntryRotations[i],joints[i].localRotation,blend);}
                 // Rotational interpolation can dip the planted boot through
                 // the floor. Lift the body only as far as its two soles need.
-                float lift=Mathf.Max(0,Mathf.Lerp(kickHitLeftFloor,home.y+leftFootClearance,blend)-leftFoot.position.y,
-                    Mathf.Lerp(kickHitRightFloor,home.y+rightFootClearance,blend)-rightFoot.position.y);
+                float lift=Mathf.Max(0,Mathf.Lerp(hurtEntryLeftFloor,home.y+leftFootClearance,blend)-leftFoot.position.y,
+                    Mathf.Lerp(hurtEntryRightFloor,home.y+rightFootClearance,blend)-rightFoot.position.y);
                 Root.position+=Vector3.up*lift;
             }
             if(guardHandoff!=null&&guardHandoff.Apply(dt))
