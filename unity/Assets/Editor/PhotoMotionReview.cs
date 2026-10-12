@@ -18,9 +18,9 @@ namespace UltramanGame.Editor
         static void Run(bool verify)
         {
             var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--photo-motion-output");
-            string folder=Path.GetFullPath(args[at+1]);Directory.CreateDirectory(folder);
+            string folder=Path.GetFullPath(args[at+1]);Directory.CreateDirectory(folder);File.Delete(Path.Combine(folder,"validation.txt"));
             var csv=new StringBuilder("case,frame,scale,crown,shoulder,heroScale,stepFraction,bottom\n");
-            foreach(string scenario in new[]{"overhead","matte-noise","head-gap","distance","pose-gap","double-noise","wide-pose"})
+            foreach(string scenario in new[]{"overhead","matte-noise","head-gap","distance","pose-gap","double-noise","wide-pose","touch-head","touch-distance"})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 using(var photo=new PhotoComposition(1280,720))
@@ -38,7 +38,7 @@ namespace UltramanGame.Editor
                             if(frame==0)reference=scale;
                             maxScaleDrift=Math.Max(maxScaleDrift,Math.Abs(scale/reference-1));
                             if(frame==31)wideRatio=scale/reference;
-                            if((scenario=="overhead"||scenario=="head-gap"||scenario=="pose-gap"))maxCrownError=Math.Max(maxCrownError,Math.Abs(crown-329));
+                            if((scenario=="overhead"||scenario=="head-gap"||scenario=="pose-gap"||scenario=="touch-head"))maxCrownError=Math.Max(maxCrownError,Math.Abs(crown-329));
                             var quad=(Transform)typeof(PhotoComposition).GetField("personQuad",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(photo);
                             float bottom=quad.localPosition.y-quad.localScale.y/2;maxFloorError=Math.Max(maxFloorError,Math.Abs(bottom+3.9f));
                             csv.AppendLine($"{scenario},{frame},{scale:R},{crown:R},{Value(photo,"lastShoulder"):R},{heroScale.x:R},{step:R},{bottom:R}");
@@ -52,12 +52,19 @@ namespace UltramanGame.Editor
                     Debug.Log($"[PhotoMotionReview] {scenario} maxStep={maxStep:R} crownError={maxCrownError:R} finalScaleRatio={previous/reference:R} floorError={maxFloorError:R} maxScaleDrift={maxScaleDrift:R} wideRatio={wideRatio:R}");
                     if(verify&&(scenario=="matte-noise"||scenario=="double-noise")&&maxScaleDrift>.001f)throw new Exception("Transient matte changed person size: "+scenario);
                     if(verify&&scenario=="wide-pose"&&wideRatio>.85f)throw new Exception("Sustained wide pose did not fit");
-                    if(verify&&scenario=="distance"&&(wideRatio<1.06f||Math.Abs(previous/reference-1)>.02f))throw new Exception("Distance compensation failed");
-                    if(verify&&(maxFloorError>.001f||maxStep>.02501f||((scenario=="overhead"||scenario=="head-gap"||scenario=="pose-gap")&&(maxCrownError>2||Math.Abs(previous/reference-1)>.001))))
+                    if(verify&&(scenario=="distance"||scenario=="touch-distance")&&(wideRatio<1.06f||Math.Abs(previous/reference-1)>.02f))throw new Exception("Distance compensation failed");
+                    if(verify&&(maxFloorError>.001f||maxStep>.02501f||((scenario=="overhead"||scenario=="head-gap"||scenario=="pose-gap"||scenario=="touch-head")&&(maxCrownError>2||Math.Abs(previous/reference-1)>.001))))
                         throw new Exception("Photo scale/crown stability failed: "+scenario);
+                    if(verify&&scenario=="touch-head"&&maxScaleDrift>.001f)throw new Exception("Head contact changed body size");
+                    if(verify)
+                    {
+                        photo.ResetFraming();
+                        if(Value(photo,"clearHeadRatio")!=0)throw new Exception("Retake retained old head dimensions");
+                    }
                 }
             }
             File.WriteAllText(Path.Combine(folder,"measurements.csv"),csv.ToString());
+            File.WriteAllText(Path.Combine(folder,"validation.txt"),verify?"PASS":"BASELINE");
             Debug.Log("[PhotoMotionReview] "+(verify?"PASS":"BASELINE"));
         }
         static Texture2D Input(string scenario,int frame,out PoseFrame pose)
@@ -74,17 +81,19 @@ namespace UltramanGame.Editor
             if(scenario!="matte-noise"&&scenario!="double-noise"&&scenario!="wide-pose"&&scenario!="distance"&&frame>=8&&frame<32)Rect(292,392,56,28,skin);
             // Alternating segmentation outliers widen the matte, not the body.
             if((scenario=="matte-noise"&&frame%2==1)||(scenario=="double-noise"&&frame%5>=3)||(scenario=="wide-pose"&&frame>=8&&frame<32))Rect(40,240,30,25,shirt);
+            if((scenario=="touch-head"||scenario=="touch-distance")&&frame>=8&&frame<32)Rect(292,310,56,110,skin);
             if(scenario=="head-gap"&&frame>=8&&frame<32)Rect(290,310,60,2,new Color32(0,0,0,0));
             var p=new PosePoint[33];for(int i=0;i<33;i++)p[i]=new PosePoint(.5f,.5f,0);
             p[0]=new PosePoint(.5f,1-290f/480);p[11]=new PosePoint(1-272f/640,1-250f/480);p[12]=new PosePoint(1-368f/640,1-250f/480);
+            if((scenario=="touch-head"||scenario=="touch-distance")&&frame>=8&&frame<32)p[15]=new PosePoint(.5f,1-370f/480);
             p[25]=new PosePoint(.45f,.72f);p[26]=new PosePoint(.55f,.72f);p[27]=new PosePoint(.45f,.94f);p[28]=new PosePoint(.55f,.94f);
-            if(scenario=="distance"&&frame>=8&&frame<32)
+            if((scenario=="distance"||scenario=="touch-distance")&&frame>=8&&frame<32)
             {
                 const float zoom=.85f;var moved=new Color32[pixels.Length];
                 for(int y=0;y<480;y++)for(int x=0;x<640;x++)
                 {int sx=Mathf.RoundToInt((x-320)/zoom+320),sy=Mathf.RoundToInt((y-240)/zoom+240);if(sx>=0&&sx<640&&sy>=0&&sy<480)moved[y*640+x]=pixels[sy*640+sx];}
                 pixels=moved;
-                foreach(int id in new[]{0,11,12,25,26,27,28})p[id]=new PosePoint(.5f+(p[id].x-.5f)*zoom,.5f+(p[id].y-.5f)*zoom);
+                foreach(int id in new[]{0,11,12,15,16,25,26,27,28})p[id]=new PosePoint(.5f+(p[id].x-.5f)*zoom,.5f+(p[id].y-.5f)*zoom,p[id].visibility);
             }
             pose=new PoseFrame{schema=1,source="synthetic",streamId="photo-motion",sequence=frame+1,capturedMs=10000+frame*125,tracked=true,points=p};
             var image=new Texture2D(640,480,TextureFormat.RGBA32,false);image.SetPixels32(pixels);image.Apply();return image;

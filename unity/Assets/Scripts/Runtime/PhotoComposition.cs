@@ -15,7 +15,7 @@ namespace UltramanGame.Runtime
         readonly Transform personQuad,backgroundQuad;
         readonly PhotoLighting lighting;
         public PhotoHero Hero {get;private set;}
-        float lastShoulder,lastCenter,lastCrown;
+        float lastShoulder,lastCenter,lastCrown,clearHeadRatio;
         bool bodyMeasured;
         bool? measuredFullBody;
         // Camera cutouts arrive asynchronously and their matte bounds can
@@ -96,8 +96,26 @@ namespace UltramanGame.Runtime
                 float nose=(1-p[0].y)*texture.height;
                 float span=Math.Abs(p[11].x-p[12].x)*texture.width;
                 crown=HeadTop(texture,bounds,center,nose,span);
+                // A hand touching hair is part of the same matte component.
+                // Reuse the last unobstructed nose-to-crown measurement while
+                // a wrist is beside the head. Normalize by shoulder span so a
+                // child moving nearer/farther still changes the source size.
+                bool handNearHead=false;
+                foreach(int id in new[]{15,16})
+                    if(PoseQuality.Reliable(p[id],.45f))
+                    {
+                        float wristX=(1-p[id].x)*texture.width,wristY=(1-p[id].y)*texture.height;
+                        handNearHead|=Mathf.Abs(wristX-center)<span*.65f&&wristY>nose-span*.15f;
+                    }
+                if(span>texture.width*.04f&&handNearHead&&clearHeadRatio>0)
+                {
+                    float expected=nose+clearHeadRatio*span;
+                    if(crown>expected+span*.06f)crown=expected;
+                }
                 if(crown-shoulder<texture.height*.06f||crown-shoulder>texture.height*.65f)
                     return false;
+                if(!handNearHead&&span>texture.width*.04f&&crown>nose)
+                    clearHeadRatio=clearHeadRatio>0?Mathf.Lerp(clearHeadRatio,(crown-nose)/span,.25f):(crown-nose)/span;
                 float blend=bodyMeasured?.3f:1;
                 lastShoulder=Mathf.Lerp(lastShoulder,shoulder,blend);lastCenter=Mathf.Lerp(lastCenter,center,blend);
                 lastCrown=Mathf.Lerp(lastCrown,crown,blend);bodyMeasured=true;
@@ -173,7 +191,7 @@ namespace UltramanGame.Runtime
             quad.localPosition=new Vector3(x+(bounds.center.x-anchorX)*scale,y+(bounds.center.y-anchorY)*scale,0);
         }
         public void ResetFraming()
-        {bodyMeasured=false;measuredFullBody=null;layoutMeasured=false;committedFullBody=null;stablePersonScale=stablePersonX=stableShoulderY=0;scaleTarget.Reset();}
+        {bodyMeasured=false;clearHeadRatio=0;measuredFullBody=null;layoutMeasured=false;committedFullBody=null;stablePersonScale=stablePersonX=stableShoulderY=0;scaleTarget.Reset();}
         public void HidePerson()
         {
             if(!personQuad.gameObject.activeSelf)return;
