@@ -21,14 +21,15 @@ static class RangedCameraChecks
             check(held>.95f&&sideStable,"ranged volley holds one composition across alternating casts "+hz);
             float focus=camera.Focus,travel=camera.Travel;camera.Tick(b,0);
             check(camera.Focus==focus&&camera.Travel==travel,"zero-time ranged camera sample is stable "+hz);
-            for(int f=0;f<hz*3;f++)Step(new PlayerInput{Tracking=true});
+            for(int f=0;f<hz*4;f++)Step(new PlayerInput{Tracking=true});
             check(camera.Focus==0&&b.Punches==5&&b.Energy==5,"volley returns after idle without awarding attacks "+hz);
             Step(new PlayerInput{Tracking=true,RightPunch=true,RangedAttack=true});
             for(int f=0;f<hz/2;f++)Step(new PlayerInput{Tracking=true});
             check(camera.Focus>0&&camera.Focus<.5f&&camera.Side==1,"isolated cast makes a restrained new approach "+hz);
-            Step(new PlayerInput{Tracking=true,Shield=true});float previous=camera.Focus;bool monotonic=true;
-            for(int f=0;f<hz;f++){Step(new PlayerInput{Tracking=true,Shield=true});monotonic&=camera.Focus<=previous;previous=camera.Focus;}
-            check(b.Shield&&camera.Focus<.001f&&monotonic,"shield takes input immediately and eases volley out "+hz);
+            Step(new PlayerInput{Tracking=true,Shield=true});
+            check(b.Shield&&camera.Focus>0,"quiet guard owns defense without cutting the current shot "+hz);
+            for(int f=0;f<hz*3;f++)Step(new PlayerInput{Tracking=true,Shield=true});
+            check(b.Shield&&camera.Focus<.001f,"sustained guard returns to wide view after volley expires "+hz);
             Step(new PlayerInput{Tracking=true,LeftPunch=true,RangedAttack=true});
             for(int f=0;f<hz/4;f++)Step(new PlayerInput{Tracking=true});
             camera.Clear();camera.Tick(b,dt);
@@ -54,9 +55,28 @@ static class RangedCameraChecks
                 check(camera.Focus==0,"child-paced volley returns after stop "+cadence+"/"+hz);
             }
 
-            foreach(string mode in new[]{"pause","tracking","showcase","beam","melee","warning","hurt"})
+            // A face-level ready stance can legitimately own Shield between
+            // casts. It must not discard the whole volley on every retraction.
+            foreach(float cadence in new[]{.8f,1.2f,1.6f})
             {
-                b=Start(mode!="warning"&&mode!="hurt");camera=new RangedCameraMotion();
+                b=Start();camera=new RangedCameraMotion();float minimum=1;int guarded=0;
+                int spacing=(int)Math.Round(cadence*hz);
+                for(int f=0;f<spacing*5;f++)
+                {
+                    bool fire=f%spacing==0;int n=f/spacing;
+                    Step(new PlayerInput{Tracking=true,Shield=!fire,RangedAttack=fire,LeftPunch=fire&&n%2==0,RightPunch=fire&&n%2==1,AttackSpeed=n%2==0?.65f:1.7f});
+                    if(b.Shield)guarded++;
+                    if(f>=spacing+hz)minimum=Math.Min(minimum,camera.Focus);
+                }
+                check(guarded>hz/2&&minimum>.95f&&camera.Side==-1,"high ready guard keeps volley composition "+cadence+"/"+hz+" min="+minimum+" casts="+camera.Casts+" guarded="+guarded);
+                check(b.Punches==5&&b.Energy==5,"high ready guard lens preserves five impacts "+cadence+"/"+hz);
+                for(int f=0;f<hz*4;f++)Step(new PlayerInput{Tracking=true,Shield=true});
+                check(b.Shield&&camera.Focus==0&&camera.Casts==0,"sustained guard expires volley without extra casts "+cadence+"/"+hz);
+            }
+
+            foreach(string mode in new[]{"pause","tracking","showcase","beam","melee","warning","guard-warning","hurt"})
+            {
+                b=Start(mode!="warning"&&mode!="guard-warning"&&mode!="hurt");camera=new RangedCameraMotion();
                 if(mode=="beam")for(int n=0;n<15;n++){b.Tick(dt,new PlayerInput{Tracking=true,LeftPunch=true});for(int f=0;f<hz;f++)b.Tick(dt,new PlayerInput{Tracking=true});b.GiveInstructionTime(20);}
                 for(int f=0;f<hz*2;f++)Step(new PlayerInput{Tracking=true,RangedAttack=true,LeftPunch=f==0,RightPunch=f==hz});
                 check(camera.Focus>.9f,"exclusive camera scenario starts in volley "+mode+"/"+hz);
@@ -64,8 +84,8 @@ static class RangedCameraChecks
                 bool exercised=mode=="pause"||mode=="showcase",beam=false,hurt=false;int eventFrame=-1;
                 for(int f=0;f<hz*12;f++)
                 {
-                    var input=new PlayerInput{Tracking=mode!="tracking",Beam=mode=="beam"&&f==0,LeftPunch=mode=="melee"&&f==0};
-                    if((mode=="warning"||mode=="hurt")&&b.Enemy==EnemyPhase.Rest){input.RangedAttack=true;input.RightPunch=f%Math.Max(1,hz/2)==0;}
+                    var input=new PlayerInput{Tracking=mode!="tracking",Beam=mode=="beam"&&f==0,LeftPunch=mode=="melee"&&f==0,Shield=mode=="guard-warning"};
+                    if((mode=="warning"||mode=="guard-warning"||mode=="hurt")&&b.Enemy==EnemyPhase.Rest){input.RangedAttack=true;input.RightPunch=f%Math.Max(1,hz/2)==0;if(input.RightPunch)input.Shield=false;}
                     b.Tick(dt,input);camera.Tick(b,dt,mode=="showcase");
                     beam|=b.Action==HeroAction.Beam;hurt|=b.Action==HeroAction.Hurt;
                     exercised|=b.Phase==GamePhase.Paused||b.IsPunch&&!b.IsRangedPunch||beam||b.Enemy==EnemyPhase.Windup||hurt;

@@ -7,8 +7,11 @@ namespace UltramanGame.Core
     public sealed class RangedCameraMotion
     {
         // Allow a young player time to retract and prepare the opposite hand.
-        // Warnings, shields and exclusive shots still bypass this hold.
-        const float BetweenCasts=1.45f;
+        // Warnings and exclusive shots still bypass this hold. A quiet
+        // ready guard between casts does not restart the camera on every fist.
+        // Guard may end a cast recovery early; leave time for the same
+        // 1.6-second child cadence even when that recovery is shortened.
+        const float BetweenCasts=1.70f;
         public float Focus=>Smooth(weight);
         public float Travel=>Smooth(age/2.4f);
         public int Side {get;private set;}
@@ -25,7 +28,7 @@ namespace UltramanGame.Core
             if(suppressed||state.Phase!=GamePhase.Battle||state.Action==HeroAction.Beam||state.Action==HeroAction.Hurt)
             {Clear();return;}
             dt=Math.Max(0,dt);
-            bool available=!state.Shield&&(state.Enemy==EnemyPhase.Rest||state.Enemy==EnemyPhase.Recover)&&(!state.IsPunch||state.IsRangedPunch);
+            bool available=(state.Enemy==EnemyPhase.Rest||state.Enemy==EnemyPhase.Recover)&&(!state.IsPunch||state.IsRangedPunch);
             if(state.IsPunch&&state.AttackSequence!=sequence)
             {
                 sequence=state.AttackSequence;

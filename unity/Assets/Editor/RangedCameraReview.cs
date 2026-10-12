@@ -18,6 +18,7 @@ namespace UltramanGame.Editor
         {
             get {var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--cast-cadence");return at>=0?float.Parse(args[at+1],System.Globalization.CultureInfo.InvariantCulture):.8f;}
         }
+        static bool GuardBetweenCasts=>Array.IndexOf(Environment.GetCommandLineArgs(),"--guard-between-casts")>=0;
         public static void Before()=>Run(false);
         public static void After()=>Run(true);
         public static void Framing()=>Run(true,false);
@@ -52,7 +53,7 @@ namespace UltramanGame.Editor
                     if(mode=="warning"&&eventFrame<0&&b.Enemy==EnemyPhase.Windup)eventFrame=f;
                     maximumSpeed=Mathf.Max(maximumSpeed,Vector3.Distance(old,world.Camera.transform.position)/dt);edge=Mathf.Max(edge,Coverage(world.Camera));
                     if((mode=="pause"||mode=="showcase"||mode=="reset"||mode=="new-round"||mode=="beam")&&Focus(world)!=0)throw new Exception("Exclusive lens retained volley: "+mode);
-                    if(eventFrame>=0&&f-eventFrame>=hz*2)break;
+                    if(eventFrame>=0&&f-eventFrame>=hz*(mode=="guard"?3:2))break;
                 }
                 string line=$"{hz}Hz {mode} focus={Focus(world):F5} returnSpeed={maximumSpeed:F3} backdrop={edge:F3} beam={beam}";report.AppendLine(line);
                 // The untouched 37-degree waiting lens reaches .491 in the
@@ -94,6 +95,7 @@ namespace UltramanGame.Editor
                     {
                         var input=new PlayerInput{Tracking=true};for(int n=0;n<5;n++)if(frame==Mathf.RoundToInt((.6f+n*Cadence)*hz))
                         {input.RangedAttack=true;input.LeftPunch=n%2==0;input.RightPunch=n%2==1;input.AttackSpeed=n==0?.65f:n==4?1.7f:1;}
+                        if(GuardBetweenCasts)input.Shield=!input.LeftPunch&&!input.RightPunch;
                         var old=world.Camera.transform.position;Step(input);
                         maxSpeed=Mathf.Max(maxSpeed,Vector3.Distance(old,world.Camera.transform.position)/dt);
                         float focus=Focus(world);magnification=Mathf.Max(magnification,Size()/size);edge=Mathf.Max(edge,Coverage(world.Camera));

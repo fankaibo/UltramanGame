@@ -481,12 +481,13 @@ def main():
                 tempo_evidence=dict(accepted=len(attacks),launches=len(launches),speed_min=min(speeds),speed_max=max(speeds),
                     slow_median=slow,fast_median=fast,
                     hands=sorted({row[2] for row in attacks}),impacts=len(impacts),shots=sorted(proof_shots&{'light-bullet-left','light-bullet-right','ranged-launch-volume','ranged-impact-volume','zero-sluggers-out','zero-sluggers-return'}))
-                if options.volley_camera:
-                    required={'ranged-volley-peak','ranged-volley-yield','ranged-volley-return'}
+                if options.volley_camera or options.high_hands:
+                    required={'ranged-volley-peak','ranged-volley-yield'}
+                    if options.volley_camera:required.add('ranged-volley-return')
                     if not required.issubset(proof_shots):raise RuntimeError(f'Missing actual volley camera proof: {required-proof_shots}')
                     peaks=re.findall(r'\[RangedCameraProof\] ranged-volley-peak focus=([\d.]+)',output)
                     if not peaks or max(map(float,peaks))<.97:raise RuntimeError('Actual player did not reach the volley lens')
-                    tempo_evidence['volley_camera']=dict(shots=sorted(required),focus_max=max(map(float,peaks)),input_cadence_seconds=options.volley_cadence)
+                    tempo_evidence['volley_camera']=dict(shots=sorted(required),focus_max=max(map(float,peaks)),input_cadence_seconds=options.volley_cadence if options.volley_camera else None,high_hands=options.high_hands)
                 if options.ranged_reaction:
                     required={'ranged-step-lift','ranged-step-land','ranged-step-return'}
                     if not required.issubset(proof_shots):raise RuntimeError(f'Missing actual ranged reaction proof: {required-proof_shots}')
