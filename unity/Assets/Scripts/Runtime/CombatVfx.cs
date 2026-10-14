@@ -166,7 +166,10 @@ namespace UltramanGame.Runtime
             }
             else FlashAt(position,special?2.4f:1.25f,special?.3f:.20f,color);
             if(!blocked&&!localContact&&!volumetric)FlashAt(position,special?2.7f:1.7f,.38f,color,true);
-            int rayCount=localContact||blocked?0:special?(volumetric?6:14):7;
+            // A compact outward fan gives a normal punch the same readable
+            // contact-to-release cadence as the finisher without adding a
+            // second damage source or a persistent target marker.
+            int rayCount=localContact?(combo?8:6):blocked?0:special?(volumetric?6:14):7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
@@ -181,8 +184,8 @@ namespace UltramanGame.Runtime
                 // ordinary hit and the finisher.
                 var tint=blocked?Ice:hurt?Warm:(special?new Color(.38f,.78f,1):new Color(1,.72f,.28f));
                 ray.Color=Color.Lerp(tint,Color.white,.38f);
-                ray.Age=0;ray.Life=punch?(combo?.20f:.15f):special?.34f:blocked?.27f:.22f;
-                ray.Width=punch?(combo?.075f:.055f):special?.12f:blocked?.085f:.075f;
+                ray.Age=0;ray.Life=punch?(combo?.24f:.18f):special?.34f:blocked?.27f:.22f;
+                ray.Width=punch?(combo?.090f:.070f):special?.12f:blocked?.085f:.075f;
                 ray.Line.SetPosition(0,position);ray.Line.SetPosition(1,position);ray.Line.enabled=true;
             }
             // Ordinary punches also need a small contact-to-ground cue on a TV;

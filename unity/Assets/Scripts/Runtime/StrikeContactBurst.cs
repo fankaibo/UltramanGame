@@ -20,8 +20,12 @@ namespace UltramanGame.Runtime
         }
         public void Hit(Vector3 position,Vector3 direction,bool combo,float sizeScale=1)
         {
-            var c=contacts[index++%contacts.Length];c.Age=0;c.Life=combo?.29f:.23f;c.Size=(combo?1.95f:1.50f)*Mathf.Clamp(sizeScale,.5f,1.5f);c.Direction=direction;
-            c.Root.position=position;c.Material.SetFloat("_Seed",index*.618f);c.Material.SetFloat("_Power",combo?1:.85f);
+            var c=contacts[index++%contacts.Length];c.Age=0;c.Life=combo?.31f:.25f;
+            // Let the contact own a readable arcade beat. The old 1.50-unit
+            // ordinary card collapsed to a thin white slash in the wide
+            // three-quarter shot, even though the damage event was correct.
+            c.Size=(combo?2.20f:1.86f)*Mathf.Clamp(sizeScale,.5f,1.5f);c.Direction=direction;
+            c.Root.position=position;c.Material.SetFloat("_Seed",index*.618f);c.Material.SetFloat("_Power",combo?1.15f:1.02f);
             c.Root.gameObject.SetActive(true);
         }
         public void Tick(Camera camera,float dt)
@@ -33,7 +37,7 @@ namespace UltramanGame.Runtime
                 float age=c.Age/c.Life;
                 float angle=Mathf.Atan2(Vector3.Dot(c.Direction,camera.transform.up),Vector3.Dot(c.Direction,camera.transform.right))*Mathf.Rad2Deg;
                 c.Root.rotation=camera.transform.rotation*Quaternion.Euler(0,0,angle);
-                c.Root.localScale=Vector3.one*c.Size*(.55f+.60f*Mathf.Sqrt(age));
+                c.Root.localScale=Vector3.one*c.Size*(.62f+.82f*Mathf.Sqrt(age));
                 c.Material.SetFloat("_Age",age);ActiveCount++;
             }
         }
