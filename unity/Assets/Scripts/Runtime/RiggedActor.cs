@@ -2599,7 +2599,12 @@ namespace UltramanGame.Runtime
                 :Bezier(follow,ClawPoint(left,-.18f,2.20f,.52f),ClawPoint(left,.55f,2.25f,.42f),ClawPoint(left,.60f,2.40f,.63f),(age-.62f)/.37f);
             float settle=1-Mathf.SmoothStep(0,1,(age-.82f)/.23f);
             AimClaw(left,target,.90f*settle);
-            AimClaw(!left,ClawPoint(!left,.55f,2.20f,.62f),.82f*settle,true);
+            // Keep the support claw on the chest lane instead of letting the
+            // imported elbow curve lift it beside the jaw.  On the 45-degree
+            // shot that old target made the two hands overlap near the face,
+            // so the swipe read like a folded pose rather than a clear lead /
+            // support relationship.
+            AimClaw(!left,ClawPoint(!left,.55f,2.02f,.48f),.82f*settle,true);
         }
         static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 elbowTarget,Vector3 wristTarget,float blend)
         {
