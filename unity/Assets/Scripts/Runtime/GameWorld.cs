@@ -559,11 +559,17 @@ namespace UltramanGame.Runtime
                 // window or sweeping the camera through the arena.
                 float closeupT=Mathf.Clamp01(Closeup.Age/BeamCloseup.Duration);
                 float orbit=Mathf.Sin(closeupT*Mathf.PI)*5.5f;
-                Vector3 offset=Quaternion.AngleAxis(orbit,Vector3.up)*new Vector3(3.8f,2.82f,.9f);
+                // Build the offset from the fight axis rather than world X/Z.
+                // The old world-space offset could put the camera beside the
+                // hero on a diagonal arena and leave the peak frame looking at
+                // empty Fuji sky after the enemy was hidden for the cut-in.
+                var closeSide=Vector3.Cross(Vector3.up,BattleAxis).normalized;
+                Vector3 offset=Quaternion.AngleAxis(orbit,Vector3.up)*
+                    (BattleAxis*4.15f+closeSide*1.35f+Vector3.up*1.82f);
                 offset.y+=Mathf.Sin(closeupT*Mathf.PI)*.10f;
                 Camera.transform.position=HeroAnchor+offset;
-                Camera.transform.LookAt(HeroAnchor+BattleAxis*.26f+Vector3.up*(2.93f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
-                Camera.fieldOfView=32;
+                Camera.transform.LookAt(HeroAnchor+BattleAxis*.30f+Vector3.up*(1.98f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
+                Camera.fieldOfView=35;
                 // Reproject the distant landscape for this dedicated lens.
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
@@ -634,7 +640,7 @@ namespace UltramanGame.Runtime
                     previousCameraPosition=Camera.transform.position;
                     hasCameraPosition=true;
                 }
-                else
+                else if(!HeroShot)
                     Camera.transform.position=Vector3.MoveTowards(previousCameraPosition,Camera.transform.position,MaxCameraSpeed*dt);
                 previousCameraPosition=Camera.transform.position;
             }
