@@ -56,6 +56,11 @@ namespace UltramanGame.Core
         public const float EnemyHitSeconds=.4f, EnemyAttackSeconds=1.05f;
         public float EnemyContactSeconds=>MonsterRockMotion.Variant(EnemyAttackCount)?MonsterRockMotion.Contact:EnemyHitSeconds;
         public const float PunchSeconds=.38f, PunchHitSeconds=.12f;
+        // Accept the next deliberate fist while the current one is visibly
+        // retracting. This is a presentation handoff only: damage still lands
+        // at PunchHitSeconds and the next action still starts after the
+        // current attack completes.
+        public const float PunchQueueLeadSeconds=.24f;
         public const float BeamSeconds=1.5f, BeamHitSeconds=.45f;
         readonly Queue<GameCue> cues=new Queue<GameCue>();
         GamePhase resumePhase;
@@ -173,7 +178,7 @@ namespace UltramanGame.Core
             queuedAge-=dt;
             if(queuedAge<=0 || poseOwnsInput || queuedBeamAge>0) queuedPunch=HeroAction.None;
             if((Action==HeroAction.LeftPunch || Action==HeroAction.RightPunch) &&
-                (IsRangedPunch?ActionAge>=AttackTempo.RangedLaunchSeconds:ActionAge>=AttackDuration-.18f) && !poseOwnsInput && !input.Beam && (input.LeftPunch || input.RightPunch))
+                (IsRangedPunch?ActionAge>=AttackTempo.RangedLaunchSeconds:ActionAge>=AttackDuration-PunchQueueLeadSeconds) && !poseOwnsInput && !input.Beam && (input.LeftPunch || input.RightPunch))
             { queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=Math.Max(.20f/AttackSpeed,(AttackDuration-ActionAge)/AttackSpeed+.12f);queuedSpeed=input.AttackSpeed;queuedRanged=input.RangedAttack; }
             if(Shot.Flying&&Action==HeroAction.None&&!poseOwnsInput&&(input.LeftPunch||input.RightPunch))
             {queuedPunch=input.LeftPunch?HeroAction.LeftPunch:HeroAction.RightPunch;queuedAge=.5f;queuedSpeed=input.AttackSpeed;queuedRanged=input.RangedAttack;}

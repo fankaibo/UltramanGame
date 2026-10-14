@@ -52,6 +52,19 @@ static class PunchLinkChecks
             check(link.Weight==0&&link.Side==HeroAction.None,"guard, pause, new round or preview cancels anticipation: "+interruption);
         }
         {
+            // The player may begin the next fist during the visible retraction
+            // instead of waiting for the hand to return fully to idle. The
+            // queue must be observable early, while contact and damage remain
+            // owned by the original action clock.
+            var state=Started();
+            state.Tick(1/60f,new PlayerInput{Tracking=true,LeftPunch=true});
+            for(int frame=0;frame<9;frame++)state.Tick(1/60f,new PlayerInput{Tracking=true});
+            var health=state.EnemyHealth;
+            state.Tick(1/60f,new PlayerInput{Tracking=true,RightPunch=true});
+            check(state.BufferedPunch==HeroAction.RightPunch,"retraction accepts an early opposite-fist handoff");
+            check(state.EnemyHealth==health,"early handoff does not move the original contact or damage clock");
+        }
+        {
             var state=Started();var link=new HeroPunchLink();bool prepared=false;
             for(int frame=0;frame<60;frame++)
             {state.Tick(1/60f,new PlayerInput{Tracking=true,LeftPunch=frame==0});link.Tick(state,1/60f);prepared|=link.Weight>0;}
