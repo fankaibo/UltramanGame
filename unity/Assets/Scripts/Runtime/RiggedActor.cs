@@ -532,7 +532,15 @@ namespace UltramanGame.Runtime
                 mat.color=color;mat.SetFloat("_Metallic",.1f);mat.EnableKeyword("_EMISSION");mat.SetColor("_EmissionColor",color*1.5f);
                 if(tigaLens){mat.SetFloat("_Metallic",0);mat.SetFloat("_Glossiness",.65f);}
             }
-            var rosterTexture=Resources.Load<Texture2D>("Characters/"+character+"/Textures/"+name);
+            // The supplied Geed mesh is a Dandit Truth variant.  Until a
+            // correctly licensed Acro Smasher mesh arrives, use the derived
+            // blue/silver palette for the whole in-game actor.  The mesh,
+            // rig and authored motions remain unchanged and the source
+            // limitation is recorded in the resource attribution file.
+            var textureName=name;
+            if(character=="Geed"&&name.IndexOf("dandittruth",StringComparison.OrdinalIgnoreCase)>=0)
+                textureName="Geed_AcroSmasherPalette";
+            var rosterTexture=Resources.Load<Texture2D>("Characters/"+character+"/Textures/"+textureName);
             if(rosterTexture)
             {
                 mat.mainTexture=rosterTexture;mat.color=Color.white;mat.SetFloat("_Metallic",heroSurface?.06f:.2f);mat.SetFloat("_Glossiness",heroSurface?.30f:.42f);

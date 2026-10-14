@@ -16,6 +16,14 @@ Updated 2026-09-27:
 - Removed DragonFF EdgeSplit before subdivision to prevent disconnected patches shrinking into visible cracks.
 - Subdivision now precedes skinning; original UVs, texture and eight combat clips are retained.
 - Regenerated the photo portrait from the repaired connected mesh.
+Updated 2026-10-15:
+- Added `Geed_AcroSmasherPalette.png` and `Photo_AcroSmasherPalette.png`, a
+  deterministic blue/silver presentation palette derived from the supplied
+  Dandit Truth texture and portrait. This is a reversible visual bridge for
+  the requested Acro Smasher direction; it does not change the mesh silhouette,
+  helmet, rig or animation and must not be described as the real Acro Smasher
+  model. Replace these derived files when a correctly licensed Acro Smasher
+  FBX/GLB/PMX is obtained.
 Rebuild: scripts/prepare_roster.py; GTA extraction: scripts/extract_gta_skin.py
 SourceIO: https://github.com/REDxEYE/SourceIO
 DragonFF: https://github.com/Parik27/DragonFF

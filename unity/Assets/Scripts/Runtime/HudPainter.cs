@@ -67,7 +67,8 @@ namespace UltramanGame.Runtime
         }
         public void HeroPortrait(Rect r,string hero)
         {
-            var image=Resources.Load<Texture2D>("Characters/"+hero+"/Photo");
+            var portraitName=hero=="Geed"?"Photo_AcroSmasherPalette":"Photo";
+            var image=Resources.Load<Texture2D>("Characters/"+hero+"/"+portraitName);
             if(!image){Portrait(r,false);return;}
             Image(r,image,ScaleMode.ScaleToFit);
         }

@@ -49,7 +49,8 @@ namespace UltramanGame.Runtime
             {
                 var r=new Rect(x+i*(w+gap),y,w,85);bool selected=i==heroIndex,available=HeroAvailable(i);
                 hud.Panel(r,selected?HudPainter.Gold:HudPainter.Cyan,selected);
-                var portrait=Resources.Load<Texture2D>("Characters/"+HeroRoster.At(i).Id+"/Photo");
+                var portraitName=HeroRoster.At(i).Id=="Geed"?"Photo_AcroSmasherPalette":"Photo";
+                var portrait=Resources.Load<Texture2D>("Characters/"+HeroRoster.At(i).Id+"/"+portraitName);
                 if(portrait)hud.Image(new Rect(r.x+4,r.y+3,43,58),portrait,ScaleMode.ScaleToFit);
                 else if(i==0)hud.Portrait(new Rect(r.x+4,r.y+3,43,58),false);
                 hud.Text(new Rect(r.x+42,r.y+7,76,27),HeroRoster.At(i).Name,15,available?HudPainter.Ink:HudPainter.Muted,TextAnchor.MiddleCenter,true);
