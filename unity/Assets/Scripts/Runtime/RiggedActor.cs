@@ -985,9 +985,13 @@ namespace UltramanGame.Runtime
                     // old shallow pitch held the shoulders upright throughout
                     // landing, reading as a sitting pose. Roll onto a support
                     // arm before bringing the chest over the planted foot.
-                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-70f*p:
-                        Mathf.Lerp(-70,14,RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds,KnockdownMotion.RiseSeconds+.34f))*(1-RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds+.34f,KnockdownMotion.Duration));
-                    fallSide=24f*p;
+                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-58f*p:
+                        Mathf.Lerp(-58,14,RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds,KnockdownMotion.RiseSeconds+.34f))*(1-RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds+.34f,KnockdownMotion.Duration));
+                    // Roll onto one shoulder instead of pitching straight
+                    // backward. A wider roll makes the impact read from the
+                    // 45-degree camera while leaving one arm available to
+                    // catch the body.
+                    fallSide=38f*p;
                 }
                 else if(state.Shield) {next="Guard";sample=playing==next?clipAge+dt:0;Frame=3;}
             }
@@ -2415,13 +2419,22 @@ namespace UltramanGame.Runtime
             {knockdownRotations[9]=upperArm.localRotation;knockdownRotations[10]=forearm.localRotation;knockdownRotations[11]=hand.localRotation;}
             var side=Vector3.Cross(Vector3.up,forward);
             var facing=Quaternion.LookRotation(forward);
-            Vector3 seated=home-forward*.52f+side*.30f+Vector3.up*.52f;
+            // Impact pose: hips drop and move away from the monster, rather
+            // than rising into the old seated target. The lateral offset is
+            // intentional: it exposes the shoulder/hand brace in the wide
+            // shot and gives the fall a clear direction.
+            Vector3 seated=home-forward*.20f+side*.34f+Vector3.up*.10f;
             Vector3 upright=home+facing*pelvisLocal;
             Vector3 crouch=upright+side*.10f-forward*.08f;crouch.y=home.y+pelvisLocal.y*.54f;
             Vector3 hips=Vector3.Lerp(seated,crouch,RiseStep(age,.78f,1.12f));
             hips=Vector3.Lerp(hips,upright,RiseStep(age,1.12f,1.62f));
             float landed=age<KnockdownMotion.LandingSeconds?weight:1;
             Root.position+=Vector3.Lerp(pelvis.position,hips,landed)-pelvis.position;
+            // Roll the impact toward the bracing shoulder so the lowest
+            // silhouette reads as a side fall, rather than a character
+            // sitting upright on the floor.
+            Root.rotation=Quaternion.Slerp(knockdownFacing,
+                Quaternion.AngleAxis(-24f,forward)*knockdownFacing,landed);
             // Add a short shoulder/neck counter-rotation after impact. The
             // authored Hurt clip keeps the chest nearly square, which makes
             // the diagonal fall read like a seated pose on a wide TV shot.
@@ -2445,16 +2458,20 @@ namespace UltramanGame.Runtime
                     *Quaternion.AngleAxis(-3f*RiseStep(age,.10f,.42f)*weight,Vector3.up)
                     *head.rotation;
             }
-            Vector3 feet=seated+forward*1.02f;
+            Vector3 feet=seated+forward*.76f;
             // The outside leg extends to catch the fall while the nearer leg
             // folds under the pelvis.  Staggered targets are what make the
             // landing read as a fall rather than two knees bending together.
             // Keep the two ankles on different forward planes: the extended
             // leg gives the eye a clear line of impact while the tucked leg
             // stays under the pelvis as a believable brace.
-            float outsideReach=Mathf.Lerp(.48f,.68f,RiseStep(age,.12f,.42f));
-            float extension=Mathf.Lerp(.08f,.38f,RiseStep(age,.18f,.48f));
-            Vector3 left=feet-side*outsideReach-forward*.05f,right=feet+side*.22f+forward*(.30f+extension);
+            float outsideReach=Mathf.Lerp(.34f,.52f,RiseStep(age,.12f,.42f));
+            float extension=Mathf.Lerp(.06f,.28f,RiseStep(age,.18f,.48f));
+            // One leg remains under the pelvis as a folded support while the
+            // other reaches through the impact. Avoid the symmetric two-leg
+            // extension that made the character look seated or airborne.
+            Vector3 left=feet-side*outsideReach-forward*.18f;
+            Vector3 right=feet+side*.18f+forward*(.18f+extension);
             left.y=home.y+leftFootClearance;right.y=home.y+rightFootClearance;
             // First bring the right foot beneath the hips while the left boot
             // and hand carry the body. Then step the left boot back as the
@@ -2475,7 +2492,7 @@ namespace UltramanGame.Runtime
             PoseLimb(rightThigh,rightShin,rightFoot,right,landed,Vector3.Lerp(Vector3.up,forward+side*.15f,kneePlant),rc);
             leftFoot.rotation=Quaternion.Slerp(leftFoot.rotation,facing*leftFootRest,landed);
             rightFoot.rotation=Quaternion.Slerp(rightFoot.rotation,facing*rightFootRest,landed);
-            Vector3 support=seated-side*.68f-forward*.70f;support.y=home.y+.20f;
+            Vector3 support=seated-side*.58f-forward*.42f;support.y=home.y+.08f;
             Quaternion palm=leftHand.rotation;
             // The visible hand is the brace that sells a fall rather than a
             // seated pose. Keep a small palm-to-ground clearance so it reads

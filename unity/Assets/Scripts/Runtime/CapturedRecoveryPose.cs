@@ -80,6 +80,13 @@ namespace UltramanGame.Runtime
         }
         public void Apply(float age,Vector3 home,Vector3 forward)
         {
+            // The original CMU fall capture is useful as a source for the
+            // recovery motion, but its retargeted root drops the Tiga costume
+            // below the volcanic floor and sends both boots toward camera.
+            // That reads as a seated slide in the 45-degree battle shot. The
+            // authored procedural layer now owns the impact and landing; keep
+            // this class focused on the supported rise capture.
+            if(fall)return;
             float weight=fall?KnockdownMotion.FallWeight(age):KnockdownMotion.CapturedWeight(age);if(weight<=0||!Load())return;
             baseRoot=root.position;baseFacing=root.rotation;
             for(int i=0;i<bones.Length;i++){basePositions[i]=bones[i].localPosition;baseRotations[i]=bones[i].localRotation;baseWorldRotations[i]=bones[i].rotation;}
