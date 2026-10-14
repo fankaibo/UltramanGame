@@ -101,6 +101,11 @@ namespace UltramanGame.Runtime
         bool beamWasVisible,landingPending;
         Battle threatBattle;
         GamePhase previous;
+        Vector3 previousCameraPosition;
+        Quaternion previousCameraRotation;
+        float previousCameraFieldOfView;
+        bool hasCameraPosition;
+        public const float MaxCameraSpeed=13.5f;
         public GameWorld()
         {
             var root=new GameObject("Volcanic night arena").transform;
@@ -157,7 +162,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();fighterFraming.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();fighterFraming.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hasCameraPosition=false;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -230,6 +235,10 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,float dt,float time)
         {
+            bool freezeCamera=dt<=0&&hasCameraPosition;
+            Vector3 frozenCameraPosition=previousCameraPosition;
+            Quaternion frozenCameraRotation=previousCameraRotation;
+            float frozenCameraFieldOfView=previousCameraFieldOfView;
             if(!ReferenceEquals(outpostBattle,state)){outpostBattle=state;volcano.Damage.Reset();}
             MonsterLanded=MonsterStaggerLanded=MonsterDissolving=false;
             if(enemy!=null)
@@ -388,7 +397,7 @@ namespace UltramanGame.Runtime
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
             Vector3 target=lookAt;
             if(state.Phase==GamePhase.Battle&&!Showcase)
-            {Vector3 follow=(HeroAnchor-HeroHome)*.20f;Camera.transform.position+=follow;target+=follow;}
+            {Vector3 follow=(HeroAnchor-HeroHome)*.02f;Camera.transform.position+=follow;target+=follow;}
             // Use the stable arena basis, not the previous frame's camera. A
             // repeated render or returning from a hero cut-in must not feed its
             // orientation back into the next strike/defence camera offset.
@@ -473,19 +482,24 @@ namespace UltramanGame.Runtime
                 // Move the camera toward the fighters as the fifth-punch shot
                 // starts. This preserves a full-body vertical margin while the
                 // lens stays only moderately tighter than ordinary battle.
-                Vector3 closePosition=cameraHome+viewRight*(comboCamera.Side*.10f)+Vector3.down*.14f+viewForward*2.55f;
-                Camera.transform.position=Vector3.Lerp(Camera.transform.position,closePosition,ComboFocus);
+                // Use a second, cubic entrance envelope for the camera itself.
+                // ComboFocus still owns the gameplay-timed shot window, while
+                // the lens and dolly gain enough lead-in at 30 Hz to avoid a
+                // two-frame cabinet jump.
+                float closeBlend=ComboFocus*ComboFocus*ComboFocus;
+                Vector3 closePosition=cameraHome+viewRight*(comboCamera.Side*.10f)+Vector3.down*.14f+viewForward*1.60f;
+                Camera.transform.position=Vector3.Lerp(Camera.transform.position,closePosition,closeBlend);
                 // Aim a little above the ordinary battle target. The tighter
                 // lens enlarges the helmets faster than the feet; raising the
                 // optical target moves the fighters down into the clear band
                 // below the top health plates.
                 target=Vector3.Lerp(target,lookAt+Vector3.up*.45f+BattleAxis*.06f
-                    +(UseFighterFraming?viewRight*.24f:Vector3.zero),ComboFocus);
+                    +(UseFighterFraming?viewRight*.24f:Vector3.zero),closeBlend);
                 // The ordinary battle lens is already tight on a 16:9 TV. Keep
                 // this fifth-punch beat genuinely closer instead of widening it
                 // back out: the contact should read as a cabinet hit-stop while
                 // both helmets, feet and the impact flash stay inside the rails.
-                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,24.6f,ComboFocus);
+                Camera.fieldOfView=Mathf.Lerp(Camera.fieldOfView,24.6f,closeBlend);
             }
             if(HeroKickMotion.Active(state)&&!Showcase&&!Closeup.Active)
             {
@@ -608,6 +622,22 @@ namespace UltramanGame.Runtime
                 if(Mathf.Abs(roll)>.01f)
                     Camera.transform.rotation=Quaternion.AngleAxis(roll,Camera.transform.forward)*Camera.transform.rotation;
             }
+            // All camera owners above may request a new composition on the
+            // same frame (fighter follow, combo close-up, threat cut or a
+            // reaction shot). Limit the physical camera step after those
+            // choices are combined, so a 30/60 Hz display never sees a
+            // one-frame teleport while the final framing remains unchanged.
+            if(dt>0)
+            {
+                if(!hasCameraPosition)
+                {
+                    previousCameraPosition=Camera.transform.position;
+                    hasCameraPosition=true;
+                }
+                else
+                    Camera.transform.position=Vector3.MoveTowards(previousCameraPosition,Camera.transform.position,MaxCameraSpeed*dt);
+                previousCameraPosition=Camera.transform.position;
+            }
             if(frameFighters)fighterFraming.Apply(Camera,dt,dedicated);
             hero?.SetPresentationOpacity(MonsterEntranceCloseup?0:1);
             volcano.SetBackdrop(backdropMaterial.mainTexture,backdrop.worldToLocalMatrix,clock);
@@ -640,6 +670,18 @@ namespace UltramanGame.Runtime
             {celebrateAt=clock+.09f;Burst(HeroHome+new Vector3(Random.Range(-.55f,.55f),transformAge%1*3.0f,Random.Range(-.3f,.3f)),3,.25f);}
             if(state.Phase==GamePhase.Victory&&clock>celebrateAt&&transformAge<3)
             {celebrateAt=clock+.25f;Burst(HeroHome+new Vector3(Random.Range(-1.3f,1.3f),2.8f,Random.Range(-.7f,.7f)),4,.45f);}
+            if(dt>0)
+            {
+                previousCameraPosition=Camera.transform.position;
+                previousCameraRotation=Camera.transform.rotation;
+                previousCameraFieldOfView=Camera.fieldOfView;
+            }
+            else if(freezeCamera)
+            {
+                Camera.transform.position=frozenCameraPosition;
+                Camera.transform.rotation=frozenCameraRotation;
+                Camera.fieldOfView=frozenCameraFieldOfView;
+            }
         }
     }
 }
