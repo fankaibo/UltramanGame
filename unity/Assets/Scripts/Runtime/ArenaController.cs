@@ -40,6 +40,9 @@ namespace UltramanGame.Runtime
         Vector3 previousMouse;
         float cursorUntil;
         const string MonsterHitsKey="battle.monsterHits";
+        // Add breathing room to spoken cues in the child-facing runtime while
+        // keeping the Core battle clock deterministic for simulation tests.
+        const float ChildCueExtraReactionSeconds=2f;
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
         string caption="",stream,gestureFeedback="";
         float gestureFeedbackUntil;
@@ -349,8 +352,8 @@ namespace UltramanGame.Runtime
         }
         void InstructionStarted(string key,float voiceSeconds)
         {
-            battle.GiveInstructionTime(voiceSeconds,key=="warning");
-            if(TraceEnabled)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
+            battle.GiveInstructionTime(voiceSeconds+ChildCueExtraReactionSeconds,key=="warning");
+            if(TraceEnabled)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds+ChildCueExtraReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
             switch(key)
             {
                 case "battle":caption="挥动拳头，守护火山基地！";break;
