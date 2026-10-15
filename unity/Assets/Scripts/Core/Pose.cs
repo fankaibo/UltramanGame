@@ -615,9 +615,18 @@ namespace UltramanGame.Core
             if (steady<.12f) return input;
             // Start uses only visible image-plane geometry. Inferred shoulder
             // depth can jump when arms rise; it must not raise the start threshold.
+            // The upper edge of a laptop frame is where MediaPipe most often
+            // lowers wrist confidence. The start channel may therefore use the
+            // same .35 confidence envelope as the beam channel, while torso
+            // presence and the two-hand hold still remain mandatory. This is
+            // deliberately local to the waiting-page start gesture: punches
+            // and shields keep their stricter landmarks.
             bool startWrists=PoseQuality.Reliable(fl,.45f)&&PoseQuality.Reliable(fr,.45f)&&
-                PoseQuality.Reliable(flw,.45f)&&PoseQuality.Reliable(frw,.45f);
-            bool startRaised=startWrists&&flw.y<fsy-.55f*fs&&frw.y<fsy-.55f*fs;
+                PoseQuality.Reliable(flw,.35f)&&PoseQuality.Reliable(frw,.35f);
+            // A child does not need to reach a perfectly vertical overhead
+            // pose. Keep the hands clearly above the shoulder line, but allow
+            // a natural bent-elbow raise that still reads as “举手开始”.
+            bool startRaised=startWrists&&flw.y<fsy-.42f*fs&&frw.y<fsy-.42f*fs;
             bool startLowered=startWrists&&flw.y>fl.y-.10f*fs&&frw.y>fr.y-.10f*fs;
             if(startLowered){transformFired=false;transformReleaseRequired=false;}
             if(!transformAvailable||startLowered){transformHold=transformGap=0;}

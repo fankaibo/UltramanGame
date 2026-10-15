@@ -21,10 +21,12 @@ static class HeroSelectionChecks
                     p[11]=new PosePoint(.65f,.4f);p[12]=new PosePoint(.35f,.4f);
                     p[13]=new PosePoint(.7f,.4f);p[14]=new PosePoint(.3f,.4f);
                     p[15]=new PosePoint(.8f,.65f);p[16]=new PosePoint(.2f,.65f);
-                    if(kind=="left"||kind=="raised"||kind=="uncertain"||kind=="depth")p[15].y=.15f;
-                    if(kind=="right"||kind=="raised"||kind=="uncertain"||kind=="depth")p[16].y=.15f;
+                    if(kind=="left"||kind=="raised"||kind=="uncertain"||kind=="depth"||kind=="low-confidence-raised")p[15].y=.15f;
+                    if(kind=="right"||kind=="raised"||kind=="uncertain"||kind=="depth"||kind=="low-confidence-raised")p[16].y=.15f;
                     if(kind=="depth")
                     {p[11].z=.7f;p[12].z=-.7f;p[15].visibility=p[16].visibility=.5f;}
+                    if(kind=="low-confidence-raised")
+                    {p[15].visibility=p[16].visibility=.36f;}
                     if(kind=="uncertain")p[15].visibility=.1f;
                     if(kind=="chest")p[15].y=p[16].y=.39f;
                     var f=new PoseFrame{schema=1,streamId="start",sequence=++sequence,capturedMs=stamp,tracked=true,points=p};
@@ -35,6 +37,8 @@ static class HeroSelectionChecks
             check(Feed("left",1)==0&&Feed("right",1)==0,"single hand cannot start at "+hz);
             check(Feed("depth",1.2f)==1,"visible raised hands start despite noisy depth / moderate confidence at "+hz);
             check(Feed("depth",1)==0,"held raised hands trigger once at "+hz);
+            g.Reset();
+            check(Feed("low-confidence-raised",1.2f)==1,"raised hands near the camera edge start at "+hz);
             g.Reset(true);
             check(Feed("raised",1)==0,"held photo gesture cannot skip waiting at "+hz);
             check(Feed("uncertain",.15f)==0&&Feed("raised",1)==0,"uncertain wrists do not release replay at "+hz);
