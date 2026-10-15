@@ -1,0 +1,21 @@
+赛罗 — third-party fan character model
+Source: https://sfmlab.com/project/0068ba82-4091-460a-a601-73ff6c5700ba/
+Source author/uploader: TengenGenesic / ultimo; enhancements credited to Perceptor
+Source terms: Uploader-selected CC0 1.0; SFMLab does not verify fan-art rights.
+The repository Apache-2.0 code license does not license this character, mesh or texture.
+Character rights remain with their respective owners. Not official game assets.
+
+Adapted 2026-09-15:
+- Converted with Blender 4.5.13 and SourceIO (Mebius/Zero) or DragonFF (Geed/Grigio).
+- Preserved original mesh/UV/texture design and added one silhouette subdivision.
+- Retargeted this project's eight authored Tiga combat clips; baked at 60 samples/sec.
+- Rendered a transparent victory portrait for the selected character's photo stage.
+- GTA archive installer EXE files were never run; extracted only DFF/TXD payload data.
+- Zero uses the standard body, without the optional Ultimate armor.
+Rebuild: scripts/prepare_roster.py; GTA extraction: scripts/extract_gta_skin.py
+SourceIO: https://github.com/REDxEYE/SourceIO
+DragonFF: https://github.com/Parik27/DragonFF
+Conversion tools are not included in the player application.
+
+Source archive: Zero.zip
+SHA-256: 27cab6a5e68369acf162fa863a2e374a39e2838af643f988622c668491e50f68

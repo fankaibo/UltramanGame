@@ -12,14 +12,24 @@ namespace UltramanGame.Core
         const int MaxLineBytes=32768;
         readonly int port;
         readonly Thread worker;
+        readonly Func<long> consumptionClock;
         volatile bool stopping;
         TcpClient client;
         string latest;
         volatile string status="正在连接动作识别服务";
         public string Status => status;
-        public PoseClient(int port=8765)
-        { this.port=port; worker=new Thread(Run) { IsBackground=true, Name="Local pose bridge" }; worker.Start(); }
+        public PoseClient(int port=8765,Func<long> consumptionClock=null)
+        { this.port=port;this.consumptionClock=consumptionClock??(()=>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); worker=new Thread(Run) { IsBackground=true, Name="Local pose bridge" }; worker.Start(); }
         public string TakeLatest() => Interlocked.Exchange(ref latest,null);
+        // Preview decoding or a descheduled main thread may take longer than
+        // the allowed clock skew. Pair the packet with its consumption time,
+        // never the start of the render frame or a replacement capture stamp.
+        public PoseFrame TakeLatestPose(Func<string,PoseFrame> deserialize,out long observedMs)
+        {
+            observedMs=0;
+            try {var line=TakeLatest();return line==null?null:deserialize(line);}
+            finally {observedMs=consumptionClock();}
+        }
         void Run()
         {
             while(!stopping)

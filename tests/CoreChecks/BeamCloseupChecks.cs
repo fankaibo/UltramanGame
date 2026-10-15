@@ -6,7 +6,7 @@ static class BeamCloseupChecks
     static Battle Ready(int health=50)
     {
         var b=new Battle(health);b.Tick(.02f,new PlayerInput {Tracking=true,Transform=true});
-        for(int i=0;i<120;i++)b.Tick(.02f,new PlayerInput {Tracking=true});
+        for(int i=0;i<(Battle.TransformationSeconds+0.2f)/(.02f);i++)b.Tick(.02f,new PlayerInput {Tracking=true});
         for(int attempt=0;attempt<80&&b.Energy<Battle.MaxEnergy;attempt++)
         {
             b.Tick(.02f,new PlayerInput {Tracking=true,LeftPunch=true});
@@ -60,12 +60,12 @@ static class BeamCloseupChecks
         {
             var b=Ready(20);var shot=new BeamCloseup();Frame(b,shot,.02f,new PlayerInput {Tracking=true,Beam=true});
             bool victoryDuringShot=false;
-            for(int i=0;i<120;i++)
+            for(int i=0;i<(BeamCloseup.Duration+Battle.BeamSeconds+.2f)/.02f;i++)
             {
                 Frame(b,shot,.02f,new PlayerInput {Tracking=true});
                 victoryDuringShot|=shot.Active&&b.Phase==GamePhase.Victory;
             }
-            check(!victoryDuringShot&&b.Phase==GamePhase.Victory&&b.EnemyHealth==0&&!shot.Active,"Finishing beam completes the closeup before victory");
+            check(!victoryDuringShot&&b.Phase==GamePhase.Victory&&b.EnemyHealth==0&&!shot.Active&&b.ActionAge>=Battle.BeamSeconds,"Finishing beam completes both the closeup and release before victory");
         }
     }
 }

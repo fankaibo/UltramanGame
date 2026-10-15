@@ -23,7 +23,7 @@ extern "C" void TigaDestroyPersonCutout(void *context)
 
 extern "C" int TigaPersonMask(void *context, const unsigned char *bgra, int width, int height, unsigned char *output)
 {
-    if (!context || !bgra || !output || width <= 0 || height <= 0 || width > 640 || height > 480) return -1;
+    if (!context || !bgra || !output || width <= 0 || height <= 0 || width > 1280 || height > 960) return -1;
     @autoreleasepool {
         if (@available(macOS 12.0, *)) {
             CVPixelBufferRef input = nullptr;

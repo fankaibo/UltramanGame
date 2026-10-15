@@ -1,5 +1,5 @@
 Shader "Training/CityGround" {
- Properties { _Color("Stone",Color)=(.075,.13,.23,1) }
+ Properties { _Color("Stone",Color)=(.065,.085,.11,1) }
  SubShader {
   Tags { "Queue"="Geometry+10" "RenderType"="Opaque" }
   CGPROGRAM
@@ -16,7 +16,7 @@ Shader "Training/CityGround" {
   void surf(Input i,inout SurfaceOutputStandard o) {
    float2 p=i.worldPos.xz;
    // Large paving slabs, with staggered joints and a fine stone surface.
-   float2 tile=p/1.8; tile.x+=step(1,fmod(floor(tile.y)+100,2))*.5;
+   float2 tile=p/.38; tile.x+=step(1,fmod(floor(tile.y)+100,2))*.5;
    float2 edge=min(frac(tile),1-frac(tile));
    float seam=1-smoothstep(.0015,.008,min(edge.x,edge.y));
    float grain=noise(p*65)*.55+noise(p*8)*.3+noise(p*.8)*.15;
@@ -24,7 +24,7 @@ Shader "Training/CityGround" {
    o.Albedo=_Color.rgb*lerp(.82,1.2,grain)*(1-seam*.68);
    float n=noise(p*12),nx=noise(p*12+float2(.06,0)),ny=noise(p*12+float2(0,.06));
    o.Normal=normalize(float3((n-nx)*.35,(n-ny)*.35,1));
-   o.Metallic=.22; o.Smoothness=lerp(.38,.79,wet)*(1-seam*.8);
+   o.Metallic=.18; o.Smoothness=lerp(.32,.67,wet)*(1-seam*.8);
    o.Occlusion=1-seam*.4;
   }
   ENDCG

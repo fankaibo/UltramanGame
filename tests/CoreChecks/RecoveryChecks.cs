@@ -18,7 +18,7 @@ static class RecoveryChecks
     }
     static void Step(Battle battle,float seconds)
     {for(float t=0;t<seconds;t+=.02f)battle.Tick(.02f,new PlayerInput{Tracking=true});}
-    public static void Run(Action<bool,string> check)
+    public static void Run(Action<bool,string> check,bool network=true)
     {
         var frame=Frame("first",1,100000);
         frame.tracked=false;frame.points=Array.Empty<PosePoint>();
@@ -27,7 +27,7 @@ static class RecoveryChecks
         frame.schema=2;
         check(!PoseQuality.Fresh(frame,100100)&&!PoseQuality.Fresh(null,100100),"invalid envelope and absent frame are not healthy camera data");
 
-        var battle=new Battle(50);battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});Step(battle,2.5f);
+        var battle=new Battle(50);battle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});Step(battle,Battle.TransformationSeconds+.3f);
         for(int i=0;i<4;i++){battle.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});Step(battle,.6f);}
         float health=battle.EnemyHealth,energy=battle.Energy;
         var presence=new PlayerPresence();var recognizer=new GestureRecognizer();
@@ -49,6 +49,7 @@ static class RecoveryChecks
             "new stream resumes the same round with prior punches and energy intact");
         check(battle.InstructionRemaining>2&&battle.Enemy==EnemyPhase.Rest,"reconnection gives the child fresh reaction time before an enemy attack");
 
+        if(!network)return;
         var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
         try
         {

@@ -1,0 +1,33 @@
+Shader "Training/StrikeRibbon" {
+ Properties { _Color("Color",Color)=(.45,.8,1,.6) }
+ SubShader {
+  Tags {"Queue"="Transparent+20" "RenderType"="Transparent"}
+  Blend SrcAlpha One ZWrite Off Cull Off
+  Pass { CGPROGRAM
+   #pragma vertex vert
+   #pragma fragment frag
+   #include "UnityCG.cginc"
+   struct Input {float4 vertex:POSITION;float2 uv:TEXCOORD0;fixed4 color:COLOR;};
+   struct Output {float4 vertex:SV_POSITION;float2 uv:TEXCOORD0;fixed4 color:COLOR;};
+   fixed4 _Color;
+   Output vert(Input v){
+    Output o;
+    // Place the air wake just outside the skin surface. Depth testing remains
+    // enabled, so an arm on the far side cannot shine through the whole torso.
+    float3 view=UnityObjectToViewPos(v.vertex);view.z+=.06;
+    o.vertex=mul(UNITY_MATRIX_P,float4(view,1));o.uv=v.uv;o.color=v.color;return o;
+   }
+   fixed4 frag(Output i):SV_Target {
+    float edge=saturate(1-abs(i.uv.y*2-1));
+    float core=pow(edge,14);
+    float wisps=.8+.2*sin(i.uv.y*43+i.uv.x*17);
+    float ends=smoothstep(0,.16,i.uv.x)*(1-smoothstep(.82,1,i.uv.x));
+    // A slightly denser core keeps the sampled hand path visible at 1080p;
+    // the short lifetime and tapered ends still keep the wake behind the
+    // actor instead of becoming a permanent glow strip.
+    float alpha=(edge*edge*edge*.23*wisps+core*.76)*ends*i.color.a*_Color.a;
+    return fixed4(lerp(_Color.rgb,float3(1,.98,.86),core*.7),alpha);
+   }
+  ENDCG }
+ }
+}

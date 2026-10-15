@@ -1,0 +1,14 @@
+{
+  "character": "Mebius",
+  "vertices": 1679,
+  "clips": [
+    "Beam",
+    "Guard",
+    "Hurt",
+    "Idle",
+    "LeftPunch",
+    "RightPunch",
+    "Transform",
+    "Victory"
+  ]
+}

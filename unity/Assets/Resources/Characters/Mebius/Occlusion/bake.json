@@ -1,0 +1,28 @@
+{
+  "character": "Mebius",
+  "source": "unity/Assets/Resources/Characters/Mebius/Mebius.fbx",
+  "source_sha256": "d433f7dcc982d8bbae0dba91318895e42bc05621b88d2934df2c98e59946c35c",
+  "blender": "4.5.13 LTS",
+  "resolution": [
+    1024,
+    1024
+  ],
+  "model_height": 1.5417074366705492,
+  "distance": 0.038542685916763735,
+  "rest_pose": true,
+  "only_local": true,
+  "samples": 32,
+  "ao_samples": 64,
+  "maps": [
+    {
+      "material": "Mebius_MebiusBody",
+      "file": "Mebius_MebiusBody.png",
+      "sha256": "4cbd9788c410e5b06ff924ecb0fa773c8dd42d9afc40e01186da9a8c0357b10e"
+    },
+    {
+      "material": "Mebius_MebiusBrace",
+      "file": "Mebius_MebiusBrace.png",
+      "sha256": "bfa1ecb8c26c13f52cea4738593ccdeaa02cd0361658ae1190b74615f8ae105b"
+    }
+  ]
+}

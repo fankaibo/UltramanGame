@@ -20,10 +20,11 @@ namespace UltramanGame.Runtime
 
         void OnEnable()
         {
-            silhouette=Resources.Load<Shader>("ShadowSilhouette");
+            silhouette=Resources.Load<Shader>("ContactSilhouette");
             var shader=Resources.Load<Shader>("ContactShadow");
             if(!silhouette||!shader){enabled=false;return;}
-            mask=new RenderTexture(512,512,16,RenderTextureFormat.ARGB32){name="Actor shadow mask",wrapMode=TextureWrapMode.Clamp};mask.Create();
+            mask=new RenderTexture(512,512,16,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear)
+            {name="Actor shadow mask",wrapMode=TextureWrapMode.Clamp};mask.Create();
             var go=new GameObject("Actor shadow camera");go.transform.SetParent(transform,false);
             shadowCamera=go.AddComponent<Camera>();shadowCamera.enabled=false;
             shadowCamera.transform.position=Vector3.up*10;shadowCamera.transform.LookAt(Vector3.zero,Vector3.forward);

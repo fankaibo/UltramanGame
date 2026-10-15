@@ -1,0 +1,21 @@
+梦比优斯 — third-party fan character model
+Source: https://sfmlab.com/project/70e52658-96c6-4434-a06d-f42f8ae666d3/
+Source author/uploader: TengenGenesic / ultimo
+Source terms: Uploader-selected CC0 1.0; SFMLab does not verify fan-art rights.
+The repository Apache-2.0 code license does not license this character, mesh or texture.
+Character rights remain with their respective owners. Not official game assets.
+
+Adapted 2026-09-15:
+- Converted with Blender 4.5.13 and SourceIO (Mebius/Zero) or DragonFF (Geed/Grigio).
+- Preserved original mesh/UV/texture design and added one silhouette subdivision.
+- Retargeted this project's eight authored Tiga combat clips; baked at 60 samples/sec.
+- Rendered a transparent victory portrait for the selected character's photo stage.
+- GTA archive installer EXE files were never run; extracted only DFF/TXD payload data.
+- Zero uses the standard body, without the optional Ultimate armor.
+Rebuild: scripts/prepare_roster.py; GTA extraction: scripts/extract_gta_skin.py
+SourceIO: https://github.com/REDxEYE/SourceIO
+DragonFF: https://github.com/Parik27/DragonFF
+Conversion tools are not included in the player application.
+
+Source archive: Mebius.zip
+SHA-256: 3eb6d8c9ee7bcb9cb78e0fce1029a8bc5459b3bdbb750cff08fd5ec77ca7e434

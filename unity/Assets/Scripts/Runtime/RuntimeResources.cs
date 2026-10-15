@@ -4,6 +4,7 @@ using UnityEngine;
 namespace UltramanGame.Runtime
 {
     // Unity does not destroy materials created by code when their renderers leave a scene.
+    [ExecuteAlways]
     public sealed class RuntimeResources : MonoBehaviour
     {
         readonly List<Object> owned=new List<Object>();

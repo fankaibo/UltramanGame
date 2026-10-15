@@ -17,7 +17,7 @@ namespace UltramanGame.Runtime
         public bool Loading { get; private set; }
         public bool Choosing { get; private set; }
         public string Status { get; private set; }="可导入《奇迹再现》或其他喜欢的音乐";
-        public string SelectedName { get; private set; }="内置战斗音乐";
+        public string SelectedName { get; private set; }="内置原创战斗音乐（未包含《奇迹再现》）";
         public bool HasSelection { get; private set; }
 #if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
         [DllImport("UltramanMusicPicker")] static extern void TigaBeginMusicChoice();
@@ -26,9 +26,19 @@ namespace UltramanGame.Runtime
         public void Initialize(GameAudio audio)
         {
             sound=audio;
+            if(sound.ProjectMusicLoaded)
+            {
+                SelectedName="奇迹再现（项目内音乐）";
+                HasSelection=true;
+                Status="项目内音乐自动循环播放 · 语音时自动降低音乐音量";
+            }
             var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,"--music");
             string path=i>=0&&i+1<args.Length?args[i+1]:PlayerPrefs.GetString(Preference,"");
-            if(!string.IsNullOrEmpty(path))Load(path);
+            if(!string.IsNullOrEmpty(path))
+            {
+                SelectedName=Path.GetFileNameWithoutExtension(path);
+                Load(path);
+            }
         }
         public void Choose()
         {
@@ -90,7 +100,7 @@ namespace UltramanGame.Runtime
                     Status="请选择 1 秒至 15 分钟的完整音乐";Loading=false;yield break;
                 }
                 clip.name=Path.GetFileNameWithoutExtension(path);
-                sound.UseLocalMusic(clip);
+                sound.UseLocalMusic(clip,clip.name);
                 SelectedName=clip.name;HasSelection=true;
                 PlayerPrefs.SetString(Preference,path);PlayerPrefs.Save();
                 Status="本机循环播放 · 语音时自动降低音乐音量";
@@ -103,8 +113,20 @@ namespace UltramanGame.Runtime
             if(loading!=null)StopCoroutine(loading);
             loading=null;Loading=false;sound.UseLocalMusic(null);
             PlayerPrefs.DeleteKey(Preference);PlayerPrefs.Save();
-            SelectedName="内置战斗音乐";HasSelection=false;
+            SelectedName="内置原创战斗音乐（未包含《奇迹再现》）";HasSelection=false;
             Status="可导入《奇迹再现》或其他喜欢的音乐";
+        }
+        public void ProjectMusic()
+        {
+            if(Loading)return;
+            if(!sound.UseProjectMusic())
+            {
+                Status="项目内音乐缺失，请重新构建游戏";
+                return;
+            }
+            PlayerPrefs.DeleteKey(Preference);PlayerPrefs.Save();
+            SelectedName="奇迹再现（项目内音乐）";HasSelection=true;
+            Status="项目内音乐自动循环播放 · 语音时自动降低音乐音量";
         }
     }
 }
