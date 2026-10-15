@@ -27,7 +27,12 @@ namespace UltramanGame.Runtime
         VictoryPhoto photo;
         readonly RuntimeMemoryDiagnostics memory=new RuntimeMemoryDiagnostics();
         bool photoAvailable,autoPhotoOpened,finalGuide;
-        float victoryAt,waitingGuideAt=20;
+        // Repeat the opening cue soon enough for a child who missed the first
+        // sentence. This is a guide retry deadline, not a gameplay lock: a
+        // fresh raised-hands pose can still start the round immediately.
+        const float OpeningGuideRetrySeconds=10f;
+        const float ReplayGuideRetrySeconds=8f;
+        float victoryAt,waitingGuideAt=OpeningGuideRetrySeconds;
         bool keyboard,paused,muted,settings,audioSettings,videoSettings,showPreview=true,previewReported,lastTracking;
         float previewFocus=1f;
         bool parentControlsExpanded;
@@ -393,7 +398,7 @@ namespace UltramanGame.Runtime
         }
         void Restart()
         {
-            photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+18;
+            photo?.Close();autoPhotoOpened=finalGuide=false;waitingGuideAt=Time.unscaledTime+ReplayGuideRetrySeconds;
             battle=new Battle(monsterHits);recognizer.Reset(requireTransformRelease:true);presence.Reset();pose=null;held=default;
             // A photo round can leave the native worker on the same camera stream.
             // Reset the envelope cursor so the first frames of the new round are
