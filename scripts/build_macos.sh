@@ -26,6 +26,12 @@ case "$game_build_output" in
   *) echo "ULTRAMAN_BUILD_OUTPUT 必须是以 .app 结尾的绝对路径" >&2; exit 2 ;;
 esac
 export ULTRAMAN_BUILD_OUTPUT="$game_build_output"
+# Hub can use a session-specific licensing pipe. Forward it explicitly rather
+# than trying the editor's stale default or changing license data.
+game_editor_args=(-batchmode -projectPath "$PWD/unity")
+if [ -n "${UNITY_LICENSING_IPC:-}" ]; then
+  game_editor_args+=(-licensingIpc "$UNITY_LICENSING_IPC")
+fi
 mkdir -p logs
 bash scripts/build_native.sh
 game_python=python3
@@ -40,7 +46,7 @@ cleanup_unity() {
   fi
 }
 trap cleanup_unity INT TERM EXIT
-"$game_editor" -batchmode -projectPath "$PWD/unity" \
+"$game_editor" "${game_editor_args[@]}" \
   -executeMethod UltramanGame.Editor.ProjectSetup.BuildMac -quit -logFile "$PWD/logs/unity-build.log" &
 unity_pid=$!
 set +e
