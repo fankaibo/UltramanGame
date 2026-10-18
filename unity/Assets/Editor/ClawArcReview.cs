@@ -36,6 +36,8 @@ namespace UltramanGame.Editor
             var hands=new[]{Bone(enemy.Root,"bip_hand_L"),Bone(enemy.Root,"bip_hand_R")};
             var lower=new[]{Bone(enemy.Root,"bip_lowerArm_L"),Bone(enemy.Root,"bip_lowerArm_R")};
             Vector3[] previous={hands[0].position,hands[1].position};
+            Vector3[] previousElbows={lower[0].position,lower[1].position};
+            float elbowStep=0;var armTrace=new StringBuilder("frame,phase,age,hand,elbowX,elbowY,elbowZ,elbowStep\n");
             var axis=-world.BattleAxis;var side=Vector3.Cross(Vector3.up,axis);var mesh=new Mesh();float bend=0,step=0,minY=99,zeroError=0;
             int oldBlocks=state.Blocks,oldHits=state.HitsTaken;var markers=new System.Collections.Generic.HashSet<string>();
             int lead=attack==1?1:0;float loadGap=-99,sweepMin=99,sweepMax=-99;
@@ -50,11 +52,15 @@ namespace UltramanGame.Editor
                     for(int h=0;h<2;h++)
                     {
                         var p=hands[h].position;step=Mathf.Max(step,Vector3.Distance(p,previous[h]));previous[h]=p;
+                        var elbow=lower[h].position;float delta=Vector3.Distance(elbow,previousElbows[h]);previousElbows[h]=elbow;
+                        if(f>0)elbowStep=Mathf.Max(elbowStep,delta);
+                        armTrace.AppendLine(FormattableString.Invariant($"{f},{state.Enemy},{state.EnemyAge:F5},{h},{elbow.x:F6},{elbow.y:F6},{elbow.z:F6},{delta:F6}"));
                         var relative=p-enemy.Root.position;motion.AppendLine(FormattableString.Invariant($"{f},{state.Enemy},{state.EnemyAge:F5},{h},{Vector3.Dot(relative,side):F4},{relative.y:F4},{Vector3.Dot(relative,axis):F4}"));
                         Vector3 center=Vector3.zero;foreach(var finger in new[]{"index","middle","ring","pinky"})center+=Bone(enemy.Root,$"bip_{finger}_0_{(h==0?"L":"R")}").position;
                         bend=Mathf.Max(bend,Vector3.Angle(center/4-p,p-lower[h].position));
                     }
-                    enemy.Update(state,world.Camera,0,time);for(int h=0;h<2;h++)zeroError=Mathf.Max(zeroError,Vector3.Distance(hands[h].position,previous[h]));
+                    enemy.Update(state,world.Camera,0,time);for(int h=0;h<2;h++)
+                        zeroError=Mathf.Max(zeroError,Vector3.Distance(hands[h].position,previous[h]),Vector3.Distance(lower[h].position,previousElbows[h]));
                     if(state.Enemy==EnemyPhase.Windup&&state.WarningDuration-state.EnemyAge<.12f)loadGap=hands[lead].position.y-hands[1-lead].position.y;
                     if(state.Enemy==EnemyPhase.Attack&&state.EnemyAge<.64f)
                     {float lane=Vector3.Dot(hands[lead].position-enemy.Root.position,side)*(lead==0?-1:1);sweepMin=Mathf.Min(sweepMin,lane);sweepMax=Mathf.Max(sweepMax,lane);}
@@ -69,14 +75,19 @@ namespace UltramanGame.Editor
                 }
             }
             finally{world.Camera.targetTexture=null;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(mesh);}
+            File.WriteAllText(folder+"/elbows.csv",armTrace.ToString());
             File.WriteAllText(folder+"/trace.csv",trace.ToString());File.WriteAllText(folder+"/motion.csv",motion.ToString());
             var sources=new StringBuilder();foreach(string path in Directory.GetFiles(Application.dataPath+"/Scripts","*.cs",SearchOption.AllDirectories))
                 using(var sha=System.Security.Cryptography.SHA256.Create())sources.AppendLine(path.Substring(Application.dataPath.Length+1)+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());
             File.WriteAllText(folder+"/sources.txt",sources.ToString());
-            string report=$"{label} blocks={state.Blocks-oldBlocks} hits={state.HitsTaken-oldHits} bend={bend:F3} handStep={step:F4} ground={minY:F4} zeroError={zeroError:F6} loadGap={loadGap:F4} sweepWidth={sweepMax-sweepMin:F4} crossLane={sweepMin:F4}";
+            string report=$"{label} blocks={state.Blocks-oldBlocks} hits={state.HitsTaken-oldHits} bend={bend:F3} handStep={step:F4} elbowStep={elbowStep:F4} ground={minY:F4} zeroError={zeroError:F6} loadGap={loadGap:F4} sweepWidth={sweepMax-sweepMin:F4} crossLane={sweepMin:F4}";
             Debug.Log("[ClawArc] "+report);
             if(state.Blocks-oldBlocks!=(block?1:0)||state.HitsTaken-oldHits!=(block?0:1)||bend>36||zeroError>.0001f||minY<-.07f||hz==60&&step>.50f)throw new Exception(report);
             if(version=="after"&&(loadGap<.20f||sweepMax-sweepMin<.85f||sweepMin>0))throw new Exception("Lead claw did not prepare and sweep across: "+report);
+            // The old fixed sideways pole jumped .37-.39 units in one 60 Hz
+            // frame as the hip correction toggled. Permit the fast authored
+            // swipe, but reject that discontinuity even with smooth wrists.
+            if(version=="after"&&hz==60&&elbowStep>.22f)throw new Exception("Elbow plane snapped during the swipe/return: "+report);
             File.WriteAllText(folder+"/validation.txt",report+" passed\n");
         }
     }

@@ -207,9 +207,11 @@ namespace UltramanGame.Runtime
         bool monsterHandTransition;
         float monsterHandAge,monsterHandDuration;
         Vector3 monsterLeftHandFrom,monsterRightHandFrom;
+        Vector3 monsterLeftElbowFrom,monsterRightElbowFrom;
         Quaternion monsterLeftHandRotationFrom,monsterRightHandRotationFrom;
         bool monsterVisibleHandsValid;
         Vector3 monsterVisibleLeft,monsterVisibleRight;
+        Vector3 monsterVisibleLeftElbow,monsterVisibleRightElbow;
         Quaternion monsterVisibleLeftRotation,monsterVisibleRightRotation;
         bool monsterArmPhaseKnown;
         EnemyPhase monsterArmPhase;
@@ -685,6 +687,7 @@ namespace UltramanGame.Runtime
             if(monsterVisibleHandsValid)
             {
                 monsterVisibleLeft=leftHand.position;monsterVisibleRight=hand.position;
+                monsterVisibleLeftElbow=leftForearm.position;monsterVisibleRightElbow=forearm.position;
                 monsterVisibleLeftRotation=leftHand.rotation;monsterVisibleRightRotation=hand.rotation;
             }
             if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Victory)defeatEntry=false;
@@ -1677,6 +1680,7 @@ namespace UltramanGame.Runtime
             // Lower the hips only as far as the leg lengths need. Keep the
             // authored claw contact in world space while the knees take weight.
             Vector3 clawLeft=leftHand.position,clawRight=hand.position;
+            Vector3 elbowLeft=leftForearm.position,elbowRight=forearm.position;
             Quaternion rotationLeft=leftHand.rotation,rotationRight=hand.rotation;
             Quaternion footLeft=leftFoot.rotation,footRight=rightFoot.rotation;
             stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
@@ -1691,8 +1695,12 @@ namespace UltramanGame.Runtime
             {
                 stepArmRotations[0]=leftUpperArm.localRotation;stepArmRotations[1]=leftForearm.localRotation;stepArmRotations[2]=leftHand.localRotation;
                 stepArmRotations[3]=upperArm.localRotation;stepArmRotations[4]=forearm.localRotation;stepArmRotations[5]=hand.localRotation;stepArmsApplied=true;
-                PoseLimb(leftUpperArm,leftForearm,leftHand,clawLeft,1,-side,.30f);
-                PoseLimb(upperArm,forearm,hand,clawRight,1,side,.30f);
+                // A tiny hip correction must not select a new elbow plane.
+                // Preserve the posed elbows while retaining world-space claw
+                // contacts; forcing +/-side here made the arms kick outward
+                // exactly when LegDrop crossed zero on landing/withdrawal.
+                PoseLimb(leftUpperArm,leftForearm,leftHand,clawLeft,1,elbowLeft-leftUpperArm.position,.30f);
+                PoseLimb(upperArm,forearm,hand,clawRight,1,elbowRight-upperArm.position,.30f);
                 leftHand.rotation=rotationLeft;hand.rotation=rotationRight;AlignClawWrists();
             }
         }
@@ -2642,7 +2650,14 @@ namespace UltramanGame.Runtime
             var side=Vector3.Cross(Vector3.up,forward)*(left?-1:1);
             // The free arm balances a swipe below the chest. Reusing the lead
             // elbow pole forced that elbow sideways at shoulder height.
-            Vector3 pole=support?side*.35f+Vector3.down*.85f:side*.70f+Vector3.down*.45f;
+            Vector3 requestedPole=support?side*.35f+Vector3.down*.85f:side*.70f+Vector3.down*.45f;
+            // Weight owns the whole arm, not only its wrist. A fading swipe
+            // previously kept forcing the elbow into the full attack plane,
+            // then snapped back to the clip plane when the phase changed.
+            Vector3 axis=Vector3.Lerp(wrist.position,target,Mathf.Clamp01(weight))-upper.position;
+            Vector3 oldPole=Vector3.ProjectOnPlane(lower.position-upper.position,axis).normalized;
+            Vector3 newPole=Vector3.ProjectOnPlane(requestedPole,axis).normalized;
+            Vector3 pole=Vector3.Slerp(oldPole,newPole,Mathf.Clamp01(weight));
             PoseLimb(upper,lower,wrist,target,weight,pole,.30f);
             wrist.rotation=Quaternion.FromToRotation(span,wrist.position-lower.position)*palm;
         }
@@ -2712,8 +2727,13 @@ namespace UltramanGame.Runtime
             float t=Mathf.SmoothStep(0,1,Mathf.Clamp01(monsterHandAge/Mathf.Max(.001f,monsterHandDuration)));
             Vector3 leftTarget=Vector3.Lerp(monsterLeftHandFrom,leftHand.position,t);
             Vector3 rightTarget=Vector3.Lerp(monsterRightHandFrom,hand.position,t);
-            Vector3 leftPole=Vector3.ProjectOnPlane(leftForearm.position-leftUpperArm.position,leftTarget-leftUpperArm.position).normalized;
-            Vector3 rightPole=Vector3.ProjectOnPlane(forearm.position-upperArm.position,rightTarget-upperArm.position).normalized;
+            // Preserve the visible elbow as well as the hand at a clip
+            // handoff. Choosing only the new clip's pole can rotate the upper
+            // arm abruptly around an otherwise smoothly held wrist.
+            Vector3 leftElbow=Vector3.Lerp(monsterLeftElbowFrom,leftForearm.position,t);
+            Vector3 rightElbow=Vector3.Lerp(monsterRightElbowFrom,forearm.position,t);
+            Vector3 leftPole=Vector3.ProjectOnPlane(leftElbow-leftUpperArm.position,leftTarget-leftUpperArm.position).normalized;
+            Vector3 rightPole=Vector3.ProjectOnPlane(rightElbow-upperArm.position,rightTarget-upperArm.position).normalized;
             if(leftPole.sqrMagnitude<.001f)leftPole=forward;
             if(rightPole.sqrMagnitude<.001f)rightPole=forward;
             PoseLimb(leftUpperArm,leftForearm,leftHand,leftTarget,1,leftPole,.30f);
@@ -2733,6 +2753,8 @@ namespace UltramanGame.Runtime
             monsterHandDuration=next=="Hurt"?.14f:next=="Attack"||next=="AttackAlt"?.075f:.10f;
             monsterLeftHandFrom=monsterVisibleHandsValid?monsterVisibleLeft:leftHand.position;
             monsterRightHandFrom=monsterVisibleHandsValid?monsterVisibleRight:hand.position;
+            monsterLeftElbowFrom=monsterVisibleHandsValid?monsterVisibleLeftElbow:leftForearm.position;
+            monsterRightElbowFrom=monsterVisibleHandsValid?monsterVisibleRightElbow:forearm.position;
             monsterLeftHandRotationFrom=monsterVisibleHandsValid?monsterVisibleLeftRotation:leftHand.rotation;
             monsterRightHandRotationFrom=monsterVisibleHandsValid?monsterVisibleRightRotation:hand.rotation;
         }
