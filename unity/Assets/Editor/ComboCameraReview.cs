@@ -10,7 +10,7 @@ namespace UltramanGame.Editor
 {
     public static class ComboCameraReview
     {
-        static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/combo-camera"));
+        static string Folder=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_COMBO_REVIEW_OUTPUT")??Path.Combine(Application.dataPath,"../../artifacts/combo-camera"));
         static Battle Ready(int punches=0,bool hold=true)
         {
             var state=new Battle();state.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});for(int n=0;n<(Battle.TransformationSeconds+0.2f)/(.02f);n++)state.Tick(.02f,new PlayerInput{Tracking=true});
@@ -31,7 +31,7 @@ namespace UltramanGame.Editor
             foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int rate in id=="Tiga"?new[]{15,30,60}:new[]{60})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(933);
-                var world=new GameWorld();var state=Ready();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
+                var world=new GameWorld();var state=Ready();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);world.SetHeroProfile(id);
                 float dt=1f/rate,time=0;void Step(PlayerInput input){float health=state.EnemyHealth;state.Tick(world.BattleDelta(dt,state),input);while(state.TryCue(out var cue))world.Cue(cue,state);hero.Update(state,world.Camera,dt,time);enemy.Update(state,world.Camera,dt,time);if(state.EnemyHealth<health)world.Hit(false,state);world.Tick(state,dt,time);time+=dt;}
                 for(int n=0;n<rate;n++)Step(new PlayerInput{Tracking=true});
                 Vector3 center=world.EnemyHome+Vector3.up*2.5f;float Size()=>Mathf.Abs(world.Camera.WorldToViewportPoint(center+Vector3.up*.2f).y-world.Camera.WorldToViewportPoint(center).y);

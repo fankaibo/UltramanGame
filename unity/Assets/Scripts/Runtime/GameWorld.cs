@@ -98,7 +98,7 @@ namespace UltramanGame.Runtime
         public bool HeroTrailVisible => strikeTrails.HeroVisible;
         public bool MonsterTrailVisible => strikeTrails.MonsterVisible;
         readonly Vector3 cameraHome=new Vector3(-.25f,2.9f,-10.5f),lookAt=new Vector3(0,1.65f,.4f);
-        float impact,impactAge=10,transformAge,celebrateAt,clock;
+        float impact,impactAge=10,impactDirection=1,transformAge,celebrateAt,clock;
         readonly ImpactTiming hitTiming=new ImpactTiming();
         float framingFieldOfView=35;
         bool beamWasVisible,landingPending;
@@ -167,14 +167,14 @@ namespace UltramanGame.Runtime
         public void ResetPresentation()
         {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();fighterFraming.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hasCameraPosition=previousDedicatedShot=false;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
-        void Kick(float strength,bool special=false)
-        {impact=strength;impactAge=0;hitTiming.Hit(special);}
+        void Kick(float strength,bool special=false,float direction=1)
+        {impact=strength;impactAge=0;impactDirection=direction;hitTiming.Hit(special);}
         public void Hit(bool special,Battle state)
         {
             // Let a normal hit read as a cabinet impact without turning it into
             // a long shake. The stronger envelope is still short enough for a
             // four-year-old to keep the action legible.
-            Kick(special?.12f:.065f,special);
+            Kick(special?.12f:.065f,special,state!=null&&state.Action==HeroAction.LeftPunch?-1:1);
             // Use the monster's position at this contact, including its own forward step.
             var position=special||state!=null&&(state.LastDamageRanged||HeroArsenal.Blade(heroId,state))?BeamTarget:hero==null?EnemyHome+Vector3.up*2.15f:hero.StrikeContact(state);
             bool ranged=!special&&state!=null&&state.LastDamageRanged;
@@ -186,7 +186,7 @@ namespace UltramanGame.Runtime
             if(special)effects.BeamHit(position,BattleAxis);
             if(!special&&state!=null&&state.Punches>0&&state.Punches%5==0)
             {
-                Kick(.09f);
+                Kick(.09f,false,impactDirection);
                 cinematic.PulseAt(position,new Color(1,.68f,.20f),.42f);
                 effects.Combo(position);
             }
@@ -211,7 +211,7 @@ namespace UltramanGame.Runtime
                 hero?.BindGuardImpact(contact);
                 if(state!=null&&MonsterRayMotion.Variant(state.EnemyAttackCount))monsterRay.Impact(contact,true);
                 if(state!=null&&MonsterRockMotion.Variant(state.EnemyAttackCount))rock.Impact(contact);
-                effects.Impact(contact,false,true);monsterEffects.Impact(true,contact,state?.EnemyAttackCount??-1);Kick(.04f);
+                effects.Impact(contact,false,true);monsterEffects.Impact(true,contact,state?.EnemyAttackCount??-1);Kick(.04f,false,-1);
             }
             if(cue==GameCue.Hurt)
             {
@@ -223,7 +223,7 @@ namespace UltramanGame.Runtime
                 if(state!=null&&MonsterRayMotion.Variant(state.EnemyAttackCount))monsterRay.Impact(impact,false);
                 if(state!=null&&MonsterRockMotion.Variant(state.EnemyAttackCount))rock.Impact(impact);
                 effects.Impact(impact,false,false,true,direction:-BattleAxis);
-                monsterEffects.Impact(false,impact,state?.EnemyAttackCount??-1);Kick(.055f);
+                monsterEffects.Impact(false,impact,state?.EnemyAttackCount??-1);Kick(.055f,false,-1);
             }
             if(cue==GameCue.HeroLanded)landingPending=true;
             if(cue==GameCue.Transform)Burst(HeroHome+Vector3.up*1.4f,30,.5f);
@@ -396,7 +396,8 @@ namespace UltramanGame.Runtime
             backdrop.position=cameraHome+backgroundRotation*new Vector3(0,-h*.04f,80);
             impactAge+=dt;
             if(state.Phase==GamePhase.Paused||state.Phase==GamePhase.Waiting){impact=0;effects.Clear();}
-            float kick=impact*Mathf.Exp(-impactAge*14)*(1-focus);
+            bool contactRecoil=heroId=="Tiga"&&!Showcase&&state.Phase==GamePhase.Battle&&!Closeup.Active&&state.Action!=HeroAction.Beam;
+            float kick=contactRecoil?0:impact*Mathf.Exp(-impactAge*14)*(1-focus);
             // One damped recoil, with a restrained camera displacement for a young player.
             Camera.transform.position=cameraHome+new Vector3(Mathf.Sin(impactAge*47)*kick,Mathf.Sin(impactAge*31)*kick*.35f,-kick*.4f);
             Vector3 target=lookAt;
@@ -661,6 +662,20 @@ namespace UltramanGame.Runtime
                 float roll=punchRoll+rushRoll+hurtRoll;
                 if(Mathf.Abs(roll)>.01f)
                     Camera.transform.rotation=Quaternion.AngleAxis(roll,Camera.transform.forward)*Camera.transform.rotation;
+            }
+            // Compose contact recoil after the volley/combo/exchange lenses.
+            // The old world-space kick was overwritten at full exchange weight,
+            // leaving blocked and unblocked impacts with identical camera poses.
+            // This finite local pulse follows the contact clock, never a random
+            // shake or accumulated camera offset. Cut-ins retain their framing.
+            if(contactRecoil&&impactAge<.28f)
+            {
+                float wave=Mathf.Sin(impactAge*34)*Mathf.Exp(-impactAge*16)
+                    *(1-Mathf.SmoothStep(0,1,(impactAge-.20f)/.08f));
+                float strength=Mathf.Min(impact,.09f)*wave;
+                Camera.transform.position+=Camera.transform.right*(impactDirection*strength*1.6f)
+                    +Camera.transform.up*(strength*.28f)-Camera.transform.forward*(strength*.8f);
+                Camera.transform.rotation*=Quaternion.Euler(0,0,-impactDirection*strength*10);
             }
             // Ordinary reframing travels continuously. Authored cut-ins are
             // complete camera poses: position, rotation and lens must switch
