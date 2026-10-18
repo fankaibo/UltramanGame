@@ -370,8 +370,8 @@ namespace UltramanGame.Runtime
             switch(key)
             {
                 case "battle":caption="挥动拳头，守护火山基地！";break;
-                case "energy":caption="能量满了 · 双手向前推，停一下";break;
-                case "beam_help":caption="双臂交叉成光线姿势 · 停一下";break;
+                case "energy":caption=BeamReadyInstruction;break;
+                case "beam_help":caption=BeamReadyInstruction;break;
                 case "beam_reset":caption="先收回双手，再摆光线姿势，停一下";break;
                 case "tutorial":caption="先把手收回来，再挥出去";break;
                 case "resume":caption="准备好了，继续！";break;
@@ -395,7 +395,7 @@ namespace UltramanGame.Runtime
                 case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;battleStartDismissAt=-1;hintAt=Time.unscaledTime+12;break;
                 case GameCue.Block:caption="挡住了！护盾成功";break;
                 case GameCue.Hurt:caption="没关系，力量正在恢复";break;
-                case GameCue.EnergyReady:caption="能量满了 · 双手向前推，停一下";break;
+                case GameCue.EnergyReady:caption=BeamReadyInstruction;break;
                 case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
                 case GameCue.Warning:caption=MonsterRockMotion.Active(battle)?"飞石来了 · 双手护住胸前":"怪兽要攻击了 · 准备防御";captionUntil=Time.unscaledTime+battle.WarningDuration;break;
                 case GameCue.Victory:victoryAt=Time.unscaledTime;if(TraceEnabled)Debug.Log($"[FinalStrike] completed action={battle.Action} actionAge={battle.ActionAge:F3}");break;
@@ -404,6 +404,9 @@ namespace UltramanGame.Runtime
             }
             captionUntil=Mathf.Max(captionUntil,Time.unscaledTime+2.5f);
         }
+        const string BeamPoseInstruction="一手竖起，一手横放 · 保持一下";
+        string BeamReadyInstruction=>recognizer.BeamNeedsRelease?"先收回双手 · 再摆光线姿势":BeamPoseInstruction;
+
         string WaitingGuideKey=>recognizer.TransformNeedsRelease?"replay_lower":replayGuide?"replay_raise":"arcade_ready";
         void SpeakWaitingGuide()
         {

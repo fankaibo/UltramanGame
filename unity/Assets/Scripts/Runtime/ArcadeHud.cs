@@ -145,7 +145,7 @@ namespace UltramanGame.Runtime
                 // The fall and recovery need the full lower part of the shot;
                 // resume the normal instructions only after the hero stands.
                 if(battle.Action==HeroAction.Beam)DrawBeamReleaseTitle();
-                else if(ready&&!keyboard&&(recognizer.BeamProgress>0||held.BeamIntent))
+                else if(ready&&!keyboard&&!recognizer.BeamNeedsRelease&&(recognizer.BeamProgress>0||held.BeamIntent))
                     // Keep the instruction aligned with the gesture that owns
                     // input, even if an enemy warning begins during its hold.
                     Guide(recognizer.BeamProgress>0?$"{SelectedHero.Beam}姿势已锁定 · 保持，释放光线！":"看见光线姿势 · 保持一下","beam",gold,recognizer.BeamProgress);
@@ -153,7 +153,12 @@ namespace UltramanGame.Runtime
                     Guide(battle.Shield||(!keyboard&&held.GuardIntent)?(keyboard?"护盾已展开 · 继续按住 S":"护盾姿势已锁定 · 保持住！"):
                         keyboard?"按住 S，展开护盾！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,keyboard?(battle.Shield?1:0):recognizer.ShieldProgress);
                 else if(ready)
-                    Guide(keyboard?"能量已满 · 按 J 释放光线":"双臂交叉成光线姿势，停一下","beam",gold,keyboard?1:recognizer.BeamProgress);
+                    // A spoken release cue used to be hidden by this always-ready
+                    // branch. Match the recognizer's actual gate immediately;
+                    // a stale pose must never show a locked/charging beam.
+                    Guide(keyboard?"能量已满 · 按 J 释放光线":BeamReadyInstruction,
+                        !keyboard&&recognizer.BeamNeedsRelease?"neutral":"beam",gold,
+                        keyboard?1:recognizer.BeamNeedsRelease?0:recognizer.BeamProgress);
                 else if(time<captionUntil||battle.Punches<3)
                     Guide(keyboard?"A / D 出拳 · Q / E 光弹":time<captionUntil?caption:SelectedHero.Id=="Mebius"?"左手侧挥光剑 · 向前挥拳发光弹":"向前挥拳发"+HeroArsenal.RangedName(SelectedHero.Id)+" · 快慢跟随你","punch",cyan,0);
             }

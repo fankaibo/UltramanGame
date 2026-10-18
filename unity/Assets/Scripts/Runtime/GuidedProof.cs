@@ -22,6 +22,14 @@ namespace UltramanGame.Runtime
                 if(proofFrames.Add(startKey))
                 {Debug.Log($"[ReplayStartProof] step={startKey} release={recognizer.TransformNeedsRelease} progress={recognizer.TransformProgress:F2}");StartCoroutine(SaveGuidedProof(startKey));return;}
             }
+            if(!photo.Active&&!keyboard&&battle.Phase==GamePhase.Battle&&battle.Energy>=Battle.MaxEnergy&&
+                battle.Action!=HeroAction.Beam&&battle.Action!=HeroAction.Hurt&&battle.Enemy==EnemyPhase.Rest)
+            {
+                string beamGuideKey=recognizer.BeamNeedsRelease?"beam-guide-release":
+                    recognizer.BeamProgress>0||held.BeamIntent?"beam-guide-hold":"beam-guide-ready";
+                if(proofFrames.Add(beamGuideKey))
+                {Debug.Log($"[BeamGuideProof] key={beamGuideKey} release={recognizer.BeamNeedsRelease} progress={recognizer.BeamProgress:F2} title={BeamReadyInstruction}");StartCoroutine(SaveGuidedProof(beamGuideKey));return;}
+            }
             if(photo.Stage==PhotoStage.Review&&photo.ChoicesReady&&photo.ChoiceProgress>.20f)
             {
                 string choiceKey="photo-choice-"+photo.ChoiceCandidate;
