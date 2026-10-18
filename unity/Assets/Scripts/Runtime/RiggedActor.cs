@@ -136,7 +136,7 @@ namespace UltramanGame.Runtime
         HeroAction observedAction=HeroAction.None;
         int lastPunchSide;
         bool rangedRecovery;
-        Vector3 rangedExitLeft,rangedExitRight;
+        Vector3 rangedExitLeft,rangedExitRight,rangedSupportStart;
         GamePhase previous;
         bool heavyHit,accentHit;
         Transform hand,leftHand,forearm,leftForearm,leftUpperArm,upperArm,rightFoot,leftFoot;
@@ -721,7 +721,12 @@ namespace UltramanGame.Runtime
             if(!monster&&preview<0&&state.Phase==GamePhase.Battle&&
                 (state.Action==HeroAction.LeftPunch||state.Action==HeroAction.RightPunch)&&
                 (!ReferenceEquals(observedBattle,state)||observedAction!=state.Action||state.ActionAge<observedPunchAge))
-            {punchStart=StrikeOrigin(state.Action);counterReach=ReferenceEquals(observedBattle,state)&&(lastSampleShield||guardHandoff?.Active==true);}
+            {
+                punchStart=StrikeOrigin(state.Action);
+                if(heroId=="Tiga"&&state.IsRangedPunch)
+                    rangedSupportStart=StrikeOrigin(state.Action==HeroAction.LeftPunch?HeroAction.RightPunch:HeroAction.LeftPunch);
+                counterReach=ReferenceEquals(observedBattle,state)&&(lastSampleShield||guardHandoff?.Active==true);
+            }
             if(preview>=0||!ReferenceEquals(observedBattle,state)||state.Phase!=GamePhase.Battle||state.Action!=HeroAction.Hurt)hurtEntry=false;
             else if(kickWasActive||heroId=="Tiga"&&observedAction!=HeroAction.Hurt)
             {
@@ -2197,6 +2202,12 @@ namespace UltramanGame.Runtime
                 var upper=left?leftUpperArm:upperArm;var lower=left?leftForearm:forearm;var wrist=left?leftHand:hand;
                 var guard=ReadyHand(state,upper,lower,wrist,left,side);
                 Vector3 target=guard;
+                if(heroId=="Tiga"&&state.IsRangedPunch&&left!=activeLeft)
+                    // The preceding cast's visible wrist is the start of the
+                    // support hand's return, not the newly sampled idle clip.
+                    // ActionAge carries accepted speed once; the shooting arm
+                    // retains its existing launch and contact trajectory.
+                    target=Vector3.Lerp(rangedSupportStart,guard,Mathf.SmoothStep(0,1,age/.16f));
                 if(!state.IsRangedPunch)
                     target=Vector3.Lerp(left?rangedExitLeft:rangedExitRight,guard,Mathf.SmoothStep(0,1,heroRecoveryAge/.14f));
                 if(state.IsRangedPunch&&left==activeLeft)
