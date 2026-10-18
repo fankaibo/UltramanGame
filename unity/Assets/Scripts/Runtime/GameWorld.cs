@@ -104,7 +104,7 @@ namespace UltramanGame.Runtime
         Vector3 previousCameraPosition;
         Quaternion previousCameraRotation;
         float previousCameraFieldOfView;
-        bool hasCameraPosition;
+        bool hasCameraPosition,previousDedicatedShot;
         public const float MaxCameraSpeed=13.5f;
         public GameWorld()
         {
@@ -162,7 +162,7 @@ namespace UltramanGame.Runtime
         public float BattleDelta(float dt,Battle state) => Closeup.Active?0:hitTiming.Delta(dt,state.Phase)*(HeroKickMotion.Active(state)?.72f:1);
         internal void WarmDefeatImpact(){defeatImpact.Begin(EnemyHome,false);defeatImpact.Tick(.25f);}
         public void ResetPresentation()
-        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();fighterFraming.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hasCameraPosition=false;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
+        {hero?.ResetFinisher();Closeup.Cancel();comboCamera.Clear();rangedCamera.Clear();meleeCamera.Clear();fighterFraming.Clear();exchangeCamera.Clear();hitTiming.Clear();arcade.Clear();effects.Clear();defeatImpact.Clear();volcano.Damage.Reset();monsterEffects.Clear();monsterRay.Clear();projectile.Clear();blade.Clear();rock.Clear();strikeTrails.Clear();cinematic.Clear();impact=0;impactAge=10;beamWasVisible=BeamStarted=landingPending=MonsterLanded=MonsterStaggerLanded=MonsterDissolving=TransformationCloseup=BeamReactionCloseup=MonsterEntranceCloseup=MonsterEntranceRoar=false;ThreatFocus=EntranceAge=lastEntranceAge=0;MonsterEntranceSteps=MonsterEntranceRoars=0;hasCameraPosition=previousDedicatedShot=false;hero?.SetPresentationOpacity(1);staggerLandings=enemy?.StaggerLandings??0;launchLandings=enemy?.LaunchLandings??0;beamLandings=enemy?.BeamLandings??0;dissolveStarts=enemy?.DissolveStarts??0;}
         public void Burst(Vector3 position,int count,float force=1,bool enemyEffect=false) => effects.Burst(position,count,force,enemyEffect);
         void Kick(float strength,bool special=false)
         {impact=strength;impactAge=0;hitTiming.Hit(special);}
@@ -628,11 +628,12 @@ namespace UltramanGame.Runtime
                 if(Mathf.Abs(roll)>.01f)
                     Camera.transform.rotation=Quaternion.AngleAxis(roll,Camera.transform.forward)*Camera.transform.rotation;
             }
-            // All camera owners above may request a new composition on the
-            // same frame (fighter follow, combo close-up, threat cut or a
-            // reaction shot). Limit the physical camera step after those
-            // choices are combined, so a 30/60 Hz display never sees a
-            // one-frame teleport while the final framing remains unchanged.
+            // Ordinary reframing travels continuously. Authored cut-ins are
+            // complete camera poses: position, rotation and lens must switch
+            // together on both entry AND exit. Limiting only the return
+            // position left the camera in front of the hero while it was
+            // already looking toward the wide shot, losing both fighters.
+            bool dedicatedShot=HeroShot||BeamReactionCloseup||TransformationCloseup||MonsterEntranceCloseup;
             if(dt>0)
             {
                 if(!hasCameraPosition)
@@ -640,9 +641,10 @@ namespace UltramanGame.Runtime
                     previousCameraPosition=Camera.transform.position;
                     hasCameraPosition=true;
                 }
-                else if(!HeroShot)
+                else if(!dedicatedShot&&!previousDedicatedShot)
                     Camera.transform.position=Vector3.MoveTowards(previousCameraPosition,Camera.transform.position,MaxCameraSpeed*dt);
                 previousCameraPosition=Camera.transform.position;
+                previousDedicatedShot=dedicatedShot;
             }
             if(frameFighters)fighterFraming.Apply(Camera,dt,dedicated);
             hero?.SetPresentationOpacity(MonsterEntranceCloseup?0:1);
