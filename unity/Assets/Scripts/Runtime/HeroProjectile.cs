@@ -11,6 +11,7 @@ namespace UltramanGame.Runtime
         readonly Transform core,halo,wave;
         readonly Material coreMat,haloMat,waveMat,trailMat;
         readonly LineRenderer trail;
+        readonly Light flightSpill;
         readonly Transform[] sluggers=new Transform[2];
         readonly LineRenderer[] bladeTrails=new LineRenderer[2];
         readonly RangedSkillAccent accents;
@@ -44,6 +45,10 @@ namespace UltramanGame.Runtime
         {
             core=RangedSkillAccent.Volume(parent,"Light bullet moving energy",out coreMat);
             accents=new RangedSkillAccent(parent);
+            flightSpill=new GameObject("Ranged travelling spill").AddComponent<Light>();
+            flightSpill.transform.SetParent(parent,false);flightSpill.type=LightType.Point;
+            flightSpill.range=2.6f;flightSpill.shadows=LightShadows.None;
+            flightSpill.renderMode=LightRenderMode.ForcePixel;flightSpill.enabled=false;flightSpill.intensity=0;
             halo=Quad(parent,"Light bullet aura",out haloMat);
             wave=Quad(parent,"Light bullet travelling wave",out waveMat);waveMat.SetFloat("_Ring",1);
             var bladeMaterial=RuntimeResources.Own(parent,new Material(Shader.Find("Standard")){color=new Color(.75f,.88f,1)});
@@ -104,7 +109,7 @@ namespace UltramanGame.Runtime
             if(ColorUtility.TryParseHtmlString(HeroRoster.At(HeroRoster.Index(id)).BeamTint,out var color))tint=color;Clear();
         }
         void HideFlight()
-        {originalSluggers?.Restore();Visible=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);foreach(var line in bladeTrails)line.enabled=false;}
+        {flightSpill.enabled=false;flightSpill.intensity=0;originalSluggers?.Restore();Visible=false;core.gameObject.SetActive(false);halo.gameObject.SetActive(false);wave.gameObject.SetActive(false);trail.enabled=false;foreach(var blade in sluggers)blade.gameObject.SetActive(false);foreach(var line in bladeTrails)line.enabled=false;}
         public void Clear(){Started=false;HideFlight();accents.Clear();contacted=false;}
         public void Impact(Vector3 point,Vector3 direction)
         {contacted=true;contactPoint=point;accents.Hit(point,direction,tint);}
@@ -122,7 +127,7 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Battle state,Camera camera,Vector3 hand,Vector3 target,bool suppressed,Vector3? head=null,float dt=0)
         {
-            Started=false;
+            Started=false;flightSpill.enabled=false;flightSpill.intensity=0;
             if(!ReferenceEquals(observed,state)){observed=state;sequence=-1;Launches=0;Clear();accents.NewRound();}
             if(suppressed||state.Phase!=GamePhase.Battle){Clear();return;}
             accents.TickImpact(dt);
@@ -157,6 +162,16 @@ namespace UltramanGame.Runtime
             float t=AttackTempo.Travel(age),fade=1-Mathf.Clamp01((age-AttackTempo.RangedHitSeconds)/.055f);
             Vector3 end=contacted?contactPoint:target;
             Tip=Vector3.Lerp(origin,end,t);
+            // The same flight clock carries the light from the casting hand
+            // to the target. Contact then owns the illumination; a parked or
+            // cancelled energy head must not leave a lamp inside the monster.
+            if(useComet&&headVisible)
+            {
+                float power=Mathf.SmoothStep(0,1,(age-AttackTempo.RangedLaunchSeconds)/.035f)
+                    *(1-Mathf.SmoothStep(0,1,(age-(AttackTempo.RangedHitSeconds-.025f))/.025f));
+                flightSpill.transform.position=Tip;flightSpill.color=Color.Lerp(tint,Color.white,.35f);
+                flightSpill.intensity=power*2;flightSpill.enabled=power>.001f;
+            }
             if(useSluggers)
             {
                 var home=head??origin;
