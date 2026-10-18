@@ -25,11 +25,12 @@ namespace UltramanGame.Runtime
         bool liveReadyAllowed,liveSupportAllowed;
         public float ReadyLift(bool left)=>liveReadyAllowed?liveReady.Y(left):0;
         public float SupportLift(bool left)=>liveSupportAllowed?liveReady.Y(left):0;
+        public float RangedBodySide=>heroId=="Tiga"&&liveSupportAllowed?liveReady.BodySide:0;
         public float ReadyBodySide=>liveReadyAllowed?liveReady.BodySide:0;
         public void ObserveReadyPose(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
         {
             if(monster)return;
-            liveReady.Tick(frame,nowMs,input,state,dt,enabled);
+            liveReady.Tick(frame,nowMs,input,state,dt,enabled,heroId=="Tiga");
             rangedCast.Tick(frame,nowMs,input,state,dt,enabled&&heroId=="Tiga");
         }
         Vector3 restHome;
@@ -1892,7 +1893,7 @@ namespace UltramanGame.Runtime
         void PoseLiveReadyBody(Battle state)
         {
             if(!pelvis||!upperSpine||!head||!leftFoot||!rightFoot||!leftThigh||!rightThigh||!leftShin||!rightShin)return;
-            float weight=liveReadyAllowed||state.Phase==GamePhase.Paused?1:state.Phase==GamePhase.Battle&&(state.IsPunch||state.Shield)?
+            float weight=liveReadyAllowed||heroId=="Tiga"&&liveSupportAllowed||state.Phase==GamePhase.Paused?1:state.Phase==GamePhase.Battle&&(state.IsPunch||state.Shield)?
                 1-Mathf.SmoothStep(0,1,clipAge/.10f):0;
             float lean=liveReady.BodySide*weight,tilt=liveReady.BodyTilt*weight;
             if(Mathf.Abs(lean)+Mathf.Abs(tilt)<.0001f)return;

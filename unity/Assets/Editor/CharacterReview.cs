@@ -179,7 +179,8 @@ namespace UltramanGame.Editor
             var snapshots=new System.Collections.Generic.List<GameObject>();
             foreach(var skin in skins)
             {
-                if(!skin.enabled)continue;
+                // A hidden comparison rig must stay hidden after baking too.
+                if(!skin.enabled||skin.forceRenderingOff)continue;
                 var mesh=new Mesh();skin.BakeMesh(mesh,true);
                 var snapshot=new GameObject("Skin review snapshot");snapshot.transform.SetParent(skin.transform,false);
                 snapshot.layer=skin.gameObject.layer;

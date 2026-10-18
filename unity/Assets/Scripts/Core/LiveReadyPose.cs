@@ -19,7 +19,7 @@ namespace UltramanGame.Core
             (state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&!state.Shield);
         public static bool RangedSupport(Battle state)=>state!=null&&state.Phase==GamePhase.Battle&&state.IsRangedPunch&&!state.Shield;
         static float Clamp(float value,float min,float max)=>Math.Max(min,Math.Min(max,value));
-        public void Tick(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled)
+        public void Tick(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled,bool followRangedBody=false)
         {
             if(float.IsNaN(dt)||float.IsInfinity(dt)||dt<=0)return;
             if(!ReferenceEquals(observed,state))
@@ -39,9 +39,12 @@ namespace UltramanGame.Core
                     if(RangedSupport(state))
                     {
                         // Only the unused hand keeps following the player.
-                        // Accepted attacks retain their authored fist/body path.
+                        // Accepted attacks retain their authored striking hand.
+                        // Tiga can keep the player's bounded torso lean while
+                        // the authored hip/chest drive supplies the attack.
                         if(state.Action==HeroAction.LeftPunch)txl=tyl=0;else txr=tyr=0;
-                        targetSide=targetTilt=0;
+                        if(followRangedBody)BodyTarget(frame.points,width,out targetSide,out targetTilt);
+                        else targetSide=targetTilt=0;
                     }
                     else BodyTarget(frame.points,width,out targetSide,out targetTilt);
                 }

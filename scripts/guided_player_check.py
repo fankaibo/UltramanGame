@@ -9,6 +9,7 @@ import csv
 from contextlib import ExitStack
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import plistlib
@@ -140,6 +141,7 @@ def main():
     parser.add_argument('--gesture-wobble',action='store_true',help='Inject wrist-depth noise into held defense and finisher poses')
     parser.add_argument('--tempo-skills',action='store_true',help='Alternate slow and fast forward punches through the real pose receiver')
     parser.add_argument('--high-hands',action='store_true',help='Keep fists above shoulders throughout ordinary attacks, defense and the beam-release interval')
+    parser.add_argument('--ranged-body-follow',action='store_true',help='Lean through high-hand casts and require actual left/right body-follow screenshots')
     parser.add_argument('--support-follow',action='store_true',help='Require both passive-hand camera-follow shots during real ranged attacks')
     parser.add_argument('--volley-camera',action='store_true',help='Require actual ranged medium-shot and defence handoff screenshots')
     parser.add_argument('--volley-cadence',type=float,default=.8,help='Seconds between the six camera-review casts (0.6 to 1.8)')
@@ -156,6 +158,8 @@ def main():
     parser.add_argument('--app',type=Path,help='Validate a candidate without replacing the normal playtest app')
     options=parser.parse_args()
     if not 60<=options.timeout<=900:parser.error('--timeout must be between 60 and 900 seconds')
+    if options.ranged_body_follow and (not options.high_hands or options.hero!='Tiga'):
+        parser.error('--ranged-body-follow requires --hero Tiga --high-hands')
     if options.body_follow:options.ready_follow=True
     if options.high_hands and (not options.tempo_skills or options.volley_camera or options.ready_follow or options.gesture_shape_noise or options.gesture_entry_noise):
         parser.error('--high-hands requires --tempo-skills and cannot mix with volley/ready/shape/entry fixtures (entry deliberately lowers hands)')
@@ -412,6 +416,14 @@ def main():
                         points[11].y+=lean*.035;points[12].y-=lean*.035
                         protected='body-follow'
                     tempo_started=None;volley_started=None
+                if options.ranged_body_follow and phase=='Battle' and stage=='battle' and not guard and not beam:
+                    # Move shoulders, arms and head together above stable hips.
+                    # This adds body motion, not another attack input channel.
+                    lean=math.sin(age*.85)
+                    for index in (0,11,12,13,14,15,16):points[index].x+=lean*.12
+                    points[11].y+=lean*.03;points[12].y-=lean*.03
+                    for index,x in ((23,.6),(24,.4)):
+                        points[index].x=x;points[index].y=.74;points[index].visibility=1
                 if options.tempo_skills and not options.high_hands and guard and not beam and now<guard_started:
                     # The tempo fixture rests at chest height and can already
                     # be guarding before Warning. Release that old guard so
@@ -511,6 +523,12 @@ def main():
                     peaks=re.findall(r'\[RangedCameraProof\] ranged-volley-peak focus=([\d.]+)',output)
                     if not peaks or max(map(float,peaks))<.97:raise RuntimeError('Actual player did not reach the volley lens')
                     tempo_evidence['volley_camera']=dict(shots=sorted(required),focus_max=max(map(float,peaks)),input_cadence_seconds=options.volley_cadence if options.volley_camera else None,high_hands=options.high_hands)
+                if options.ranged_body_follow:
+                    required={'ranged-body-left','ranged-body-right'}
+                    if not required.issubset(proof_shots):raise RuntimeError('Missing actual ranged torso follow: '+str(required-proof_shots))
+                    body_events=re.findall(r'\[RangedBodyProof\] side=(left|right) value=(-?[\d.]+) age=([\d.]+)',output)
+                    if {row[0] for row in body_events}!={'left','right'}:raise RuntimeError('Missing both live torso directions')
+                    tempo_evidence['ranged_body_follow']=dict(shots=sorted(required),events=body_events)
                 if options.ranged_reaction:
                     required={'ranged-step-lift','ranged-step-land','ranged-step-return'}
                     if not required.issubset(proof_shots):raise RuntimeError(f'Missing actual ranged reaction proof: {required-proof_shots}')

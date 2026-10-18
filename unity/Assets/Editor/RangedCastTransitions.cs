@@ -12,7 +12,8 @@ namespace UltramanGame.Editor
     {
         public static void Validate()
         {
-            bool liveSupport=Array.IndexOf(Environment.GetCommandLineArgs(),"--live-support")>=0;
+            bool liveBody=Array.IndexOf(Environment.GetCommandLineArgs(),"--live-body")>=0;
+            bool liveSupport=liveBody||Array.IndexOf(Environment.GetCommandLineArgs(),"--live-support")>=0;
             var report=new StringBuilder();
             foreach(string id in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})foreach(int hz in new[]{15,30,60})
             {
@@ -20,13 +21,19 @@ namespace UltramanGame.Editor
                 var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);world.SetHeroProfile(id);
                 string handNote="";Battle b=null;float dt=1f/hz,time=0,health=200,handStep=0;Vector3 oldLeft=Vector3.zero,oldRight=Vector3.zero;
                 float footStep=0,peakGuardFoot=0;var oldLeftFoot=hero.FootPosition(true);var oldRightFoot=hero.FootPosition(false);
-                int sequence=0;float peakSupport=0;
+                int sequence=0;float peakSupport=0,peakBody=0;
                 void Observe(PlayerInput input)
                 {
                     if(!liveSupport)return;
                     var points=new PosePoint[33];for(int i=0;i<33;i++)points[i]=new PosePoint(.5f,.5f);
                     points[11]=new PosePoint(.65f,.3f);points[12]=new PosePoint(.35f,.3f);
                     points[15]=new PosePoint(.72f,.12f);points[16]=new PosePoint(.28f,.12f);
+                    if(liveBody)
+                    {
+                        points[23]=new PosePoint(.60f,.74f);points[24]=new PosePoint(.40f,.74f);
+                        foreach(int index in new[]{0,11,12,13,14,15,16})points[index].x+=.11f;
+                        points[11].y+=.03f;points[12].y-=.03f;
+                    }
                     var frame=new PoseFrame{schema=1,streamId="live-support-transition",sequence=++sequence,capturedMs=100000+Mathf.RoundToInt(time*1000),tracked=true,points=points};
                     hero.ObserveReadyPose(frame,frame.capturedMs,input,b,dt,true);
                 }
@@ -38,6 +45,7 @@ namespace UltramanGame.Editor
                     Observe(input);
                     hero.Update(b,world.Camera,dt,time);enemy.Update(b,world.Camera,dt,time);if(b.EnemyHealth<health)world.Hit(b.Action==HeroAction.Beam,b);health=b.EnemyHealth;world.Tick(b,dt,time);
                     peakSupport=Mathf.Max(peakSupport,hero.SupportLift(true),hero.SupportLift(false));
+                    peakBody=Mathf.Max(peakBody,Mathf.Abs(hero.RangedBodySide));
                     var lf=hero.FootPosition(true);var rf=hero.FootPosition(false);
                     footStep=Mathf.Max(footStep,Vector3.Distance(lf,oldLeftFoot),Vector3.Distance(rf,oldRightFoot));oldLeftFoot=lf;oldRightFoot=rf;
                     var left=hero.StrikeOrigin(HeroAction.LeftPunch);var right=hero.HandPosition;float jump=Mathf.Max(Vector3.Distance(left,oldLeft),Vector3.Distance(right,oldRight));if(jump>handStep){handStep=jump;handNote=$"action={b.Action} age={b.ActionAge} shield={b.Shield}";}oldLeft=left;oldRight=right;
@@ -75,8 +83,9 @@ namespace UltramanGame.Editor
                     Step(new PlayerInput{Tracking=true,LeftPunch=!left,RightPunch=left});Idle(.6f,true);
                     if(b.Punches!=1||!b.Shield)throw new Exception("Melee cancellation after range failed");
                 }
+                if(liveBody&&(id=="Tiga"?peakBody<.20f:peakBody!=0))throw new Exception("Ranged torso ownership not verified: "+id+"/"+peakBody);
                 if(liveSupport&&peakSupport<.3f)throw new Exception("Live support fixture did not move support arm");
-                string line=$"{id}-{hz} bothHands=true speeds=0.65/1.70 intentAndConfirmed=true preReleaseGuard=pass flightGuard=pass pause=pass newRound=pass rangeToMeleeGuard=pass guardHandStep={peakGuard:F4} guardFootStep={peakGuardFoot:F4} liveSupport={liveSupport} peakSupport={peakSupport:F4}";report.AppendLine(line);Debug.Log("[RangedCastTransitions] "+line);
+                string line=$"{id}-{hz} bothHands=true speeds=0.65/1.70 intentAndConfirmed=true preReleaseGuard=pass flightGuard=pass pause=pass newRound=pass rangeToMeleeGuard=pass guardHandStep={peakGuard:F4} guardFootStep={peakGuardFoot:F4} liveSupport={liveSupport} peakSupport={peakSupport:F4} liveBody={liveBody} peakBody={peakBody:F4}";report.AppendLine(line);Debug.Log("[RangedCastTransitions] "+line);
             }
             var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--ranged-cast-output");
             string folder=Path.GetFullPath(at>=0?args[at+1]:"../artifacts/ranged-cast-20261009");Directory.CreateDirectory(folder);File.WriteAllText(folder+"/transitions.txt",report.ToString());

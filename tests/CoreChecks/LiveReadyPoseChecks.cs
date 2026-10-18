@@ -20,6 +20,7 @@ static class LiveReadyPoseChecks
         {
             BodyChecks(check,hz);
             SupportChecks(check,hz);
+            RangedBodyChecks(check,hz);
             var b=Start();var a=new LiveReadyPose();var scaled=new LiveReadyPose();float dt=1f/hz;long stamp=100000;var input=new PlayerInput{Tracking=true};
             for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Frame(stamp,.12f),stamp,input,b,dt,true);scaled.Tick(Frame(stamp,.12f,scale:.55f),stamp,input,b,dt,true);}
             check(a.Y(true)>.44f&&a.Y(false)<0&&a.X(true)<0&&a.X(false)>0,"live ready respects separate anatomical left and right "+hz);
@@ -91,6 +92,44 @@ static class LiveReadyPoseChecks
         {p.points[i].x=.5f+(p.points[i].x-.5f)*scale+translation;p.points[i].y=.5f+(p.points[i].y-.5f)*scale;}
         if(!hips)p.points[23].visibility=p.points[24].visibility=.1f;
         return p;
+    }
+    static void RangedBodyChecks(Action<bool,string> check,int hz)
+    {
+        foreach(bool left in new[]{true,false})
+        {
+            var b=Start();var live=new LiveReadyPose();var legacy=new LiveReadyPose();
+            long stamp=800000;float dt=1f/hz;
+            for(int f=0;f<hz;f++)
+            {stamp+=1000/hz;live.Tick(Lean(stamp),stamp,new PlayerInput{Tracking=true},b,dt,true,true);}
+            float initial=live.BodySide;
+            b.Tick(dt,new PlayerInput{Tracking=true,RangedAttack=true,LeftPunch=left,RightPunch=!left,AttackSpeed=.65f});
+            for(int f=0;f<Math.Ceiling(hz*.30f);f++)
+            {
+                b.Tick(dt,new PlayerInput{Tracking=true});stamp+=1000/hz;
+                live.Tick(Lean(stamp),stamp,new PlayerInput{Tracking=true},b,dt,true,true);
+                legacy.Tick(Lean(stamp),stamp,new PlayerInput{Tracking=true},b,dt,true);
+            }
+            check(b.IsRangedPunch&&Math.Abs(live.BodySide-initial)<.002f,
+                "Tiga holds torso lean through either ranged arm "+hz+"/"+left);
+            check(legacy.BodySide==0,"other heroes keep authored ranged torso "+hz+"/"+left);
+            float held=live.BodySide;live.Tick(Lean(++stamp,-1),stamp,new PlayerInput{Tracking=true},b,0,true,true);
+            check(live.BodySide==held,"zero-time ranged redraw preserves lean "+hz);
+            // Follow fresh motion during the same accepted cast without
+            // writing its action clock, shot sequence or damage.
+            int punches=b.Punches;float age=b.ActionAge;
+            for(int f=0;f<hz;f++)
+            {stamp+=1000/hz;live.Tick(Lean(stamp,-1),stamp,new PlayerInput{Tracking=true},b,dt,true,true);}
+            check(live.BodySide>.38f&&b.ActionAge==age&&b.Punches==punches,"cast torso follows fresh lean without gameplay writes "+hz);
+            for(int f=0;f<hz;f++)
+            {stamp+=1000/hz;live.Tick(Lean(stamp,hips:false),stamp,new PlayerInput{Tracking=true},b,dt,true,true);}
+            check(Math.Abs(live.BodySide)<.001f&&live.BodyTilt>.19f,"cropped ranged hips retain only visible shoulder tilt "+hz);
+            b.Tick(dt,new PlayerInput{Tracking=true,Shield=true,GuardIntent=true});
+            for(int f=0;f<hz;f++)
+            {stamp+=1000/hz;live.Tick(Lean(stamp),stamp,new PlayerInput{Tracking=true},b,dt,true,true);}
+            check(b.Shield&&Math.Abs(live.BodySide)<.001f&&Math.Abs(live.BodyTilt)<.001f,"shield owns torso after ranged follow "+hz);
+            live.Tick(Lean(++stamp),stamp,new PlayerInput{Tracking=true},Start(),dt,false,true);
+            check(live.BodySide==0,"new round does not retain ranged lean "+hz);
+        }
     }
     static void BodyChecks(Action<bool,string> check,int hz)
     {
