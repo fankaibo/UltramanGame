@@ -42,7 +42,7 @@ namespace UltramanGame.Runtime
         Material meteorMaterial;
         readonly Vector3[] vents={new Vector3(5.3f,0,13.5f),new Vector3(-5.7f,0,16.5f)};
         readonly System.Random random=new System.Random(903);
-        Material ground,rock,lava,pool;
+        Material ground,rock,lava,pool,groundAsh;
         public static VolcanoStage Create(Transform parent)
         {
             var stage=new GameObject("Basalt foothills").AddComponent<VolcanoStage>();
@@ -114,6 +114,14 @@ namespace UltramanGame.Runtime
             foregroundLavaLight.transform.position=new Vector3(-1.9f,1.0f,4.4f);
             if(Camera.main)Camera.main.depthTextureMode|=DepthTextureMode.Depth;
             var densityNoise=RuntimeResources.Own(transform,CreatePlumeNoise());
+            // Low airborne ash stays behind the fighting floor. Scene-depth
+            // clipping keeps foreground costumes and ruined walls untouched.
+            groundAsh=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("LowGroundAsh")));
+            groundAsh.SetTexture("_Noise",densityNoise);
+            var lowAsh=GameWorld.Primitive("Low drifting ash behind fighters",PrimitiveType.Cube,transform,
+                new Vector3(0,.65f,6.8f),new Vector3(19,1.7f,8),groundAsh);
+            lowAsh.GetComponent<Renderer>().shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
+            lowAsh.GetComponent<Renderer>().receiveShadows=false;
             for(int i=0;i<cloudMaterials.Length;i++)
             {
                 var material=RuntimeResources.Own(transform,new Material(Resources.Load<Shader>("VolcanicPlume")));
@@ -322,7 +330,7 @@ namespace UltramanGame.Runtime
         }
         public void Tick(float time)
         {
-            lava.SetFloat("_Clock",time);pool.SetFloat("_Clock",time);
+            lava.SetFloat("_Clock",time);pool.SetFloat("_Clock",time);groundAsh.SetFloat("_Clock",time);
             for(int vent=0;vent<vents.Length;vent++)
             {
                 var origin=vents[vent];origin.y=Height(origin.x,origin.z)+.05f;

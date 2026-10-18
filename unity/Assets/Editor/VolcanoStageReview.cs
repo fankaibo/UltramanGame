@@ -16,6 +16,7 @@ namespace UltramanGame.Editor
             get
             {
                 var args=Environment.GetCommandLineArgs();
+                if(Array.IndexOf(args,"--stage-output")>=0)throw new ArgumentException("Use --volcano-output for VolcanoStageReview; refusing the default evidence path");
                 int at=Array.IndexOf(args,"--volcano-output");
                 return at>=0&&at+1<args.Length?Path.GetFullPath(args[at+1]):Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/volcano-volume"));
             }
@@ -139,7 +140,7 @@ namespace UltramanGame.Editor
                 string outpost=Path.Combine(Application.dataPath,"Resources/Art/Outpost");
                 if(Directory.Exists(outpost))foreach(string file in Directory.GetFiles(outpost))files.Add(file.Substring(Application.dataPath.Length+1));
                 files.Add("Scripts/Runtime/ScannedOutcrops.cs");files.Add("Resources/ScannedRock.shader");files.Add("Editor/ScannedRockImport.cs");
-                files.Add("Scripts/Runtime/VolcanicPlumeMotion.cs");
+                files.Add("Scripts/Runtime/VolcanicPlumeMotion.cs");files.Add("Resources/LowGroundAsh.shader");
                 string scans=Path.Combine(Application.dataPath,"Resources/Environment/ScannedRocks");
                 if(Directory.Exists(scans))foreach(string file in Directory.GetFiles(scans))files.Add(file.Substring(Application.dataPath.Length+1));
                 var sources=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
