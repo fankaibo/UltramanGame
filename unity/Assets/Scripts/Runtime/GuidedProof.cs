@@ -35,6 +35,12 @@ namespace UltramanGame.Runtime
                 string choiceKey="photo-choice-"+photo.ChoiceCandidate;
                 if(proofFrames.Add(choiceKey)){StartCoroutine(SaveGuidedProof(choiceKey));return;}
             }
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Shield&&hero.GuardHandoffProgress>=1)
+            {
+                string side=hero.GuardBodySide<-.20f?"left":hero.GuardBodySide>.20f?"right":null;
+                if(side!=null&&proofFrames.Add("guard-body-"+side))
+                {Debug.Log($"[GuardBodyProof] side={side} value={hero.GuardBodySide:F3} shield={battle.Shield} sequence={pose?.sequence}");StartCoroutine(SaveGuidedProof("guard-body-"+side));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.None&&!battle.Shield)
             {
                 string lean=hero.ReadyBodySide<-.30f?"left":hero.ReadyBodySide>.30f?"right":null;

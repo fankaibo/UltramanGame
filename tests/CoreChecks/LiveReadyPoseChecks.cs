@@ -21,6 +21,7 @@ static class LiveReadyPoseChecks
             BodyChecks(check,hz);
             SupportChecks(check,hz);
             RangedBodyChecks(check,hz);
+            GuardBodyChecks(check,hz);
             var b=Start();var a=new LiveReadyPose();var scaled=new LiveReadyPose();float dt=1f/hz;long stamp=100000;var input=new PlayerInput{Tracking=true};
             for(int f=0;f<hz;f++){stamp+=1000/hz;a.Tick(Frame(stamp,.12f),stamp,input,b,dt,true);scaled.Tick(Frame(stamp,.12f,scale:.55f),stamp,input,b,dt,true);}
             check(a.Y(true)>.44f&&a.Y(false)<0&&a.X(true)<0&&a.X(false)>0,"live ready respects separate anatomical left and right "+hz);
@@ -130,6 +131,40 @@ static class LiveReadyPoseChecks
             live.Tick(Lean(++stamp),stamp,new PlayerInput{Tracking=true},Start(),dt,false,true);
             check(live.BodySide==0,"new round does not retain ranged lean "+hz);
         }
+    }
+    static void GuardBodyChecks(Action<bool,string> check,int hz)
+    {
+        var b=Start();var live=new LiveReadyPose();var legacy=new LiveReadyPose();var small=new LiveReadyPose();
+        long stamp=900000;float dt=1f/hz;
+        var input=new PlayerInput{Tracking=true,Shield=true,GuardIntent=true};b.Tick(dt,input);
+        for(int f=0;f<hz;f++)
+        {
+            stamp+=1000/hz;var p=Lean(stamp);
+            live.Tick(p,stamp,input,b,dt,true,true,true);legacy.Tick(p,stamp,input,b,dt,true,true);
+            small.Tick(Lean(stamp,scale:.55f),stamp,input,b,dt,true,true,true);
+        }
+        check(LiveReadyPose.GuardBody(b)&&live.BodySide<-.38f&&live.BodyTilt>.19f,"Tiga guard keeps actual shoulder and torso lean "+hz);
+        check(legacy.BodySide==0&&legacy.BodyTilt==0,"guard follow is opt-in for Tiga only "+hz);
+        check(live.X(true)==0&&live.Y(true)==0&&live.X(false)==0&&live.Y(false)==0,"authored guard hands keep ownership "+hz);
+        check(Math.Abs(live.BodySide-small.BodySide)<.0001f&&Math.Abs(live.BodyTilt-small.BodyTilt)<.0001f,"guard body is independent of camera scale "+hz);
+        float held=live.BodySide;live.Tick(Lean(++stamp,-1),stamp,input,b,0,true,true,true);
+        check(live.BodySide==held,"zero-time guard redraw cannot move body "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;live.Tick(Lean(stamp,-1),stamp,input,b,dt,true,true,true);}
+        check(live.BodySide>.38f&&b.Shield&&b.EnemyHealth==50&&b.Energy==0,"held guard follows changing lean without scoring or releasing shield "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;live.Tick(Lean(stamp,hips:false),stamp,input,b,dt,true,true,true);}
+        check(Math.Abs(live.BodySide)<.001f&&live.BodyTilt>.19f,"cropped guard hips preserve only visible shoulder tilt "+hz);
+        var stale=Lean(stamp);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;live.Tick(stale,stamp+400,input,b,dt,true,true,true);}
+        check(Math.Abs(live.BodySide)<.001f&&Math.Abs(live.BodyTilt)<.001f,"stale guard data fades to authored pose "+hz);
+        b.Tick(dt,new PlayerInput{Tracking=true,RightPunch=true,RangedAttack=true});
+        check(b.IsRangedPunch&&!LiveReadyPose.GuardBody(b),"counterattack immediately owns guard handoff "+hz);
+        for(int f=0;f<hz;f++){stamp+=1000/hz;live.Tick(Lean(stamp),stamp,new PlayerInput{Tracking=true},b,dt,true,true,true);}
+        check(live.BodySide<-.38f,"counterattack retains torso tracking "+hz);
+        b.Pause();
+        for(int f=0;f<hz;f++){stamp+=1000/hz;live.Tick(Lean(stamp),stamp,input,b,dt,true,true,true);}
+        check(Math.Abs(live.BodySide)<.001f&&!LiveReadyPose.GuardBody(b),"pause releases guard body input "+hz);
+        live.Tick(Lean(++stamp),stamp,input,new Battle(),dt,false,true,true);
+        check(live.BodySide==0&&live.BodyTilt==0,"new round and disabled mode clear guard body "+hz);
     }
     static void BodyChecks(Action<bool,string> check,int hz)
     {

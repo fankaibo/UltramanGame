@@ -18,15 +18,17 @@ namespace UltramanGame.Core
         public static bool Ready(Battle state)=>state!=null&&
             (state.Phase==GamePhase.Waiting||state.Phase==GamePhase.Battle&&state.Action==HeroAction.None&&!state.Shield);
         public static bool RangedSupport(Battle state)=>state!=null&&state.Phase==GamePhase.Battle&&state.IsRangedPunch&&!state.Shield;
+        public static bool GuardBody(Battle state)=>state!=null&&state.Phase==GamePhase.Battle&&state.Shield&&state.Action==HeroAction.None;
         static float Clamp(float value,float min,float max)=>Math.Max(min,Math.Min(max,value));
-        public void Tick(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled,bool followRangedBody=false)
+        public void Tick(PoseFrame frame,long nowMs,PlayerInput input,Battle state,float dt,bool enabled,bool followRangedBody=false,bool followGuardBody=false)
         {
             if(float.IsNaN(dt)||float.IsInfinity(dt)||dt<=0)return;
             if(!ReferenceEquals(observed,state))
             {observed=state;stream=null;sequence=-1;lx=ly=rx=ry=txl=tyl=txr=tyr=bodySide=bodyTilt=targetSide=targetTilt=0;}
             // A confirmation hold is still preparation: keep showing the
             // hands until the actual shield/beam animation takes ownership.
-            bool valid=enabled&&input.Tracking&&(Ready(state)||RangedSupport(state))&&PoseQuality.Present(frame,nowMs);
+            bool guarding=followGuardBody&&GuardBody(state);
+            bool valid=enabled&&input.Tracking&&(Ready(state)||RangedSupport(state)||guarding)&&PoseQuality.Present(frame,nowMs);
             if(valid)
             {
                 if(frame.streamId!=stream){stream=frame.streamId;sequence=-1;txl=tyl=txr=tyr=targetSide=targetTilt=0;}
@@ -36,7 +38,14 @@ namespace UltramanGame.Core
                     float width=PoseQuality.Distance(frame.points[11],frame.points[12]);
                     Target(frame.points[11],frame.points[15],width,out txl,out tyl);
                     Target(frame.points[12],frame.points[16],width,out txr,out tyr);
-                    if(RangedSupport(state))
+                    if(guarding)
+                    {
+                        // Keep the authored crossed arms. Only the bounded
+                        // torso lean continues while defence owns input.
+                        txl=tyl=txr=tyr=0;
+                        BodyTarget(frame.points,width,out targetSide,out targetTilt);
+                    }
+                    else if(RangedSupport(state))
                     {
                         // Only the unused hand keeps following the player.
                         // Accepted attacks retain their authored striking hand.
