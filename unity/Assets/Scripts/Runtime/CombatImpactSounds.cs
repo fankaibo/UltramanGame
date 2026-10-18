@@ -4,6 +4,38 @@ namespace UltramanGame.Runtime
 {
     public static class CombatImpactSounds
     {
+        // Original non-vocal plasma discharge: a prompt pressure snap, a
+        // short resonant core and air shedding behind it. Contact owns the
+        // heavier low end; the launch must remain legible during rapid casts.
+        public static AudioClip CreateProjectileLaunch(int variation=0)
+        {
+            const int rate=44100;const float duration=.28f;
+            var dry=new float[Mathf.RoundToInt(rate*duration)];var data=new float[dry.Length];
+            var random=new System.Random(261019186+variation*71);
+            float fast=0,slow=0,phase=0,previous=0,dc=0,peak=0;
+            for(int i=0;i<dry.Length;i++)
+            {
+                float t=i/(float)rate,noise=(float)random.NextDouble()*2-1;
+                fast=Mathf.Lerp(fast,noise,.52f);slow=Mathf.Lerp(slow,noise,.065f);
+                float air=fast-slow;
+                float pressure=Mathf.Sin(2*Mathf.PI*((165+variation*3)*t+95*.012f*(1-Mathf.Exp(-t/.012f))))*.30f*Mathf.Exp(-t/.032f);
+                phase+=2*Mathf.PI*(620+variation*13+1200*Mathf.Exp(-t/.032f))/rate;
+                float core=(Mathf.Sin(phase)+.18f*Mathf.Sin(phase*1.47f))*.16f*Mathf.Exp(-t/.045f);
+                float snap=air*.78f*Mathf.Exp(-t/.008f);
+                float trail=air*.38f*Mathf.Exp(-t/.063f)*(1-Mathf.Exp(-t/.004f));
+                float value=(pressure+core+snap+trail)*Mathf.Clamp01(t/.0015f);
+                dc=.99886f*(dc+value-previous);previous=value;dry[i]=dc;
+            }
+            for(int i=0;i<data.Length;i++)
+            {
+                int echo=i-(int)(rate*.028f);
+                float value=(dry[i]+(echo>=0?dry[echo]*.10f:0))*Mathf.Clamp01((data.Length-1-i)/(rate*.035f));
+                data[i]=value;peak=Mathf.Max(peak,Mathf.Abs(value));
+            }
+            for(int i=0;i<data.Length;i++)data[i]*=.56f/Mathf.Max(.001f,peak);
+            var clip=AudioClip.Create("TigaDischarge"+variation,data.Length,1,rate,false);clip.SetData(data,0);return clip;
+        }
+
         // Original non-vocal claw foley. The event starts with the attack;
         // its air crest follows the accelerating hand, just before contact.
         public static AudioClip CreateClawSweep()

@@ -295,7 +295,7 @@ namespace UltramanGame.Editor
             if(!held)throw new Exception("Missing tail probe");float original=held.panStereo;
             sound.SetStage(spatialCamera,new Vector3(2,0,5),new Vector3(-2,0,5));sound.ProjectileLaunch(1);
             if(held.panStereo!=original)throw new Exception("New lens retuned a playing tail");
-            bool right=false;foreach(var src in GetComponents<AudioSource>())if(src.isPlaying&&src.clip.name=="Hero light bullet"&&src.panStereo>0)right=true;
+            bool right=false;foreach(var src in GetComponents<AudioSource>())if(src.isPlaying&&(src.clip.name=="Hero light bullet"||src.clip.name.StartsWith("TigaDischarge"))&&src.panStereo>0)right=true;
             if(!right)throw new Exception("Mirrored launch did not change sides");
             foreach(string field in new[]{"calm","battle","voice"})
             {
@@ -349,6 +349,14 @@ namespace UltramanGame.Editor
             }
             File.WriteAllText(folder+"/events.csv",events.ToString());
             File.WriteAllText(folder+"/capture.txt",FormattableString.Invariant($"rate={rate} channels={channels} frames={frame} samples={samples.Length} seconds={samples.Length/(float)(rate*channels):F4} peak={peak:F6} rms={Math.Sqrt(power/samples.Length):F6}\n"));
+            if(projectileReview)
+            {
+                var legacy=(AudioClip)typeof(GameAudio).GetField("projectileLaunch",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
+                WriteClip(legacy,"legacy-launch.wav");
+                var field=typeof(GameAudio).GetField("projectileLaunches",BindingFlags.Instance|BindingFlags.NonPublic);
+                var launches=field==null?new[]{legacy}:(AudioClip[])field.GetValue(sound);
+                for(int i=0;i<launches.Length;i++)WriteClip(launches[i],"launch-"+i+".wav");
+            }
             if(spatialReview)SpatialChecks();
             else if(folder.EndsWith("/after"))Checks();
             if(clawReview&&folder.EndsWith("/after"))ClawChecks();
@@ -416,6 +424,29 @@ namespace UltramanGame.Editor
                 if(!legacy)throw new Exception("Other hero contact unexpectedly changed");
                 sound.Reset();sound.HeroId="Tiga";
                 report.AppendLine("Tiga dedicated contact, fixed pool under 40 hits, other hero contact preserved: passed");
+                var launchField=typeof(GameAudio).GetField("projectileLaunches",BindingFlags.Instance|BindingFlags.NonPublic);
+                if(launchField!=null)
+                {
+                    var launches=(AudioClip[])launchField.GetValue(sound);var used=new HashSet<AudioClip>();
+                    for(int i=0;i<40;i++)
+                    {
+                        sound.Reset();sound.Tick(GamePhase.Battle,false,1/60f);
+                        float speed=i%2==0?AttackTempo.Min:AttackTempo.Max;sound.ProjectileLaunch(speed);
+                        foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)
+                        {
+                            if(Array.IndexOf(launches,src.clip)<0||Mathf.Abs(src.pitch-(i%2==0?.90f:1.12f))>.001f)
+                                throw new Exception("Tiga launch bypassed cached variants or changed tempo mapping");
+                            used.Add(src.clip);
+                        }
+                    }
+                    if(used.Count!=3||GetComponents<AudioSource>().Length!=count)throw new Exception("Launch variation or fixed pool failed");
+                    sound.Reset();sound.HeroId="Zero";sound.ProjectileLaunch(1);
+                    var old=(AudioClip)typeof(GameAudio).GetField("projectileLaunch",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
+                    bool kept=false;foreach(var src in GetComponents<AudioSource>())if(src.isPlaying&&src.clip==old)kept=true;
+                    if(!kept)throw new Exception("Other hero launch changed");
+                    sound.Reset();sound.HeroId="Tiga";
+                    report.AppendLine("three cached launch variants, 40 launches, original tempo pitch, fixed source pool, other hero launch preserved: passed");
+                }
             }
             File.WriteAllText(folder+"/checks.txt",report.ToString());
         }

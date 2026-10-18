@@ -10,6 +10,7 @@ namespace UltramanGame.Runtime
         readonly CombatAudioVoices effects,debris;
         readonly AudioClip[] fistContacts=new AudioClip[3];
         readonly AudioClip[] projectileContacts=new AudioClip[3];
+        readonly AudioClip[] projectileLaunches=new AudioClip[3];
         readonly AudioClip heavyContact,beamContact,projectileLaunch,beamRelease;
         AudioClip localMusic;
         readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer,arrivalRoar,defeatSurge;
@@ -21,7 +22,7 @@ namespace UltramanGame.Runtime
         GamePhase phase;
         float phaseAge;
         bool phaseReported;
-        int effectSequence,contactSequence,projectileContactSequence;
+        int effectSequence,contactSequence,projectileContactSequence,projectileLaunchSequence;
         float effectsDuck=1;
         public float HeroPan {get;private set;}
         public float EnemyPan {get;private set;}
@@ -62,6 +63,7 @@ namespace UltramanGame.Runtime
             beamContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(2));
             beamRelease=RuntimeResources.Own(owner.transform,CreateBeamRelease());
             projectileLaunch=RuntimeResources.Own(owner.transform,CreateProjectileLaunch());
+            for(int i=0;i<projectileLaunches.Length;i++)projectileLaunches[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.CreateProjectileLaunch(i));
             clawSweep=RuntimeResources.Own(owner.transform,CombatImpactSounds.CreateClawSweep());
             for(int i=0;i<projectileContacts.Length;i++)projectileContacts[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.CreateProjectile(i));
             charge=Source(owner);charge.loop=true;charge.volume=0;
@@ -372,7 +374,12 @@ namespace UltramanGame.Runtime
             }
             var clip=AudioClip.Create("Hero light bullet",data.Length,1,rate,false);clip.SetData(data,0);return clip;
         }
-        public void ProjectileLaunch(float speed){if(!muted)effects.Play(projectileLaunch,.65f,Mathf.Lerp(.90f,1.12f,Mathf.InverseLerp(AttackTempo.Min,AttackTempo.Max,speed)),1,HeroPan);}
+        public void ProjectileLaunch(float speed)
+        {
+            if(muted)return;
+            var clip=HeroId=="Tiga"?projectileLaunches[projectileLaunchSequence++%projectileLaunches.Length]:projectileLaunch;
+            effects.Play(clip,.65f,Mathf.Lerp(.90f,1.12f,Mathf.InverseLerp(AttackTempo.Min,AttackTempo.Max,speed)),1,HeroPan);
+        }
         public void ProjectileImpact()
         {
             if(muted)return;
