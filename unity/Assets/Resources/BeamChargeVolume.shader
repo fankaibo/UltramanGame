@@ -1,5 +1,5 @@
 Shader "Training/BeamChargeVolume" {
- Properties { _RoseBlend("Rose energy",Float)=0  _WarmBlend("Warm energy",Float)=0  _Noise("Density lattice",3D)="white"{} _Age("Charge age",Float)=0 _Power("Accumulated power",Float)=0 _Tint("Energy tint",Color)=(1,1,1,1) }
+ Properties { _GatherStyle("Forearm gathering",Float)=0  _RoseBlend("Rose energy",Float)=0  _WarmBlend("Warm energy",Float)=0  _Noise("Density lattice",3D)="white"{} _Age("Charge age",Float)=0 _Power("Accumulated power",Float)=0 _Tint("Energy tint",Color)=(1,1,1,1) }
  SubShader {
   Tags {"Queue"="Transparent-9" "RenderType"="Transparent" "IgnoreProjector"="True"}
   Blend One OneMinusSrcAlpha ZWrite Off ZTest Always Cull Front
@@ -9,7 +9,7 @@ Shader "Training/BeamChargeVolume" {
    #pragma target 3.0
    #include "UnityCG.cginc"
    UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
-   sampler3D _Noise;float _Age,_Power,_WarmBlend,_RoseBlend;float4 _Tint;
+   sampler3D _Noise;float _Age,_Power,_WarmBlend,_RoseBlend,_GatherStyle;float4 _Tint;
    struct v2f {float4 pos:SV_POSITION;float3 world:TEXCOORD0;float4 screen:TEXCOORD1;};
    v2f vert(appdata_base v){v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.world=mul(unity_ObjectToWorld,v.vertex).xyz;o.screen=ComputeScreenPos(o.pos);return o;}
    float noise(float3 p){float3 f=frac(p);f=f*f*(3-2*f);return tex3Dlod(_Noise,float4((floor(p)+f+.5)/32,0)).r;}
@@ -33,10 +33,14 @@ Shader "Training/BeamChargeVolume" {
      float3 flow=p*(8+_Age*3)+float3(2.4,-_Age*.65,1.6);
      float n=noise(flow)*.68+noise(flow*2.07+4.3)*.32;
      float wisp=saturate((n-.38)*3.4)*edge;
-     float core=exp(-dot(p,p)*94)*(.3+_Power*.7);
+     float core=exp(-dot(p,p)*lerp(94,110,_GatherStyle))*(.3+_Power*.7);
+     // A bright compact core surrounded by moving, broken density. Keep the
+     // shell transparent so the hands remain readable through the gathering.
+     wisp*=lerp(1,1.35,_GatherStyle);
      float d=(wisp*.50+core*3.2)*_Power;
      float alpha=1-exp(-d*stride*2.8);
      float3 radiance=lerp(float3(.035,.26,.72),float3(.78,.18,.025),_WarmBlend)+lerp(float3(1.1,1.4,1.75),float3(1.75,1.35,.75),_WarmBlend)*core*1.8;
+     radiance+=_GatherStyle*(float3(.10,.45,.8)*wisp+float3(.2,.3,.5)*core);
      radiance=lerp(radiance,float3(.75,.045,.27)+float3(1.7,1.1,1.45)*core*1.8,_RoseBlend);
      result.rgb+=(1-result.a)*radiance*_Tint.rgb*alpha;result.a+=(1-result.a)*alpha*.58;
     }

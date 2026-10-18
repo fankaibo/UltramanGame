@@ -95,7 +95,7 @@ namespace UltramanGame.Runtime
         public void SetHeroProfile(string heroId)
         {
             var hero=HeroRoster.At(HeroRoster.Index(heroId));
-            beamTint=ParseColor(hero.BeamTint,Ice);beamAccent=ParseColor(hero.BeamAccent,Color.white);beamDual=hero.BeamDual;chestMounted=heroId=="Zero";beamCharge.SetMebium(heroId=="Mebius");beamCharge.SetGrigio(heroId=="Grigio");muzzleLight.color=heroId=="Mebius"||heroId=="Grigio"?beamTint:Ice;
+            beamTint=ParseColor(hero.BeamTint,Ice);beamAccent=ParseColor(hero.BeamAccent,Color.white);beamDual=hero.BeamDual;chestMounted=heroId=="Zero";beamCharge.SetZeperion(heroId=="Tiga");beamCharge.SetMebium(heroId=="Mebius");beamCharge.SetGrigio(heroId=="Grigio");muzzleLight.color=heroId=="Mebius"||heroId=="Grigio"?beamTint:Ice;
             beam.SetProfile(beamTint,beamAccent,beamDual,heroId=="Tiga");
         }
         static Color ParseColor(string value,Color fallback)

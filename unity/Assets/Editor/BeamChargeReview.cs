@@ -13,6 +13,14 @@ namespace UltramanGame.Editor
     public static class BeamChargeReview
     {
         static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/beam-charge/inspection"));
+        public static void TigaRelease(){FinisherReview.After();TigaGather();}
+        public static void TigaGather()
+        {
+            Directory.CreateDirectory(Folder);var report=new StringBuilder();
+            ValidateHero("Tiga",report);ValidatePixels(report,true);
+            File.WriteAllText(Folder+"/tiga-gather-validation.txt",report.ToString());
+            Debug.Log("[TigaGather] PASS\n"+report);
+        }
         public static void Run()
         {
             FinisherReview.After();Directory.CreateDirectory(Folder);File.Delete(Folder+"/validation.txt");var report=new StringBuilder();
@@ -37,7 +45,7 @@ namespace UltramanGame.Editor
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             var world=new GameWorld();var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);
-            var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
+            var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);world.SetHeroProfile(id);
             var state=Ready();hero.Update(state,world.Camera,0,0);enemy.Update(state,world.Camera,0,0);world.Tick(state,1,0);
             var target=new RenderTexture(1280,720,24){antiAliasing=4};target.Create();world.Camera.targetTexture=target;world.Camera.aspect=16f/9;
             var captures=new bool[3];float[] moments={.32f,.72f,1.12f};int held=0,bridge=0;float maxOffset=0;
@@ -75,10 +83,10 @@ namespace UltramanGame.Editor
             }
             finally{world.Camera.targetTexture=null;RenderTexture.active=null;target.Release();UnityEngine.Object.DestroyImmediate(target);}
         }
-        static void ValidatePixels(StringBuilder report)
+        static void ValidatePixels(StringBuilder report,bool zeperion=false)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-            var root=new GameObject("Isolated energy charge").transform;var charge=new BeamCharge(root);
+            var root=new GameObject("Isolated energy charge").transform;var charge=new BeamCharge(root);charge.SetZeperion(zeperion);
             var camera=new GameObject("Energy depth inspection").AddComponent<Camera>();camera.enabled=false;
             camera.transform.position=new Vector3(0,0,-5);camera.transform.rotation=Quaternion.identity;
             camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=Color.black;camera.depthTextureMode=DepthTextureMode.Depth;
