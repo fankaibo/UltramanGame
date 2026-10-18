@@ -40,6 +40,7 @@ namespace UltramanGame.Runtime
         public bool MusicEnabled=true;
         public float Volume=.75f,MusicVolume=.45f;
         public event System.Action<string,float> InstructionStarted;
+        public event System.Action<string,float> WaitingInstructionStarted;
         public string HeroId="Tiga";
         public string MusicSource {get;private set;}="内置原创战斗循环（未包含《奇迹再现》）";
         public bool ProjectMusicLoaded {get;private set;}
@@ -351,6 +352,16 @@ namespace UltramanGame.Runtime
             effects.SetVolume(master*.75f*effectsDuck);
             debris.SetVolume(master*.60f*Mathf.Lerp(.32f,1,Mathf.InverseLerp(.42f,1,effectsDuck)));
         }
+        static bool IsWaitingInstruction(string key)=>key=="arcade_ready"||key=="replay_lower"||key=="replay_raise";
+        public void ReplaceWaitingInstruction(string key)
+        {
+            // A completed release makes the old spoken instruction obsolete.
+            // Cancel only waiting-page guidance, preserving hero introductions
+            // and all battle sounds. A pending obsolete line must not play later.
+            pending.RemoveAll(line=>IsWaitingInstruction(line.Key));
+            if(voice.clip&&IsWaitingInstruction(voice.clip.name)){voice.Stop();priority=0;}
+            Speak(key,1,GamePhase.Waiting);
+        }
         public void Speak(string key,int importance,GamePhase expected)
         {
             if(muted) {NotifyInstruction(key,0);return;}
@@ -374,6 +385,7 @@ namespace UltramanGame.Runtime
         }
         void NotifyInstruction(string key,float seconds)
         {
+            if(IsWaitingInstruction(key))WaitingInstructionStarted?.Invoke(key,seconds);
             if(key=="warning"||key=="battle"||key=="energy"||key=="resume"||key=="tutorial"||key=="beam_help"||key=="beam_reset"||key=="arcade_final")
                 InstructionStarted?.Invoke(key,seconds);
         }

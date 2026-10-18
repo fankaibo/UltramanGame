@@ -57,7 +57,9 @@
     "hero_mebius": "梦比优斯奥特曼，准备出发！",
     "hero_zero": "赛罗奥特曼，准备出发！",
     "hero_geed": "捷德奥特曼，准备出发！",
-    "hero_grigio": "格力乔奥特曼，准备出发！"
+    "hero_grigio": "格力乔奥特曼，准备出发！",
+    "replay_lower": "先把双手放到胸前，停一下。",
+    "replay_raise": "准备好了！把双手举高，再出发！"
   },
   "audio": {
     "welcome": {
@@ -290,6 +292,22 @@
       "sample_rate": 24000,
       "peak": 0.6778,
       "sha256": "4b7181da8a9e1a7c62078aa5c11f508a178b8f7b8452682db66967efcdc74c4c",
+      "tempo": 1.0
+    },
+    "replay_lower": {
+      "file": "replay_lower.wav",
+      "seconds": 2.405,
+      "sample_rate": 24000,
+      "peak": 0.81271,
+      "sha256": "3a8f790393473b7aacf2dcc103f20081bf5755960d190a11ec911343f1b416ee",
+      "tempo": 1.0
+    },
+    "replay_raise": {
+      "file": "replay_raise.wav",
+      "seconds": 3.105,
+      "sample_rate": 24000,
+      "peak": 0.77108,
+      "sha256": "e4cd37f990b2dabc0519a8b14dc9eb7c7d3958fab56a9ac35aa064d8c47b9b34",
       "tempo": 1.0
     }
   },

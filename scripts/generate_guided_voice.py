@@ -17,6 +17,8 @@ LINES = {
     'hero_zero':'赛罗奥特曼，准备出发！',
     'hero_geed':'捷德奥特曼，准备出发！',
     'hero_grigio':'格力乔奥特曼，准备出发！',
+    'replay_lower': '先把双手放到胸前，停一下。',
+    'replay_raise': '准备好了！把双手举高，再出发！',
     'beam_reset': '先把双手收回来，再摆光线姿势，停一下。',
 }
 

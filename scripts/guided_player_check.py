@@ -148,6 +148,7 @@ def main():
     parser.add_argument('--early-photo-choices',action='store_true',help='Choose during photo narration; require live voice and visible gesture progress')
     parser.add_argument('--rounds',type=int,default=1,choices=(1,2,3),help='Complete this many rounds in one player process, then enter the next battle')
     parser.add_argument('--start-depth-noise',action='store_true',help='Verify start/replay with noisy inferred depth and moderate wrist confidence')
+    parser.add_argument('--replay-voice-guidance',action='store_true',help='Hold replay hands through a repeated lower cue, then respond to actual lower/raise audio events')
     parser.add_argument('--same-hero-replay',action='store_true',help='Keep the chosen hero for the next round; verify held replay pose cannot skip the release')
     parser.add_argument('--gesture-entry-noise',action='store_true',help='Also bias initial guard depth and the first frames of a beam hold')
     parser.add_argument('--gesture-shape-noise',action='store_true',help='Move an established guard just beyond its acquisition boundary while injecting depth noise')
@@ -198,6 +199,7 @@ def main():
             process=subprocess.Popen(args,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             started=time.monotonic();parsed=0;phase='Waiting';stage='battle';beam=False;guard=False;review_at=0
             photos_seen=0;interrupted=False;loss_start=0;replayed=False;review_loss_start=0;replay_battle_at=0;replay_started_at=0
+            waiting_voices=[];replay_lower_heard=[];replay_raise_heard=None
             volley_started=None;ready_started=0
             beam_release_until=0
             beam_reset_releases=0
@@ -214,6 +216,20 @@ def main():
                 now=time.monotonic();age=now-started;output=log.read_text(errors='replace')
                 complete=output.rfind('\n')+1;lines=output[parsed:complete].splitlines();parsed=complete
                 for line in lines:
+                    if options.replay_voice_guidance and stage=='replay' and '[Gesture]' in line and '举手变身' not in line:
+                        raise RuntimeError('Combat feedback leaked onto the waiting page: '+line)
+                    if options.replay_voice_guidance and '[WaitingVoice]' in line:
+                        match=re.search(r'key=(\w+) release=(True|False) seconds=([\d.]+)',line)
+                        if not match:raise RuntimeError('Invalid waiting voice event: '+line)
+                        key,release,seconds=match.groups()
+                        if float(seconds)<=0:raise RuntimeError('Waiting cue was muted or missing: '+line)
+                        if (key=='replay_lower')!=(release=='True'):
+                            raise RuntimeError('Spoken waiting cue contradicts actual release gate: '+line)
+                        waiting_voices.append(dict(key=key,needs_release=release=='True',seconds=float(seconds),elapsed_s=round(age,3)))
+                        if stage=='replay':
+                            if key=='arcade_ready':raise RuntimeError('Replay reused the ambiguous opening speech')
+                            if key=='replay_lower':replay_lower_heard.append(now)
+                            if key=='replay_raise':replay_raise_heard=now
                     if '[Instruction] key=beam_reset ' in line and beam:
                         # A long tracking outage clears the recognizer's old
                         # release. Follow the actual spoken recovery cue: lower
@@ -276,7 +292,7 @@ def main():
                     if '[Photo] automatic capture complete' in line:
                         photos_seen+=1;stage='review';review_at=now
                     if '[Photo] gesture=play-again' in line:
-                        stage='replay';replay_started_at=now
+                        stage='replay';replay_started_at=now;replay_lower_heard=[];replay_raise_heard=None
                     if '[HeroSelection]' in line:
                         raise RuntimeError('Camera gestures unexpectedly changed hero: '+line)
                 if memory_output and age>=next_memory_sample:
@@ -313,7 +329,14 @@ def main():
                     # Hold the photo gesture first: it must not skip Waiting.
                     # Then release and raise again without any hero-selection gesture.
                     replay_age=now-replay_started_at if replay_started_at else 0
-                    points=landmarks_at(2.5 if replay_age<1 or replay_age>=2.3 else 0)
+                    if options.replay_voice_guidance:
+                        # Wait for the actual repeated instruction, then respond
+                        # during that clip. Never unlock by writing game state.
+                        released=len(replay_lower_heard)>=2 and now-replay_lower_heard[1]>=.65
+                        raised=replay_raise_heard is not None and now-replay_raise_heard>=.8
+                        points=landmarks_at(2.5 if not released or raised else 0)
+                    else:
+                        points=landmarks_at(2.5 if replay_age<1 or replay_age>=2.3 else 0)
                 elif phase=='Waiting':
                     # Exercise both unilateral waves, then raise both hands.
                     # Neither unilateral pose may change the chosen hero.
@@ -538,6 +561,20 @@ def main():
                 'ranged_support':support_evidence,'same_hero_replay':True,'start_depth_noise':options.start_depth_noise,
                 'beam_reset_releases':beam_reset_releases,'high_hands':options.high_hands,
                 'photo_preview_p99_error':preview_error,'photos':photos}
+            if options.replay_voice_guidance:
+                lower=[row for row in waiting_voices if row['key']=='replay_lower']
+                raises=[row for row in waiting_voices if row['key']=='replay_raise']
+                if len(lower)<2*options.rounds or len(raises)!=options.rounds:
+                    raise RuntimeError(f'Missing repeated release and fresh raise guidance: {waiting_voices}')
+                handoffs=[]
+                for raised in raises:
+                    previous=next(row for row in reversed(lower) if row['elapsed_s']<raised['elapsed_s'])
+                    elapsed=raised['elapsed_s']-previous['elapsed_s']
+                    if elapsed>=previous['seconds']:
+                        raise RuntimeError('Obsolete lower-hands audio blocked the fresh raise instruction')
+                    handoffs.append(round(elapsed,3))
+                result['replay_voice_guidance']=dict(events=waiting_voices,followed_actual_audio=True,
+                    interrupted_obsolete_lower=True,handoff_seconds=handoffs)
             if options.high_hands:
                 high_rows=[row for row in pose_trace if row['phase']=='Battle' and row['stage']=='battle' and not row['beam_available']]
                 lowered=sum(any(row['frame']['points'][hand]['y']>=row['frame']['points'][shoulder]['y'] for hand,shoulder in ((15,11),(16,12))) for row in high_rows)
