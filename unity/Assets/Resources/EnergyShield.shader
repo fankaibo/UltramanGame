@@ -1,6 +1,7 @@
 Shader "Training/EnergyShield" {
  Properties {
   _Color("Energy",Color)=(.12,.65,1,.7) _Clock("Clock",Float)=0
+  _Readiness("Prepared rim strength",Range(0,1))=1
   _HitAge("Contact age",Float)=10 _HitPoint("Local contact",Vector)=(0,0,0,0)
  }
  SubShader { Tags { "Queue"="Transparent" "RenderType"="Transparent" } Blend SrcAlpha One ZWrite Off Cull Back
@@ -8,7 +9,7 @@ Shader "Training/EnergyShield" {
  #pragma vertex vert
  #pragma fragment frag
  #include "UnityCG.cginc"
- float4 _Color,_HitPoint;float _Clock,_HitAge;
+ float4 _Color,_HitPoint;float _Clock,_HitAge,_Readiness;
  struct v2f {float4 pos:SV_POSITION;float3 normal:TEXCOORD0;float3 world:TEXCOORD1;float2 local:TEXCOORD2;};
  v2f vert(appdata_base v) {v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.normal=UnityObjectToWorldNormal(v.normal);o.world=mul(unity_ObjectToWorld,v.vertex).xyz;o.local=v.vertex.xy;return o;}
  float hexEdge(float2 p) {
@@ -50,7 +51,7 @@ Shader "Training/EnergyShield" {
   float channels=cells*conduct*variation;
   float core=exp(-d*d/.008)*pow(saturate(1-age/.19),2);
   float localGlow=front*.85+wake+channels*.92+core*1.6;
-  float alpha=_Color.a*(rim*.20+filament*.65+localGlow*.82+.002);
+  float alpha=_Color.a*((rim*.20+filament*.65+.002)*_Readiness+localGlow*.82);
   float3 color=lerp(_Color.rgb,float3(.70,.94,1),saturate(localGlow+filament*.40));
   color+=float3(.32,.52,.62)*(channels*.60+core*.80);
   return half4(color,saturate(alpha));

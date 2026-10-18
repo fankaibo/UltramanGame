@@ -12,6 +12,8 @@ namespace UltramanGame.Editor
     public static class ShieldFilmReview
     {
         static string Root=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_SHIELD_REVIEW")??Application.dataPath+"/../../artifacts/shield-film-20261012");
+        public static void PreparationBefore()=>Stage("before");
+        public static void PreparationAfter()=>Stage("after");
         public static void Before(){Stage("before");Surface("before");}
         public static void After(){Stage("after");Surface("after");}
         public static void ConductionBefore(){Stage("before");Surface("before",true);}
@@ -45,7 +47,7 @@ namespace UltramanGame.Editor
                                     throw new Exception("Block retained a detached ring or radial marker");
                         var p=w.Camera.transform.position;var r=w.Camera.transform.rotation;
                         trace.AppendLine(FormattableString.Invariant($"{hz},{f},{b.Phase},{b.Enemy},{b.EnemyAge:R},{b.Action},{b.ActionAge:R},{b.Shield},{b.EnemyHealth},{b.Blocks},{b.HitsTaken},{p.x:R},{p.y:R},{p.z:R},{r.x:R},{r.y:R},{r.z:R},{r.w:R},{w.Camera.fieldOfView:R},{h.Root.position.x:R},{h.Root.position.y:R},{h.Root.position.z:R}"));
-                        if(hz==60&&f%2==0)RangedContactReview.Save(w.Camera,rt,folder+"/frames/"+(f/2).ToString("D4")+".jpg");
+                        if(hz==60&&f%2==0)CharacterReview.Save(w.Camera,rt,folder+"/frames/"+(f/2).ToString("D4")+".jpg");
                         if(hz==60&&f==45)CharacterReview.Save(w.Camera,rt,folder+"/ready.png");
                         if(!captured&&contact>=0&&f*dt-contact>=.12f){if(hz==60)CharacterReview.Save(w.Camera,rt,folder+"/impact.png");captured=true;}
                     }

@@ -44,6 +44,7 @@ namespace UltramanGame.Runtime
         int sparkIndex,flashIndex,hitRayIndex;
         float hitLightAge=10,hitLightPower=3,hitLightDuration=.22f,shieldHitAge=10,clock,beamBurstAge;
         float contactWaveAge=10,contactWaveLife=.22f,contactWaveSize=.8f;
+        float shieldReadiness=.35f;
         Vector3 contactWavePosition;
         Color contactWaveColor=Color.white;
         Vector3 shieldHitWorld;
@@ -229,6 +230,7 @@ namespace UltramanGame.Runtime
             foreach(var ray in hitRays){ray.Age=10;ray.Line.enabled=false;}
             beam.Clear();
             attackRing.enabled=contactWave.enabled=false;
+            shieldReadiness=.35f;
             charge.gameObject.SetActive(false);shield.gameObject.SetActive(false);hitLightAge=shieldHitAge=10;shieldHitWorld=Vector3.zero;shieldHitPending=false;muzzleLight.intensity=hitLight.intensity=0;
         }
         static void GroundRing(LineRenderer line,Vector3 center,float radius,Color color)
@@ -350,6 +352,12 @@ namespace UltramanGame.Runtime
                 shieldMaterial.SetVector("_HitPoint",shield.InverseTransformPoint(shieldHitWorld));
                 shieldHitPending=false;
             }
+            // A prepared shield stays readable without dominating quiet
+            // combat. Warning/attack restores its established full rim; the
+            // actual impact front remains independent of this base strength.
+            float readiness=active&&(state.Enemy==EnemyPhase.Windup||state.Enemy==EnemyPhase.Attack)?1:.35f;
+            shieldReadiness=Mathf.MoveTowards(shieldReadiness,readiness,Mathf.Max(0,dt)*3.5f);
+            shieldMaterial.SetFloat("_Readiness",shieldReadiness);
             shieldMaterial.SetFloat("_Clock",clock);shieldMaterial.SetFloat("_HitAge",shieldHitAge);
             Vector3 enemyGround=end-Vector3.up*2.6f+axis*AnimatedActor.MonsterAdvance(state);
             bool attack=active&&state.Enemy==EnemyPhase.Attack&&!MonsterRayMotion.Variant(state.EnemyAttackCount);
