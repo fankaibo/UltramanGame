@@ -243,6 +243,17 @@ namespace UltramanGame.Runtime
         public Vector3 StrikeOrigin(HeroAction action) => action==HeroAction.LeftPunch&&leftHand?leftHand.position:HandPosition;
         public Vector3 KickContact(HeroAction action)=>FootPosition(action==HeroAction.LeftPunch)+forward*.14f;
         public Vector3 HandPosition => hand?hand.position:Root.position+Vector3.up*2.2f;
+        public Pose RockGrip
+        {
+            get
+            {
+                if(!monster||!hand)return new Pose(HandPosition,Root.rotation);
+                Vector3 along=hand.TransformDirection(palmForwardLocal[1]);
+                Vector3 palm=-hand.TransformDirection(palmUpLocal[1]);
+                return new Pose(hand.position+along*.36f+palm*.13f,Quaternion.LookRotation(along,palm));
+            }
+        }
+
         public Vector3 EnemyStrikeOrigin(int attackCount) => MonsterStepMotion.ClawLeft(attackCount)&&leftHand?leftHand.position:HandPosition;
         public Vector3 BeamOrigin => twinShoot!=null?twinShoot.Muzzle:mebiumShoot!=null?mebiumShoot.Muzzle:grigioShot!=null?grigioShot.Muzzle:hand&&forearm?Vector3.Lerp(forearm.position,hand.position,.6f):HandPosition;
         public void PoseFinisherWeapons(Battle state)
@@ -1719,6 +1730,18 @@ namespace UltramanGame.Runtime
             Vector3 released=Root.position+Vector3.up*2.72f+forward*.93f+side*.10f;
             PoseLimb(upperArm,forearm,hand,Vector3.Lerp(held,released,throwT),prepare*recover,side*.8f+Vector3.up*.15f,.4f);
             PoseLimb(leftUpperArm,leftForearm,leftHand,Root.position+forward*.56f-side*.60f+Vector3.up*1.9f,prepare,-side+Vector3.down*.3f,.4f);
+            // Support the boulder on the palm, sharing the turn through the
+            // forearm rather than twisting the wrist skin alone.
+            Vector3 axis=(hand.position-forearm.position).normalized;
+            Vector3 normal=Vector3.ProjectOnPlane(hand.TransformDirection(palmUpLocal[1]),axis);
+            Vector3 desired=Vector3.ProjectOnPlane(-Vector3.up-forward*.15f,axis);
+            if(normal.sqrMagnitude>.001f&&desired.sqrMagnitude>.001f)
+            {
+                float roll=Vector3.SignedAngle(normal,desired,axis)*prepare*recover;
+                Quaternion palm=hand.rotation;
+                forearm.rotation=Quaternion.AngleAxis(roll*.65f,axis)*forearm.rotation;
+                hand.rotation=Quaternion.AngleAxis(roll,axis)*palm;
+            }
             AlignClawWrists();
         }
         void PoseHeadRay(Battle state,float dt)
@@ -2762,6 +2785,14 @@ namespace UltramanGame.Runtime
                 // smaller curl leaves a readable gap between the fingers while
                 // the lead claw still carries the contact action.
                 float amount=Mathf.Max(.04f,curl*(lead?1.08f:.62f)+idlePulse);
+                // Cup the stone before release, then open the fingers on the
+                // existing launch beat. Other attacks keep their claw shape.
+                if(side==1&&preview<0&&MonsterRockMotion.Active(state))
+                {
+                    float grip=MonsterRockMotion.Prepare(state)*(state.Enemy==EnemyPhase.Attack?
+                        1-Mathf.SmoothStep(0,1,(state.EnemyAge-(MonsterRockMotion.Launch-.07f))/.14f):1);
+                    amount=Mathf.Lerp(amount,.52f,grip);
+                }
                 float sideSpread=(side==0?-1:1)*spread*(lead?1f:.62f);
                 for(int i=0;i<ClawFingerNames.Length;i++)
                 {

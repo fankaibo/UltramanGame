@@ -12,6 +12,7 @@ namespace UltramanGame.Runtime
         readonly Transform[] pieces=new Transform[7];
         Battle observed;
         Vector3 origin,destination,contact;
+        Quaternion launchRotation;
         int sequence=-1;
         bool impacted;
         public bool Started {get;private set;}
@@ -43,11 +44,16 @@ namespace UltramanGame.Runtime
             var mapped=new Material[mesh.subMeshCount];for(int i=0;i<mapped.Length;i++)mapped[i]=material;
             surface.GetComponent<MeshRenderer>().sharedMaterials=mapped;
             float scale=size/Mathf.Max(.001f,Mathf.Max(mesh.bounds.size.x,Mathf.Max(mesh.bounds.size.y,mesh.bounds.size.z)));
-            surface.localScale=Vector3.one*scale;surface.localPosition=-mesh.bounds.center*scale;return root;
+            Vector3 sizeAxis=mesh.bounds.size;
+            Vector3 longest=sizeAxis.x>=sizeAxis.y&&sizeAxis.x>=sizeAxis.z?Vector3.right:sizeAxis.y>=sizeAxis.z?Vector3.up:Vector3.forward;
+            // Lay the scanned stone along the fingers instead of leaving its
+            // import-space tall axis as a vertical slab through the wrist.
+            surface.localRotation=Quaternion.FromToRotation(longest,Vector3.forward);
+            surface.localScale=Vector3.one*scale;surface.localPosition=surface.localRotation*(-mesh.bounds.center*scale);return root;
         }
         public void Clear(){dust.Clear();Started=Flying=Holding=Fragments=false;stone.gameObject.SetActive(false);foreach(var p in pieces)p.gameObject.SetActive(false);}
         public void Impact(Vector3 position){contact=position;impacted=true;}
-        public void Tick(Battle state,Vector3 hand,Vector3 target,bool suppressed,Camera camera)
+        public void Tick(Battle state,Pose grip,Vector3 target,bool suppressed,Camera camera)
         {
             Started=false;
             if(!ReferenceEquals(observed,state)){observed=state;sequence=-1;Launches=0;impacted=false;}
@@ -59,14 +65,15 @@ namespace UltramanGame.Runtime
             Flying=attack&&age>=MonsterRockMotion.Launch&&age<MonsterRockMotion.Contact;
             Fragments=attack&&impacted&&age>=MonsterRockMotion.Contact;
             stone.gameObject.SetActive(Holding||Flying);
-            if(Holding){stone.position=hand+Vector3.up*.16f;stone.localScale=Vector3.one*Mathf.SmoothStep(0,1,MonsterRockMotion.Prepare(state)*3);}
+            if(Holding){stone.SetPositionAndRotation(grip.position,grip.rotation);stone.localScale=Vector3.one*Mathf.SmoothStep(0,1,MonsterRockMotion.Prepare(state)*3);}
             if(attack&&age>=MonsterRockMotion.Launch&&sequence!=state.EnemyAttackCount)
-            {sequence=state.EnemyAttackCount;Launches++;Started=true;origin=hand+Vector3.up*.16f;destination=target;stone.localScale=Vector3.one;}
+            {sequence=state.EnemyAttackCount;Launches++;Started=true;origin=grip.position;launchRotation=grip.rotation;destination=target;stone.localScale=Vector3.one;}
             if(Flying)
             {
                 destination=target;
                 stone.position=Vector3.Lerp(origin,destination,MonsterRockMotion.Travel(age))+Vector3.up*MonsterRockMotion.Arc(age);
-                stone.rotation=Quaternion.Euler(age*470,age*230,age*140);
+                float spinAge=age-MonsterRockMotion.Launch;
+                stone.rotation=launchRotation*Quaternion.Euler(spinAge*470,spinAge*230,spinAge*140);
             }
             if(state.Enemy==EnemyPhase.Attack||state.Enemy==EnemyPhase.Recover)
                 dust.Tick(state.EnemyAttackCount,state.Enemy==EnemyPhase.Recover?Battle.EnemyAttackSeconds+age:age,stone.position,impacted,contact,camera);

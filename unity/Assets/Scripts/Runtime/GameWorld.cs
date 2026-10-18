@@ -654,7 +654,7 @@ namespace UltramanGame.Runtime
             projectile.Tick(state,Camera,hero?.StrikeOrigin(state.IsRangedPunch?state.Action:state.Shot.Side)??BeamOrigin,BeamTarget,Showcase||Closeup.Active,hero?.RayOrigin,dt);
             if(!Showcase)hero?.PoseFinisherWeapons(state);
             blade.Tick(state,hero?.StrikeOrigin(HeroAction.LeftPunch)??BeamOrigin,BattleAxis,BeamTarget,Showcase||Closeup.Active);
-            rock.Tick(state,enemy?.StrikeOrigin(HeroAction.RightPunch)??BeamTarget,ShieldCenter,Showcase||Closeup.Active,Camera);
+            rock.Tick(state,enemy?.RockGrip??new Pose(BeamTarget,Quaternion.identity),ShieldCenter,Showcase||Closeup.Active,Camera);
             monsterEffects.Tick(state,Camera,dt,enemy!=null&&enemy.IsRigged?(Vector3?)enemy.EnemyStrikeOrigin(state):null,HeroAnchor,
                 enemy?.FootPosition(true),enemy?.FootPosition(false),Showcase||Closeup.Active);
             monsterRay.Tick(state,Camera,enemy?.RayOrigin??EnemyHome+Vector3.up*3.32f-BattleAxis*.46f,
