@@ -384,7 +384,17 @@ namespace UltramanGame.Runtime
         {
             if(TraceEnabled)Debug.Log($"[Game] cue={cue} phase={battle.Phase} health={battle.EnemyHealth} energy={battle.Energy}");
             if(TraceEnabled&&GuidedProofRequested&&cue==GameCue.BattleStart)Debug.Log($"[GuidedProofHero] battle={SelectedHero.Id}");
-            if(cue!=GameCue.EnemyAttack||!MonsterRayMotion.Variant(battle.EnemyAttackCount)&&!MonsterRockMotion.Variant(battle.EnemyAttackCount))sound.Cue(cue,battle.Phase);
+            if(cue==GameCue.EnemyAttack)
+            {
+                // Rays and rocks own their release sounds. A claw's air crest
+                // belongs to its swipe, while the ground strike retains rush.
+                if(!MonsterRayMotion.Variant(battle.EnemyAttackCount)&&!MonsterRockMotion.Variant(battle.EnemyAttackCount))
+                {
+                    bool claw=!MonsterSlamMotion.Variant(battle.EnemyAttackCount);sound.EnemyAttack(claw);
+                    if(TraceEnabled)Debug.Log($"[MonsterAttackAudio] kind={(claw?"claw":"slam")} sequence={battle.EnemyAttackCount} age={battle.EnemyAge:F3}");
+                }
+            }
+            else sound.Cue(cue,battle.Phase);
             world.Cue(cue,battle);
             if((cue==GameCue.Block||cue==GameCue.Hurt)&&MonsterRockMotion.Variant(battle.EnemyAttackCount))
             {sound.RockImpact();if(TraceEnabled)Debug.Log($"[MonsterRock] impact blocked={cue==GameCue.Block} age={battle.EnemyAge:F3}");}

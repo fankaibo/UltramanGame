@@ -52,6 +52,7 @@ namespace UltramanGame.Runtime
         public string Diagnostics => $"calmPlaying={calm.isPlaying} battlePlaying={battle.isPlaying} voicePlaying={voice.isPlaying} musicProject={ProjectMusicLoaded} musicSource={MusicSource} beamOriginal={HasOriginalBeamVoice} beamVoice={ResolvedBeamVoiceKey} beamVoiceSource={BeamVoiceSource} battleStinger={battleStinger!=null} calmVolume={calm.volume:F3} battleVolume={battle.volume:F3} localMusic={localMusic!=null} effectsPitch={effects.LastPitch:F2} effectVoices={effects.ActiveCount}/{effects.Capacity} effectDuck={effectsDuck:F2} muted={muted}";
         AudioSource Source(GameObject owner)
         { var s=owner.AddComponent<AudioSource>();s.playOnAwake=false;s.spatialBlend=0;s.dopplerLevel=0;return s; }
+        readonly AudioClip clawSweep;
         public GameAudio(GameObject owner)
         {
             calm=Source(owner);battle=Source(owner);voice=Source(owner);
@@ -61,6 +62,7 @@ namespace UltramanGame.Runtime
             beamContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(2));
             beamRelease=RuntimeResources.Own(owner.transform,CreateBeamRelease());
             projectileLaunch=RuntimeResources.Own(owner.transform,CreateProjectileLaunch());
+            clawSweep=RuntimeResources.Own(owner.transform,CombatImpactSounds.CreateClawSweep());
             for(int i=0;i<projectileContacts.Length;i++)projectileContacts[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.CreateProjectile(i));
             charge=Source(owner);charge.loop=true;charge.volume=0;
             charge.clip=RuntimeResources.Own(owner.transform,CreateBeamGather());
@@ -376,6 +378,12 @@ namespace UltramanGame.Runtime
             if(muted)return;
             if(HeroId=="Tiga")effects.Play(projectileContacts[projectileContactSequence++%projectileContacts.Length],.48f,1,1,EnemyPan);
             else effects.Play(beamContact,.48f,1.22f,1,EnemyPan);
+        }
+        public void EnemyAttack(bool claw)
+        {
+            if(muted)return;
+            if(claw)effects.Play(clawSweep,.85f,1,1,EnemyPan);
+            else Effect("enemy_rush",.85f,EnemyPan);
         }
         public void RockLaunch(){if(!muted)Effect("enemy_rush",.65f,EnemyPan);}
         public void RockImpact(){if(!muted)GroundContact(true);}

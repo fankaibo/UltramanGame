@@ -106,7 +106,7 @@ namespace UltramanGame.Editor
         Battle projectileBattle;
         int shotSequence;
         float lastHealth=50;
-        bool projectileReview,spatialReview,spatialBaseline,finisherReview;
+        bool projectileReview,spatialReview,spatialBaseline,finisherReview,clawReview;
         GameWorld finisherWorld;
         AnimatedActor finisherHero,finisherEnemy;
         Camera spatialCamera;
@@ -126,6 +126,7 @@ namespace UltramanGame.Editor
                 if(version!="before"&&version!="after")throw new Exception("Invalid review version");
                 int outputAt=Array.IndexOf(args,"--audio-output");
                 projectileReview=Array.IndexOf(args,"--audio-projectiles")>=0;
+                clawReview=Array.IndexOf(args,"--audio-claws")>=0;
                 finisherReview=Array.IndexOf(args,"--audio-finisher")>=0;
                 spatialReview=Array.IndexOf(args,"--audio-spatial")>=0;spatialBaseline=version=="before";
                 folder=Path.GetFullPath(outputAt>=0?Path.Combine(args[outputAt+1],version):Path.Combine(Application.dataPath,"../../artifacts/combat-audio/"+version));Directory.CreateDirectory(folder);
@@ -192,6 +193,7 @@ namespace UltramanGame.Editor
         }
         void Step()
         {
+                if(clawReview){ClawStep();return;}
                 if(finisherReview){FinisherStep();return;}
                 if(spatialReview){SpatialStep();return;}
                 if(projectileReview){ProjectileStep();return;}
@@ -213,6 +215,28 @@ namespace UltramanGame.Editor
                 if(frame==840)Event("reset",()=>sound.Reset());
                 if(frame>=900){frame++;Finish();return;}
                 frame++;
+        }
+        void PlayClaw()
+        {
+            var method=typeof(GameAudio).GetMethod("EnemyAttack");
+            if(method==null)sound.Cue(GameCue.EnemyAttack,GamePhase.Battle);
+            else method.Invoke(sound,new object[]{true});
+        }
+        void ClawStep()
+        {
+            sound.Tick(GamePhase.Battle,false,1/60f);
+            sound.SetStage(spatialCamera,new Vector3(-2,0,5),new Vector3(2,0,5));
+            if(frame==30||frame==150||frame==270)Event("claw-start",PlayClaw);
+            if(frame==54||frame==174||frame==294)Event("shield-contact",()=>sound.Effect("shield",1,sound.HeroPan));
+            if(frame==245)Event("warning-voice",()=>sound.Speak("warning",5,GamePhase.Battle));
+            if(frame==390){sound.Reset();Event("legacy-slam-start",()=>sound.Cue(GameCue.EnemyAttack,GamePhase.Battle));}
+            if(frame>=480)
+            {
+                var field=typeof(GameAudio).GetField("clawSweep",BindingFlags.Instance|BindingFlags.NonPublic);
+                WriteClip(field!=null?(AudioClip)field.GetValue(sound):Resources.Load<AudioClip>("Audio/enemy_rush"),"claw-source.wav",field!=null);
+                frame++;Finish();return;
+            }
+            frame++;
         }
         void FinisherStep()
         {
@@ -327,6 +351,7 @@ namespace UltramanGame.Editor
             File.WriteAllText(folder+"/capture.txt",FormattableString.Invariant($"rate={rate} channels={channels} frames={frame} samples={samples.Length} seconds={samples.Length/(float)(rate*channels):F4} peak={peak:F6} rms={Math.Sqrt(power/samples.Length):F6}\n"));
             if(spatialReview)SpatialChecks();
             else if(folder.EndsWith("/after"))Checks();
+            if(clawReview&&folder.EndsWith("/after"))ClawChecks();
             var hashes=new StringBuilder();using(var sha=System.Security.Cryptography.SHA256.Create())
             foreach(string file in new[]{"Runtime/GameAudio.cs","Runtime/CombatAudioVoices.cs","Runtime/CombatImpactSounds.cs","Runtime/ArenaController.cs"})
             {string path=Path.Combine(Application.dataPath,"Scripts",file);hashes.AppendLine(file+" "+BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-","").ToLowerInvariant());}
@@ -394,11 +419,29 @@ namespace UltramanGame.Editor
             }
             File.WriteAllText(folder+"/checks.txt",report.ToString());
         }
-        void WriteClip(AudioClip clip,string name)
+        void ClawChecks()
+        {
+            var method=typeof(GameAudio).GetMethod("EnemyAttack");if(method==null)throw new Exception("Missing typed enemy sound");
+            sound.Reset();sound.Tick(GamePhase.Battle,false,.02f);int count=GetComponents<AudioSource>().Length;
+            PlayClaw();bool active=false;
+            foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)
+            {if(src.clip.name!="Golza claw sweep"||src.pitch!=1)throw new Exception("Claw used generic rush or retimed its contact");active=true;}
+            if(!active)throw new Exception("No claw sound");
+            sound.Reset();method.Invoke(sound,new object[]{false});bool legacy=false;
+            foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)legacy|=src.clip==Resources.Load<AudioClip>("Audio/enemy_rush");
+            if(!legacy)throw new Exception("Slam sound changed");
+            sound.Reset();for(int i=0;i<40;i++)PlayClaw();if(GetComponents<AudioSource>().Length!=count)throw new Exception("Claw allocated sources");
+            sound.Tick(GamePhase.Paused,false,.02f);foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)throw new Exception("Paused claw continued");
+            sound.Tick(GamePhase.Battle,true,.02f);PlayClaw();foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)throw new Exception("Muted claw played");
+            sound.Tick(GamePhase.Battle,false,.02f);PlayClaw();sound.Reset();foreach(var src in GetComponents<AudioSource>())if(!src.loop&&src.isPlaying)throw new Exception("Reset claw continued");
+            File.WriteAllText(folder+"/claw-checks.txt","claw-specific/fixed-pitch/legacy-slam/fixed-pool/pause/mute/reset=passed\n");
+        }
+        void WriteClip(AudioClip clip,string name,bool checkEndpoints=true)
         {
             var data=new float[clip.samples*clip.channels];clip.GetData(data,0);
             foreach(float value in data)if(float.IsNaN(value)||float.IsInfinity(value)||Mathf.Abs(value)>=.98f)throw new Exception("Contact sample clips or is invalid");
-            if(Mathf.Abs(data[0])>.001f||Mathf.Abs(data[data.Length-1])>.001f)throw new Exception("Contact has an abrupt endpoint");
+            File.WriteAllText(folder+"/"+name+".endpoints.txt",FormattableString.Invariant($"first={data[0]:R} last={data[data.Length-1]:R} enforced={checkEndpoints}\n"));
+            if(checkEndpoints&&(Mathf.Abs(data[0])>.001f||Mathf.Abs(data[data.Length-1])>.001f))throw new Exception("Contact has an abrupt endpoint");
             using(var writer=new BinaryWriter(File.Create(folder+"/"+name)))
             {
                 writer.Write(Encoding.ASCII.GetBytes("RIFF"));writer.Write(36+data.Length*4);writer.Write(Encoding.ASCII.GetBytes("WAVEfmt "));writer.Write(16);writer.Write((short)3);writer.Write((short)clip.channels);

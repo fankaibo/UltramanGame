@@ -4,6 +4,28 @@ namespace UltramanGame.Runtime
 {
     public static class CombatImpactSounds
     {
+        // Original non-vocal claw foley. The event starts with the attack;
+        // its air crest follows the accelerating hand, just before contact.
+        public static AudioClip CreateClawSweep()
+        {
+            const int rate=44100;const float duration=.64f;
+            var samples=new float[Mathf.RoundToInt(rate*duration)];var random=new System.Random(261019177);
+            float fast=0,slow=0,phase=0,peak=0;
+            for(int i=0;i<samples.Length;i++)
+            {
+                float age=i/(float)rate,t=Mathf.Max(0,age-.08f),noise=(float)random.NextDouble()*2-1;
+                float rush=Mathf.SmoothStep(0,1,t/.23f)*(1-Mathf.SmoothStep(0,1,(t-.23f)/.28f));
+                float cutoff=Mathf.Lerp(.045f,.42f,Mathf.Sin(Mathf.Clamp01(t/.51f)*Mathf.PI));
+                fast=Mathf.Lerp(fast,noise,cutoff);slow=Mathf.Lerp(slow,noise,.018f);
+                phase+=2*Mathf.PI*Mathf.Lerp(125,63,Mathf.Clamp01(t/.51f))/rate;
+                float cloth=(fast-slow)*.76f+slow*.24f;
+                float body=Mathf.Sin(phase)*.12f*(.78f+.22f*Mathf.Sin(t*73));
+                float value=(cloth+body)*rush*Mathf.Clamp01((duration-age)/.025f);
+                samples[i]=value;peak=Mathf.Max(peak,Mathf.Abs(value));
+            }
+            for(int i=0;i<samples.Length;i++)samples[i]*=.62f/Mathf.Max(.001f,peak);
+            var clip=AudioClip.Create("Golza claw sweep",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
+        }
         // A brief plasma crack for individual bullets. Keep the finisher's
         // long, low impact separate so fast casts have a readable rhythm.
         public static AudioClip CreateProjectile(int variation=0)
