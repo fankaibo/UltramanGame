@@ -21,6 +21,18 @@ namespace UltramanGame.Core
         public float Root=>Smooth(Age/.29f)*(1-Smooth((Age-.48f)/(Duration-.48f)))*Weight;
         public float Lift=>Active?(Age<Landing?.20f*(float)Math.Sin(Math.PI*Age/Landing):Age>Return?.14f*(float)Math.Sin(Math.PI*(Age-Return)/(Duration-Return)):0)*Weight:0;
         public float Pitch=>Lift*(Age<Landing?40:-43);
+        // Unload the lifted leg onto the planted leg first, then settle onto
+        // the landing leg. Zero endpoint slopes avoid a lateral kick on entry
+        // or when the original step finishes; foot targets stay unchanged.
+        public float Balance
+        {
+            get
+            {
+                float unload=(float)Math.Sin(Math.PI*Math.Max(0,Math.Min(1,Age/Landing)));
+                float settle=(float)Math.Sin(Math.PI*Math.Max(0,Math.Min(1,(Age-Landing)/(Duration-Landing))));
+                return (Left?1:-1)*(.12f*unload*unload-.065f*settle*settle)*Weight;
+            }
+        }
         public void Begin(bool left){Age=0;Weight=1;Left=left;landed=false;}
         public void Clear(){Age=10;Weight=0;landed=false;}
         public void Tick(float dt,bool allowed)

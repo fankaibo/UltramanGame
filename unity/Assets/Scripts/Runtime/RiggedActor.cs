@@ -1875,7 +1875,9 @@ namespace UltramanGame.Runtime
                 stepLegRotations[0]=leftThigh.localRotation;stepLegRotations[1]=leftShin.localRotation;stepLegRotations[2]=leftFoot.localRotation;
                 stepLegRotations[3]=rightThigh.localRotation;stepLegRotations[4]=rightShin.localRotation;stepLegRotations[5]=rightFoot.localRotation;stepLegsApplied=true;
             }
-            staggerTravel=-forward*(.24f*stagger.Root);Root.position+=staggerTravel;
+            // A ranged recovery step carries weight across the standing leg
+            // while the two existing world-space foot targets remain planted.
+            staggerTravel=-forward*(.24f*stagger.Root)+side*(rangedStep?stagger.Balance:0);Root.position+=staggerTravel;
             float drop=Mathf.Max(LegDrop(leftThigh,leftShin,leftFoot,left),LegDrop(rightThigh,rightShin,rightFoot,right));
             stepDrop+=drop;Root.position-=Vector3.up*drop;
             PoseLimb(leftThigh,leftShin,leftFoot,left,1,forward-side*.20f,leftFootLocal.y);
