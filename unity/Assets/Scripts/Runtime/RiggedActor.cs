@@ -2793,6 +2793,8 @@ namespace UltramanGame.Runtime
             monsterLeftHandRotationFrom=monsterVisibleHandsValid?monsterVisibleLeftRotation:leftHand.rotation;
             monsterRightHandRotationFrom=monsterVisibleHandsValid?monsterVisibleRightRotation:hand.rotation;
         }
+        static bool ClawStrike(Battle state)=>state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Rest
+            &&!MonsterRockMotion.Active(state)&&!MonsterSlamMotion.Active(state)&&!MonsterRayMotion.Active(state);
         void ApplyClawPose(Battle state,int preview,float time)
         {
             if(clawBones.Count==0)return;
@@ -2848,6 +2850,20 @@ namespace UltramanGame.Runtime
                 // smaller curl leaves a readable gap between the fingers while
                 // the lead claw still carries the contact action.
                 float amount=Mathf.Max(.04f,curl*(lead?1.08f:.62f)+idlePulse);
+                // The striking claw opens in the last part of anticipation,
+                // closes on the existing contact beat, then releases as the arm
+                // returns. Previously both hands shared the same broad curl
+                // pulse, leaving four parallel fingers throughout the swipe.
+                bool clawLead=preview<0&&ClawStrike(state)
+                    &&(side==0)==MonsterStepMotion.ClawLeft(state.EnemyAttackCount+(state.Enemy==EnemyPhase.Windup?1:0));
+                if(clawLead&&state.Enemy==EnemyPhase.Windup)
+                    amount=Mathf.Lerp(amount,.035f,Mathf.SmoothStep(0,1,(state.EnemyAge-state.WarningDuration+.50f)/.50f));
+                else if(clawLead&&state.Enemy==EnemyPhase.Attack)
+                {
+                    float close=Mathf.SmoothStep(0,1,(state.EnemyAge-.10f)/(Battle.EnemyHitSeconds-.10f));
+                    float release=Mathf.SmoothStep(0,1,(state.EnemyAge-.53f)/(Battle.EnemyAttackSeconds-.53f));
+                    amount=Mathf.Lerp(Mathf.Lerp(.035f,.48f,close),.24f*.62f,release);
+                }
                 // Cup the stone before release, then open the fingers on the
                 // existing launch beat. Other attacks keep their claw shape.
                 if(side==1&&preview<0&&MonsterRockMotion.Active(state))
@@ -2926,20 +2942,24 @@ namespace UltramanGame.Runtime
             clawRollApplied=true;
             bool attack=preview==2||preview<0&&state.Phase==GamePhase.Battle&&state.Enemy==EnemyPhase.Attack;
             bool leadLeft=preview<0&&MonsterStepMotion.ClawLeft(state.EnemyAttackCount);
-            float reach=attack?Mathf.Sin(Mathf.Clamp01((preview==2?.4f:state.EnemyAge)/Battle.EnemyAttackSeconds)*Mathf.PI):0;
             for(int side=0;side<2;side++)
             {
                 var lower=side==0?leftForearm:forearm;var wrist=side==0?leftHand:hand;
                 Vector3 axis=(wrist.position-lower.position).normalized;
                 bool lead=attack&&(side==0)==leadLeft;
-                float outward=Mathf.Lerp(.95f,lead?.35f:.80f,reach);
+                float leadWeight=lead?1:0;
+                if(preview<0&&ClawStrike(state)&&state.Enemy==EnemyPhase.Attack)
+                    leadWeight*=Mathf.SmoothStep(0,1,state.EnemyAge/.20f)
+                        *(1-Mathf.SmoothStep(0,1,(state.EnemyAge-.64f)/(Battle.EnemyAttackSeconds-.64f)));
                 // Aim the palm partly down the battle lane as well as outward.
                 // The old outward-only roll exposed the edge of the support
                 // palm, making its fingers overlap into one dark blob in the
                 // 45-degree camera. A forward component keeps the hand readable
                 // without changing its wrist position or arm endpoint.
-                Vector3 palmLane=forward*(lead?.30f:.13f);
-                Vector3 desired=palmLane+Root.up*.18f+Root.right*((side==0?-1:1)*(lead?.36f:.29f));
+                // Carry the palm turn into and out of a claw strike instead
+                // of switching its target abruptly at the phase boundary.
+                Vector3 palmLane=forward*Mathf.Lerp(.13f,.30f,leadWeight);
+                Vector3 desired=palmLane+Root.up*.18f+Root.right*((side==0?-1:1)*Mathf.Lerp(.29f,.36f,leadWeight));
                 Vector3 source=Vector3.ProjectOnPlane(wrist.TransformDirection(palmUpLocal[side]),axis);
                 desired=Vector3.ProjectOnPlane(desired,axis);
                 if(source.sqrMagnitude<.001f||desired.sqrMagnitude<.001f)continue;
