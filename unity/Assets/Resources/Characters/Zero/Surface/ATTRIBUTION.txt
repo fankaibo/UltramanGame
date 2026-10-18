@@ -1,0 +1,14 @@
+Original Zero surface maps restored 2026-10-10 (A-20261010-75)
+Source: https://sfmlab.com/project/0068ba82-4091-460a-a601-73ff6c5700ba/
+Author/uploader: TengenGenesic / ultimo; enhancements credited to Perceptor.
+Source terms: Uploader-selected CC0 1.0; fan-character rights are not verified.
+These assets are not covered by the repository Apache-2.0 source-code license.
+See ../ATTRIBUTION.txt for original archive attribution and rights boundaries.
+
+Decoded the author's original 2048x2048 VTF normal and specular maps using
+SourceIO and Blender. Converted the normal map's green channel once to the
+Unity convention; the importer must not invert it again. No upscaling or
+AI-generated detail. Existing FBX, UVs and albedo are unchanged.
+The legacy specular mask bounds existing reflectance; it is not a PBR roughness map.
+Rebuild: scripts/restore_zero_surface.py
+Exact input/output hashes and conversion details: source.json

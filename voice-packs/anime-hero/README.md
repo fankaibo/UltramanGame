@@ -1,6 +1,6 @@
 # 热血青年英雄
 
-用户在两段实声预览中选择的 A 音色，用于游戏的 12 条中文引导和战斗提示。它是新设计的合成角色声音，不标称任何动漫人物或演员的影视原声。迪迦大招短战吼单独保存在本机 Unity 资源中，不属于这个语音包。
+用户在两段实声预览中选择的 A 音色，用于游戏的 31 条中文引导、战斗提示和合照续局提示。它是新设计的合成角色声音，不标称任何动漫人物或演员的影视原声。迪迦大招短战吼单独保存在本机 Unity 资源中，不属于这个语音包。
 
 `reference.wav` 是用户试听选中的原始合成样音，由 [Qwen3-TTS VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) 在官方公开演示页生成。后续台词以该合成样音为参考，使用 [Qwen3-TTS Base 的 MLX 4-bit 模型](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit) 在本机生成。没有使用孩子、家长或演员的录音进行音色复制。
 

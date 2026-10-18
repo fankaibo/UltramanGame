@@ -1,0 +1,14 @@
+{
+  "character": "Zero",
+  "vertices": 2397,
+  "clips": [
+    "Beam",
+    "Guard",
+    "Hurt",
+    "Idle",
+    "LeftPunch",
+    "RightPunch",
+    "Transform",
+    "Victory"
+  ]
+}

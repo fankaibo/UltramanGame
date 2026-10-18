@@ -1,0 +1,14 @@
+Motion data used in this game was obtained from mocap.cs.cmu.edu.
+The database was created with funding from NSF EIA-0196217.
+Source: CMU subject 140, trial 03, Get Up Laying on Side (120 Hz).
+BVH conversion: Bruce Hahne, 2010; mirror: github.com/una-dinosauria/cmu-mocap.
+
+CMU permits research and commercial product use, but prohibits direct resale
+of the data, including converted data. See https://mocap.cs.cmu.edu/ .
+The BVH converter adds no additional use restrictions.
+These files are retargeted game animation assets with costume-specific
+contact correction. They are not offered as a standalone motion dataset.
+The source capture does not contain real finger motion.
+
+Character models retain their existing separate attribution and permissions.
+See each Resources/Characters/<hero>/ attribution and docs/美术与音频说明.md.

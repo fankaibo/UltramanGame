@@ -1,0 +1,118 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UltramanGame.Core;
+using UltramanGame.Runtime;
+
+namespace UltramanGame.Editor
+{
+    public static class CapturedRecoveryReview
+    {
+        static string Folder=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_CAPTURED_REVIEW")??Path.Combine(Application.dataPath,"../../artifacts/mocap-recovery-20261010/runtime-ready"));
+        public static void Preview()=>Run("Tiga",60,true);
+        public static void Baseline()=>Run("Tiga",60,true,false,true);
+        public static void TigaRates()
+        {
+            foreach(int hz in new[]{15,30,60}){Run("Tiga",hz,hz==60);Run("Tiga",hz,false,true);}
+            foreach(float age in new[]{.20f,.52f,.90f})KnockdownReview.CheckInterruptions(age,"Tiga");
+        }
+        public static void After()
+        {
+            foreach(string hero in new[]{"Tiga","Mebius","Zero","Geed","Grigio"})
+                foreach(int hz in new[]{15,30,60})Run(hero,hz,hero=="Tiga"&&hz==60);
+            foreach(int hz in new[]{15,30,60})Run("Tiga",hz,false,true);
+            KnockdownReview.CheckInterruptions(.05f);
+            KnockdownReview.CheckInterruptions();
+            KnockdownReview.CheckInterruptions(.2f);KnockdownReview.CheckInterruptions(.52f);
+        }
+        static void Run(string id,int hz,bool movie,bool castEntry=false,bool baseline=false)
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(1073);
+            var world=new GameWorld();var b=new Battle();
+            var hero=new AnimatedActor(id,world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);world.BindActors(hero,enemy);
+            if(!hero.IsRigged)throw new Exception("Missing skeleton "+id);
+            float dt=1f/hz,time=0;int landings=0;bool castSent=false,castInterrupted=false;
+            void Step(PlayerInput input)
+            {
+                bool wasPunch=b.IsPunch;
+                time+=dt;b.Tick(world.BattleDelta(dt,b),input);
+                if(wasPunch&&b.Action==HeroAction.Hurt)castInterrupted=true;
+                while(b.TryCue(out var cue)){world.Cue(cue,b);if(cue==GameCue.HeroLanded)landings++;}
+                hero.Update(b,world.Camera,dt,time);enemy.Update(b,world.Camera,dt,time);world.Tick(b,dt,time);
+            }
+            Step(new PlayerInput{Tracking=true,Transform=true});int waited=0;
+            while(b.Action!=HeroAction.Hurt&&waited++<hz*40)
+            {
+                bool cast=castEntry&&!castSent&&b.Enemy==EnemyPhase.Attack&&b.EnemyAge>=.24f;
+                Step(new PlayerInput{Tracking=true,LeftPunch=cast,RangedAttack=cast,AttackSpeed=.65f});
+                castSent|=cast;
+            }
+            if(castEntry&&!castInterrupted)throw new Exception("Test did not interrupt a cast");
+            if(b.Action!=HeroAction.Hurt)throw new Exception("No hit setup");
+            string output=Folder+"/"+id+(castEntry?"-cast":"")+"-"+hz;Directory.CreateDirectory(output);if(movie)Directory.CreateDirectory(output+"/frames");
+            var rt=new RenderTexture(1280,720,24){antiAliasing=4};rt.Create();world.Camera.targetTexture=rt;world.Camera.aspect=16f/9;
+            var mesh=new Mesh();var skins=hero.Root.GetComponentsInChildren<SkinnedMeshRenderer>();
+            var tracked=hero.Root.GetComponentsInChildren<Transform>().Where(t=>new[]{"hip","bip_pelvis","HandBase_L","HandBase_R","bip_hand_L","bip_hand_R","Foot_L","Foot_R","bip_foot_L","bip_foot_R"}.Contains(t.name)).ToArray();
+            Vector3[] previous=tracked.Select(t=>t.position).ToArray();float lowest=100,maxStep=0,repeat=0;int captured=0,falls=0,fallPoses=0;string lowestDetail="";
+            var allBones=hero.Root.GetComponentsInChildren<Transform>();
+            Transform Find(string a,string b)=>allBones.First(t=>t.name==a||t.name==b);
+            var legs=new[]{Find("ThighBase_L","bip_hip_L"),Find("Shin_L","bip_knee_L"),Find("Foot_L","bip_foot_L"),
+                Find("ThighBase_R","bip_hip_R"),Find("Shin_R","bip_knee_R"),Find("Foot_R","bip_foot_R")};
+            float lengthError=0,minExtension=180,minAsymmetry=180;int landingSamples=0;
+            var csv=new StringBuilder("frame,action,age,captured,fall,minimumY,jointStep,rootX,rootY,rootZ,leftX,leftY,leftZ,rightX,rightY,rightZ\n");
+            float[] moments={.2f,.45f,.85f,1.3f,1.8f,2.35f,2.8f};bool[] saved=new bool[moments.Length];
+            try
+            {
+                for(int frame=0;frame<hz*4;frame++)
+                {
+                    Step(new PlayerInput{Tracking=true});
+                    var current=tracked.Select(t=>t.position).ToArray();float movement=0;
+                    for(int i=0;i<current.Length;i++)movement=Mathf.Max(movement,Vector3.Distance(previous[i],current[i]));previous=current;
+                    float ground=100;string detail="";foreach(var skin in skins)
+                    {
+                        skin.BakeMesh(mesh,true);var vertices=mesh.vertices;int at=-1;
+                        for(int v=0;v<vertices.Length;v++){float y=skin.transform.TransformPoint(vertices[v]).y;if(y<ground){ground=y;at=v;}}
+                        if(at>=0)detail=$"age={b.ActionAge:F5} bone={skin.bones[skin.sharedMesh.boneWeights[at].boneIndex0].name}";
+                    }
+                    if(b.Action==HeroAction.Hurt)
+                    {
+                        // Compare each solve with its own input chain. Imported
+                        // clip translations and capture poses are not identical
+                        // rest skeletons across the entire four-second motion.
+                        lengthError=Mathf.Max(lengthError,hero.RecoveryLimbLengthError);
+                        if(b.ActionAge>=.42f&&b.ActionAge<=.55f)
+                        {
+                            float leftKnee=Vector3.Angle(legs[0].position-legs[1].position,legs[2].position-legs[1].position);
+                            float rightKnee=Vector3.Angle(legs[3].position-legs[4].position,legs[5].position-legs[4].position);
+                            minExtension=Mathf.Min(minExtension,rightKnee);minAsymmetry=Mathf.Min(minAsymmetry,rightKnee-leftKnee);landingSamples++;
+                        }
+                        if(ground<lowest){lowest=ground;lowestDetail=detail;}maxStep=Mathf.Max(maxStep,movement);
+                        if(hero.CapturedRecoveryActive)captured++;
+                        if(hero.CapturedFallActive)falls++;
+                        if(hero.KnockdownPoseActive)fallPoses++;
+                        if(!baseline&&b.ActionAge>.10f&&b.ActionAge<.62f&&!hero.KnockdownPoseActive)throw new Exception("Actual fall pose was not applied "+id);
+                        if(!baseline&&b.ActionAge>.8f&&b.ActionAge<2&& !hero.CapturedRecoveryActive)throw new Exception("Capture was not loaded/applied "+id);
+                        for(int m=0;m<moments.Length;m++)if(!saved[m]&&b.ActionAge>=moments[m])
+                        {CharacterReview.Save(world.Camera,rt,$"{output}/pose-{m}.png");saved[m]=true;}
+                    }
+                    var beforeRoot=hero.Root.position;hero.Update(b,world.Camera,0,time);
+                    repeat=Mathf.Max(repeat,Vector3.Distance(hero.Root.position,beforeRoot));
+                    for(int i=0;i<current.Length;i++)repeat=Mathf.Max(repeat,Vector3.Distance(current[i],tracked[i].position));
+                    var root=hero.Root.position;var left=hero.FootPosition(true);var right=hero.FootPosition(false);
+                    csv.AppendLine(FormattableString.Invariant($"{frame},{b.Action},{b.ActionAge:F6},{hero.CapturedRecoveryActive},{hero.CapturedFallActive},{ground:F6},{movement:F6},{root.x:F6},{root.y:F6},{root.z:F6},{left.x:F6},{left.y:F6},{left.z:F6},{right.x:F6},{right.y:F6},{right.z:F6}"));
+                    if(movie&&frame%2==0)CharacterReview.Save(world.Camera,rt,$"{output}/frames/{frame/2:D4}.png");
+                }
+                bool recovered=b.Action==HeroAction.None;Step(new PlayerInput{Tracking=true,Shield=true});
+                string result=$"{id}-{hz} capturedSamples={captured} fallSamples={falls} fallPoseSamples={fallPoses} minimumY={lowest:F6} maximumJointStep={maxStep:F6} repeatError={repeat:F6} boneLengthError={lengthError:F6} extendedKnee={minExtension:F2} kneeAsymmetry={minAsymmetry:F2} landingSamples={landingSamples} hits={b.HitsTaken} landings={landings} recovered={recovered} shield={b.Shield} castInterrupted={castInterrupted} lowest=({lowestDetail})";
+                File.WriteAllText(output+"/trace.csv",csv.ToString());File.WriteAllText(output+"/metrics.txt",result);Debug.Log("[CapturedRecoveryReview] "+result);
+                if(!baseline&&(fallPoses<5||captured<10||lowest<-.05f||repeat>.001f||landings!=1||b.HitsTaken!=1||b.Action!=HeroAction.None||!b.Shield||!saved.All(x=>x)))throw new Exception("Captured recovery failed: "+result);
+                if(!baseline&&(lengthError>.002f||id=="Tiga"&&(landingSamples==0||minExtension<130||minAsymmetry<20)))throw new Exception("Folded or stretched landing legs: "+result);
+                if(baseline)File.WriteAllText(output+"/baseline-only.txt","Measurement only; no pose quality gates passed.");
+            }
+            finally{world.Camera.targetTexture=null;RenderTexture.active=null;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(mesh);}
+        }
+    }
+}

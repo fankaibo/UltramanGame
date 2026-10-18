@@ -19,11 +19,18 @@ ROOT = Path(__file__).resolve().parents[1]
 @unittest.skipUnless(os.name == "posix", "macOS/Linux process lifecycle")
 class LauncherTests(unittest.TestCase):
     def test_terminal_termination_reaps_game_and_camera_and_preserves_previous_log(self):
+        self._launch_and_close(False)
+
+    def test_explicit_candidate_owns_and_releases_its_camera(self):
+        self._launch_and_close(True)
+
+    def _launch_and_close(self, candidate):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / "scripts").mkdir()
             shutil.copy2(ROOT / "scripts/launch_game.py", root / "scripts/launch_game.py")
-            contents = root / "unity/Builds/TigaTraining.app/Contents"
+            app = root / ("candidate with spaces.app" if candidate else "unity/Builds/TigaTraining.app")
+            contents = app / "Contents"
             (contents / "MacOS").mkdir(parents=True)
             with (contents / "Info.plist").open("wb") as info:
                 plistlib.dump({"CFBundleExecutable": "test-game"}, info)
@@ -36,7 +43,7 @@ class LauncherTests(unittest.TestCase):
             (logs / "camera-last.log").write_text("prior failure evidence\n")
             env = dict(os.environ, PYTHONPATH=str(ROOT))
             with (logs / "launcher.log").open("wb") as log:
-                launcher = subprocess.Popen([sys.executable, str(root / "scripts/launch_game.py"), "--demo"],
+                launcher = subprocess.Popen([sys.executable, str(root / "scripts/launch_game.py"), "--demo"] + (["--app", str(app)] if candidate else []),
                     cwd=root, env=env, stdout=log, stderr=log, start_new_session=True)
                 children = []
                 try:
