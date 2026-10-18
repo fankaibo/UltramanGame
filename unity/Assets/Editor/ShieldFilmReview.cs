@@ -11,9 +11,11 @@ namespace UltramanGame.Editor
 {
     public static class ShieldFilmReview
     {
-        static string Root=>Path.GetFullPath(Application.dataPath+"/../../artifacts/shield-film-20261012");
+        static string Root=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_SHIELD_REVIEW")??Application.dataPath+"/../../artifacts/shield-film-20261012");
         public static void Before(){Stage("before");Surface("before");}
         public static void After(){Stage("after");Surface("after");}
+        public static void ConductionBefore(){Stage("before");Surface("before",true);}
+        public static void ConductionAfter(){Stage("after");Surface("after",true);}
         static void Stage(string version)
         {
             string folder=Root+"/"+version;Directory.CreateDirectory(folder+"/frames");File.Delete(folder+"/validation.txt");
@@ -60,7 +62,7 @@ namespace UltramanGame.Editor
             if(version=="after"&&File.ReadAllText(Root+"/before/state-camera.csv")!=trace.ToString())throw new Exception("Shield changed gameplay, actor root or camera");
             File.WriteAllText(folder+"/validation.txt",report.ToString());Debug.Log("[ShieldFilmStage] PASS "+version+"\n"+report);
         }
-        static void Surface(string version)
+        static void Surface(string version,bool preserveIdle=false)
         {
             string folder=Root+"/"+version+"/surface";Directory.CreateDirectory(folder);File.Delete(folder+"/validation.txt");
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
@@ -87,7 +89,19 @@ namespace UltramanGame.Editor
                     if(version=="after")
                     {
                         var old=File.ReadAllLines(Root+"/before/surface/metrics.csv");float oldWash=0;foreach(var line in old)if(line.StartsWith(angle+","))oldWash=float.Parse(line.Split(',')[1],System.Globalization.CultureInfo.InvariantCulture);
-                        if(wash>oldWash*.65f)throw new Exception($"Center still washes out scene {angle}: {wash}/{oldWash}");
+                        if(preserveIdle)
+                        {
+                            var prior=new Texture2D(2,2,TextureFormat.RGB24,false);
+                            try
+                            {
+                                prior.LoadImage(File.ReadAllBytes(Root+"/before/surface/"+angle+"-idle.png"));
+                                if(Difference(idle,prior.GetPixels32())!=0)throw new Exception("Contact-only edit changed idle shield "+angle);
+                                prior.LoadImage(File.ReadAllBytes(Root+"/before/surface/"+angle+"-impact.png"));
+                                if(Difference(impact,prior.GetPixels32())<25)throw new Exception("Contact change not visible "+angle);
+                            }
+                            finally{UnityEngine.Object.DestroyImmediate(prior);}
+                        }
+                        else if(wash>oldWash*.65f)throw new Exception($"Center still washes out scene {angle}: {wash}/{oldWash}");
                     }
                     metrics.AppendLine(FormattableString.Invariant($"{angle},{wash:F4},{peak},{contrast},{freeze},{depth},{expiry}"));
                 }

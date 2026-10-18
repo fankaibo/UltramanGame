@@ -30,15 +30,29 @@ Shader "Training/EnergyShield" {
   float filament=edge*(.45+.55*flow);
   // The lattice only conducts an actual impact. At rest the center is a
   // nearly clear film, with the animated perimeter defining its boundary.
-  float cells=hexEdge(i.local*float2(11,12.4));
-  float d=length((i.local-_HitPoint.xy)*float2(1,1.12));
+  float2 q=(i.local-_HitPoint.xy)*float2(1,1.12);
+  float d=length(q),theta=atan2(q.y,q.x);
   float age=max(0,_HitAge),fade=saturate(1-age/.58);
-  float wave=exp(-pow((d-age*1.9)/.026,2))*fade;
-  float echo=exp(-pow((d-age*1.3)/.018,2))*fade*.45;
-  float core=exp(-d*d/.013)*pow(saturate(1-age/.19),2);
-  float localGlow=(wave+echo)*.85+core;
-  float alpha=_Color.a*(rim*.20+filament*.65+cells*localGlow*.40+localGlow*.66+.002);
+  // A short pressure front breaks into conducting patches instead of two
+  // complete concentric target rings. All motion uses the contact clock.
+  float warp=(sin(theta*7+.8)*.014+sin(theta*13-1.2)*.009)*smoothstep(.035,.18,d);
+  float path=d+warp;
+  float sector=.30+.70*smoothstep(-.5,.65,sin(theta*9+sin(theta*4)*1.1));
+  float front=exp(-pow((path-age*1.72)/.021,2))*fade*sector;
+  float wake=exp(-pow((path-age*1.27)/.040,2))*fade*.26;
+  float2 lattice=i.local*float2(11,12.4);
+  float cells=hexEdge(lattice);
+  // Cells brighten after the front reaches them, then die locally. The
+  // barrier remains transparent between channels, including at impact.
+  float arrived=age-path/1.72;
+  float conduct=smoothstep(-.025,.015,arrived)*exp(-max(0,arrived)*13)*fade;
+  float variation=.55+.45*sin(lattice.x*2.7+lattice.y*4.1+.8);
+  float channels=cells*conduct*variation;
+  float core=exp(-d*d/.008)*pow(saturate(1-age/.19),2);
+  float localGlow=front*.85+wake+channels*.92+core*1.6;
+  float alpha=_Color.a*(rim*.20+filament*.65+localGlow*.82+.002);
   float3 color=lerp(_Color.rgb,float3(.70,.94,1),saturate(localGlow+filament*.40));
+  color+=float3(.32,.52,.62)*(channels*.60+core*.80);
   return half4(color,saturate(alpha));
  }
  ENDCG }
