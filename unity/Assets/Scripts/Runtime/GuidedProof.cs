@@ -15,6 +15,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&!keyboard&&battle.Phase==GamePhase.Battle&&battle.Action!=HeroAction.Hurt&&
+                battle.Action!=HeroAction.Beam&&battle.Energy<Battle.MaxEnergy&&(held.GuardIntent||battle.Shield))
+            {
+                string guardKey=battle.Shield?"guard-guide-active":"guard-guide-hold";
+                if(proofFrames.Add(guardKey))
+                {Debug.Log($"[GuardGuideProof] key={guardKey} shield={battle.Shield} progress={recognizer.ShieldProgress:F2} title={CameraGuidance.GuardInstruction(battle,held,false)}");StartCoroutine(SaveGuidedProof(guardKey));return;}
+            }
             if(!photo.Active&&battle.Phase==GamePhase.Waiting&&photo.Captures>0)
             {
                 string startKey=recognizer.TransformNeedsRelease?"replay-lower-hands":

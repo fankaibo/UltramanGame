@@ -4,6 +4,13 @@ namespace UltramanGame.Core
     // This is presentation only: it never changes recognition or battle state.
     public static class CameraGuidance
     {
+        public static string GuardInstruction(Battle battle,PlayerInput input,bool keyboard)
+        {
+            if(battle.Shield)return keyboard?"护盾已展开 · 继续按住 S":"护盾已展开 · 保持住！";
+            if(keyboard)return "按住 S，展开护盾！";
+            return input.GuardIntent?"看见防御姿势 · 保持一下":"双手交叉护在胸前或脸前";
+        }
+
         public static string Status(Battle battle,GestureRecognizer gestures,PlayerInput input,bool present,string recent)
         {
             if(!present)return "请站进镜头";

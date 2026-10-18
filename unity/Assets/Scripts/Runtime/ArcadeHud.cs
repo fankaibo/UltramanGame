@@ -151,8 +151,8 @@ namespace UltramanGame.Runtime
                     // input, even if an enemy warning begins during its hold.
                     Guide(recognizer.BeamProgress>0?$"{SelectedHero.Beam}姿势已锁定 · 保持，释放光线！":"看见光线姿势 · 保持一下","beam",gold,recognizer.BeamProgress);
                 else if(warning)
-                    Guide(battle.Shield||(!keyboard&&held.GuardIntent)?(keyboard?"护盾已展开 · 继续按住 S":"护盾姿势已锁定 · 保持住！"):
-                        keyboard?"按住 S，展开护盾！":"双手放胸前，也可以交叉抱住！","shield",battle.Shield?cyan:gold,keyboard?(battle.Shield?1:0):recognizer.ShieldProgress);
+                    Guide(CameraGuidance.GuardInstruction(battle,held,keyboard),"shield",battle.Shield?cyan:gold,
+                        keyboard?(battle.Shield?1:0):recognizer.ShieldProgress);
                 else if(ready)
                     // A spoken release cue used to be hidden by this always-ready
                     // branch. Match the recognizer's actual gate immediately;
@@ -160,6 +160,9 @@ namespace UltramanGame.Runtime
                     Guide(keyboard?"能量已满 · 按 J 释放光线":BeamReadyInstruction,
                         !keyboard&&recognizer.BeamNeedsRelease?"neutral":"beam",gold,
                         keyboard?1:recognizer.BeamNeedsRelease?0:recognizer.BeamProgress);
+                else if(!keyboard&&(battle.Shield||held.GuardIntent))
+                    Guide(CameraGuidance.GuardInstruction(battle,held,false),"shield",battle.Shield?cyan:gold,
+                        recognizer.ShieldProgress);
                 else
                 {
                     bool liveCaption=time<captionUntil&&BattleCaption.Visible(captionKind,battle);
