@@ -2128,7 +2128,12 @@ namespace UltramanGame.Runtime
             bool activeLeft=state.Action==HeroAction.LeftPunch;float sign=activeLeft?-1:1;
             bool slugger=HeroArsenal.Sluggers(heroId);
             float prepare=Mathf.SmoothStep(0,1,age/(slugger?.06f:.045f));
-            float releaseStart=slugger?.06f:.03f;
+            // The camera gesture has already supplied the preparation. Tiga
+            // should extend from that visible hand immediately, rather than
+            // folding back for 0.03 action seconds and rushing the whole reach
+            // into the remaining pre-launch window. Release still finishes at
+            // the unchanged projectile launch time, including fast punches.
+            float releaseStart=slugger?.06f:heroId=="Tiga"?0:.03f;
             float release=Mathf.SmoothStep(0,1,(age-releaseStart)/(AttackTempo.RangedLaunchSeconds-releaseStart));
             float recoveryStart=heroId=="Tiga"?.26f:.20f;
             float recover=Mathf.SmoothStep(0,1,(age-recoveryStart)/(AttackTempo.RangedSeconds-recoveryStart));
@@ -2155,7 +2160,7 @@ namespace UltramanGame.Runtime
                     // behind the visible hand, avoiding a fast snap all the
                     // way back to the ribs before extending the same arm.
                     var load=slugger&&head?head.position+side*(handSign*.28f)-forward*.02f-Vector3.up*.08f:
-                        heroId=="Tiga"?punchStart-forward*.14f-Vector3.up*.08f:
+                        heroId=="Tiga"?punchStart-forward*.04f-Vector3.up*.025f:
                         upper.position+forward*.04f+side*(handSign*.10f)-Vector3.up*.24f;
                     // Tiga's actual shoulder-to-wrist chain is ~1.08 units.
                     // The old fixed 0.88 target left a 109-degree elbow at
