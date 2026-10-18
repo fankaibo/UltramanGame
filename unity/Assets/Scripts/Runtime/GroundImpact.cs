@@ -20,6 +20,7 @@ namespace UltramanGame.Runtime
         const float Gravity=9f,Floor=.008f;
         readonly Stone[] stones=new Stone[72];
         readonly Cloud[] clouds=new Cloud[48];
+        readonly SlamDustVolume slamDust;
         readonly System.Random random=new System.Random(934);
         int stoneIndex,cloudIndex;
         public int ActiveStones {get;private set;}
@@ -32,6 +33,7 @@ namespace UltramanGame.Runtime
         float Range(float a,float b)=>Mathf.Lerp(a,b,(float)random.NextDouble());
         public GroundImpact(Transform parent)
         {
+            slamDust=new SlamDustVolume(parent);
             var meshes=new Mesh[2];var vertices=new Vector3[2][];var materials=new Material[2];
             for(int i=0;i<meshes.Length;i++)
             {
@@ -110,8 +112,12 @@ namespace UltramanGame.Runtime
                 float lane=slam?(i/4)/5f:0;
                 c.Age=-lane*.12f;c.Life=Range(.85f,1.4f);c.Width=Range(.68f,1.10f);c.Height=Range(.42f,.64f)*(slam?1.35f:1);c.Spin=Range(-18,18);
                 c.Origin=origin+spread*.13f+Vector3.up*.11f+axis*(waveLength*lane);c.Velocity=spread*Range(.6f,1.35f)+axis*.22f+Vector3.up*Range(.10f,.26f);
-                c.Root.gameObject.SetActive(c.Age>=0);c.Material.SetFloat("_Age",0);
+                // Retain the random sequence for subsequent debris bursts while
+                // replacing only the slam billboards with a world-space volume.
+                if(slam)c.Age=10;
+                c.Root.gameObject.SetActive(!slam&&c.Age>=0);c.Material.SetFloat("_Age",0);
             }
+            if(slam)slamDust.Hit(origin,axis,waveLength);
             if(Debug.isDebugBuild)Debug.Log($"[GroundImpact] cause={cause} origin={origin.ToString("F3")} stones={stoneCount} dust={cloudCount}");
             Contact?.Invoke(origin,cause);
         }
@@ -135,7 +141,8 @@ namespace UltramanGame.Runtime
         }
         public void Tick(Camera camera,float dt)
         {
-            dt=Mathf.Max(0,dt);LastAge+=dt;ActiveStones=ActiveClouds=0;
+            dt=Mathf.Max(0,dt);LastAge+=dt;ActiveStones=0;
+            slamDust.Tick(dt);ActiveClouds=slamDust.Visible?1:0;
             foreach(var s in stones)
             {
                 s.Age+=dt;if(s.Age>=s.Life||s.Age<0){s.Root.gameObject.SetActive(false);continue;}
@@ -156,7 +163,7 @@ namespace UltramanGame.Runtime
         {
             foreach(var s in stones){s.Age=10;s.Root.gameObject.SetActive(false);}
             foreach(var c in clouds){c.Age=10;c.Root.gameObject.SetActive(false);}
-            ActiveStones=ActiveClouds=0;LastAge=10;
+            slamDust.Clear();ActiveStones=ActiveClouds=0;LastAge=10;
         }
     }
 }
