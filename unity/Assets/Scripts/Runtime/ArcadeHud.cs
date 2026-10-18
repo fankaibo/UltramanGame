@@ -415,6 +415,9 @@ namespace UltramanGame.Runtime
             hud.Text(new Rect(414,700,480,14),title,12,HudPainter.Ink,TextAnchor.MiddleCenter,true);
             hud.Bar(new Rect(456,716,410,1),progress,accent);
         }
+        string CameraPreviewInstruction=>CameraGuidance.Status(battle,recognizer,held,
+            PoseQuality.Present(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
+            Time.unscaledTime<gestureFeedbackUntil?gestureFeedback:null);
         void DrawArcadePreview()
         {
             if(keyboard)return;
@@ -436,7 +439,7 @@ namespace UltramanGame.Runtime
             if(hud.Button(new Rect(r.xMax-43,r.y-18,43,17),"收起",HudPainter.Muted,10))showPreview=false;
             if(previewTexture&&previewFrame!=null&&previewFrame.Fresh(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))hud.Image(r,previewTexture,ScaleMode.ScaleToFit);
             else hud.Text(r,"镜头准备中",12,HudPainter.Gold,TextAnchor.MiddleCenter);
-            hud.Text(new Rect(r.x,r.yMax+1,r.width,18),Time.unscaledTime<gestureFeedbackUntil?gestureFeedback:PoseQuality.Present(pose,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())?"看见你了":"请站进镜头",10,HudPainter.Cyan,TextAnchor.MiddleCenter);
+            hud.Text(new Rect(r.x,r.yMax+1,r.width,18),CameraPreviewInstruction,10,HudPainter.Cyan,TextAnchor.MiddleCenter);
         }
         void Star(Vector2 center,float radius,float opacity)
         {

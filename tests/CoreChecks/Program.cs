@@ -50,6 +50,7 @@ static class Program
             {PoseReplayAudit.Run(args[1],args[2],int.Parse(args[3]));return 0;}
             PoseReplayAudit.Checks(Check);
             PreviewChecks.Run(Check);
+            CameraGuidanceChecks.Run(Check);
             PoseReadClockChecks.Run(Check);
             ReviewPlaybackChecks.Run(Check);
             PhotoChecks.Run(Check);

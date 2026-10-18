@@ -28,7 +28,7 @@ namespace UltramanGame.Runtime
                 string beamGuideKey=recognizer.BeamNeedsRelease?"beam-guide-release":
                     recognizer.BeamProgress>0||held.BeamIntent?"beam-guide-hold":"beam-guide-ready";
                 if(proofFrames.Add(beamGuideKey))
-                {Debug.Log($"[BeamGuideProof] key={beamGuideKey} release={recognizer.BeamNeedsRelease} progress={recognizer.BeamProgress:F2} title={BeamReadyInstruction}");StartCoroutine(SaveGuidedProof(beamGuideKey));return;}
+                {Debug.Log($"[BeamGuideProof] key={beamGuideKey} release={recognizer.BeamNeedsRelease} progress={recognizer.BeamProgress:F2} title={BeamReadyInstruction} camera={CameraPreviewInstruction}");StartCoroutine(SaveGuidedProof(beamGuideKey));return;}
             }
             if(photo.Stage==PhotoStage.Review&&photo.ChoicesReady&&photo.ChoiceProgress>.20f)
             {
