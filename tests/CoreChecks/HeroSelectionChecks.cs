@@ -41,9 +41,16 @@ static class HeroSelectionChecks
             check(Feed("low-confidence-raised",1.2f)==1,"raised hands near the camera edge start at "+hz);
             g.Reset(true);
             check(Feed("raised",1)==0,"held photo gesture cannot skip waiting at "+hz);
+            check(g.TransformProgress==0,"blocked replay cannot display completed start progress at "+hz);
+            Feed("neutral",1f/hz);
+            check(Feed("raised",1)==0&&g.TransformNeedsRelease,"one low wrist packet cannot unlock replay at "+hz);
             check(Feed("uncertain",.15f)==0&&Feed("raised",1)==0,"uncertain wrists do not release replay at "+hz);
             Feed("neutral",.4f);
             check(Feed("raised",1)==1,"release then raise restarts at "+hz);
+            g.Reset(true);Feed("neutral",.2f);g.ResetTracking();Feed("neutral",.2f);
+            check(Feed("raised",1)==0,"tracking reset cannot join two short releases at "+hz);
+            Feed("chest",.5f);
+            check(!g.TransformNeedsRelease&&Feed("raised",1)==1,"visible hands at chest level suffice for replay release at "+hz);
             g.Reset();Feed("chest",1);
             check(g.TransformProgress==0,"chest guard is not a start pose at "+hz);
             g.Reset();Feed("raised",.35f);Feed("uncertain",.1f);

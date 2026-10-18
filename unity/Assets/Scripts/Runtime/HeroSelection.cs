@@ -43,7 +43,9 @@ namespace UltramanGame.Runtime
         {
             if(battle.Phase!=GamePhase.Waiting)return;
             const float x=319,y=510,w=122,gap=10;
-            hud.Text(new Rect(x,475,642,24),selectionHint.Length>0?selectionHint:(keyboard?"← / → 切换英雄 · 空格开始":"← / → 按键切换英雄 · 双手举高开始"),17,HudPainter.Cyan,TextAnchor.MiddleCenter);
+            string startHint=keyboard?"← / → 切换英雄 · 空格开始":recognizer.TransformNeedsRelease?
+                "先把双手放到胸前，停一下 · 然后举高开始":"← / → 按键切换英雄 · 双手举高开始";
+            hud.Text(new Rect(x,475,642,24),selectionHint.Length>0?selectionHint:startHint,17,HudPainter.Cyan,TextAnchor.MiddleCenter);
             hud.Text(new Rect(x,499,642,18),SelectedHero.Name+" · "+SelectedHero.Form+" · "+SelectedHero.Beam,11,HudPainter.Muted,TextAnchor.MiddleCenter);
             for(int i=0;i<HeroRoster.Count;i++)
             {

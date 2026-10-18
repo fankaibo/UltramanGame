@@ -15,6 +15,13 @@ namespace UltramanGame.Runtime
         {
             bool proofInput=pose?.source=="synthetic"||review!=null;
             if(!TraceEnabled||!proofInput||!GuidedProofRequested||proofBusy)return;
+            if(!photo.Active&&battle.Phase==GamePhase.Waiting&&photo.Captures>0)
+            {
+                string startKey=recognizer.TransformNeedsRelease?"replay-lower-hands":
+                    recognizer.TransformProgress>.1f?"replay-raise-progress":"replay-ready";
+                if(proofFrames.Add(startKey))
+                {Debug.Log($"[ReplayStartProof] step={startKey} release={recognizer.TransformNeedsRelease} progress={recognizer.TransformProgress:F2}");StartCoroutine(SaveGuidedProof(startKey));return;}
+            }
             if(photo.Stage==PhotoStage.Review&&photo.ChoicesReady&&photo.ChoiceProgress>.20f)
             {
                 string choiceKey="photo-choice-"+photo.ChoiceCandidate;

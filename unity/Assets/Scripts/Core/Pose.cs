@@ -95,7 +95,7 @@ namespace UltramanGame.Core
         bool guardLocked, beamLocked;
         float guardLockAge, guardLostAge, beamLockAge, beamLostAge;
         PosePoint guardLeft,guardRight;
-        float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,transformGap,shieldHold,shieldGap,steady,wristLossAge;
+        float beamHold,beamGap,beamRelease,beamReleaseHold,beamShapeGrace,transformHold,transformGap,transformReleaseHold,shieldHold,shieldGap,steady,wristLossAge;
         public bool ForwardPunch { get; private set; }
         // Stable labels are useful for the in-game guide and camera-pose
         // diagnostics. They describe the reference pose that currently owns
@@ -124,7 +124,8 @@ namespace UltramanGame.Core
         // complete after a shorter, still deliberate hold.
         float BeamHold=>Level==0?.38f:BeamHoldSeconds+Level*.20f;
         public bool TransformNeedsRelease => transformReleaseRequired;
-        public float TransformProgress => Math.Min(1,transformHold/TransformHold);
+        public float TransformProgress => transformReleaseRequired?0:Math.Min(1,transformHold/TransformHold);
+        public float TransformReleaseProgress => transformReleaseRequired?Math.Min(1,transformReleaseHold/.30f):0;
         public const float BeamHoldSeconds=.50f;
         // A held finisher can lose the L angle for a few camera packets while
         // the child is still clearly keeping both hands up. Let the intent
@@ -146,7 +147,7 @@ namespace UltramanGame.Core
         public void Reset()
         { Reset(false); }
         // A photo review can finish while the child is still holding both
-        // hands up.  The next round must observe a hands-down frame before the
+        // hands up. The next round must observe a short visible release before the
         // same pose can transform again; otherwise the waiting screen is
         // skipped before the child can see or hear the hero selection.
         public void Reset(bool requireTransformRelease)
@@ -169,7 +170,7 @@ namespace UltramanGame.Core
             guardLocked=beamLocked=false;guardLockAge=guardLostAge=beamLockAge=beamLostAge=0;
             BeamNeedsRelease=false;
             ReferencePose="P0-准备";
-            beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=transformGap=shieldHold=shieldGap=steady=0;
+            beamHold=beamGap=beamRelease=beamReleaseHold=beamShapeGrace=transformHold=transformGap=transformReleaseHold=shieldHold=shieldGap=steady=0;
         }
         public PlayerInput Update(PoseFrame frame,long nowMs,bool beamAvailable=true,bool transformAvailable=true,bool shieldPriority=false)
         {
@@ -628,8 +629,15 @@ namespace UltramanGame.Core
             // a natural bent-elbow raise that still reads as “举手开始”.
             bool startRaised=startWrists&&flw.y<fsy-.42f*fs&&frw.y<fsy-.42f*fs;
             bool startLowered=startWrists&&flw.y>fl.y-.10f*fs&&frw.y>fr.y-.10f*fs;
-            if(startLowered){transformFired=false;transformReleaseRequired=false;}
-            if(!transformAvailable||startLowered){transformHold=transformGap=0;}
+            // A single noisy low-wrist packet must not reuse the photo's held
+            // raised pose. Missing/stalled input cannot complete this release.
+            if(transformReleaseRequired)
+            {
+                transformReleaseHold=startLowered&&transformAvailable&&!delayed?transformReleaseHold+dt:0;
+                if(transformReleaseHold>=.30f){transformReleaseRequired=false;transformFired=false;transformReleaseHold=0;}
+            }
+            else if(startLowered)transformFired=false;
+            if(!transformAvailable||startLowered||transformReleaseRequired){transformHold=transformGap=0;}
             else if(startRaised){transformHold+=dt;transformGap=0;}
             else
             {
