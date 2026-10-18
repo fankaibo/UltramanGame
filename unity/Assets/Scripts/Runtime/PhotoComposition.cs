@@ -11,7 +11,8 @@ namespace UltramanGame.Runtime
         public readonly RenderTexture Preview;
         readonly GameObject root;
         readonly Camera camera;
-        readonly Material background,person;
+        readonly Material background,person,personShadow;
+        readonly Renderer personShadowRenderer;
         readonly Transform personQuad,backgroundQuad;
         readonly PhotoLighting lighting;
         public PhotoHero Hero {get;private set;}
@@ -47,6 +48,15 @@ namespace UltramanGame.Runtime
                 Hero=new PhotoHero(heroId,root.transform,camera);lighting=new PhotoLighting(root.transform);
                 PhotoGroundShadow.Create(root.transform,Hero.Root);
                 person=Layer("Person",null,out personQuad);person.renderQueue=3002;personQuad.gameObject.SetActive(false);
+                personShadow=new Material(Resources.Load<Shader>("PhotoPersonShadow"));
+                var shadow=GameObject.CreatePrimitive(PrimitiveType.Quad);shadow.name="Photo person ground shadow";shadow.layer=31;
+                // Parent visibility also removes the shadow for clean plates
+                // and tracking loss. This shares the exact live person layout.
+                shadow.transform.SetParent(personQuad,false);
+                personShadowRenderer=shadow.GetComponent<Renderer>();personShadowRenderer.sharedMaterial=personShadow;
+                personShadowRenderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
+                personShadowRenderer.receiveShadows=false;personShadowRenderer.enabled=false;
+                Release(shadow.GetComponent<Collider>());
             }
             catch{Dispose();throw;}
         }
@@ -163,6 +173,12 @@ namespace UltramanGame.Runtime
             FullBody=layout.FullBody;
             person.mainTexture=texture;
             PlaceBody(personQuad,person,texture,bounds,layout.PersonScale,center,shoulder,layout.PersonX,layout.ShoulderY);
+            personShadowRenderer.enabled=FullBody;
+            personShadow.mainTexture=texture;personShadow.SetVector("_Frame",person.GetVector("_Frame"));
+            // Bounds contains five pixels of transparent padding below the
+            // visible feet. Ground the projection at the visible alpha, not
+            // at the padded quad edge, so the soles do not float above it.
+            personShadow.SetFloat("_GroundY",personQuad.position.y-personQuad.lossyScale.y*.5f+5*layout.PersonScale);
             // Hero placement, crop and scale stay exactly as constructed, across every camera frame and retake.
             return true;
         }
@@ -278,7 +294,7 @@ namespace UltramanGame.Runtime
             // Unity may destroy scene cameras before ArenaController.OnDestroy on quit.
             if(camera)camera.targetTexture=null;
             if(Preview)Preview.Release();
-            Release(Preview);Release(background);Release(person);Release(root);
+            Release(Preview);Release(background);Release(person);Release(personShadow);Release(root);
         }
     }
 }

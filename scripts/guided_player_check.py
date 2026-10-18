@@ -20,7 +20,8 @@ import sys
 import time
 from datetime import datetime, timezone
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
+from io import BytesIO
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -28,9 +29,29 @@ from vision.bridge import PoseBridge
 from vision.protocol import FrameFactory
 from vision.demo import landmarks_at
 from vision.preview import GamePreview
-from vision.photo import GamePhoto
+from vision.photo import GamePhoto, encode_photo
 from vision.supervision import stop_process
 from scripts.review_media import LatestReviewMedia
+
+
+def full_body_photo_publisher(photo):
+    """Generated labelled RGBA fixture; both feet stay inside the photo frame."""
+    image=Image.new('RGBA',(640,480));draw=ImageDraw.Draw(image)
+    draw.ellipse((284,44,356,116),fill=(230,184,132,255))
+    draw.rectangle((302,106,338,166),fill=(230,184,132,255))
+    draw.rectangle((264,160,376,365),fill=(35,165,230,255))
+    draw.rectangle((268,355,304,458),fill=(35,45,65,255))
+    draw.rectangle((336,355,372,458),fill=(35,45,65,255))
+    draw.text((305,235),'TEST',fill='white')
+    output=BytesIO();image.save(output,format='PNG');png=output.getvalue()
+    def publish(request):
+        if not request[1] or not photo.due():return
+        photo.next_at=time.monotonic()+.125
+        packet=encode_photo(png,request[0],True,True)
+        with photo.bridge.changed:
+            if photo.bridge.subscribers<=0:return
+            photo.bridge.latest=packet;photo.bridge.revision+=1;photo.bridge.changed.notify_all()
+    return publish
 
 
 def selection_landmarks(direction):
@@ -147,6 +168,7 @@ def main():
     parser.add_argument('--volley-cadence',type=float,default=.8,help='Seconds between the six camera-review casts (0.6 to 1.8)')
     parser.add_argument('--ranged-reaction',action='store_true',help='Require actual ranged recovery step lift, landing and return')
     parser.add_argument('--hero',choices=('Tiga','Mebius','Zero','Geed','Grigio'),help='Start the proof with this hero; gestures never change hero')
+    parser.add_argument('--photo-full-body',action='store_true',help='Use a labelled uncropped full-body photo fixture with visible knee and ankle landmarks')
     parser.add_argument('--early-photo-choices',action='store_true',help='Choose during photo narration; require live voice and visible gesture progress')
     parser.add_argument('--rounds',type=int,default=1,choices=(1,2,3),help='Complete this many rounds in one player process, then enter the next battle')
     parser.add_argument('--start-depth-noise',action='store_true',help='Verify start/replay with noisy inferred depth and moderate wrist confidence')
@@ -192,7 +214,8 @@ def main():
     with PoseBridge(0) as bridge,GamePreview(0) as preview,GamePhoto(0) as photo,ExitStack() as media_cleanup:
         preview_media=LatestReviewMedia(lambda request: preview.publish(None,request[0],request[1],'synthetic'), 'Review preview producer')
         media_cleanup.callback(preview_media.close)
-        photo_media=LatestReviewMedia(lambda request: photo.publish(None,None,request[0],synthetic=True) if request[1] else None, 'Review photo producer')
+        photo_publish=full_body_photo_publisher(photo) if options.photo_full_body else lambda request: photo.publish(None,None,request[0],synthetic=True) if request[1] else None
+        photo_media=LatestReviewMedia(photo_publish, 'Review photo producer')
         media_cleanup.callback(photo_media.close)
         args=[str(binary),'-screen-fullscreen','0','-screen-width','1920','-screen-height','1080',
             '-logFile',str(log),'--guided-proof','--proof-output',str(folder/'native'),'--pose-port',str(bridge.address[1]),
@@ -439,6 +462,10 @@ def main():
                     points[15].visibility=points[16].visibility=.5
                 # Stop just the photo stream mid-countdown; ordinary pose/preview keep running.
                 publish_at=time.monotonic()
+                if options.photo_full_body and phase=='Victory':
+                    points[0].y=.225;points[11].y=points[12].y=1/3
+                    for index,x,y in ((25,.56,.77),(26,.44,.77),(27,.56,.94),(28,.44,.94)):
+                        points[index].x=x;points[index].y=y;points[index].visibility=1
                 frame=factory.make(points)
                 if options.gesture_wobble or options.ready_follow:pose_contexts[frame['sequence']]=protected
                 if options.gesture_entry_noise and guard and not beam and 0<=now-guard_started<.7:
@@ -598,6 +625,10 @@ def main():
                 lowered=sum(any(row['frame']['points'][hand]['y']>=row['frame']['points'][shoulder]['y'] for hand,shoulder in ((15,11),(16,12))) for row in high_rows)
                 if len(high_rows)<120 or lowered:raise RuntimeError(f'High-hand coverage incomplete: frames={len(high_rows)} lowered={lowered}')
                 result['high_hand_coverage']={'ordinary_battle_frames':len(high_rows),'lowered_hand_frames':lowered}
+            if options.photo_full_body:
+                count=output.count('fullBody=True')
+                if count<2:raise RuntimeError('Full-body framing was not confirmed for both photos')
+                result['full_body_photos']=count
             if options.gesture_wobble:result['gesture_wobble']={'unwanted_attacks':unwanted_attacks,'guard_noise_frames':guard_noise_frames,'guard_overlap_frames':guard_overlap_frames,'beam_noise_frames':beam_noise_frames,'blocks':output.count('[Game] cue=Block '),'beams':output.count('[Game] cue=Beam ')}
             if ready_shots:result['ready_follow']={'shots':ready_shots,'unwanted_attacks':unwanted_attacks}
             if tempo_evidence:result['tempo_skills']=tempo_evidence

@@ -114,7 +114,7 @@ namespace UltramanGame.Runtime
                 validPerson=incoming.Fresh(now)&&incoming.Present&&person.LoadImage(incoming.Png)&&composition.SetPerson(person,nearest);
                 frame=incoming;
                 if(validPerson&&!reportedPerson)
-                {reportedPerson=true;Debug.Log($"[Photo] live cutout displayed ageMs={now-incoming.CapturedMs} size={person.width}x{person.height} source={(incoming.Synthetic?"synthetic":"camera")}");}
+                {reportedPerson=true;Debug.Log($"[Photo] live cutout displayed ageMs={now-incoming.CapturedMs} size={person.width}x{person.height} fullBody={composition.FullBody} source={(incoming.Synthetic?"synthetic":"camera")}");}
             }
             freshPerson=frame!=null&&frame.Fresh(now)&&validPerson;
             if(!freshPerson)composition.HidePerson();
