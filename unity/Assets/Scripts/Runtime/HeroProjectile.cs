@@ -24,6 +24,7 @@ namespace UltramanGame.Runtime
         bool contacted;
         public bool LaunchVisible=>accents.LaunchVisible;
         public bool ImpactVisible=>accents.ImpactVisible;
+        public bool CoolingSmokeVisible=>accents.CoolingSmokeVisible;
         public int Impacts=>accents.Impacts;
         public Color Tint=>tint;
         public Vector3 BladePosition(int i)=>sluggers[i].position;

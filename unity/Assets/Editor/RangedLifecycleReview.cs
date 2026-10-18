@@ -56,7 +56,7 @@ namespace UltramanGame.Editor
                 string row=$"{hero}-{hz} speed={speed:F2} guardFlight=pass impactOnce=pass zeroTime=pass cameraPath=pass pause=pass newRound=pass cancelled=pass beam=pass heroSwitch=pass";
                 report.AppendLine(row);Debug.Log("[RangedLifecycle] "+row);
             }
-            string folder=Path.GetFullPath("../artifacts/ranged-presentation-20261008");Directory.CreateDirectory(folder);File.WriteAllText(folder+"/lifecycle.txt",report.ToString());
+            string folder=Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_RANGED_LIFECYCLE_OUTPUT")??"../artifacts/ranged-presentation-20261008");Directory.CreateDirectory(folder);File.WriteAllText(folder+"/lifecycle.txt",report.ToString());
         }
     }
 }

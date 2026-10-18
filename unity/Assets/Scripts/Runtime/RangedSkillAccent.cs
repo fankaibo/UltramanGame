@@ -21,11 +21,13 @@ namespace UltramanGame.Runtime
             if(enabled){muzzleMaterial.SetFloat("_Impact",0);impactMaterial.SetFloat("_Impact",1);}
         }
         readonly RangedContactSparks sparks;
+        readonly RangedImpactSmoke smoke;
         Vector3 position,axis,side,up;
         Color tint;
         float hitAge=10;
         public bool LaunchVisible=>muzzle.gameObject.activeSelf;
-        public bool ImpactVisible=>impact.gameObject.activeSelf||sparks.Visible;
+        public bool CoolingSmokeVisible=>softDischarge&&smoke.Visible>0&&hitAge>=.12f&&hitAge<.45f;
+        public bool ImpactVisible=>impact.gameObject.activeSelf||sparks.Visible||smoke.Visible>0;
         public int Impacts {get;private set;}
         public Vector3 ImpactPosition=>position;
         public RangedSkillAccent(Transform parent)
@@ -39,7 +41,7 @@ namespace UltramanGame.Runtime
             spill=new GameObject("Ranged contact spill").AddComponent<Light>();spill.transform.SetParent(parent,false);spill.type=LightType.Point;spill.range=1.8f;spill.shadows=LightShadows.None;
             muzzleSpill=new GameObject("Ranged muzzle spill").AddComponent<Light>();muzzleSpill.transform.SetParent(parent,false);
             muzzleSpill.type=LightType.Point;muzzleSpill.range=1.45f;muzzleSpill.shadows=LightShadows.None;
-            sparks=new RangedContactSparks(parent);Clear();
+            sparks=new RangedContactSparks(parent);smoke=new RangedImpactSmoke(parent);Clear();
         }
         public static Transform Volume(Transform parent,string name,out Material material)
         {
@@ -55,7 +57,7 @@ namespace UltramanGame.Runtime
         static void Tint(LineRenderer line,Color color,float alpha)
         {line.startColor=new Color(color.r,color.g,color.b,0);line.endColor=new Color(color.r,color.g,color.b,alpha);}
         public void Clear()
-        {muzzle.gameObject.SetActive(false);impact.gameObject.SetActive(false);foreach(var line in muzzleArcs)line.enabled=false;foreach(var line in rays)line.enabled=false;ring.enabled=false;spill.intensity=0;muzzleSpill.intensity=0;hitAge=10;sparks.Clear();}
+        {muzzle.gameObject.SetActive(false);impact.gameObject.SetActive(false);foreach(var line in muzzleArcs)line.enabled=false;foreach(var line in rays)line.enabled=false;ring.enabled=false;spill.intensity=0;muzzleSpill.intensity=0;hitAge=10;sparks.Clear();smoke.Clear();}
         public void NewRound(){Clear();Impacts=0;}
         public void Launch(bool active,float age,Vector3 origin,Vector3 direction,Color color)
         {
@@ -79,10 +81,10 @@ namespace UltramanGame.Runtime
             }
         }
         public void Hit(Vector3 point,Vector3 incoming,Color color)
-        {position=point;axis=incoming.normalized;side=Vector3.Cross(Vector3.up,axis).normalized;up=Vector3.Cross(axis,side).normalized;tint=color;hitAge=0;Impacts++;sparks.Hit(point,incoming);}
+        {position=point;axis=incoming.normalized;side=Vector3.Cross(Vector3.up,axis).normalized;up=Vector3.Cross(axis,side).normalized;tint=color;hitAge=0;Impacts++;sparks.Hit(point,incoming);if(softDischarge)smoke.Hit(point,incoming,color);}
         public void TickImpact(float dt)
         {
-            sparks.Tick(dt);
+            sparks.Tick(dt);smoke.Tick(dt);
             hitAge+=Mathf.Max(0,dt);float t=Mathf.Clamp01(hitAge/.30f),fade=1-t;
             bool visible=hitAge<.30f;impact.gameObject.SetActive(visible);ring.enabled=visible&&!softDischarge;foreach(var line in rays)line.enabled=visible&&!softDischarge;
             spill.intensity=visible?fade*fade*1.8f:0;if(!visible)return;

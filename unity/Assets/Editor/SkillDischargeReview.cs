@@ -11,7 +11,7 @@ namespace UltramanGame.Editor
 {
     public static class SkillDischargeReview
     {
-        static string Folder=>Path.GetFullPath(Path.Combine(Application.dataPath,"../../artifacts/skill-discharge-20261012"));
+        static string Folder=>Path.GetFullPath(Environment.GetEnvironmentVariable("ULTRAMAN_DISCHARGE_OUTPUT")??Path.Combine(Application.dataPath,"../../artifacts/skill-discharge-20261012"));
         public static void After()
         {
             RangedCastReview.After();
@@ -26,7 +26,7 @@ namespace UltramanGame.Editor
             string folder=Folder+"/gpu";Directory.CreateDirectory(folder);
             var shader=Resources.Load<Shader>("SkillDischarge");
             if(!shader||!shader.isSupported||ShaderUtil.ShaderHasError(shader))throw new Exception("Invalid discharge shader");
-            var camera=new GameObject("Discharge GPU camera").AddComponent<Camera>();camera.orthographic=true;camera.orthographicSize=1;camera.aspect=1;
+            var camera=new GameObject("Discharge GPU camera").AddComponent<Camera>();camera.orthographic=false;camera.fieldOfView=28;camera.aspect=1;camera.depthTextureMode=DepthTextureMode.Depth;
             camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=Color.black;
             var rt=new RenderTexture(256,256,24);rt.Create();camera.targetTexture=rt;var image=new Texture2D(256,256,TextureFormat.RGB24,false);
             var root=new GameObject("Discharge review").transform;var fx=new RangedSkillAccent(root);fx.SetTigaStyle(true);fx.MuzzleLighting=true;
@@ -57,7 +57,7 @@ namespace UltramanGame.Editor
                 }
                 camera.transform.position=new Vector3(0,0,-4);camera.transform.LookAt(Vector3.zero);
                 var blocker=GameObject.CreatePrimitive(PrimitiveType.Cube);blocker.transform.position=new Vector3(0,0,-2);blocker.transform.localScale=new Vector3(4,4,.1f);
-                var opaque=new Material(Shader.Find("Unlit/Color")){color=new Color(.2f,.3f,.4f)};blocker.GetComponent<Renderer>().sharedMaterial=opaque;
+                var opaque=new Material(Shader.Find("Standard")){color=new Color(.2f,.3f,.4f)};blocker.GetComponent<Renderer>().sharedMaterial=opaque;
                 fx.Clear();var blocked=Read("blocker-only");fx.Launch(true,.08f,Vector3.zero,Vector3.forward,color);fx.Hit(Vector3.zero,Vector3.forward,color);fx.TickImpact(.025f);
                 if(Changed(blocked,Read("occluded"))!=0)throw new Exception("Discharge leaks through foreground");
                 UnityEngine.Object.DestroyImmediate(blocker);UnityEngine.Object.DestroyImmediate(opaque);
