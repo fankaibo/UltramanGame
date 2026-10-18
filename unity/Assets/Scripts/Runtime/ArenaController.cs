@@ -519,8 +519,9 @@ namespace UltramanGame.Runtime
             hud.Box(new Rect(0,720-band,1280,band),new Color(.006f,.016f,.04f,.96f));
             hud.Box(new Rect(0,band,1280,2),new Color(.25f,.78f,1,.65f*focus));
             hud.Box(new Rect(0,718-band,1280,2),new Color(.25f,.78f,1,.65f*focus));
-            // Peripheral speed lines leave the enlarged head and L-shaped hands unobstructed.
-            for(int i=0;i<6;i++)
+            // Tiga uses the actual moving camera and gathering light; flat screen
+            // slashes compete with those shapes. Preserve other heroes for later polish.
+            for(int i=0;i<(SelectedHero.Id=="Tiga"?0:6);i++)
             {
                 float y=145+i*72,offset=Mathf.Repeat(world.Closeup.Age*210+i*31,95);
                 var color=new Color(.48f,.83f,1,focus*(.08f+(i%3)*.025f));

@@ -587,6 +587,20 @@ namespace UltramanGame.Runtime
                 Camera.transform.position=HeroAnchor+offset;
                 Camera.transform.LookAt(HeroAnchor+BattleAxis*.30f+Vector3.up*(1.98f+Mathf.Sin(closeupT*Mathf.PI)*.06f));
                 Camera.fieldOfView=35;
+                if(heroId=="Tiga")
+                {
+                    // Frame the helmet and gathering forearms inside the real
+                    // letterbox, not just the camera viewport. The low former
+                    // aim left much of the legs in shot and cut the crown under
+                    // the top band. A small dolly builds toward the release;
+                    // it samples the same closeup clock and cannot drift.
+                    float push=Mathf.SmoothStep(0,1,closeupT);
+                    Vector3 portraitOffset=Quaternion.AngleAxis(orbit,Vector3.up)*
+                        (BattleAxis*Mathf.Lerp(4.45f,4.10f,push)+closeSide*1.35f);
+                    portraitOffset.y=2.32f+Mathf.Sin(closeupT*Mathf.PI)*.06f;
+                    Camera.transform.position=HeroAnchor+portraitOffset;
+                    Camera.transform.LookAt(HeroAnchor+BattleAxis*.25f+Vector3.up*2.68f);
+                }
                 // Reproject the distant landscape for this dedicated lens.
                 backdrop.rotation=Camera.transform.rotation;
                 backdrop.position=Camera.transform.position+Camera.transform.rotation*new Vector3(0,-h*.04f,80);
