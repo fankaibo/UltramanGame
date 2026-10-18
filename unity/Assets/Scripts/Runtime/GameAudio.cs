@@ -10,7 +10,7 @@ namespace UltramanGame.Runtime
         readonly CombatAudioVoices effects,debris;
         readonly AudioClip[] fistContacts=new AudioClip[3];
         readonly AudioClip[] projectileContacts=new AudioClip[3];
-        readonly AudioClip heavyContact,beamContact,projectileLaunch;
+        readonly AudioClip heavyContact,beamContact,projectileLaunch,beamRelease;
         AudioClip localMusic;
         readonly AudioClip battleStinger,landingThud,groundCrunch,dissolveShimmer,arrivalRoar,defeatSurge;
         readonly Dictionary<string,AudioClip> clips=new Dictionary<string,AudioClip>();
@@ -59,6 +59,7 @@ namespace UltramanGame.Runtime
             for(int i=0;i<fistContacts.Length;i++)fistContacts[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(0,i));
             heavyContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(1));
             beamContact=RuntimeResources.Own(owner.transform,CombatImpactSounds.Create(2));
+            beamRelease=RuntimeResources.Own(owner.transform,CreateBeamRelease());
             projectileLaunch=RuntimeResources.Own(owner.transform,CreateProjectileLaunch());
             for(int i=0;i<projectileContacts.Length;i++)projectileContacts[i]=RuntimeResources.Own(owner.transform,CombatImpactSounds.CreateProjectile(i));
             charge=Source(owner);charge.loop=true;charge.volume=0;
@@ -225,6 +226,38 @@ namespace UltramanGame.Runtime
             effects.Play(landingThud,.18f,.88f,0);
             if(Debug.isDebugBuild)Debug.Log("[MonsterRush] footstep playing=True");
         }
+        // Original discharge synthesis: immediate pressure crack followed by
+        // broadband plasma. The former sine swell peaked about .75 s after
+        // the visible launch, later than contact with the monster.
+        public static AudioClip CreateBeamRelease()
+        {
+            const int rate=44100;const float duration=1.20f;
+            var data=new float[Mathf.RoundToInt(rate*duration)];
+            var random=new System.Random(261018);float fast=0,slow=0,previous=0,dc=0,peak=0;
+            for(int i=0;i<data.Length;i++)
+            {
+                float t=i/(float)rate,noise=(float)random.NextDouble()*2-1;
+                fast=Mathf.Lerp(fast,noise,.65f);slow=Mathf.Lerp(slow,noise,.045f);
+                float air=fast-slow;
+                float phase=2*Mathf.PI*(92*t+175*.023f*(1-Mathf.Exp(-t/.023f)));
+                float pressure=Mathf.Sin(phase)*Mathf.Exp(-t/.095f)*.54f;
+                float crack=air*Mathf.Exp(-t/.024f)*.65f;
+                float sustain=(air*.21f+slow*.35f+Mathf.Sin(2*Mathf.PI*(440*t+30*t*t))*.035f)*
+                    Mathf.SmoothStep(0,1,t/.018f)*(1-Mathf.SmoothStep(0,1,(t-.65f)/.55f));
+                float value=(pressure+crack+sustain)*Mathf.Min(1,t/.002f);
+                dc=.99886f*(dc+value-previous);previous=value;
+                data[i]=dc*Mathf.Clamp01((data.Length-1-i)/(rate*.03f));peak=Mathf.Max(peak,Mathf.Abs(data[i]));
+            }
+            for(int i=0;i<data.Length;i++)data[i]*=.78f/Mathf.Max(.001f,peak);
+            var clip=AudioClip.Create("Tiga beam discharge",data.Length,1,rate,false);clip.SetData(data,0);return clip;
+        }
+        public void BeamRelease()
+        {
+            // Only duck for speech that is actually playing. Tiga's short cry
+            // normally finishes during the 1.35 s closeup, before discharge.
+            float gain=HeroId=="Tiga"?(voice.isPlaying?.4f:.65f):(HasOriginalBeamVoice?.4f:.7f);
+            Effect("beam",gain,HeroId=="Tiga"?HeroPan:0);
+        }
         public static AudioClip CreateBeamGather()
         {
             // Every frequency completes an integer number of cycles in this
@@ -310,7 +343,7 @@ namespace UltramanGame.Runtime
         public void Effect(string key,float gain=1,float pan=0)
         {
             if(muted)return;
-            var clip=key=="impact"?fistContacts[contactSequence++%fistContacts.Length]:Clip("Audio/"+key);if(!clip)return;
+            var clip=key=="impact"?fistContacts[contactSequence++%fistContacts.Length]:key=="beam"&&HeroId=="Tiga"?beamRelease:Clip("Audio/"+key);if(!clip)return;
             // Small deterministic pitch changes keep repeated punches and hits
             // from sounding machine-perfect while preserving the authored cue.
             int n=effectSequence++;

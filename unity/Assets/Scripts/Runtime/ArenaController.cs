@@ -326,7 +326,7 @@ namespace UltramanGame.Runtime
             if(world.MonsterDissolving)sound.MonsterDeparture();
             if(world.MonsterStaggerLanded)sound.MonsterRecoveryStep();
             if(world.BeamStarted){reviewBeams++;}
-            if(world.BeamStarted)sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
+            if(world.BeamStarted)sound.BeamRelease();
             enemy.SetPresentationOpacity(world.EnemyOpacity);
             if(!keyboard&&battle.Phase==GamePhase.Victory&&photoAvailable&&!autoPhotoOpened&&Time.unscaledTime>=victoryAt+6&&!sound.VoicePlaying)
             {autoPhotoOpened=true;photo.Open();}

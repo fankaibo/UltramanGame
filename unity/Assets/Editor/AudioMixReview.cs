@@ -106,7 +106,9 @@ namespace UltramanGame.Editor
         Battle projectileBattle;
         int shotSequence;
         float lastHealth=50;
-        bool projectileReview,spatialReview,spatialBaseline;
+        bool projectileReview,spatialReview,spatialBaseline,finisherReview;
+        GameWorld finisherWorld;
+        AnimatedActor finisherHero,finisherEnemy;
         Camera spatialCamera;
         float[] samples;
         readonly object gate=new object();
@@ -124,6 +126,7 @@ namespace UltramanGame.Editor
                 if(version!="before"&&version!="after")throw new Exception("Invalid review version");
                 int outputAt=Array.IndexOf(args,"--audio-output");
                 projectileReview=Array.IndexOf(args,"--audio-projectiles")>=0;
+                finisherReview=Array.IndexOf(args,"--audio-finisher")>=0;
                 spatialReview=Array.IndexOf(args,"--audio-spatial")>=0;spatialBaseline=version=="before";
                 folder=Path.GetFullPath(outputAt>=0?Path.Combine(args[outputAt+1],version):Path.Combine(Application.dataPath,"../../artifacts/combat-audio/"+version));Directory.CreateDirectory(folder);
                 if(projectileReview)
@@ -140,11 +143,25 @@ namespace UltramanGame.Editor
                 AudioListener.pause=false;AudioListener.volume=1;
                 samples=new float[rate*channels*20];recording=true;began=Time.realtimeSinceStartupAsDouble;
                 sound=new GameAudio(gameObject){Volume=.75f,MusicEnabled=false};
+                if(finisherReview)
+                {
+                    projectileBattle=new Battle(50);projectileBattle.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
+                    while(projectileBattle.Phase!=GamePhase.Battle)projectileBattle.Tick(.02f,new PlayerInput{Tracking=true});
+                    for(int hit=0;hit<15;hit++){projectileBattle.Tick(.02f,new PlayerInput{Tracking=true,LeftPunch=true});for(int i=0;i<22;i++)projectileBattle.Tick(.02f,new PlayerInput{Tracking=true});}
+                    projectileBattle.GiveInstructionTime(20);while(projectileBattle.TryCue(out _)){}lastHealth=projectileBattle.EnemyHealth;
+                    finisherWorld=new GameWorld();finisherWorld.SetHeroProfile("Tiga");
+                    finisherHero=new AnimatedActor("Tiga",finisherWorld.HeroHome,finisherWorld.EnemyHome);
+                    finisherEnemy=new AnimatedActor("Golza",finisherWorld.EnemyHome,finisherWorld.HeroHome,true);
+                    finisherWorld.BindActors(finisherHero,finisherEnemy);
+                    finisherHero.Update(projectileBattle,finisherWorld.Camera,0,0);finisherEnemy.Update(projectileBattle,finisherWorld.Camera,0,0);finisherWorld.Tick(projectileBattle,1,0);
+                    began=Time.realtimeSinceStartupAsDouble;
+                }
                 var tone=AudioClip.Create("Review600Hz",rate*2,1,rate,false);var data=new float[tone.samples];
                 for(int i=0;i<data.Length;i++)data[i]=Mathf.Sin(2*Mathf.PI*600*i/rate)*.2f;
                 tone.SetData(data,0);RuntimeResources.Own(transform,tone);
                 var clips=(Dictionary<string,AudioClip>)typeof(GameAudio).GetField("clips",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
                 clips["Audio/probe"]=tone;
+                if(finisherReview)lock(gate){written=0;began=Time.realtimeSinceStartupAsDouble;}
                 Debug.Log($"[AudioMixReview] started rate={rate} channels={channels} dsp={AudioSettings.dspTime}");
             }
             catch(Exception e){Fail(e);}
@@ -161,7 +178,7 @@ namespace UltramanGame.Editor
             if(!recording)return;
             try
             {
-                while(frame<(Time.realtimeSinceStartupAsDouble-began)*60&&frame<=900)Step();
+                while(frame<(Time.realtimeSinceStartupAsDouble-began)*60&&frame<=(finisherReview?252:900))Step();
             }
             catch(Exception e){Fail(e);}
         }
@@ -175,6 +192,7 @@ namespace UltramanGame.Editor
         }
         void Step()
         {
+                if(finisherReview){FinisherStep();return;}
                 if(spatialReview){SpatialStep();return;}
                 if(projectileReview){ProjectileStep();return;}
                 sound.Tick(GamePhase.Battle,false,1/60f);
@@ -195,6 +213,39 @@ namespace UltramanGame.Editor
                 if(frame==840)Event("reset",()=>sound.Reset());
                 if(frame>=900){frame++;Finish();return;}
                 frame++;
+        }
+        void FinisherStep()
+        {
+            const float dt=1/60f;
+            sound.Tick(GamePhase.Battle,false,dt);
+            projectileBattle.Tick(finisherWorld.BattleDelta(dt,projectileBattle),new PlayerInput{Tracking=true,Beam=frame==12});
+            while(projectileBattle.TryCue(out var cue))
+            {
+                finisherWorld.Cue(cue,projectileBattle);
+                if(cue==GameCue.Beam)Event("beam-cry",()=>sound.Cue(cue,GamePhase.Battle));
+            }
+            finisherHero.Update(projectileBattle,finisherWorld.Camera,dt,frame*dt);
+            finisherEnemy.Update(projectileBattle,finisherWorld.Camera,dt,frame*dt);
+            bool hit=projectileBattle.EnemyHealth<lastHealth;lastHealth=projectileBattle.EnemyHealth;
+            if(hit)finisherWorld.Hit(true,projectileBattle);
+            finisherWorld.Tick(projectileBattle,dt,frame*dt);
+            sound.SetStage(finisherWorld.Camera,finisherHero.Root.position+Vector3.up*1.7f,finisherWorld.BeamTarget);
+            if(hit)Event("beam-contact",()=>sound.Hit(false,true));
+            sound.SetChargePower(finisherWorld.ChargePower);
+            if(finisherWorld.BeamStarted)Event("beam-launch",()=>
+            {
+                var release=typeof(GameAudio).GetMethod("BeamRelease");
+                if(release!=null)release.Invoke(sound,null);
+                else sound.Effect("beam",sound.HasOriginalBeamVoice?.4f:.7f);
+            });
+            if(frame>=252)
+            {
+                var release=typeof(GameAudio).GetField("beamRelease",BindingFlags.Instance|BindingFlags.NonPublic);
+                WriteClip(release!=null?(AudioClip)release.GetValue(sound):Resources.Load<AudioClip>("Audio/beam"),"beam-release.wav");
+                if(lastHealth!=26)throw new Exception("Finisher did not apply exactly one 9-point hit");
+                frame++;Finish();return;
+            }
+            frame++;
         }
         void SpatialStep()
         {
@@ -301,6 +352,26 @@ namespace UltramanGame.Editor
             sound.Tick(GamePhase.Battle,false,1/60f);sound.Hit(false,false);sound.ProjectileLaunch(1);sound.ProjectileImpact();sound.Tick(GamePhase.Paused,false,1/60f);
             foreach(var source in GetComponents<AudioSource>())if(!source.loop&&source.isPlaying)throw new Exception("Pause retained an effect or voice");
             report.AppendLine("mute rejects new transients and pause clears active transients: passed");
+            if(finisherReview)
+            {
+                var release=typeof(GameAudio).GetMethod("BeamRelease");
+                if(release==null)throw new Exception("Missing release dispatcher");
+                Action fire=()=>release.Invoke(sound,null);
+                AudioSource ActiveRelease()
+                {foreach(var source in GetComponents<AudioSource>())if(source.isPlaying&&source.clip&&source.clip.name=="Tiga beam discharge")return source;return null;}
+                sound.Reset();sound.HeroId="Tiga";sound.Tick(GamePhase.Battle,false,1/60f);fire();
+                var open=ActiveRelease();if(!open||Mathf.Abs(open.volume-.75f*.75f*.65f)>.001f)throw new Exception("Speech-free release still attenuated");
+                sound.Reset();sound.Speak("beam_original",5,GamePhase.Battle);fire();
+                var ducked=ActiveRelease();if(!ducked||Mathf.Abs(ducked.volume-.75f*.75f*.42f*.4f)>.001f)throw new Exception("Release masked the original cry");
+                sound.Tick(GamePhase.Paused,false,1/60f);
+                foreach(var source in GetComponents<AudioSource>())if(!source.loop&&source.isPlaying)throw new Exception("Pause retained discharge");
+                sound.Tick(GamePhase.Battle,true,1/60f);fire();if(ActiveRelease())throw new Exception("Muted discharge played");
+                sound.Tick(GamePhase.Battle,false,1/60f);sound.Reset();sound.HeroId="Zero";fire();
+                bool legacy=false;foreach(var source in GetComponents<AudioSource>())if(source.isPlaying&&source.clip==Resources.Load<AudioClip>("Audio/beam"))legacy=true;
+                if(!legacy||ActiveRelease())throw new Exception("Other hero release replaced");
+                sound.Reset();sound.HeroId="Tiga";
+                report.AppendLine("Tiga immediate discharge, speech-free gain .65, speaking gain .4 plus duck .42, pause/mute clear and other hero sample preserved: passed");
+            }
             if(projectileReview)
             {
                 var original=(AudioClip)typeof(GameAudio).GetField("beamContact",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(sound);
