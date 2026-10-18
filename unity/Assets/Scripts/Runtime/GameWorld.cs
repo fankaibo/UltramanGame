@@ -379,10 +379,11 @@ namespace UltramanGame.Runtime
             // must keep one world scale as warning and victory shots change.
             float victoryFraming=!Showcase&&state.Phase==GamePhase.Victory
                 ?Mathf.SmoothStep(0,1,Mathf.Clamp01((arcade.PhaseAge-VictoryMotion.TurnStartSeconds)/2)):0;
-            // Full-round corner projection needs 1.764 at 16:9. The fixed
-            // 1.85 overscan leaves room for recoil/roll without pumping Fuji
-            // in and out. The model preview retains its original plate.
-            float scale=Mathf.Max(1,Camera.aspect/aspect)*(Showcase?1.5f:1.85f);
+            // The low shoulder shot sees more sky than the old high camera.
+            // One fixed 2.06 overscan covers its top corners and recoil;
+            // never resize the mountain as the volley focus changes.
+            // The model preview retains its original plate.
+            float scale=Mathf.Max(1,Camera.aspect/aspect)*(Showcase?1.5f:2.06f);
             backdrop.localScale=new Vector3(h*aspect*scale,h*scale,1);
             backdropMaterial.SetFloat("_Clock",clock);
             var backgroundRotation=Quaternion.LookRotation(lookAt-cameraHome);
@@ -472,10 +473,26 @@ namespace UltramanGame.Runtime
                 // Consecutive long-range casts share a medium shot. Keep the
                 // helmets, hands and projectile lane prominent; the lower legs
                 // can leave frame until a guard/return restores the wide arena.
-                Camera.transform.position+=viewForward*(2.05f*RangedFocus)
-                    +viewRight*(rangedCamera.Side*.65f*rangedCamera.Travel*RangedFocus);
-                target+=Vector3.up*(.39f*RangedFocus)+BattleAxis*(.08f*RangedFocus);
-                Camera.fieldOfView-=.65f*RangedFocus;
+                if(heroId=="Tiga")
+                {
+                    // A lower shoulder-height lens gives the volley depth:
+                    // Tiga leads the foreground, the monster faces the child,
+                    // and the outgoing hand stays in the open projectile lane.
+                    // One shared envelope holds this composition across fists
+                    // and yields to the existing warning/finisher cameras.
+                    Camera.transform.position+=viewForward*(3.10f*RangedFocus)
+                        -Vector3.up*(.65f*RangedFocus)
+                        -viewRight*(.75f*rangedCamera.Travel*RangedFocus);
+                    target+=Vector3.up*(.60f*RangedFocus)+BattleAxis*(.25f*RangedFocus);
+                    Camera.fieldOfView+=2.0f*RangedFocus;
+                }
+                else
+                {
+                    Camera.transform.position+=viewForward*(2.05f*RangedFocus)
+                        +viewRight*(rangedCamera.Side*.65f*rangedCamera.Travel*RangedFocus);
+                    target+=Vector3.up*(.39f*RangedFocus)+BattleAxis*(.08f*RangedFocus);
+                    Camera.fieldOfView-=.65f*RangedFocus;
+                }
             }
             if(ComboFocus>0)
             {
