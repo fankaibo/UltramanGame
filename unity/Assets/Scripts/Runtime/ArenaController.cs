@@ -52,6 +52,7 @@ namespace UltramanGame.Runtime
         const float ChildCueExtraReactionSeconds=2f;
         int monsterHits=Battle.DefaultMonsterHits,draftMonsterHits=Battle.DefaultMonsterHits;
         string caption="",stream,gestureFeedback="";
+        BattleCaptionKind captionKind;
         float gestureFeedbackUntil;
         bool lastGuardIntent,lastBeamIntent;
         long sequence;
@@ -369,15 +370,15 @@ namespace UltramanGame.Runtime
             if(TraceEnabled)Debug.Log($"[Instruction] key={key} voice={voiceSeconds:F2} reaction={Battle.InstructionReactionSeconds+ChildCueExtraReactionSeconds:F1} warningDuration={battle.WarningDuration:F2} enemyHold={battle.InstructionRemaining:F2}");
             switch(key)
             {
-                case "battle":caption="挥动拳头，守护火山基地！";break;
-                case "energy":caption=BeamReadyInstruction;break;
-                case "beam_help":caption=BeamReadyInstruction;break;
-                case "beam_reset":caption="先收回双手，再摆光线姿势，停一下";break;
-                case "tutorial":caption="先把手收回来，再挥出去";break;
-                case "resume":caption="准备好了，继续！";break;
+                case "battle":captionKind=BattleCaptionKind.Punch;caption="挥动拳头，守护火山基地！";break;
+                case "energy":captionKind=BattleCaptionKind.Beam;caption=BeamReadyInstruction;break;
+                case "beam_help":captionKind=BattleCaptionKind.Beam;caption=BeamReadyInstruction;break;
+                case "beam_reset":captionKind=BattleCaptionKind.Beam;caption="先收回双手，再摆光线姿势，停一下";break;
+                case "tutorial":captionKind=BattleCaptionKind.Punch;caption="先把手收回来，再挥出去";break;
+                case "resume":captionKind=BattleCaptionKind.Resume;caption="准备好了，继续！";break;
                 default:return;
             }
-            captionUntil=Time.unscaledTime+voiceSeconds+Battle.InstructionReactionSeconds;
+            captionUntil=Time.unscaledTime+voiceSeconds+Battle.InstructionReactionSeconds+ChildCueExtraReactionSeconds;
             if(key=="energy")beamHelpAt=captionUntil+3;
         }
         void PlayCue(GameCue cue)
@@ -402,14 +403,15 @@ namespace UltramanGame.Runtime
             if(cue==GameCue.Punch&&HeroArsenal.Blade(SelectedHero.Id,battle)&&TraceEnabled)Debug.Log("[HeroWeapon] 梦比姆光剑");
             switch(cue)
             {
-                case GameCue.BattleStart:caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;battleStartDismissAt=-1;hintAt=Time.unscaledTime+12;break;
-                case GameCue.Block:caption="挡住了！护盾成功";break;
-                case GameCue.Hurt:caption="没关系，力量正在恢复";break;
-                case GameCue.EnergyReady:caption=BeamReadyInstruction;break;
-                case GameCue.Beam:caption=SelectedHero.Beam+"！";break;
-                case GameCue.Warning:caption=MonsterRockMotion.Active(battle)?"飞石来了 · 双手护住胸前":"怪兽要攻击了 · 准备防御";captionUntil=Time.unscaledTime+battle.WarningDuration;break;
+                case GameCue.BattleStart:captionKind=BattleCaptionKind.Punch;caption="挥动拳头，守护火山基地！";battleStartCueAt=Time.unscaledTime;battleStartDismissAt=-1;hintAt=Time.unscaledTime+12;break;
+                case GameCue.Punch:if(captionKind!=BattleCaptionKind.Punch)captionUntil=0;return;
+                case GameCue.Block:captionKind=BattleCaptionKind.Shield;caption="挡住了！护盾成功";break;
+                case GameCue.Hurt:captionKind=BattleCaptionKind.Recovery;caption="没关系，力量正在恢复";break;
+                case GameCue.EnergyReady:captionKind=BattleCaptionKind.Beam;caption=BeamReadyInstruction;break;
+                case GameCue.Beam:captionKind=BattleCaptionKind.Beam;caption=SelectedHero.Beam+"！";break;
+                case GameCue.Warning:captionKind=BattleCaptionKind.Shield;caption=MonsterRockMotion.Active(battle)?"飞石来了 · 双手护住胸前":"怪兽要攻击了 · 准备防御";captionUntil=Time.unscaledTime+battle.WarningDuration;break;
                 case GameCue.Victory:victoryAt=Time.unscaledTime;if(TraceEnabled)Debug.Log($"[FinalStrike] completed action={battle.Action} actionAge={battle.ActionAge:F3}");break;
-                case GameCue.Resume:caption="准备好了，继续！";break;
+                case GameCue.Resume:captionKind=BattleCaptionKind.Resume;caption="准备好了，继续！";break;
                 default:return;
             }
             captionUntil=Mathf.Max(captionUntil,Time.unscaledTime+2.5f);

@@ -160,8 +160,13 @@ namespace UltramanGame.Runtime
                     Guide(keyboard?"能量已满 · 按 J 释放光线":BeamReadyInstruction,
                         !keyboard&&recognizer.BeamNeedsRelease?"neutral":"beam",gold,
                         keyboard?1:recognizer.BeamNeedsRelease?0:recognizer.BeamProgress);
-                else if(time<captionUntil||battle.Punches<3)
-                    Guide(keyboard?"A / D 出拳 · Q / E 光弹":time<captionUntil?caption:SelectedHero.Id=="Mebius"?"左手侧挥光剑 · 向前挥拳发光弹":"向前挥拳发"+HeroArsenal.RangedName(SelectedHero.Id)+" · 快慢跟随你","punch",cyan,0);
+                else
+                {
+                    bool liveCaption=time<captionUntil&&BattleCaption.Visible(captionKind,battle);
+                    if(liveCaption||battle.Punches<3&&!battle.Shield)
+                        Guide(keyboard?"A / D 出拳 · Q / E 光弹":liveCaption?caption:SelectedHero.Id=="Mebius"?"左手侧挥光剑 · 向前挥拳发光弹":"向前挥拳发"+HeroArsenal.RangedName(SelectedHero.Id)+" · 快慢跟随你",
+                            keyboard||!liveCaption?"punch":BattleCaption.Gesture(captionKind),cyan,0);
+                }
             }
             DrawBattleStartCue();
             DrawArcadePreview();

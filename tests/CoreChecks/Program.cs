@@ -51,6 +51,7 @@ static class Program
             PoseReplayAudit.Checks(Check);
             PreviewChecks.Run(Check);
             CameraGuidanceChecks.Run(Check);
+            BattleCaptionChecks.Run(Check);
             PoseReadClockChecks.Run(Check);
             ReviewPlaybackChecks.Run(Check);
             PhotoChecks.Run(Check);
