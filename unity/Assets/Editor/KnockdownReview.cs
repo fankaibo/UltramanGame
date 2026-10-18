@@ -22,12 +22,13 @@ namespace UltramanGame.Editor
             RenderAt("grounded-rise/rates/15",true,15);RenderAt("grounded-rise/rates/30",true,30);
             CheckInterruptions();RosterPunchReview.CheckGuardTransitions();
         }
-        public static void CheckInterruptions(float interruptedAt=.9f)
+        public static void CheckInterruptions(float interruptedAt=.9f,string onlyHero=null)
         {
             for(int id=0;id<HeroRoster.Count;id++)
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 string name=HeroRoster.At(id).Id;
+                if(onlyHero!=null&&name!=onlyHero)continue;
                 if(!Available(name)){Debug.Log("[KnockdownBoundary] "+name+" skipped: missing skeletal model");continue;}
                 var world=new GameWorld();var state=new Battle();
                 var hero=new AnimatedActor(name,world.HeroHome,world.EnemyHome);

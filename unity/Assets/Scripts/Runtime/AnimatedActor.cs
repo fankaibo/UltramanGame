@@ -57,6 +57,8 @@ namespace UltramanGame.Runtime
         public float EngagementWeight=>rigged!=null?rigged.EngagementWeight:0;
         public float GuardHandoffProgress=>rigged?.GuardHandoffProgress??1;
         public bool CapturedFallActive=>rigged?.CapturedFallActive??false;
+        public bool KnockdownPoseActive=>rigged?.KnockdownPoseActive??false;
+        public float RecoveryLimbLengthError=>rigged?.RecoveryLimbLengthError??0;
         public bool CapturedRecoveryActive=>rigged?.CapturedRecoveryActive??false;
         public void BindSurfaceImpact(Vector3 position){rigged?.BindSurfaceImpact(position);}
         public void BindGuardImpact(Vector3 position){rigged?.BindGuardImpact(position);}

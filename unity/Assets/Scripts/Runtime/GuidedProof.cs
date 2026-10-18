@@ -38,12 +38,13 @@ namespace UltramanGame.Runtime
                 if(lift>.16f&&proofFrames.Add(supportKey))
                 {Debug.Log($"[RangedSupportProof] side={(supportLeft?"left":"right")} lift={lift:F3} action={battle.Action} sequence={pose?.sequence}");StartCoroutine(SaveGuidedProof(supportKey));return;}
             }
-            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt&&hero.CapturedFallActive)
+            if(!photo.Active&&battle.Phase==GamePhase.Battle&&battle.Action==HeroAction.Hurt&&hero.KnockdownPoseActive)
             {
                 string fall=battle.ActionAge>=.20f&&battle.ActionAge<.34f?"hero-fall-unbalanced":
                     battle.ActionAge>=.44f&&battle.ActionAge<.58f?"hero-fall-contact":
                     battle.ActionAge>=.68f&&battle.ActionAge<.78f?"hero-fall-settled":null;
-                if(fall!=null&&proofFrames.Add(fall)){StartCoroutine(SaveGuidedProof(fall));return;}
+                if(fall!=null&&proofFrames.Add(fall))
+                {Debug.Log($"[FallPoseProof] key={fall} age={battle.ActionAge:F3} source={(hero.CapturedFallActive?"captured":"procedural")}");StartCoroutine(SaveGuidedProof(fall));return;}
             }
             // The phase-entry frame may still show the previous punch. Capture
             // the settled pause too, where an uncorrected Idle folds the arms.

@@ -56,6 +56,8 @@ namespace UltramanGame.Runtime
         readonly bool retargetedPunch;
         readonly CapturedRecoveryPose capturedRecovery,capturedFall;
         public bool CapturedFallActive=>capturedFall?.Applied??false;
+        public bool KnockdownPoseActive=>knockdownApplied||CapturedFallActive;
+        public float RecoveryLimbLengthError=>capturedRecovery?.LimbLengthError??0;
         public bool CapturedRecoveryActive=>capturedRecovery?.Applied??false;
         readonly HeroPoseHandoff guardHandoff;
         readonly ZeroTwinShoot twinShoot;
@@ -985,8 +987,9 @@ namespace UltramanGame.Runtime
                     // old shallow pitch held the shoulders upright throughout
                     // landing, reading as a sitting pose. Roll onto a support
                     // arm before bringing the chest over the planted foot.
-                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?-58f*p:
-                        Mathf.Lerp(-58,14,RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds,KnockdownMotion.RiseSeconds+.34f))*(1-RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds+.34f,KnockdownMotion.Duration));
+                    float recline=heroId=="Tiga"?-78f:-58f;
+                    fallTilt=state.ActionAge<KnockdownMotion.RiseSeconds?recline*p:
+                        Mathf.Lerp(recline,14,RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds,KnockdownMotion.RiseSeconds+.34f))*(1-RiseStep(state.ActionAge,KnockdownMotion.RiseSeconds+.34f,KnockdownMotion.Duration));
                     // Roll onto one shoulder instead of pitching straight
                     // backward. A wider roll makes the impact read from the
                     // 45-degree camera while leaving one arm available to
@@ -2472,6 +2475,17 @@ namespace UltramanGame.Runtime
             // extension that made the character look seated or airborne.
             Vector3 left=feet-side*outsideReach-forward*.18f;
             Vector3 right=feet+side*.18f+forward*(.18f+extension);
+            if(heroId=="Tiga")
+            {
+                // The former fixed ankle distance was much shorter than this
+                // costume's leg chain: both knees stayed high like a seated
+                // crab pose. Let the outside leg unfold along its real length
+                // while the other knee and planted hand catch the impact.
+                float legLength=Vector3.Distance(rightThigh.position,rightShin.position)
+                    +Vector3.Distance(rightShin.position,rightFoot.position);
+                Vector3 extended=rightThigh.position+forward*(legLength*.97f)+side*.12f;
+                right=Vector3.Lerp(right,extended,RiseStep(age,.12f,.42f));
+            }
             left.y=home.y+leftFootClearance;right.y=home.y+rightFootClearance;
             // First bring the right foot beneath the hips while the left boot
             // and hand carry the body. Then step the left boot back as the

@@ -24,6 +24,7 @@ namespace UltramanGame.Runtime
         Quaternion baseFacing;
         bool tried;
         public bool Applied {get;private set;}
+        public float LimbLengthError {get;private set;}
         public bool Loaded=>bones!=null;
         public int SampleCount=>times?.Length??0;
         public CapturedRecoveryPose(Transform root,string id,bool fall=false){this.root=root;this.id=id;this.fall=fall;}
@@ -80,6 +81,7 @@ namespace UltramanGame.Runtime
         }
         public void Apply(float age,Vector3 home,Vector3 forward)
         {
+            LimbLengthError=0;
             // The original CMU fall capture is useful as a source for the
             // recovery motion, but its retargeted root drops the Tiga costume
             // below the volcanic floor and sends both boots toward camera.
@@ -118,10 +120,31 @@ namespace UltramanGame.Runtime
                 Vector3 pole=Vector3.Lerp(baseBends[i],bends[i],weight)-start;
                 Vector3 bend=Vector3.ProjectOnPlane(pole,axis).normalized;
                 float along=(a*a-b*b+d*d)/(2*d);
-                Vector3 joint=start+axis*along+bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+                float radius=Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+                Vector3 center=start+axis*along;
+                if(id=="Tiga"&&i<2)
+                {
+                    // The authored side-fall and captured rise put the knee on
+                    // opposite sides of the hip/ankle axis during handoff.
+                    // A blended pole can sweep the shin through the floor even
+                    // with the ankle safely planted. Rotate only that bend
+                    // plane toward its nearest floor-safe solution; preserve
+                    // both bone lengths, the foot target and the hip motion.
+                    Vector3 up=Vector3.ProjectOnPlane(Vector3.up,axis).normalized;
+                    float height=radius*up.y;
+                    if(height>.0001f&&center.y+bend.y*radius<home.y+.20f)
+                    {
+                        float limit=Mathf.Clamp((home.y+.20f-center.y)/height,-1,1);
+                        float angle=Mathf.Acos(Mathf.Clamp(Vector3.Dot(bend,up),-1,1));
+                        bend=Vector3.RotateTowards(bend,up,Mathf.Max(0,angle-Mathf.Acos(limit)),0);
+                    }
+                }
+                Vector3 joint=center+bend*radius;
                 upper.rotation=Quaternion.FromToRotation(lower.position-start,joint-start)*upper.rotation;
                 lower.rotation=Quaternion.FromToRotation(end.position-lower.position,start+axis*d-lower.position)*lower.rotation;
                 end.rotation=rotation;
+                LimbLengthError=Mathf.Max(LimbLengthError,Mathf.Max(Mathf.Abs(Vector3.Distance(start,lower.position)-a),
+                    Mathf.Abs(Vector3.Distance(lower.position,end.position)-b)));
             }
             Applied=true;
         }
