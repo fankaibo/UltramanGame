@@ -25,24 +25,29 @@ Shader "Training/ZeperionVolume" {
     float depth=LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_PROJ(_CameraDepthTexture,UNITY_PROJ_COORD(i.screen)));
     end=min(end,depth/max(.001,dot(ray,-UNITY_MATRIX_V[2].xyz)));
     if(end<=start)return 0;
-    float stride=(end-start)/24;float4 result=0;
-    [loop] for(int j=0;j<24;j++){
+    float stride=(end-start)/32;float4 result=0;
+    [loop] for(int j=0;j<32;j++){
      float3 p=origin+direction*(start+(j+.5)*stride);
      float z=(p.z+.5)*_Length;
      // Fixed world-length flow advects toward the target; neither the camera
      // nor the expanding travel segment rotates or stretches its strands.
      float lane=noise(float3(p.xy*13,z*1.5-_Clock*8));
-     float fine=noise(float3(p.xy*25+5,z*4-_Clock*17));
+     // Long thin density strands share the beam axis. Slow longitudinal
+     // distortion keeps them coherent across the shot rather than white noise.
+     float fine=noise(float3(p.xy*16+5,z*.32-_Clock*1.8));
      float radius=length(p.xy);
-     float core=exp(-pow(radius*8.5,3));
+     float envelope=exp(-pow(radius*8.5,3));
+     float filament=pow(saturate(fine*1.8-.40),3);
+     float pulse=.82+.18*sin(z*9-_Clock*28+lane*2);
+     float core=envelope*(.18+.82*filament);
      float mantle=exp(-radius*radius*22)*(.25+.75*lane);
      float strands=pow(lane,5)*(.35+.65*fine)*exp(-radius*radius*9);
      float edge=1-smoothstep(.34+.055*lane,.49,radius);
      float cap=smoothstep(0,.035,z)*(1-smoothstep(max(0,_Length-.045),_Length,z));
-     float d=(core*1.4+mantle*.10+strands*.40)*edge*cap*_Power;
+     float d=(core*.95*pulse+mantle*.065+strands*.28)*edge*cap*_Power;
      float alpha=1-exp(-d*stride*12);
-     float3 color=lerp(_BeamTint.rgb,_BeamAccent.rgb,saturate(core*.92+strands*.3));
-     color*=lerp(.75,1.6,core)+.2*fine;
+     float3 color=lerp(_BeamTint.rgb,_BeamAccent.rgb,saturate(filament*.85+envelope*.15));
+     color*=.8+filament*.95+envelope*.12;
      result.rgb+=(1-result.a)*color*alpha;result.a+=(1-result.a)*alpha;
     }
     return result;

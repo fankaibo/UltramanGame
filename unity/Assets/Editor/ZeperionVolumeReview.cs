@@ -11,7 +11,8 @@ namespace UltramanGame.Editor
         public static void Check()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
-            string folder=Path.GetFullPath("../artifacts/a172-beam-volume/gpu");Directory.CreateDirectory(folder);
+            var args=Environment.GetCommandLineArgs();int at=Array.IndexOf(args,"--beam-gpu-output");
+            string folder=Path.GetFullPath(at>=0&&at+1<args.Length?args[at+1]:"../artifacts/a172-beam-volume/gpu");Directory.CreateDirectory(folder);
             var camera=new GameObject("Beam volume camera").AddComponent<Camera>();camera.enabled=false;camera.fieldOfView=42;camera.aspect=16f/9;
             camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.055f,.07f,.10f);camera.depthTextureMode=DepthTextureMode.Depth;camera.allowHDR=false;
             var rt=new RenderTexture(480,270,24);rt.Create();camera.targetTexture=rt;
