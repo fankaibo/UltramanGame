@@ -2581,11 +2581,11 @@ namespace UltramanGame.Runtime
             var rightElbow=center+right*.46f+forward*(.04f-depth*.30f)+Vector3.up*(.10f-lift*.75f);
             var rightWrist=center+right*.53f+forward*(.33f-depth)+Vector3.up*(.04f-lift*.45f);
             SolveArm(leftUpperArm,leftForearm,leftHand,
-                Vector3.Lerp(leftElbow,center-right*.67f-forward*.12f-Vector3.up*.30f,relaxed),
-                Vector3.Lerp(leftWrist,center-right*.61f+forward*(.36f+depth)-Vector3.up*(.14f-lift),relaxed),blend);
+                Vector3.Lerp(leftElbow,center-right*.52f-forward*.10f-Vector3.up*.27f,relaxed),
+                Vector3.Lerp(leftWrist,center-right*.59f+forward*(.20f+depth)+Vector3.up*(.02f+lift),relaxed),blend);
             SolveArm(upperArm,forearm,hand,
-                Vector3.Lerp(rightElbow,center+right*.63f-forward*.10f-Vector3.up*.22f,relaxed),
-                Vector3.Lerp(rightWrist,center+right*.55f+forward*(.50f-depth)+Vector3.up*(.02f-lift),relaxed),blend);
+                Vector3.Lerp(rightElbow,center+right*.50f-forward*.08f-Vector3.up*.22f,relaxed),
+                Vector3.Lerp(rightWrist,center+right*.56f+forward*(.32f-depth)+Vector3.up*(.16f-lift),relaxed),blend);
             // A restrained chest/head breath keeps the corrected arms attached
             // to a living creature while the child is waiting for the next
             // instruction. It is small enough to preserve the authored roar
@@ -2640,26 +2640,26 @@ namespace UltramanGame.Runtime
         static void SolveArm(Transform upper,Transform lower,Transform wrist,Vector3 elbowTarget,Vector3 wristTarget,float blend)
         {
             if(!upper||!lower||!wrist)return;
-            Vector3 upperVector=lower.position-upper.position,targetVector=elbowTarget-upper.position;
-            if(upperVector.sqrMagnitude<.0001f||targetVector.sqrMagnitude<.0001f)return;
-            // The clip already authors a forward-facing claw. Re-aiming upper
-            // and lower arms must not roll that palm with the inherited elbow
-            // rotation, which previously left the claws hanging or folded in.
+            // Solve both segments toward one reachable wrist target. Aiming
+            // each bone independently leaves the wrist beyond its requested
+            // pose and pushes the elbow out at chest height.
+            Vector3 start=upper.position,oldForearm=wrist.position-lower.position;
+            float a=Vector3.Distance(start,lower.position),b=oldForearm.magnitude;
+            Vector3 target=Vector3.Lerp(wrist.position,wristTarget,Mathf.Clamp01(blend));
+            Vector3 delta=target-start;
+            if(a<.001f||b<.001f||delta.sqrMagnitude<.0001f)return;
             Quaternion palm=wrist.rotation;
-            upper.rotation=Quaternion.Slerp(upper.rotation,Quaternion.FromToRotation(upperVector,targetVector)*upper.rotation,blend);
-            Vector3 forearmVector=wrist.position-lower.position;targetVector=wristTarget-lower.position;
-            if(forearmVector.sqrMagnitude>=.0001f&&targetVector.sqrMagnitude>=.0001f)
-            {
-                Quaternion forearmAim=Quaternion.FromToRotation(forearmVector,targetVector);
-                lower.rotation=Quaternion.Slerp(lower.rotation,forearmAim*lower.rotation,blend);
-                // The old correction restored the wrist world rotation after
-                // re-aiming the arm. On a close 45-degree shot that made the
-                // palm hang sideways from a correctly placed forearm. Follow
-                // the forearm only part way, preserving the authored claw roll
-                // while keeping the fingers attached to the strike lane.
-                wrist.rotation=Quaternion.Slerp(palm,forearmAim*palm,Mathf.Clamp01(blend*.72f));
-            }
-            else wrist.rotation=palm;
+            Vector3 axis=delta.normalized;
+            float distance=Mathf.Clamp(delta.magnitude,Mathf.Abs(a-b)+.001f,a+b-.001f);
+            Vector3 oldBend=Vector3.ProjectOnPlane(lower.position-start,axis);
+            Vector3 requestedBend=Vector3.ProjectOnPlane(elbowTarget-start,axis);
+            Vector3 bend=Vector3.Slerp(oldBend.normalized,requestedBend.normalized,Mathf.Clamp01(blend)).normalized;
+            if(bend.sqrMagnitude<.5f)bend=Vector3.ProjectOnPlane(Vector3.down,axis).normalized;
+            float along=(a*a-b*b+distance*distance)/(2*distance);
+            Vector3 elbow=start+axis*along+bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+            upper.rotation=Quaternion.FromToRotation(lower.position-start,elbow-start)*upper.rotation;
+            lower.rotation=Quaternion.FromToRotation(wrist.position-lower.position,start+axis*distance-lower.position)*lower.rotation;
+            wrist.rotation=Quaternion.FromToRotation(oldForearm,wrist.position-lower.position)*palm;
         }
         void AlignClawWrists()
         {

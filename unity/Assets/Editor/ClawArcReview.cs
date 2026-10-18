@@ -19,7 +19,7 @@ namespace UltramanGame.Editor
         static void Run(string version,int hz,int attack,bool block,bool movie)
         {
             string label=$"{(attack==1?"right":"left")}-{(block?"block":"hurt")}-{hz}";
-            string folder=Path.GetFullPath("../artifacts/claw-arc-20261009/"+version+"/"+label);Directory.CreateDirectory(folder);
+            string folder=Path.GetFullPath(Path.Combine(Environment.GetEnvironmentVariable("ULTRAMAN_CLAW_ARC_OUTPUT")??"../artifacts/claw-arc-20261009",version,label));Directory.CreateDirectory(folder);
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);UnityEngine.Random.InitState(1056);
             var world=new GameWorld();var hero=new AnimatedActor("Tiga",world.HeroHome,world.EnemyHome);var enemy=new AnimatedActor("Golza",world.EnemyHome,world.HeroHome,true);
             if(!hero.IsRigged||!enemy.IsRigged)throw new Exception("Actual rigs required");world.BindActors(hero,enemy);
