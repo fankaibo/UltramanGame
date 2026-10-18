@@ -216,7 +216,8 @@ namespace UltramanGame.Runtime
             }
             if(!photo.Active&&MonsterRockMotion.Active(battle))
             {
-                string rockKey=world.Rock.Holding&&battle.WarningDuration-battle.EnemyAge<.4f?"monster-rock-hold":
+                string rockKey=world.Rock.Grounded&&enemy.RockPickupAge>=.85f?"monster-rock-pickup":
+                    world.Rock.Holding&&battle.WarningDuration-battle.EnemyAge<.4f?"monster-rock-hold":
                     world.Rock.Flying&&battle.EnemyAge>.42f?"monster-rock-flight":world.Rock.Fragments?"monster-rock-break":null;
                 if(rockKey!=null&&proofFrames.Add(rockKey)){StartCoroutine(SaveGuidedProof(rockKey));return;}
             }

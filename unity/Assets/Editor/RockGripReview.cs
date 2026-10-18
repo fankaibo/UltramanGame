@@ -17,11 +17,11 @@ namespace UltramanGame.Editor
             foreach(int hz in new[]{15,30,60})foreach(bool block in new[]{true,false})Run("after",hz,block,hz==60&&block);
             ValidateLifecycle();
         }
-        public static void ValidateLifecycle(){Lifecycle();ClawPoseReview.Stability();}
+        public static void ValidateLifecycle(){Lifecycle();DelayedWarning();ClawPoseReview.Stability();}
         static void Lifecycle()
         {
             var report=new StringBuilder();
-            foreach(int hz in new[]{15,30,60})foreach(bool flight in new[]{false,true})foreach(bool pause in new[]{false,true})
+            foreach(int hz in new[]{15,30,60})foreach(string phase in new[]{"ground","reach","held","flight"})foreach(bool pause in new[]{false,true})
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
                 var root=new GameObject("Grip lifecycle").transform;var camera=new GameObject("Camera").AddComponent<Camera>();
@@ -31,7 +31,7 @@ namespace UltramanGame.Editor
                 for(int n=0;n<hz*40;n++)
                 {
                     b.Tick(dt,new PlayerInput{Tracking=true,Shield=true});rock.Tick(b,grip,target,false,camera);
-                    reached=flight?rock.Flying:rock.Holding&&MonsterRockMotion.Prepare(b)>.95f;
+                    reached=MonsterRockMotion.Active(b)&&(phase=="flight"?rock.Flying:phase=="held"?rock.Holding&&MonsterRockMotion.Prepare(b)>.95f:rock.Grounded&&MonsterRockMotion.PickupAge(b)>=(phase=="ground"?0:.7f));
                     if(reached)break;
                 }
                 if(!reached)throw new Exception("Grip lifecycle phase not reached");
@@ -54,9 +54,40 @@ namespace UltramanGame.Editor
                 rock.Clear();if(stone.gameObject.activeSelf)throw new Exception("Reset retained rock");
                 rock.Tick(new Battle(),grip,target,false,camera);
                 if(stone.gameObject.activeSelf||rock.Launches!=0)throw new Exception("New round retained throw state");
-                report.AppendLine($"{hz}Hz flight={flight} pause={pause} suppression/resume/reset/newRound=passed");
+                report.AppendLine($"{hz}Hz phase={phase} pause={pause} suppression/resume/reset/newRound=passed");
             }
             File.WriteAllText(Path.Combine(Folder,"lifecycle.txt"),report.ToString());Debug.Log("[RockGripLifecycle] PASS\n"+report);
+        }
+        static void DelayedWarning()
+        {
+            var report=new StringBuilder();
+            foreach(int hz in new[]{15,30,60})foreach(float at in new[]{.4f,1f,1.8f})
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+                var w=new GameWorld();var b=new Battle();var h=new AnimatedActor("Tiga",w.HeroHome,w.EnemyHome);
+                var e=new AnimatedActor("Golza",w.EnemyHome,w.HeroHome,true);w.BindActors(h,e);
+                float dt=1f/hz,time=0;b.Tick(dt,new PlayerInput{Tracking=true,Transform=true});bool extended=false;
+                float lastAge=0;int launches=0;
+                for(int f=0;f<hz*55;f++)
+                {
+                    b.Tick(dt,new PlayerInput{Tracking=true,Shield=true});while(b.TryCue(out var cue))w.Cue(cue,b);
+                    h.Update(b,w.Camera,dt,time);e.Update(b,w.Camera,dt,time);w.Tick(b,dt,time);time+=dt;
+                    if(!MonsterRockMotion.Active(b)){if(extended)break;continue;}
+                    if(extended&&e.RockPickupAge+.0001f<lastAge)throw new Exception("Voice rewound pickup");
+                    if(!extended&&e.RockPickupAge>=at&&b.Enemy==EnemyPhase.Windup)
+                    {
+                        Vector3 stone=w.Rock.Position,hand=e.RockGrip.position;b.GiveInstructionTime(5,true);
+                        h.Update(b,w.Camera,0,time-dt);e.Update(b,w.Camera,0,time-dt);w.Tick(b,0,time-dt);
+                        if(Vector3.Distance(stone,w.Rock.Position)>.001f||Vector3.Distance(hand,e.RockGrip.position)>.001f)
+                            throw new Exception("Voice extension teleported grip");
+                        extended=true;
+                    }
+                    lastAge=e.RockPickupAge;launches=w.Rock.Launches;
+                }
+                if(!extended||launches!=1)throw new Exception("Delayed warning did not finish one throw");
+                report.AppendLine($"{hz}Hz extendAt={at} monotonic/zero-time/one-launch=passed");
+            }
+            File.WriteAllText(Path.Combine(Folder,"delayed-warning.txt"),report.ToString());
         }
         static Transform Bone(Transform root,string name)
         {foreach(var t in root.GetComponentsInChildren<Transform>())if(t.name==name)return t;throw new Exception(name);}
@@ -68,7 +99,7 @@ namespace UltramanGame.Editor
             b.Tick(.02f,new PlayerInput{Tracking=true,Transform=true});
             for(int n=0;n<4000;n++)
             {
-                if(b.EnemyAttackCount==1&&b.Enemy==EnemyPhase.Windup&&b.WarningDuration-b.EnemyAge<1.7f)break;
+                if(b.EnemyAttackCount==1&&b.Enemy==EnemyPhase.Windup&&b.WarningDuration-b.EnemyAge<3.3f)break;
                 b.Tick(.02f,new PlayerInput{Tracking=true,Shield=true});
             }
             if(b.EnemyAttackCount!=1||b.Enemy!=EnemyPhase.Windup)throw new Exception("Rock scenario not reached");
@@ -78,17 +109,23 @@ namespace UltramanGame.Editor
             string folder=Path.Combine(Folder,version,(block?"block":"hurt")+"-"+hz);Directory.CreateDirectory(folder);
             if(movie)Directory.CreateDirectory(folder+"/frames");
             var rt=new RenderTexture(1280,720,24){antiAliasing=4};rt.Create();w.Camera.targetTexture=rt;w.Camera.aspect=16f/9;
-            var trace=new StringBuilder("frame,enemy,age,attack,action,actionAge,health,blocks,hits,holding,flying,x,y,z,rotationStep,gripLocalX,gripLocalY,gripLocalZ\n");
+            var trace=new StringBuilder("frame,enemy,age,attack,action,actionAge,health,blocks,hits,holding,flying,x,y,z,rotationStep,gripLocalX,gripLocalY,gripLocalZ,pickupAge,grounded,groundGap\n");
             int blocks=b.Blocks,hits=b.HitsTaken,holdFrames=0;float dt=1f/hz,time=0,maxHoldDrift=0,releaseTurn=0,releaseStep=0,repeat=0;
-            bool wasHolding=false,wasFlying=false;Vector3 previous=Vector3.zero,local=Vector3.zero;Quaternion rotation=Quaternion.identity;bool localSet=false;
+            bool wasHolding=false,wasFlying=false;Vector3 previous=Vector3.zero,local=Vector3.zero;Quaternion rotation=Quaternion.identity;bool localSet=false;float pickupGap=0,minGround=99;int pickupFrames=0;var baked=new Mesh();
             var saved=new System.Collections.Generic.HashSet<string>();
             try
             {
-                for(int f=0;f<hz*4;f++)
+                for(int f=0;f<hz*6;f++)
                 {
                     b.Tick(dt,new PlayerInput{Tracking=true,Shield=block});while(b.TryCue(out var cue))w.Cue(cue,b);
                     h.Update(b,w.Camera,dt,time);e.Update(b,w.Camera,dt,time);w.Tick(b,dt,time);time+=dt;
                     Vector3 p=w.Rock.Position,g=wrist.InverseTransformPoint(p);float turn=Quaternion.Angle(rotation,stone.rotation);
+                    if(version=="after"&&b.Enemy==EnemyPhase.Windup&&e.RockPickupAge>=.9f&&e.RockPickupAge<=MonsterRockMotion.GraspAge+.05f)
+                    {
+                        pickupFrames++;pickupGap=Mathf.Max(pickupGap,Vector3.Distance(e.RockGrip.position,w.Rock.GroundPose.position));
+                        foreach(var skin in e.Root.GetComponentsInChildren<SkinnedMeshRenderer>())
+                        {if(!skin.enabled)continue;skin.BakeMesh(baked,true);foreach(var v in baked.vertices)minGround=Mathf.Min(minGround,skin.transform.TransformPoint(v).y);}
+                    }
                     if(w.Rock.Holding&&MonsterRockMotion.Prepare(b)>.9f)
                     {if(localSet)maxHoldDrift=Mathf.Max(maxHoldDrift,Vector3.Distance(local,g));else {local=g;localSet=true;}holdFrames++;}
                     if(wasHolding&&w.Rock.Flying){releaseTurn=turn;releaseStep=Vector3.Distance(previous,p);}
@@ -98,8 +135,8 @@ namespace UltramanGame.Editor
                         w.Tick(b,0,time-dt);repeat=Mathf.Max(repeat,Vector3.Distance(p,w.Rock.Position));
                         if(Quaternion.Angle(stone.rotation,currentRotation)>.05f)throw new Exception("Repeated clock rotated stone");
                     }
-                    trace.AppendLine(FormattableString.Invariant($"{f},{b.Enemy},{b.EnemyAge:F6},{b.EnemyAttackCount},{b.Action},{b.ActionAge:F6},{b.EnemyHealth},{b.Blocks},{b.HitsTaken},{w.Rock.Holding},{w.Rock.Flying},{p.x:F6},{p.y:F6},{p.z:F6},{turn:F4},{g.x:F6},{g.y:F6},{g.z:F6}"));
-                    string key=w.Rock.Holding&&b.Enemy==EnemyPhase.Windup&&b.WarningDuration-b.EnemyAge<.25f?"hold":
+                    trace.AppendLine(FormattableString.Invariant($"{f},{b.Enemy},{b.EnemyAge:F6},{b.EnemyAttackCount},{b.Action},{b.ActionAge:F6},{b.EnemyHealth},{b.Blocks},{b.HitsTaken},{w.Rock.Holding},{w.Rock.Flying},{p.x:F6},{p.y:F6},{p.z:F6},{turn:F4},{g.x:F6},{g.y:F6},{g.z:F6},{e.RockPickupAge:F5},{w.Rock.Grounded},{Vector3.Distance(e.RockGrip.position,w.Rock.GroundPose.position):F5}"));
+                    string key=b.Enemy==EnemyPhase.Windup&&e.RockPickupAge>=.80f&&e.RockPickupAge<1.05f?"pickup":w.Rock.Holding&&b.Enemy==EnemyPhase.Windup&&b.WarningDuration-b.EnemyAge<.25f?"hold":
                         w.Rock.Holding&&b.Enemy==EnemyPhase.Attack&&b.EnemyAge>.16f?"pre-release":
                         w.Rock.Flying&&!wasFlying?"release":w.Rock.Fragments?"impact":null;
                     if(movie&&key!=null&&saved.Add(key))
@@ -114,16 +151,17 @@ namespace UltramanGame.Editor
                             w.Camera.transform.SetPositionAndRotation(cameraPosition,cameraRotation);
                         }
                     }
-                    if(movie&&f%2==0)RangedContactReview.Save(w.Camera,rt,$"{folder}/frames/{f/2:D4}.jpg");
+                    if(movie&&f%2==0)CharacterReview.Save(w.Camera,rt,$"{folder}/frames/{f/2:D4}.jpg");
                     previous=p;rotation=stone.rotation;wasHolding=w.Rock.Holding;wasFlying=w.Rock.Flying;
                 }
-                string result=$"{hz}Hz block={block} launches={w.Rock.Launches} blocks={b.Blocks-blocks} hits={b.HitsTaken-hits} holdFrames={holdFrames} holdLocalDrift={maxHoldDrift:F6} releaseTurn={releaseTurn:F4} releaseStep={releaseStep:F4} repeat={repeat:F6} hidden={!stone.gameObject.activeSelf}";
+                string result=$"{hz}Hz block={block} launches={w.Rock.Launches} blocks={b.Blocks-blocks} hits={b.HitsTaken-hits} holdFrames={holdFrames} holdLocalDrift={maxHoldDrift:F6} releaseTurn={releaseTurn:F4} releaseStep={releaseStep:F4} repeat={repeat:F6} pickupFrames={pickupFrames} pickupGap={pickupGap:F5} minGround={minGround:F5} hidden={!stone.gameObject.activeSelf}";
                 File.WriteAllText(folder+"/trace.csv",trace.ToString());File.WriteAllText(folder+"/metrics.txt",result);Debug.Log("[RockGrip] "+result);
                 if(w.Rock.Launches!=1||b.Blocks-blocks!=(block?1:0)||b.HitsTaken-hits!=(block?0:1)||holdFrames<2||stone.gameObject.activeSelf||repeat>.0001f)throw new Exception(result);
+                if(version=="after"&&(pickupFrames<1||pickupGap>.10f||minGround<-.06f))throw new Exception("Pickup contact or ground penetration: "+result);
                 if(version=="after"&&(maxHoldDrift>.01f||releaseTurn>1000f/hz||releaseStep>20f/hz))throw new Exception("Grip or release discontinuity: "+result);
                 File.WriteAllText(folder+"/validation.txt","passed\n"+result);
             }
-            finally{w.Camera.targetTexture=null;rt.Release();UnityEngine.Object.DestroyImmediate(rt);}
+            finally{w.Camera.targetTexture=null;rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(baked);}
         }
     }
 }

@@ -13,6 +13,9 @@ namespace UltramanGame.Runtime
         Battle observed;
         Vector3 origin,destination,contact;
         Quaternion launchRotation;
+        public Pose GroundPose {get;private set;}
+        public bool Grounded {get;private set;}
+        float groundOffset;
         int sequence=-1;
         bool impacted;
         public bool Started {get;private set;}
@@ -32,6 +35,9 @@ namespace UltramanGame.Runtime
             material.SetTexture("_Normal",Resources.Load<Texture2D>("Environment/ScannedRocks/rock_07_nor_gl_2k"));
             material.SetTexture("_ARM",Resources.Load<Texture2D>("Environment/ScannedRocks/rock_07_arm_2k"));
             stone=Rock(parent,"Golza thrown boulder",source,material,.70f);
+            var surface=stone.GetComponentInChildren<MeshFilter>();
+            if(surface)foreach(var v in surface.sharedMesh.vertices)
+                groundOffset=Mathf.Max(groundOffset,-stone.InverseTransformPoint(surface.transform.TransformPoint(v)).y);
             for(int i=0;i<pieces.Length;i++)pieces[i]=Rock(parent,"Broken boulder "+i,source,material,.10f+i%3*.045f);
             dust=new BoulderDust(parent);Clear();
         }
@@ -51,9 +57,11 @@ namespace UltramanGame.Runtime
             surface.localRotation=Quaternion.FromToRotation(longest,Vector3.forward);
             surface.localScale=Vector3.one*scale;surface.localPosition=surface.localRotation*(-mesh.bounds.center*scale);return root;
         }
-        public void Clear(){dust.Clear();Started=Flying=Holding=Fragments=false;stone.gameObject.SetActive(false);foreach(var p in pieces)p.gameObject.SetActive(false);}
+        public void SetGroundPose(Vector3 floor,Quaternion facing)
+        {GroundPose=new Pose(floor+Vector3.up*(groundOffset+.015f),facing);}
+        public void Clear(){dust.Clear();Started=Flying=Holding=Fragments=Grounded=false;stone.gameObject.SetActive(false);foreach(var p in pieces)p.gameObject.SetActive(false);}
         public void Impact(Vector3 position){contact=position;impacted=true;}
-        public void Tick(Battle state,Pose grip,Vector3 target,bool suppressed,Camera camera)
+        public void Tick(Battle state,Pose grip,Vector3 target,bool suppressed,Camera camera,float pickupAge=-1)
         {
             Started=false;
             if(!ReferenceEquals(observed,state)){observed=state;sequence=-1;Launches=0;impacted=false;}
@@ -61,11 +69,19 @@ namespace UltramanGame.Runtime
             bool attack=state.Enemy==EnemyPhase.Attack;
             float age=state.EnemyAge;
             if(state.Enemy==EnemyPhase.Windup)impacted=false;
-            Holding=state.Enemy==EnemyPhase.Windup&&MonsterRockMotion.Prepare(state)>.08f||attack&&age<MonsterRockMotion.Launch;
+            float pickup=pickupAge<0?MonsterRockMotion.PickupAge(state):pickupAge;
+            Grounded=state.Enemy==EnemyPhase.Windup&&pickup<MonsterRockMotion.GraspAge;
+            Holding=state.Enemy==EnemyPhase.Windup&&!Grounded||attack&&age<MonsterRockMotion.Launch;
             Flying=attack&&age>=MonsterRockMotion.Launch&&age<MonsterRockMotion.Contact;
             Fragments=attack&&impacted&&age>=MonsterRockMotion.Contact;
-            stone.gameObject.SetActive(Holding||Flying);
-            if(Holding){stone.SetPositionAndRotation(grip.position,grip.rotation);stone.localScale=Vector3.one*Mathf.SmoothStep(0,1,MonsterRockMotion.Prepare(state)*3);}
+            stone.gameObject.SetActive(Grounded||Holding||Flying);
+            if(Grounded){stone.SetPositionAndRotation(GroundPose.position,GroundPose.rotation);stone.localScale=Vector3.one;}
+            if(Holding)
+            {
+                float grasp=attack?1:Mathf.SmoothStep(0,1,(pickup-MonsterRockMotion.GraspAge)/.12f);
+                stone.SetPositionAndRotation(Vector3.Lerp(GroundPose.position,grip.position,grasp),Quaternion.Slerp(GroundPose.rotation,grip.rotation,grasp));
+                stone.localScale=Vector3.one;
+            }
             if(attack&&age>=MonsterRockMotion.Launch&&sequence!=state.EnemyAttackCount)
             {sequence=state.EnemyAttackCount;Launches++;Started=true;origin=grip.position;launchRotation=grip.rotation;destination=target;stone.localScale=Vector3.one;}
             if(Flying)

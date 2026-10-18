@@ -217,6 +217,9 @@ namespace UltramanGame.Runtime
         EnemyPhase monsterArmPhase;
         bool attackPoseApplied;
         float slamPrepare,rayPrepare,rockPrepare;
+        float rockPickupAge;Pose rockGroundPose;
+        public float RockPickupAge=>rockPickupAge;
+        public void SetRockGroundPose(Pose value){rockGroundPose=value;}
         float slamEntryAge=1;
         Vector3 slamEntryLeft,slamEntryRight;
         Quaternion slamEntryLeftRotation,slamEntryRightRotation;
@@ -884,7 +887,7 @@ namespace UltramanGame.Runtime
             // replay the recoil. Chest yields first; planted knees take the
             // weight a little later and settle through the next input.
             if(!ReferenceEquals(observedBattle,state))
-            {if(tailYaw!=null)Array.Clear(tailYaw,0,tailYaw.Length);observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=rockPrepare=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
+            {if(tailYaw!=null)Array.Clear(tailYaw,0,tailYaw.Length);observedBattle=state;observedBlocks=state.Blocks;guardAge=hitAge=10;guardContactPending=false;recoilStart=Vector3.zero;recoilStartYaw=0;accentHit=false;windupSample=float.NaN;slamPrepare=rayPrepare=rockPrepare=rockPickupAge=jawCorrection=0;stagger.Clear();launch.Clear();beamRecoil.Clear();beamTravel=staggerTravel=Vector3.zero;}
             if(monster)
             {
                 if(preview>=0||state.Phase!=GamePhase.Battle||state.Enemy==EnemyPhase.Attack)beamRecoil.Clear();
@@ -1440,7 +1443,7 @@ namespace UltramanGame.Runtime
             if(monster&&preview<0&&MonsterRayMotion.Active(state)&&next!="Hurt")PoseHeadRay(state,dt);
             else rayPrepare=0;
             if(monster&&preview<0&&MonsterRockMotion.Active(state)&&next!="Hurt")PoseRockThrow(state,dt);
-            else rockPrepare=0;
+            else {rockPrepare=0;if(!MonsterRockMotion.Active(state))rockPickupAge=0;}
             if(monster)PoseClawReaction(state,preview);
             if(monster&&preview<0)BlendMonsterHandTransition(dt);
             if(monster&&jaw)
@@ -1727,17 +1730,30 @@ namespace UltramanGame.Runtime
             attackRootBefore=Root.position;attackRotationBefore=Root.rotation;attackPoseApplied=true;
             var side=Vector3.Cross(Vector3.up,forward);
             // A delayed voice can extend the warning after the rock is lifted.
-            // Return the arm gradually instead of dropping a full shoulder span.
-            rockPrepare=Mathf.MoveTowards(rockPrepare,MonsterRockMotion.Prepare(state),dt*2.5f);
-            float prepare=rockPrepare;
+            // Keep pickup progress monotonic so a delayed cue cannot put it back down.
+            if(dt>0)rockPickupAge=Mathf.Max(rockPickupAge,MonsterRockMotion.PickupAge(state));
+            float pickup=state.Enemy==EnemyPhase.Windup?MonsterRockMotion.Crouch(rockPickupAge):0;
+            float lift=MonsterRockMotion.Lift(rockPickupAge);
+            float prepareTarget=state.Enemy==EnemyPhase.Windup?MonsterRockMotion.Reach(rockPickupAge):MonsterRockMotion.Prepare(state);
+            rockPrepare=Mathf.MoveTowards(rockPrepare,prepareTarget,dt*2.5f);
+            float prepare=rockPrepare;pickup*=prepare;
             float throwT=state.Enemy==EnemyPhase.Attack?MonsterRockMotion.Smooth(state.EnemyAge/MonsterRockMotion.Launch):0;
             float recover=state.Enemy==EnemyPhase.Attack?1-MonsterRockMotion.Smooth((state.EnemyAge-.40f)/.55f):1;
-            upperSpine.rotation=Quaternion.AngleAxis((12-23*throwT)*prepare,side)*upperSpine.rotation;
+            Vector3 tailAnchor=tailJoints!=null&&tailJoints.Length>0?tailJoints[0].position:Vector3.zero;
+            Quaternion tailPose=tailJoints!=null&&tailJoints.Length>0?tailJoints[0].rotation:Quaternion.identity;
+            Vector3 leftPlant=leftFoot?leftFoot.position:Vector3.zero,rightPlant=rightFoot?rightFoot.position:Vector3.zero;
+            Quaternion leftPlantRotation=leftFoot?leftFoot.rotation:Quaternion.identity,rightPlantRotation=rightFoot?rightFoot.rotation:Quaternion.identity;
+            Root.position-=Vector3.up*(.75f*pickup);
+            if(pelvis)pelvis.rotation=Quaternion.AngleAxis(45*pickup,side)*pelvis.rotation;
+            upperSpine.rotation=Quaternion.AngleAxis(20*pickup+(12-23*throwT)*prepare*(1-pickup),side)*upperSpine.rotation;
+            if(head)head.rotation=Quaternion.AngleAxis(-25*pickup,side)*head.rotation;
             // Hold beside and in front of the head so the warning silhouette
             // remains visible from the fixed three-quarter battle camera.
-            Vector3 held=Root.position+Vector3.up*3.40f+forward*.80f+side*.45f;
+            Vector3 held=home+Vector3.up*3.40f+forward*.80f+side*.45f;
             Vector3 released=Root.position+Vector3.up*2.72f+forward*.93f+side*.10f;
-            PoseLimb(upperArm,forearm,hand,Vector3.Lerp(held,released,throwT),prepare*recover,side*.8f+Vector3.up*.15f,.4f);
+            Vector3 gathered=rockGroundPose.position-forward*.25f+Vector3.up*.12f;
+            Vector3 ready=state.Enemy==EnemyPhase.Windup?Vector3.Lerp(gathered,held,lift):held;
+            PoseLimb(upperArm,forearm,hand,Vector3.Lerp(ready,released,throwT),prepare*recover,side*.8f+forward*.35f,.08f);
             PoseLimb(leftUpperArm,leftForearm,leftHand,Root.position+forward*.56f-side*.60f+Vector3.up*1.9f,prepare,-side+Vector3.down*.3f,.4f);
             // Support the boulder on the palm, sharing the turn through the
             // forearm rather than twisting the wrist skin alone.
@@ -1752,6 +1768,25 @@ namespace UltramanGame.Runtime
                 hand.rotation=Quaternion.AngleAxis(roll,axis)*palm;
             }
             AlignClawWrists();
+            if(state.Enemy==EnemyPhase.Windup&&lift<1)
+            {
+                // Solve against the measured palm socket, not the wrist pivot.
+                // Keep the stone grounded until the claw has actually arrived.
+                for(int pass=0;pass<3;pass++)
+                {
+                    Quaternion palm=hand.rotation;
+                    Vector3 correction=(rockGroundPose.position-RockGrip.position)*(prepare*(1-lift));
+                    PoseLimb(upperArm,forearm,hand,hand.position+correction,1,side*.8f+forward*.35f,.08f);
+                    hand.rotation=palm;AlignClawWrists();
+                }
+            }
+            if(pickup>0&&leftFoot&&rightFoot)
+            {
+                PoseLimb(leftThigh,leftShin,leftFoot,leftPlant,1,forward-side*.3f,leftFootLocal.y);
+                PoseLimb(rightThigh,rightShin,rightFoot,rightPlant,1,forward+side*.3f,rightFootLocal.y);
+                leftFoot.rotation=leftPlantRotation;rightFoot.rotation=rightPlantRotation;
+                if(tailJoints!=null&&tailJoints.Length>0)tailJoints[0].SetPositionAndRotation(tailAnchor,tailPose);
+            }
         }
         void PoseHeadRay(Battle state,float dt)
         {
@@ -2817,7 +2852,7 @@ namespace UltramanGame.Runtime
                 // existing launch beat. Other attacks keep their claw shape.
                 if(side==1&&preview<0&&MonsterRockMotion.Active(state))
                 {
-                    float grip=MonsterRockMotion.Prepare(state)*(state.Enemy==EnemyPhase.Attack?
+                    float grip=Mathf.Max(MonsterRockMotion.Prepare(state),state.Enemy==EnemyPhase.Windup?Mathf.SmoothStep(0,1,(rockPickupAge-MonsterRockMotion.GraspAge+.12f)/.25f):0)*(state.Enemy==EnemyPhase.Attack?
                         1-Mathf.SmoothStep(0,1,(state.EnemyAge-(MonsterRockMotion.Launch-.07f))/.14f):1);
                     amount=Mathf.Lerp(amount,.52f,grip);
                 }

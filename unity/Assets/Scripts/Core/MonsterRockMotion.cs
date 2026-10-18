@@ -5,6 +5,12 @@ namespace UltramanGame.Core
     public static class MonsterRockMotion
     {
         public const float Launch=.22f,Contact=.78f;
+        public const float PickupSeconds=3.2f,GraspAge=1.05f,LiftAge=1.15f;
+        public static float PickupAge(Battle state)=>state.Enemy==EnemyPhase.Windup?
+            Math.Max(0,PickupSeconds-state.WarningDuration+state.EnemyAge):PickupSeconds;
+        public static float Reach(float age)=>Smooth(age/.8f);
+        public static float Lift(float age)=>Smooth((age-LiftAge)/1.4f);
+        public static float Crouch(float age)=>Reach(age)*(1-Lift(age));
         public static bool Variant(int attack)=>attack>0&&attack%6==2;
         public static bool Active(Battle state)=>state.Phase==GamePhase.Battle&&state.Enemy!=EnemyPhase.Rest&&
             Variant(state.EnemyAttackCount+(state.Enemy==EnemyPhase.Windup?1:0));
