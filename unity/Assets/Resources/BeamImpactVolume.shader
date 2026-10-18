@@ -24,7 +24,10 @@ Shader "Training/BeamImpactVolume" {
      body*=smoothstep(-.5,-.32,p.y)*(1-smoothstep(-.08,.45,p.y));
     }else{
      float r=length(p*float3(1,1.07,1));
-     body=(.39-r)*6+(n-.48)*1.85;
+     // Break up the solid cotton-ball centre into turbulent wisps.
+     // The bright contact owns the first beat; smoke builds behind it.
+     body=((.38-r)*5.5+(n-.52)*2.65)*smoothstep(.20,.57,n);
+     body*=lerp(.30,1,smoothstep(.04,.40,_Age));
     }
     float bounds=1-smoothstep(.43,.5,max(abs(p.x),max(abs(p.y),abs(p.z))));
     float fade=1-smoothstep(_Ground>.5?.65f:.75f,1.85,_Age);
@@ -48,16 +51,16 @@ Shader "Training/BeamImpactVolume" {
      if(d>.003){
       float lightDensity=density(p+float3(-.075,.09,-.07));
       float lighting=saturate(.40+(d-lightDensity)*1.6);
-      float3 color=lerp(float3(.07,.095,.125),float3(.46,.54,.62),lighting);
+      float3 color=lerp(float3(.07,.095,.125),float3(.32,.39,.46),lighting);
       if(_Ground>.5)color=lerp(float3(.11,.105,.095),float3(.40,.38,.34),lighting);
       #ifndef UNITY_COLORSPACE_GAMMA
        color=GammaToLinearSpace(color);
       #endif
       if(_Ground<.5){
-       float core=pow(saturate(1-length(p)*2.65),2)*(1-smoothstep(.08,.62,_Age));
-       color+=float3(1.2,2.8,4.5)*core;
+       float core=pow(saturate(1-length(p)*2.3),2)*(1-smoothstep(.06,.58,_Age));
+       color+=float3(1.8,3.5,5.2)*core;
       }
-      float alpha=1-exp(-d*stride*(_Ground>.5?1.7:3.2));
+      float alpha=1-exp(-d*stride*(_Ground>.5?1.7:2.5));
       result.rgb+=(1-result.a)*color*alpha;result.a+=(1-result.a)*alpha;
       if(result.a>.97)break;
      }

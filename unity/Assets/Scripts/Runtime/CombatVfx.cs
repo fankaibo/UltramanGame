@@ -154,7 +154,7 @@ namespace UltramanGame.Runtime
             bool localContact=punch||(hurt&&!special&&!blocked);
             // The shield surface already carries the contact wave; a second
             // camera-facing circle made it look detached from the barrier.
-            contactWaveAge=localContact||blocked?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
+            contactWaveAge=localContact||blocked||volumetric?10:0;contactWavePosition=position;contactWaveColor=blocked?Ice:hurt?Warm:special?new Color(.34f,.78f,1):new Color(1,.60f,.22f);
             contactWaveLife=special?.36f:blocked?.28f:combo?.25f:hurt?.23f:.20f;
             contactWaveSize=special?2.15f:blocked?1.22f:combo?1.08f:hurt?.92f:.82f;
             Burst(position,special?32:16,special?1.4f:.8f,hurt||(!blocked&&!special),localContact?-direction:Vector3.zero);
@@ -170,7 +170,7 @@ namespace UltramanGame.Runtime
             // A compact outward fan gives a normal punch the same readable
             // contact-to-release cadence as the finisher without adding a
             // second damage source or a persistent target marker.
-            int rayCount=localContact?(combo?8:6):blocked?0:special?(volumetric?6:14):7;
+            int rayCount=localContact?(combo?8:6):blocked?0:special?(volumetric?0:14):7;
             for(int i=0;i<rayCount;i++)
             {
                 var ray=hitRays[hitRayIndex++%hitRays.Length];
